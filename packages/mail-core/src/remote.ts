@@ -226,8 +226,9 @@ export function enqueueOp(d: MailData, op: OpInput): void {
     const keys = new Set(op.keys);
     for (const o of q) if (o.kind === 'flag' && o.account === op.account && o.folder === op.folder && o.flag === op.flag) o.keys = o.keys.filter((k) => !keys.has(k));
   }
-  if (op.kind === 'move' || op.kind === 'remove') {
-    // un mensaje que se mueve o se borra ya no necesita sus marcas pendientes
+  if (op.kind === 'remove') {
+    // un mensaje que se borra del todo ya no necesita sus marcas pendientes. Si solo se mueve, sí: van antes en la cola
+    // (con la clave aún válida) y sin ellas llegaría a la carpeta de destino sin leer y la sincronización lo desmarcaría aquí
     const keys = new Set(op.keys);
     for (const o of q) if (o.kind === 'flag' && o.account === op.account && o.folder === op.folder) o.keys = o.keys.filter((k) => !keys.has(k));
   }

@@ -218,11 +218,19 @@ describe('cola de cambios pendientes', () => {
     enqueueOp(d, { account: 'a', kind: 'flag', folder: 'INBOX', keys: ['1'], flag: '\\Seen', on: false });
     expect(d.pending!.map((o) => (o as { keys: string[]; on: boolean }).keys.join() + (o as { on: boolean }).on)).toEqual(['2true', '1false']);
     enqueueOp(d, { account: 'a', kind: 'move', folder: 'INBOX', keys: ['2'], to: 'Trash' });
-    expect(d.pending!.map((o) => o.kind)).toEqual(['flag', 'move']);
+    expect(d.pending!.map((o) => o.kind)).toEqual(['flag', 'flag', 'move']);
     enqueueOp(d, { account: 'a', kind: 'move', folder: 'INBOX', keys: ['5'], to: 'Trash' });
-    expect(d.pending![1]).toMatchObject({ keys: ['2', '5'] });
+    expect(d.pending![2]).toMatchObject({ keys: ['2', '5'] });
     enqueueOp(d, { account: 'a', kind: 'move', folder: 'INBOX', keys: ['6'], to: 'Archive' });
-    expect(d.pending).toHaveLength(3);
+    expect(d.pending).toHaveLength(4);
+    enqueueOp(d, { account: 'a', kind: 'remove', folder: 'INBOX', keys: ['1'] });
+    expect(d.pending!.map((o) => o.kind)).toEqual(['flag', 'move', 'move', 'remove']);
+  });
+  it('leer un mensaje y moverlo antes de enviar el cambio: la marca sale antes del movimiento', () => {
+    const d = newMailData();
+    enqueueOp(d, { account: 'a', kind: 'flag', folder: 'INBOX', keys: ['7'], flag: '\\Seen', on: true });
+    enqueueOp(d, { account: 'a', kind: 'move', folder: 'INBOX', keys: ['7'], to: 'Archive' });
+    expect(d.pending!.map((o) => [o.kind, (o as { keys: string[] }).keys.join()])).toEqual([['flag', '7'], ['move', '7']]);
   });
   it('se guarda en el archivo y lo dañado se descarta; los mensajes antiguos con UID se convierten', () => {
     const d = newMailData();
