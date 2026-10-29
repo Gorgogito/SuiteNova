@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SuiteNova",
+  "version": "0.0.11",
+  "identifier": "org.suitenova.app",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      { "label": "main", "title": "SuiteNova", "width": 1100, "height": 620, "center": true, "minWidth": 640, "minHeight": 420 }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data: ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "license": "MPL-2.0",
+    "licenseFile": "../../../LICENSE",
+    "publisher": "SuiteNova",
+    "copyright": "SuiteNova – MPL-2.0",
+    "category": "Productivity",
+    "shortDescription": "Suite ofimática libre: texto, hojas de cálculo, presentaciones, bases de datos, notas, correo, diagramas, proyectos y formularios",
+    "fileAssociations": [
+      { "ext": ["novanotes"], "name": "Libreta de Nova Notes", "description": "Libreta de Nova Notes", "role": "Editor" },
+      { "ext": ["novamail"], "name": "Datos de Nova Mail", "description": "Datos de Nova Mail", "role": "Editor" },
+      { "ext": ["novaplan"], "name": "Proyecto de Nova Plan", "description": "Proyecto de Nova Plan", "role": "Editor" },
+      { "ext": ["novadiagram"], "name": "Diagrama de Nova Diagram", "description": "Diagrama de Nova Diagram", "role": "Editor" },
+      { "ext": ["novaforms"], "name": "Formulario de Nova Forms", "description": "Formulario de Nova Forms", "role": "Editor" }
+    ],
+    "windows": {
+      "nsis": { "installMode": "currentUser", "languages": ["Spanish", "English"], "displayLanguageSelector": false },
+      "wix": { "language": ["es-ES", "en-US"] }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@suitenova/base-core",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MPL-2.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": { "typecheck": "tsc -p tsconfig.json", "test": "vitest run" },
+  "dependencies": { "sql.js": "^1.15.0" },
+  "devDependencies": { "@types/node": "^22.0.0", "@types/sql.js": "^1.4.9", "vitest": "^3.2.0" }
+}

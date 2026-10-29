@@ -1,0 +1,5 @@
+Motor de OCR incluido en Nova Notes (se sirve desde la propia aplicacion; no se descarga nada).
+
+- tesseract.js (Apache-2.0) - worker.min.js - LICENSE-tesseract.js.txt
+- tesseract.js-core (Apache-2.0, motor Tesseract compilado a WebAssembly) - tesseract-core-*.wasm.js - LICENSE-tesseract.js-core.txt
+- Datos de idioma (@tesseract.js-data/eng y /spa, MIT; modelos tessdata_best de Tesseract, Apache-2.0) - lang/*.traineddata.gz

@@ -1,0 +1,45 @@
+[package]
+name = "suitenova"
+version = "0.0.11"
+description = "SuiteNova – suite ofimática libre"
+license = "MPL-2.0"
+edition = "2021"
+
+[lib]
+name = "suitenova_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# correo: IMAP y SMTP con TLS del sistema (SChannel en Windows, Security.framework en macOS, OpenSSL en Linux)
+imap = "2.4"
+native-tls = "0.2"
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "native-tls"] }
+base64 = "0.22"
+# OAuth 2.0 (PKCE con redirección a este equipo) y los protocolos JMAP y Exchange (HTTP con el TLS del sistema)
+ureq = { version = "2", default-features = false, features = ["native-tls", "json"] }
+sha2 = "0.10"
+getrandom = "0.2"
+webbrowser = "1"
+quick-xml = "0.37"
+
+# contraseñas en el almacén seguro del sistema
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true

@@ -1,0 +1,589 @@
+/* SuiteNova core UI. Colours come from Fluent tokens set by <FluentProvider>, so every theme works. */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/* Fluent copies the provider className onto every portal mount node, so layout lives on an inner wrapper. */
+#root > .fui-FluentProvider {
+  height: 100%;
+}
+.nv-root {
+  height: 100%;
+  font-family: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  user-select: none;
+}
+
+.nv-frame {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground1);
+}
+
+/* ---- title bar ---- */
+.nv-titlebar {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(180px, 1fr);
+  align-items: center;
+  height: 34px;
+  padding: 0 8px;
+  background: var(--nv-accent);
+  color: #fff;
+}
+.nv-title {
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40vw;
+}
+.nv-qat {
+  display: flex;
+  gap: 2px;
+}
+.nv-qat__btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.nv-qat__btn:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.2);
+}
+.nv-qat__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---- tell me ---- */
+.nv-tellme {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: end;
+  width: 100%;
+  max-width: 280px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.18);
+  color: #fff;
+}
+.nv-tellme:focus-within {
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+}
+.nv-tellme input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  user-select: text;
+}
+.nv-tellme input::placeholder {
+  color: inherit;
+  opacity: 0.85;
+}
+.nv-tellme__list {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  z-index: 50;
+  width: 320px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border-radius: 6px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  box-shadow: var(--shadow16);
+}
+.nv-tellme__list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.nv-tellme__list li.is-active,
+.nv-tellme__list li:hover {
+  background: var(--colorNeutralBackground1Hover);
+}
+.nv-tellme__list li span {
+  flex: 1;
+}
+.nv-tellme__list kbd {
+  font: inherit;
+  font-size: 11px;
+  color: var(--colorNeutralForeground3);
+}
+.nv-tellme__empty {
+  padding: 8px;
+  color: var(--colorNeutralForeground3);
+}
+
+/* ---- ribbon ---- */
+.nv-ribbon {
+  position: relative;
+  z-index: 10;
+  background: var(--colorNeutralBackground1);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.nv-ribbon__tabs {
+  display: flex;
+  align-items: flex-end;
+  height: 30px;
+  padding: 0 4px;
+  background: var(--colorNeutralBackground2);
+}
+.nv-tabstrip {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+.nv-tab {
+  position: relative;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--colorNeutralForeground2);
+  font: inherit;
+  cursor: pointer;
+}
+.nv-tab:hover {
+  background: var(--colorNeutralBackground2Hover);
+}
+.nv-tab.is-active {
+  background: var(--colorNeutralBackground1);
+  border-bottom-color: var(--nv-accent);
+  color: var(--colorNeutralForeground1);
+  font-weight: 600;
+}
+.nv-tab--file {
+  margin-right: 4px;
+  background: var(--nv-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.nv-tab--file:hover {
+  background: var(--nv-accent);
+  filter: brightness(1.12);
+}
+.nv-tab--contextual {
+  border-top: 3px solid var(--nv-ctx);
+}
+.nv-tab__ctx {
+  position: absolute;
+  top: -15px;
+  left: 0;
+  font-size: 10px;
+  color: var(--nv-ctx);
+  white-space: nowrap;
+}
+.nv-ribbon__pin {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 26px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--colorNeutralForeground2);
+  cursor: pointer;
+}
+.nv-ribbon__pin:hover {
+  background: var(--colorNeutralBackground2Hover);
+}
+.nv-ribbon__popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--colorNeutralBackground1);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  box-shadow: var(--shadow16);
+}
+.nv-ribbon__body {
+  display: flex;
+  align-items: stretch;
+  height: 96px;
+  padding: 4px 6px 2px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* ---- groups ---- */
+.nv-group {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  padding: 0 6px;
+  border-right: 1px solid var(--colorNeutralStroke2);
+}
+.nv-group--collapsed {
+  justify-content: center;
+}
+.nv-group__columns {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+  gap: 2px;
+}
+.nv-group__label {
+  padding-top: 2px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--colorNeutralForeground3);
+  white-space: nowrap;
+}
+.nv-group-popover {
+  padding: 6px;
+}
+.nv-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.nv-col--stack {
+  justify-content: space-between;
+}
+.nv-col-sep {
+  width: 1px;
+  margin: 6px 4px;
+  background: var(--colorNeutralStroke2);
+}
+.nv-custom {
+  position: relative;
+}
+
+/* ---- buttons ---- */
+.nv-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--colorNeutralForeground1);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.nv-btn:hover:not(:disabled) {
+  background: var(--colorNeutralBackground1Hover);
+  border-color: var(--colorNeutralStroke2);
+}
+.nv-btn:active:not(:disabled) {
+  background: var(--colorNeutralBackground1Pressed);
+}
+.nv-btn:focus-visible {
+  outline: 2px solid var(--nv-accent);
+  outline-offset: 1px;
+}
+.nv-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.nv-btn[aria-pressed='true'] {
+  background: var(--colorBrandBackground2);
+  border-color: var(--colorBrandStroke1);
+}
+.nv-btn--large {
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2px;
+  min-width: 52px;
+  height: 100%;
+  padding: 4px 6px;
+  text-align: center;
+  line-height: 1.15;
+}
+.nv-btn--large .nv-btn__label {
+  max-width: 72px;
+  white-space: normal;
+}
+.nv-btn--small {
+  height: 24px;
+  padding: 0 6px;
+}
+.nv-btn__chevron {
+  opacity: 0.7;
+}
+.nv-split {
+  display: inline-flex;
+}
+.nv-split--large {
+  flex-direction: column;
+  height: 100%;
+}
+.nv-split--large > .nv-btn:first-child {
+  flex: 1;
+  min-height: 0;
+}
+.nv-btn--chevron {
+  justify-content: center;
+  height: 14px;
+  padding: 0;
+}
+.nv-menu-header {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--colorNeutralForeground3);
+}
+.nv-tooltip {
+  max-width: 240px;
+  font-size: 12px;
+}
+
+/* ---- keytips ---- */
+.nv-keytip {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  z-index: 100;
+  transform: translateX(-50%);
+  min-width: 14px;
+  padding: 1px 4px;
+  border: 1px solid var(--colorNeutralForeground1);
+  border-radius: 3px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  pointer-events: none;
+}
+.nv-keytip--tab {
+  bottom: -10px;
+}
+
+/* ---- content & status ---- */
+.nv-content {
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+  user-select: text;
+}
+.nv-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  padding: 0 10px;
+  background: var(--colorNeutralBackground3);
+  border-top: 1px solid var(--colorNeutralStroke2);
+  font-size: 12px;
+}
+.nv-status__left,
+.nv-status__right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.nv-zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.nv-zoom button {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.nv-zoom button:hover {
+  background: var(--colorNeutralBackground3Hover);
+}
+.nv-zoom input[type='range'] {
+  width: 110px;
+  accent-color: var(--nv-accent);
+}
+.nv-zoom__value {
+  width: 44px;
+}
+
+/* ---- backstage ---- */
+.nv-backstage {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  background: var(--colorNeutralBackground1);
+}
+.nv-backstage__nav {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  background: var(--nv-accent);
+  color: #fff;
+}
+.nv-backstage__nav hr {
+  width: 85%;
+  border: 0;
+  border-top: 1px solid rgb(255 255 255 / 0.3);
+}
+.nv-backstage__back {
+  align-self: flex-start;
+  margin: 0 0 10px 12px;
+  padding: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.nv-backstage__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.nv-backstage__item:hover:not(:disabled),
+.nv-backstage__item.is-active {
+  background: rgb(255 255 255 / 0.18);
+}
+.nv-backstage__item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.nv-backstage__content {
+  min-width: 0;
+  padding: 24px 40px;
+  overflow: auto;
+  user-select: text;
+}
+
+@media (forced-colors: active) {
+  .nv-titlebar,
+  .nv-tab--file,
+  .nv-backstage__nav {
+    background: ButtonFace;
+    color: ButtonText;
+    border-bottom: 1px solid ButtonText;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nv-btn,
+  .nv-tab {
+    transition: background-color 80ms ease-out;
+  }
+}
+
+.nv-content--fill {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* composite ribbon groups (several rows of small controls) */
+.nv-rows {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+}
+.nv-row {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.nv-select {
+  height: 22px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 3px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  font: inherit;
+  font-size: 12px;
+}
+.nv-select:focus-visible {
+  outline: 2px solid var(--nv-accent);
+  outline-offset: 0;
+}
+.nv-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: var(--colorNeutralStroke2);
+}
+.nv-swatches {
+  display: grid;
+  grid-template-columns: repeat(12, 18px);
+  gap: 2px;
+  padding: 4px;
+}
+.nv-swatches button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.nv-swatches button:hover {
+  outline: 2px solid var(--nv-accent);
+}
+.nv-colorbtn {
+  position: relative;
+}
+.nv-colorbar {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 1px;
+  height: 3px;
+  border-radius: 1px;
+}
+
+/* a contextual tab group shows its title in a strip above the tabs */
+.nv-ribbon__tabs.has-ctx {
+  height: 46px;
+}
+.nv-ribbon__tabs.has-ctx .nv-tab__ctx {
+  top: -15px;
+  font-weight: 600;
+}

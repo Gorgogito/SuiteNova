@@ -1,0 +1,380 @@
+/* ---- body: grid and the pivot field list side by side ---- */
+.calc-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.calc-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.calc-main > .calc-grid {
+  flex: 1;
+}
+
+/* ---- security bar ---- */
+.calc-secbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #fff4ce;
+  color: #5c4400;
+  border-bottom: 1px solid #e0c36a;
+  font-size: 13px;
+}
+.calc-secbar button {
+  padding: 3px 12px;
+  border: 1px solid #b38b00;
+  border-radius: 4px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .calc-secbar {
+    background: #4a3c00;
+    color: #ffe9a0;
+    border-color: #7a6200;
+  }
+  :root:not([data-theme='light']) .calc-secbar button {
+    background: #2b2200;
+    border-color: #a08400;
+  }
+}
+:root[data-theme='dark'] .calc-secbar {
+  background: #4a3c00;
+  color: #ffe9a0;
+  border-color: #7a6200;
+}
+:root[data-theme='dark'] .calc-secbar button {
+  background: #2b2200;
+  border-color: #a08400;
+}
+
+/* ---- pictures, slicers, notes, hints ---- */
+.calc-picture {
+  position: absolute;
+  box-sizing: border-box;
+  touch-action: none;
+  pointer-events: auto;
+}
+.calc-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  display: block;
+}
+.calc-picture.is-selected {
+  outline: 2px solid var(--nv-accent);
+}
+.calc-chart__svg svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.calc-slicer {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--colorNeutralStroke1);
+  background: var(--colorNeutralBackground1);
+  box-shadow: var(--shadow4);
+  pointer-events: auto;
+  touch-action: none;
+  overflow: hidden;
+}
+.calc-slicer.is-selected {
+  outline: 2px solid var(--nv-accent);
+}
+.calc-slicer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  background: var(--colorNeutralBackground3);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  cursor: move;
+}
+.calc-slicer__head button {
+  border: 0;
+  background: transparent;
+  padding: 2px;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--colorNeutralForeground2);
+}
+.calc-slicer__head button.is-on {
+  background: var(--nv-accent);
+  color: #fff;
+}
+.calc-slicer__head button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.calc-slicer__items {
+  display: grid;
+  gap: 3px;
+  padding: 5px;
+  overflow: auto;
+  align-content: start;
+  flex: 1;
+}
+.calc-slicer__items button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+}
+.calc-slicer__items button.is-picked {
+  background: var(--nv-accent);
+  border-color: var(--nv-accent);
+  color: #fff;
+}
+.calc-slicer__items button.is-off {
+  color: var(--colorNeutralForeground4);
+  background: var(--colorNeutralBackground3);
+}
+.calc-note {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  background: #ffffe1;
+  color: #1b1b1b;
+  border: 1px solid #8a8a8a;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+.calc-hint {
+  position: absolute;
+  z-index: 20;
+  max-width: 260px;
+  padding: 5px 8px;
+  background: #ffffe1;
+  color: #1b1b1b;
+  border: 1px solid #8a8a8a;
+  box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+  pointer-events: none;
+}
+.calc-listmenu {
+  position: fixed;
+  z-index: 1200;
+  margin: 0;
+  padding: 2px 0;
+  max-height: 260px;
+  overflow: auto;
+  list-style: none;
+  background: var(--colorNeutralBackground1);
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 4px;
+  box-shadow: var(--shadow16);
+  font-size: 13px;
+}
+.calc-listmenu li {
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.calc-listmenu li:hover {
+  background: var(--colorNeutralBackground1Hover);
+}
+.calc-listmenu li.is-current {
+  background: var(--colorBrandBackground2);
+}
+.calc-listmenu li.is-empty {
+  color: var(--colorNeutralForeground3);
+  cursor: default;
+}
+
+/* ---- pivot field list ---- */
+.calc-pane {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 290px;
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground2);
+  font-size: 12px;
+}
+.calc-pane header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.calc-pane__x {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+}
+.calc-pane__hint {
+  margin: 6px 10px;
+  color: var(--colorNeutralForeground3);
+}
+.calc-pane__fields {
+  display: flex;
+  flex-direction: column;
+  max-height: 200px;
+  overflow: auto;
+  padding: 0 10px;
+}
+.calc-pane__fields label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  cursor: grab;
+}
+.calc-pane__areas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+.calc-pane__areas section {
+  min-height: 70px;
+  padding: 4px;
+  border: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground1);
+}
+.calc-pane__areas h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+.calc-pane__areas ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.calc-pane__areas li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 0;
+}
+.calc-pane__areas li span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calc-pane__areas li button {
+  border: 0;
+  background: transparent;
+  padding: 1px;
+  cursor: pointer;
+  color: var(--colorNeutralForeground2);
+}
+.calc-pane__areas li button:disabled {
+  opacity: 0.3;
+}
+.calc-pane__areas li select {
+  width: 26px;
+  font-size: 11px;
+  border: 0;
+  background: transparent;
+  color: var(--colorNeutralForeground2);
+}
+.calc-pane__err {
+  margin: 0 10px 8px;
+  color: var(--colorPaletteRedForeground1);
+}
+
+/* ---- macro editor ---- */
+.calc-mac__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.calc-mac__sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--colorNeutralStroke2);
+}
+.calc-mac__hint {
+  color: var(--colorNeutralForeground3);
+}
+.calc-mac__ok {
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-left: 3px solid var(--colorPaletteGreenForeground1);
+  background: var(--colorNeutralBackground2);
+}
+.calc-mac__error {
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-left: 3px solid var(--colorPaletteRedForeground1);
+  background: var(--colorNeutralBackground2);
+}
+.calc-mac__editor {
+  display: flex;
+  height: 280px;
+  border: 1px solid var(--colorNeutralStroke1);
+  background: var(--colorNeutralBackground1);
+}
+.calc-mac__gutter {
+  width: 44px;
+  overflow: hidden;
+  padding: 6px 4px;
+  text-align: right;
+  color: var(--colorNeutralForeground3);
+  background: var(--colorNeutralBackground2);
+  font: 13px/18px Consolas, 'Courier New', monospace;
+  user-select: none;
+}
+.calc-mac__gutter .is-bad {
+  color: var(--colorPaletteRedForeground1);
+  font-weight: 700;
+}
+.calc-mac__code {
+  flex: 1;
+  padding: 6px 8px;
+  border: 0;
+  resize: none;
+  outline: none;
+  background: transparent;
+  color: var(--colorNeutralForeground1);
+  font: 13px/18px Consolas, 'Courier New', monospace;
+  tab-size: 4;
+}
+.calc-mac__console {
+  margin-top: 8px;
+}
+.calc-mac__consolebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.calc-mac__out {
+  height: 90px;
+  margin: 0 0 4px;
+  padding: 4px 8px;
+  overflow: auto;
+  background: var(--colorNeutralBackground2);
+  border: 1px solid var(--colorNeutralStroke2);
+  font: 12px/16px Consolas, 'Courier New', monospace;
+}

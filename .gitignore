@@ -1,0 +1,8 @@
+node_modules/
+dist/
+target/
+*.log
+.vite/
+apps/suite/src-tauri/gen/
+instaladores/
+*.bak
