@@ -48,6 +48,13 @@ const fresh = async (t) => {
 };
 const tab = (n) => page.getByRole('tab', { name: n, exact: true }).click();
 const html = () => ev(() => window.__novaWriter.ctl.mainView.dom.innerHTML);
+// arrows move the browser caret; ProseMirror learns it from selectionchange, which can arrive after the next key
+const syncSel = () =>
+  page.waitForFunction(() => {
+    const v = window.__novaWriter.ctl.mainView;
+    const s = getSelection();
+    return !!s.anchorNode && v.state.selection.head === v.posAtDOM(s.focusNode, s.focusOffset);
+  });
 
 await check('comments: add from the ribbon, edit in the pane, reply, resolve, delete', async () => {
   await fresh('Primera frase de prueba');
@@ -116,6 +123,7 @@ await check('track changes: typing and deleting leave marks; accept all and reje
   // delete the word "mundo" (original text): it stays, struck through
   await page.keyboard.press('Control+Home');
   for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+  await syncSel();
   await page.keyboard.press('Delete');
   await page.keyboard.press('Delete');
   assert.ok((await page.locator('.nw-doc del.nw-del').count()) >= 1);

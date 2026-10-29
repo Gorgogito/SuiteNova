@@ -3,6 +3,9 @@
 import { chromium } from '../apps/suite/node_modules/playwright-core/index.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const writerCore = '/@fs/' + path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../packages/writer-core/src/index.ts').replace(/\\/g, '/');
 
 const [out, ...files] = process.argv.slice(2);
 fs.mkdirSync(out, { recursive: true });
@@ -20,11 +23,11 @@ for (const f of files) {
   const t0 = Date.now();
   await page.evaluate(([b, n]) => window.__novaWriter.load(b, n), [b64, path.basename(f)]);
   await page.waitForTimeout(1500);
-  const info = await page.evaluate(async () => {
+  const info = await page.evaluate(async (writerCore) => {
     const { ctl } = window.__novaWriter;
     const q = (s) => document.querySelectorAll(`.nw-doc ${s}`).length;
     const doc = ctl.toWriterDoc();
-    const w = await import('/@fs/C:/JTorres/IA/SuiteNova/packages/writer-core/src/index.ts');
+    const w = await import(writerCore);
     const { data, warnings } = await w.writeDocx(doc);
     const back = await w.readDocx(data);
     return {
@@ -33,7 +36,7 @@ for (const f of files) {
       writeWarnings: warnings, sameTextAfterRoundTrip: back.doc.body.textContent === doc.body.textContent, bytes: data.length,
       overflowX: document.querySelector('.nw-scroll').scrollWidth > document.querySelector('.nw-scroll').clientWidth + 2,
     };
-  });
+  }, writerCore);
   await page.screenshot();
   await page.screenshot({ path: path.join(out, path.basename(f) + '.png') });
   const html = await page.evaluate(() => window.__novaWriter.printHtml());
