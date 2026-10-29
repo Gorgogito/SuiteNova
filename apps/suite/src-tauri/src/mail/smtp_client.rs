@@ -2,7 +2,9 @@ use super::account::{Account, Security};
 use super::backend::Creds;
 use lettre::address::Envelope;
 use lettre::transport::smtp::authentication::{Credentials, Mechanism};
-use lettre::transport::smtp::client::{Certificate, Tls, TlsParameters};
+#[cfg(debug_assertions)]
+use lettre::transport::smtp::client::Certificate;
+use lettre::transport::smtp::client::{Tls, TlsParameters};
 use lettre::{Address, SmtpTransport, Transport};
 use std::time::Duration;
 
@@ -13,6 +15,7 @@ fn transport(account: &Account, creds: &Creds) -> Result<SmtpTransport, String> 
     let sv = &account.smtp;
     let host = sv.host.trim();
     let tls = || -> Result<TlsParameters, String> {
+        #[cfg_attr(not(debug_assertions), allow(unused_mut))]
         let mut b = TlsParameters::builder(host.to_string());
         // Solo en compilaciones de depuración y solo para pruebas: una autoridad de certificación propia.
         #[cfg(debug_assertions)]
