@@ -33,7 +33,7 @@ function InfoPage({ title }: { title: string }) {
   return (
     <div className="page">
       <h1>{title}</h1>
-      <p>{t('about.version', { version: '0.0.11' })}</p>
+      <p>{t('about.version', { version: '0.0.12' })}</p>
       <p>{t('about.license')}</p>
     </div>
   );
