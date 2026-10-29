@@ -197,9 +197,11 @@ body,
 }
 .nv-tab__ctx {
   position: absolute;
-  top: -15px;
+  top: -17px;
   left: 0;
   font-size: 10px;
+  /* a line of its own height, so the text sits above the 3px coloured border instead of on it */
+  line-height: 12px;
   color: var(--nv-ctx);
   white-space: nowrap;
 }
@@ -584,6 +586,5 @@ body,
   height: 46px;
 }
 .nv-ribbon__tabs.has-ctx .nv-tab__ctx {
-  top: -15px;
   font-weight: 600;
 }
