@@ -444,12 +444,15 @@ body,
   z-index: 200;
   display: grid;
   grid-template-columns: 240px 1fr;
+  /* one row as tall as the window: a long menu scrolls on its own, without carrying the page out of view */
+  grid-template-rows: minmax(0, 1fr);
   background: var(--colorNeutralBackground1);
 }
 .nv-backstage__nav {
   display: flex;
   flex-direction: column;
   padding: 8px 0;
+  overflow-y: auto;
   background: var(--nv-accent);
   color: #fff;
 }

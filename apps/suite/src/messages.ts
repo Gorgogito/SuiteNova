@@ -43,7 +43,7 @@ registerMessages('es', {
   'hub.recent.clear': 'Borrar la lista',
   'shell.banner': 'Este módulo todavía no tiene funciones de edición. Se implementa en la Fase {phase} de la hoja de ruta.',
   'shell.shortcuts.title': 'Atajos de teclado',
-  'about.version': 'Versión {version} (fase 0 – cimientos)',
+  'about.version': 'Versión {version}',
   'about.license': 'Licencia MPL-2.0. Software libre, sin suscripciones.',
   'shell.docTitle': 'Sin título',
 });
@@ -91,7 +91,7 @@ registerMessages('en', {
   'hub.recent.clear': 'Clear the list',
   'shell.banner': 'This module has no editing features yet. It is implemented in Phase {phase} of the roadmap.',
   'shell.shortcuts.title': 'Keyboard shortcuts',
-  'about.version': 'Version {version} (phase 0 – foundations)',
+  'about.version': 'Version {version}',
   'about.license': 'MPL-2.0 licence. Free software, no subscriptions.',
   'shell.docTitle': 'Untitled',
 });
