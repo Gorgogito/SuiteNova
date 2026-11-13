@@ -336,6 +336,62 @@ describe('formulas in files', () => {
   });
 });
 
+describe('shapes and text boxes', () => {
+  const shapes = () => [
+    { id: 's1', kind: 'rect', x: 40, y: 30, width: 120, height: 60, fill: '#ff0000', line: { color: '#00ff00', width: 2.5 }, text: 'Hola\nmundo', textColor: '#ffffff', fontSize: 14, bold: true, italic: true, hAlign: 'right', vAlign: 'top', name: 'Caja', alt: 'Una caja' },
+    { id: 's2', kind: 'ellipse', x: 200, y: 30, width: 80, height: 80, fill: null, line: null },
+    { id: 's3', kind: 'textBox', x: 40, y: 150, width: 200, height: 40, text: 'Nota & <importante>' },
+    { id: 's4', kind: 'rightArrow', x: 300, y: 150, width: 90, height: 50 },
+    { id: 's5', kind: 'line', x: 40, y: 220, width: 150, height: 40, line: { color: '#123456', width: 3 }, flip: true },
+    { id: 's6', kind: 'roundRect', x: 220, y: 220, width: 90, height: 50, text: 'ok' },
+  ];
+
+  it('round-trips every kind with its fill, outline, text and position', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.editObjects(id, (s) => void s.shapes.push(...(shapes() as never[])));
+    const r = await roundTrip(w);
+    const back = r.workbook.sheets[0]!.shapes;
+    expect(back).toHaveLength(6);
+    const by = (k: string) => back.find((x) => x.kind === k)!;
+    expect(by('rect')).toMatchObject({ fill: '#ff0000', line: { color: '#00ff00', width: 2.5 }, text: 'Hola\nmundo', textColor: '#ffffff', fontSize: 14, bold: true, italic: true, hAlign: 'right', vAlign: 'top', name: 'Caja', alt: 'Una caja' });
+    expect(by('ellipse')).toMatchObject({ fill: null, line: null });
+    expect(by('textBox').text).toBe('Nota & <importante>');
+    expect(by('line')).toMatchObject({ flip: true, line: { color: '#123456', width: 3 } });
+    expect(by('rightArrow').kind).toBe('rightArrow');
+    // posición y tamaño dentro de un píxel
+    for (const o of shapes()) {
+      const b = back.find((x) => x.kind === o.kind)!;
+      expect(Math.abs(b.x - o.x), o.kind).toBeLessThan(2);
+      expect(Math.abs(b.y - o.y), o.kind).toBeLessThan(2);
+      expect(Math.abs(b.width - o.width), o.kind).toBeLessThan(2);
+      expect(Math.abs(b.height - o.height), o.kind).toBeLessThan(2);
+    }
+    const xml = await JSZip.loadAsync(r.bytes).then((z) => z.file('xl/drawings/drawing1.xml')!.async('string'));
+    expect(xml).toContain('<xdr:cxnSp');
+    expect(xml).toContain('txBox="1"');
+    expect(xml).toContain('prst="roundRect"');
+    expect(r.warnings).toEqual([]);
+  });
+
+  it('reads a shape the way Excel writes it (theme style, no explicit fill) and warns about presets it cannot draw', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.editObjects(id, (s) => void s.shapes.push({ id: 'a', kind: 'rect', x: 10, y: 10, width: 50, height: 50 } as never));
+    const zip = await JSZip.loadAsync(await writeXlsx(w));
+    const path = 'xl/drawings/drawing1.xml';
+    let xml = await zip.file(path)!.async('string');
+    // sin relleno ni línea propios + estilo del tema, como los inserta Excel; y una estrella que no se dibuja
+    xml = xml.replace(/<xdr:spPr>.*?<\/xdr:spPr>/s, '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="476250" cy="476250"/></a:xfrm><a:prstGeom prst="star5"><a:avLst/></a:prstGeom></xdr:spPr><xdr:style/>').replace('<xdr:cNvSpPr/>', '<xdr:cNvSpPr/>');
+    zip.file(path, xml);
+    const { workbook, warnings } = await readXlsx(await zip.generateAsync({ type: 'uint8array' }));
+    const s = workbook.sheets[0]!.shapes[0]!;
+    expect(s.kind).toBe('rect');
+    expect(s.fill).toBe('#4472c4');
+    expect(warnings.join(' ')).toMatch(/geometría/);
+  });
+});
+
 describe('charts', () => {
   const sample = () => {
     const { w, id } = book({ A1: 'Mes', B1: 'Ventas', C1: 'Margen', D1: 'Precio', A2: 'Ene', B2: '10', C2: '0.1', D2: '5', A3: 'Feb', B3: '20', C3: '0.3', D3: '6', A4: 'Mar', B4: '15', C4: '0.2', D4: '7' });
@@ -349,6 +405,91 @@ describe('charts', () => {
     const r = await roundTrip(w);
     return { chart: r.workbook.sheets[0]!.charts[0]!, bytes: r.bytes, warnings: r.warnings };
   };
+
+  it('Excel 2016 charts (waterfall, funnel, histogram, box and whisker) go through chartex parts', async () => {
+    const cases: ChartDef[] = [
+      { ...base, type: 'waterfall', title: 'Puente', legend: true, waterfall: { totals: [0, 2], connectors: true }, series: [ser('B')] },
+      { ...base, type: 'funnel', legend: false, series: [ser('B')] },
+      { ...base, type: 'histogram', legend: false, histogram: { binWidth: 5, underflow: 10, overflow: 20, closed: 'left' }, series: [{ values: 'Datos!$B$2:$B$4' }] },
+      { ...base, type: 'histogram', legend: false, histogram: { binCount: 4 }, series: [{ values: 'Datos!$B$2:$B$4' }] },
+      { ...base, type: 'boxwhisker', legend: false, boxwhisker: { inclusive: true, mean: false, outliers: false, inner: true }, series: [ser('B')] },
+    ];
+    for (const def of cases) {
+      const { chart, bytes } = await through(def);
+      expect(chart.type, def.type).toBe(def.type);
+      expect(chart.series[0]!.values).toBe(def.series[0]!.values);
+      if (def.waterfall) expect(chart.waterfall).toEqual(def.waterfall);
+      if (def.histogram) expect(chart.histogram).toEqual(def.histogram);
+      if (def.boxwhisker) expect(chart.boxwhisker).toEqual(def.boxwhisker);
+      if (def.title) expect(chart.title).toBe(def.title);
+      const zip = await JSZip.loadAsync(bytes);
+      const names = Object.keys(zip.files);
+      expect(names.some((n) => /^xl\/charts\/chartEx\d+\.xml$/.test(n)), def.type).toBe(true);
+      expect(names.some((n) => /^xl\/charts\/chart\d+\.xml$/.test(n))).toBe(false);
+      const drawing = await zip.file('xl/drawings/drawing1.xml')!.async('string');
+      expect(drawing).toContain('<mc:AlternateContent');
+      expect(drawing).toContain('Requires="cx1"');
+      const ct = await zip.file('[Content_Types].xml')!.async('string');
+      expect(ct).toContain('application/vnd.ms-office.chartex+xml');
+      const rels = await zip.file('xl/drawings/_rels/drawing1.xml.rels')!.async('string');
+      expect(rels).toContain('http://schemas.microsoft.com/office/2014/relationships/chartEx');
+    }
+    const { bytes } = await through(cases[0]!);
+    const ex = await JSZip.loadAsync(bytes).then((z) => z.file('xl/charts/chartEx1.xml')!.async('string'));
+    expect(ex).toContain('<cx:series layoutId="waterfall"');
+    expect(ex).toContain('<cx:subtotals><cx:idx val="0"/><cx:idx val="2"/></cx:subtotals>');
+    expect(ex.indexOf('<cx:chartData>')).toBeLessThan(ex.indexOf('<cx:chart>'));
+    const hist = await through(cases[2]!).then((r) => JSZip.loadAsync(r.bytes)).then((z) => z.file('xl/charts/chartEx1.xml')!.async('string'));
+    expect(hist).toContain('layoutId="clusteredColumn"');
+    expect(hist).toContain('<cx:binning intervalClosed="l" underflow="10" overflow="20"><cx:binSize val="5"/></cx:binning>');
+  });
+
+  it('trendlines and error bars: written in the schema order and read back', async () => {
+    const def: ChartDef = {
+      ...base,
+      type: 'column',
+      series: [
+        ser('B', {
+          trendlines: [{ type: 'poly', order: 3, forward: 2, dispEq: true, dispR2: true, color: '#ff0000', name: 'Mi curva' }, { type: 'movingAvg', period: 3 }],
+          errY: { kind: 'percent', value: 8, direction: 'plus', noCap: true },
+        }),
+        ser('C', { errY: { kind: 'custom', plus: 'Datos!$D$2:$D$4', minus: '1,2,3', direction: 'both' } }),
+      ],
+    };
+    const { chart, bytes } = await through(def);
+    const s0 = chart.series[0]!;
+    expect(s0.trendlines).toEqual([
+      { type: 'poly', order: 3, forward: 2, dispEq: true, dispR2: true, color: '#ff0000', name: 'Mi curva' },
+      { type: 'movingAvg', period: 3 },
+    ]);
+    expect(s0.errY).toEqual({ kind: 'percent', value: 8, direction: 'plus', noCap: true });
+    expect(chart.series[1]!.errY).toMatchObject({ kind: 'custom', direction: 'both', plus: 'Datos!$D$2:$D$4', minus: '1,2,3' });
+    const xml = await JSZip.loadAsync(bytes).then((z) => z.file('xl/charts/chart1.xml')!.async('string'));
+    // el esquema pide: ... dLbls, trendline*, errBars, cat, val
+    const ser0 = /<c:ser>.*?<\/c:ser>/s.exec(xml)![0];
+    expect(ser0.indexOf('<c:trendline>')).toBeLessThan(ser0.indexOf('<c:errBars>'));
+    expect(ser0.indexOf('<c:errBars>')).toBeLessThan(ser0.indexOf('<c:cat>'));
+    expect(ser0).toContain('<c:trendlineType val="poly"/><c:order val="3"/>');
+    expect(ser0).toContain('<c:errValType val="percentage"/>');
+    expect(ser0).not.toContain('<c:errDir');
+  });
+
+  it('scatter charts keep X and Y error bars; stacked charts drop the analysis', async () => {
+    const { chart, bytes } = await through({
+      ...base,
+      type: 'scatter',
+      series: [{ categories: 'Datos!$B$2:$B$4', values: 'Datos!$D$2:$D$4', errX: { kind: 'fixed', value: 2, direction: 'both' }, errY: { kind: 'stderr', direction: 'minus' }, trendlines: [{ type: 'linear', intercept: 0 }] }],
+    });
+    const s = chart.series[0]!;
+    expect(s.errX).toMatchObject({ kind: 'fixed', value: 2 });
+    expect(s.errY).toMatchObject({ kind: 'stderr', direction: 'minus' });
+    expect(s.trendlines).toEqual([{ type: 'linear', intercept: 0 }]);
+    const xml = await JSZip.loadAsync(bytes).then((z) => z.file('xl/charts/chart1.xml')!.async('string'));
+    expect(xml).toContain('<c:errDir val="x"/>');
+    expect(xml).toContain('<c:errDir val="y"/>');
+    const stacked = await through({ ...base, type: 'column', stacked: true, series: [ser('B', { trendlines: [{ type: 'linear' }] })] });
+    expect(stacked.chart.series[0]!.trendlines).toBeUndefined();
+  });
 
   it('combined column and line on a secondary axis, with axis titles, limits and a log scale', async () => {
     const def: ChartDef = {

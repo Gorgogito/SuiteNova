@@ -157,7 +157,7 @@ await check('one-click data bars, colour scale and icon set on the same range', 
   await page.click('[data-nv-item="cfMenu"]');
   await page.getByRole('menuitem', { name: 'Barra de datos azul' }).click();
   await page.click('[data-nv-item="cfMenu"]');
-  await page.getByRole('menuitem', { name: 'Iconos: 3 semáforos' }).click();
+  await page.getByRole('menuitem', { name: 'Iconos: 3 semáforos', exact: true }).click();
   const kinds = await doc(() => window.__novaCalc.doc.sheet.condFormats.map((r) => r.type).sort());
   assert.deepEqual(kinds, ['cellIs', 'dataBar', 'iconSet']);
   await shot('cf-bars-icons');

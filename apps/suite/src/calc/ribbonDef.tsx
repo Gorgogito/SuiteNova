@@ -216,7 +216,7 @@ function NumberGroup({ ui }: { ui: CalcUI }) {
 
 /** The ribbon of Nova Calc. Every control maps to a registered command or a self-contained widget. */
 export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = false): RibbonTab[] {
-  const flags: ContextFlags = { chart: false, table: false, pivot: false, sparkline: false, picture: false, slicer: false, ...(typeof context === 'boolean' ? { chart: context } : context) };
+  const flags: ContextFlags = { chart: false, table: false, pivot: false, sparkline: false, picture: false, shape: false, slicer: false, ...(typeof context === 'boolean' ? { chart: context } : context) };
   const chartSelected = flags.chart;
   const home: RibbonTab = {
     id: 'home',
@@ -286,7 +286,7 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
             keytip: 'L',
             entries: [
               { kind: 'header', label: 'Resaltar reglas de celdas' },
-              ...['gt', 'lt', 'between', 'eq', 'text', 'dup'].map((k) => ({ kind: 'command' as const, command: `calc.cf.${k}` })),
+              ...['gt', 'lt', 'between', 'eq', 'text', 'date', 'dup'].map((k) => ({ kind: 'command' as const, command: `calc.cf.${k}` })),
               { kind: 'header', label: 'Reglas superiores e inferiores' },
               ...['top', 'bottom', 'above', 'below'].map((k) => ({ kind: 'command' as const, command: `calc.cf.${k}` })),
               { kind: 'header', label: 'Barras de datos' },
@@ -294,7 +294,7 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
               { kind: 'header', label: 'Escalas de color' },
               ...['gyr', 'ryg', 'bwr', 'wg', 'wr', 'wb'].map((k) => ({ kind: 'command' as const, command: `calc.cf.scale.${k}` })),
               { kind: 'header', label: 'Conjuntos de iconos' },
-              ...['3Arrows', '3TrafficLights', '3Symbols', '3Flags', '4Arrows', '5Arrows'].map((k) => ({ kind: 'command' as const, command: `calc.cf.icons.${k}` })),
+              ...['3Arrows', '3ArrowsGray', '3Flags', '3TrafficLights', '3TrafficLights2', '3Signs', '3Symbols', '3Symbols2', '3Stars', '3Triangles', '4Arrows', '4ArrowsGray', '4RedToBlack', '4Rating', '4TrafficLights', '5Arrows', '5ArrowsGray', '5Rating', '5Quarters', '5Boxes'].map((k) => ({ kind: 'command' as const, command: `calc.cf.icons.${k}` })),
               { kind: 'separator' },
               { kind: 'command', command: 'calc.cf.new' },
               { kind: 'command', command: 'calc.cf.clearSel' },
@@ -649,6 +649,24 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
           { kind: 'button', command: 'calc.chartLegend', size: 'small', keytip: 'LE' },
           { kind: 'button', command: 'calc.chartStacked', size: 'small', keytip: 'AP' },
           { kind: 'button', command: 'calc.chartSmooth', size: 'small', keytip: 'SU' },
+          {
+            kind: 'dropdown',
+            id: 'trendMenu',
+            label: 'Línea de tendencia',
+            icon: 'chartLine',
+            size: 'large',
+            keytip: 'TR',
+            entries: [...['linear', 'exp', 'log', 'poly', 'power', 'movingAvg'].map((k) => ({ kind: 'command' as const, command: `calc.trend.${k}` })), { kind: 'command' as const, command: 'calc.trend.clear' }],
+          },
+          {
+            kind: 'dropdown',
+            id: 'errMenu',
+            label: 'Barras de error',
+            icon: 'sigma',
+            size: 'large',
+            keytip: 'ER',
+            entries: [...['stderr', 'percent', 'stdev', 'fixed'].map((k) => ({ kind: 'command' as const, command: `calc.err.${k}` })), { kind: 'command' as const, command: 'calc.err.clear' }],
+          },
         ],
       },
       {

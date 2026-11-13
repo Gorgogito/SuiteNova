@@ -191,7 +191,7 @@ async function excelStyleFile(): Promise<Uint8Array> {
       '<row r="3"><c r="A3"><v>4</v></c><c r="B3"><f t="shared" si="0"/><v>0.28</v></c><c r="E3" t="b"><v>1</v></c><c r="F3" t="e"><v>#DIV/0!</v></c></row>' +
       '<row r="4"><c r="A4"><v>8</v></c><c r="B4"><f t="shared" si="0"/><v>0.56</v></c><c r="C4" t="str"><f>_xlfn.CONCAT("a","b")</f><v>ab</v></c><c r="D4"><f>_xlfn.IFS(A4&gt;5,"x",TRUE,"y")</f><v>x</v></c></row>' +
       '<row r="5"><c r="A5" t="s"><v>2</v></c><c r="B5"><f>SUM(B2:B4)</f><v>1.015</v></c><c r="G5" t="inlineStr"><is><t>inline</t></is></c></row>' +
-      '</sheetData><mergeCells count="1"><mergeCell ref="A6:C6"/></mergeCells><conditionalFormatting sqref="A1"><cfRule type="expression" priority="1"><formula>TRUE</formula></cfRule></conditionalFormatting><conditionalFormatting sqref="A2"><cfRule type="timePeriod" priority="2" timePeriod="today"/></conditionalFormatting></worksheet>',
+      '</sheetData><mergeCells count="1"><mergeCell ref="A6:C6"/></mergeCells><conditionalFormatting sqref="A1"><cfRule type="expression" priority="1"><formula>TRUE</formula></cfRule></conditionalFormatting><conditionalFormatting sqref="A2"><cfRule type="timePeriod" priority="2" timePeriod="thisYear"/></conditionalFormatting></worksheet>',
   );
   zip.file('xl/worksheets/sheet2.xml', '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>7</v></c></row></sheetData></worksheet>');
   return zip.generateAsync({ type: 'uint8array' });
@@ -230,7 +230,7 @@ describe('reading Excel-style files', () => {
     expect(at(w, 1, 'A1')).toBe(7);
     // names: the print area is skipped, the user name is kept
     expect([...w.names.keys()]).toEqual(['tasa']);
-    expect(warnings.some((m) => m.includes('formato condicional') && m.includes('timePeriod'))).toBe(true);
+    expect(warnings.some((m) => m.includes('formato condicional') && m.includes('fechas'))).toBe(true);
     expect(w.sheets[0]!.condFormats).toHaveLength(1);
     expect(w.sheets[0]!.condFormats[0]).toMatchObject({ type: 'expression', formula: 'TRUE', ranges: [{ r1: 0, c1: 0, r2: 0, c2: 0 }] });
   });

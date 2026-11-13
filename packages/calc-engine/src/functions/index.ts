@@ -13,4 +13,7 @@ import './stats2';
 import './cube';
 import './info';
 
+
+import './financial2';
+import './extra';
 export { registry } from './registry';

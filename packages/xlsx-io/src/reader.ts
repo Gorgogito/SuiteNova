@@ -1,3 +1,4 @@
+import { parseSheetProtection, parseWorkbookProtection } from './protect-io';
 import {
   BUILTIN_FORMATS,
   CalcError,
@@ -22,6 +23,8 @@ import {
 } from '@suitenova/calc-engine';
 import JSZip from 'jszip';
 import { DEFAULT_THEME, resolveColor, type ColorSpec } from './colors';
+import { parseChartEx } from './chartex-io';
+import { parseShape } from './shapes-io';
 import { anchorToRect, parseChart } from './charts-io';
 import { applySuitePart } from './suite-part';
 import { parseAutoFilter, parseConditionalFormatting, parseDxfs } from './filter-cf-io';
@@ -117,6 +120,13 @@ function loadStyles(wb: Workbook, doc: XNode, theme: string[]): StyleSheet {
     if (b?.right) st.right = b.right;
     if (b?.bottom) st.bottom = b.bottom;
     if (b?.left) st.left = b.left;
+    const pr = xf.protection;
+    if (pr) {
+      const lk = attr(pr, 'locked');
+      if (lk === '0' || lk === 'false') st.locked = false;
+      const hd = attr(pr, 'hidden');
+      if (hd === '1' || hd === 'true') st.hidden = true;
+    }
     const al = xf.alignment;
     if (al) {
       const h = attr(al, 'horizontal');
@@ -298,12 +308,16 @@ function loadSheet(wb: Workbook, sheet: Sheet, doc: XNode, strings: string[], xf
   }
 
   if (ws.conditionalFormatting !== undefined) {
-    const { rules, skipped } = parseConditionalFormatting(asArray(ws.conditionalFormatting), dxfs, theme);
+    const { rules, skipped } = parseConditionalFormatting(asArray(ws.conditionalFormatting), dxfs, theme, ws.extLst);
     sheet.condFormats.push(...rules);
     if (skipped.length) warnings.push(`La hoja "${sheet.name}" tiene reglas de formato condicional no soportadas (${[...new Set(skipped)].join(', ')}); se omitieron.`);
   }
+  if (ws.sheetProtection !== undefined) {
+    const pr = parseSheetProtection(ws.sheetProtection);
+    if (pr) sheet.protection = pr;
+  }
   if (ws.autoFilter !== undefined) {
-    const { filter, skipped } = parseAutoFilter(ws.autoFilter);
+    const { filter, skipped } = parseAutoFilter(ws.autoFilter, dxfs);
     if (filter) {
       sheet.autoFilter = filter;
       // rows the file marks as hidden inside the filter range were hidden by the filter, not by hand
@@ -318,12 +332,18 @@ function loadSheet(wb: Workbook, sheet: Sheet, doc: XNode, strings: string[], xf
   readPage(ws, sheet);
   if (ws.dataValidations !== undefined) sheet.validations.push(...parseValidations(ws.dataValidations));
   // extensions: sparklines and the data validations Excel keeps there (rules that point at other sheets)
-  const known = new Set(['{05C60535-1F16-4fd2-B633-F4F36F0B64E0}', '{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}']);
+  const known = new Set(['{05C60535-1F16-4fd2-B633-F4F36F0B64E0}', '{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}', '{78C0D931-6437-407d-A8EE-F0AAD7539E65}']);
   const unknown: string[] = [];
   for (const ext of asArray(ws.extLst?.ext)) {
     const uri = attr(ext, 'uri') ?? '';
     if (!known.has(uri)) unknown.push(uri);
   }
+  // reglas de formato condicional de Excel 2010 que no son barras de datos (conjuntos de iconos personalizados, etc.)
+  const x14Other = new Set<string>();
+  for (const ext of asArray(ws.extLst?.ext))
+    for (const cf of asArray(ext?.conditionalFormattings?.conditionalFormatting))
+      for (const cr of asArray(cf?.cfRule)) if (attr(cr, 'type') !== 'dataBar') x14Other.add(attr(cr, 'type') ?? 'desconocido');
+  if (x14Other.size) warnings.push(`La hoja "${sheet.name}" tiene reglas de formato condicional de Excel 2010 no soportadas (${[...x14Other].join(', ')}); se omitieron.`);
   if (ws.extLst !== undefined) {
     sheet.sparklines.push(...parseSparklines(ws.extLst));
     sheet.validations.push(...parseX14Validations(ws.extLst));
@@ -415,11 +435,22 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
   const drawingRels = await relsOf(read, drawingPath);
   const anchors = [...asArray(drawing?.wsDr?.twoCellAnchor), ...asArray(drawing?.wsDr?.oneCellAnchor), ...asArray(drawing?.wsDr?.absoluteAnchor)];
   let skippedPictures = 0;
+  let unsupportedShapes = 0;
   let n = 0;
   let p = 0;
+  let s = 0;
   for (const a of anchors) {
-    const frame = a.graphicFrame;
+    const frame = a.graphicFrame ?? asArray(a.AlternateContent?.Choice)[0]?.graphicFrame;
     const chartRef = frame?.graphic?.graphicData?.chart;
+    if (!chartRef && (a.sp !== undefined || a.cxnSp !== undefined)) {
+      const parsed = parseShape(a, theme);
+      const rect = anchorToRect(sheet, a);
+      if (parsed && rect) {
+        sheet.shapes.push({ ...parsed.shape, id: `shape-imp-${sheet.id}-${++s}`, ...rect });
+        if (parsed.unsupported) unsupportedShapes++;
+      }
+      continue;
+    }
     if (!chartRef) {
       if (a.pic !== undefined) {
         const embed = attr(a.pic.blipFill?.blip, 'embed');
@@ -438,13 +469,15 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
     const chartPath = drawingRels.get(attr(chartRef, 'id') ?? '');
     const rect = anchorToRect(sheet, a);
     if (!chartPath || !rect) continue;
-    const parsed = parseChart(await read(chartPath), theme);
+    const doc = await read(chartPath);
+    const parsed = doc?.chartSpace?.chartData !== undefined ? parseChartEx(doc) : parseChart(doc, theme);
     if ('skip' in parsed) {
       warnings.push(`Un gráfico de "${sheet.name}" no se importó: ${parsed.skip}.`);
       continue;
     }
     sheet.charts.push({ ...parsed.def, id: `chart-imp-${sheet.id}-${++n}`, ...rect });
   }
+  if (unsupportedShapes) warnings.push(`La hoja "${sheet.name}" tiene ${unsupportedShapes} forma(s) con una geometría que Nova Calc no dibuja (estrellas, llamadas, etc.): se importaron como rectángulos.`);
   if (skippedPictures) warnings.push(`La hoja "${sheet.name}" tiene ${skippedPictures} imagen(es) en un formato que no se puede importar (por ejemplo vectorial).`);
 }
 
@@ -532,6 +565,9 @@ export async function readXlsx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
   const ssPath = [...rels.values()].find((p) => p.endsWith('sharedStrings.xml')) ?? 'xl/sharedStrings.xml';
   const strings = loadSharedStrings(await read(ssPath));
   const date1904 = attr(wbDoc.workbook.workbookPr, 'date1904') === '1' || attr(wbDoc.workbook.workbookPr, 'date1904') === 'true';
+
+  const wbProt = parseWorkbookProtection(wbDoc.workbook.workbookProtection);
+  if (wbProt) wb.protection = wbProt;
 
   const sheetDefs = asArray(wbDoc.workbook.sheets?.sheet);
   const sheetByIndex: Sheet[] = [];

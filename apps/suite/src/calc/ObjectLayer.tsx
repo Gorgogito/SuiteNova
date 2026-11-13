@@ -1,4 +1,4 @@
-import { listChoices, type SheetImage, type SlicerDef } from '@suitenova/calc-engine';
+import { listChoices, shapeLook, shapePath, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { Check, FilterX, ListChecks } from 'lucide-react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
@@ -135,11 +135,64 @@ function SlicerView({ doc, sl, rect, selected, onDown }: { doc: CalcDoc; sl: Sli
   );
 }
 
-/** Pictures and slicers of the active sheet, over the grid. */
+function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void }) {
+  const look = shapeLook(s);
+  const w = Math.max(rect.w, 1);
+  const h = Math.max(rect.h, 1);
+  const [draft, setDraft] = useState(s.text ?? '');
+  useEffect(() => {
+    if (editing) setDraft(s.text ?? '');
+  }, [editing, s.text]);
+  const justify = { top: 'flex-start', middle: 'center', bottom: 'flex-end' }[s.vAlign ?? (s.kind === 'textBox' ? 'top' : 'middle')];
+  const align = s.hAlign ?? (s.kind === 'textBox' ? 'left' : 'center');
+  const font: React.CSSProperties = { color: s.textColor ?? '#000000', fontSize: (s.fontSize ?? 11) * zoom, fontWeight: s.bold ? 700 : 400, fontStyle: s.italic ? 'italic' : 'normal', textAlign: align, fontFamily: 'Calibri, Carlito, "Segoe UI", sans-serif' };
+  return (
+    <div
+      className={`calc-shape ${selected ? 'is-selected' : ''}`}
+      style={{ left: rect.x, top: rect.y, width: w, height: s.kind === 'line' ? Math.max(h, 6) : h }}
+      data-shape-id={s.id}
+      role="img"
+      aria-label={s.alt ?? s.name ?? s.text ?? t('Forma')}
+      onPointerDown={(e) => (editing ? e.stopPropagation() : onDown(e, 'move'))}
+      onDoubleClick={() => s.kind !== 'line' && onEdit()}
+    >
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
+        <path d={shapePath(s.kind, w, h, s.flip)} fill={look.fill ?? 'none'} stroke={look.line?.color ?? 'none'} strokeWidth={(look.line?.width ?? 1) * zoom} strokeLinejoin="round" />
+      </svg>
+      {editing ? (
+        <textarea
+          className="calc-shape__edit"
+          autoFocus
+          value={draft}
+          style={{ ...font, justifyContent: justify }}
+          onChange={(e) => setDraft(e.target.value)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onBlur={() => onCommit(draft)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Escape') onCommit(null);
+            else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) onCommit(draft);
+          }}
+        />
+      ) : (
+        s.text && (
+          <div className="calc-shape__text" style={{ ...font, justifyContent: justify }}>
+            {s.text}
+          </div>
+        )
+      )}
+      {selected && !editing && <Handles onDown={onDown} />}
+    </div>
+  );
+}
+
+/** Pictures, shapes and slicers of the active sheet, over the grid. */
 export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; layout: Layout; viewport: Viewport; zoom: number }) {
   useSyncExternalStore(doc.subscribe, doc.getVersion);
   const images = doc.sheet.images;
   const slicers = doc.sheet.slicers;
+  const shapes = doc.sheet.shapes;
+  const [editingShape, setEditingShape] = useState<string | null>(null);
   const fw = colX(layout, layout.frozenCols);
   const fh = layout.rowAxis.offset(layout.frozenRows) * zoom;
   const place = (r: Rect4) => {
@@ -161,9 +214,16 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
     (id, r, label) => doc.x.updateSlicer(id, r, label === 'Mover' ? 'Mover segmentación' : 'Cambiar tamaño de la segmentación'),
     (id) => doc.x.selectObject('slicer', id),
   );
+  const shBox = useBox(
+    doc,
+    zoom,
+    { w: 8, h: 8 },
+    (id, r, label) => doc.x.updateShape(id, r, label === 'Mover' ? 'Mover forma' : 'Cambiar tamaño de la forma'),
+    (id) => doc.x.selectObject('shape', id),
+  );
   const urlsFor = useMemo(() => new Map(images.map((i) => [i.id, mediaUrl(doc, i.media)])), [images, doc]);
   useEffect(() => undefined, []);
-  if (!images.length && !slicers.length) return null;
+  if (!images.length && !slicers.length && !shapes.length) return null;
   return (
     <div className="calc-charts" style={{ left: layout.headerW, top: layout.headerH }}>
       {images.map((img: SheetImage) => {
@@ -175,6 +235,30 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
             <img src={urlsFor.get(img.id)} alt={img.alt ?? img.name ?? ''} draggable={false} />
             {selected && <Handles onDown={(e, h) => imgBox.begin(img.id, { x: img.x, y: img.y, width: img.width, height: img.height }, e, h, true)} />}
           </div>
+        );
+      })}
+      {shapes.map((s: SheetShape) => {
+        const r = shBox.preview?.id === s.id ? shBox.preview.r : { x: s.x, y: s.y, width: s.width, height: s.height };
+        const orig = { x: s.x, y: s.y, width: s.width, height: s.height };
+        return (
+          <ShapeView
+            key={s.id}
+            s={s}
+            rect={place(r)}
+            zoom={zoom}
+            selected={doc.x.selectedShape === s.id}
+            editing={editingShape === s.id}
+            onDown={(e, m) => shBox.begin(s.id, orig, e, m)}
+            onEdit={() => {
+              doc.x.selectObject('shape', s.id);
+              setEditingShape(s.id);
+            }}
+            onCommit={(text) => {
+              setEditingShape(null);
+              if (text !== null && text !== (s.text ?? '')) doc.x.updateShape(s.id, { text: text || undefined }, 'Texto de la forma');
+              window.dispatchEvent(new Event('nova:focus-grid'));
+            }}
+          />
         );
       })}
       {slicers.map((sl) => {

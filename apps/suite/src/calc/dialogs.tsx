@@ -10,6 +10,8 @@ import { ChartFormatDialog } from './dlg-chart';
 import { EntryAlertDialog, HyperlinkDialog, NoteDialog, ValidationDialog } from './dlg-data';
 import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
 import { PageSetupDialog, PrintPreviewDialog } from './dlg-page';
+import { ShapeFormatDialog } from './dlg-shape';
+import { ProtectBookDialog, ProtectSheetDialog, UnprotectDialog } from './dlg-protect';
 import { PivotCreateDialog, PivotFieldDialog, PivotOptionsDialog, ValueFieldDialog } from './dlg-pivot';
 import { SlicerDialog, SparklineDialog, TableCreateDialog, TableResizeDialog } from './dlg-table';
 
@@ -124,6 +126,9 @@ function FormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => void }) {
   const [useColor, setUseColor] = useState(!!cur.color);
   const [bg, setBg] = useState(cur.bg ?? '#ffff00');
   const [useBg, setUseBg] = useState(!!cur.bg);
+  const [locked, setLocked] = useState(cur.locked !== false);
+  const [hiddenFormula, setHiddenFormula] = useState(!!cur.hidden);
+  const sheetIsProtected = d.prot.isProtected();
 
   const sample = d.wb.getValue(d.activeSheetId, d.sel.active.row, d.sel.active.col);
   const fmts = numberFormats(d.locale);
@@ -144,6 +149,7 @@ function FormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => void }) {
       strike: strike || undefined,
       color: useColor ? color : undefined,
       bg: useBg ? bg : undefined,
+      ...(sheetIsProtected ? {} : { locked: locked ? undefined : false, hidden: hiddenFormula || undefined }),
     };
     d.applyStyle(patch, 'Formato de celdas');
     onClose();
@@ -157,7 +163,19 @@ function FormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => void }) {
         <Tab value="align">{t('Alineación')}</Tab>
         <Tab value="font">{t('Fuente')}</Tab>
         <Tab value="fill">{t('Relleno')}</Tab>
+        <Tab value="protection">{t('Protección')}</Tab>
       </TabList>
+      {tab === 'protection' && (
+        <div>
+          <Checkbox label={t('Bloqueada')} checked={locked} disabled={sheetIsProtected} onChange={(_e, v) => setLocked(v.checked === true)} />
+          <Checkbox label={t('Oculta (no muestra la fórmula en la barra de fórmulas)')} checked={hiddenFormula} disabled={sheetIsProtected} onChange={(_e, v) => setHiddenFormula(v.checked === true)} />
+          <p style={{ marginTop: 12 }}>
+            {sheetIsProtected
+              ? t('La hoja está protegida: quite la protección para cambiar estas opciones.')
+              : t('Bloquear celdas u ocultar fórmulas solo surte efecto cuando se protege la hoja (pestaña Revisar > Proteger hoja).')}
+          </p>
+        </div>
+      )}
       {tab === 'number' && (
         <div>
           <div style={field}>
@@ -613,6 +631,16 @@ export function DialogHost({ ui, registry, kind, arg, onClose }: { ui: CalcUI; r
       return <NoteDialog ui={ui} onClose={close} />;
     case 'tableCreate':
       return <TableCreateDialog ui={ui} onClose={close} />;
+    case 'shapeFormat':
+      return <ShapeFormatDialog ui={ui} onClose={close} />;
+    case 'protectSheet':
+      return <ProtectSheetDialog ui={ui} onClose={close} />;
+    case 'protectBook':
+      return <ProtectBookDialog ui={ui} onClose={close} />;
+    case 'unprotectSheet':
+      return <UnprotectDialog ui={ui} target="sheet" onClose={close} />;
+    case 'unprotectBook':
+      return <UnprotectDialog ui={ui} target="book" onClose={close} />;
     case 'tableResize':
       return <TableResizeDialog ui={ui} onClose={close} />;
     case 'sparkline':

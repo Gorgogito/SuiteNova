@@ -1,4 +1,4 @@
-import { CFEvaluator, colToName, colAtPx, colOffsetPx, normRect, rowAtPx, rowOffsetPx, tableAt, type FormulaLocale, type PageSetup, type Rect, type Sheet, type Style } from '@suitenova/calc-engine';
+import { CFEvaluator, colToName, colAtPx, colOffsetPx, normRect, rowAtPx, rowOffsetPx, shapeLook, shapePath, tableAt, type FormulaLocale, type PageSetup, type Rect, type Sheet, type Style } from '@suitenova/calc-engine';
 import type { CalcDoc } from './doc';
 import { chartSvg } from './chartRender';
 import { sparkSvg, sparklineJobs, tableFillAt, tableTextLook } from './render-objects';
@@ -41,6 +41,7 @@ export function usedPrintArea(doc: CalcDoc, sheetId: number): Rect | null {
   for (const c of sheet.charts) reach(c.x, c.y, c.width, c.height);
   for (const i of sheet.images) reach(i.x, i.y, i.width, i.height);
   for (const s of sheet.slicers) reach(s.x, s.y, s.width, s.height);
+  for (const s of sheet.shapes) reach(s.x, s.y, s.width, s.height);
   if (r2 < 0 || c2 < 0) return null;
   return { r1: used?.r1 ?? 0, c1: used?.c1 ?? 0, r2, c2 };
 }
@@ -362,6 +363,18 @@ function pageHtml(o: HtmlOptions, p: PrintPage, total: number): string {
     const m = wb.media.get(im.media);
     if (!m) continue;
     parts.push(`<img class="o" alt="${esc(im.alt ?? '')}" src="data:${m.mime};base64,${toBase64(m.data)}" style="left:${headW + offX + im.x - originX}px;top:${headH + offY + im.y - originY}px;width:${im.width}px;height:${im.height}px">`);
+  }
+  for (const sh of sheet.shapes) {
+    if (!onPage(sh.x, sh.y)) continue;
+    const look = shapeLook(sh);
+    const justify = { top: 'flex-start', middle: 'center', bottom: 'flex-end' }[sh.vAlign ?? (sh.kind === 'textBox' ? 'top' : 'middle')];
+    const align = sh.hAlign ?? (sh.kind === 'textBox' ? 'left' : 'center');
+    const txt = sh.text
+      ? `<div style="position:absolute;inset:4px;display:flex;flex-direction:column;justify-content:${justify};text-align:${align};white-space:pre-wrap;overflow:hidden;color:${sh.textColor ?? '#000'};font-size:${sh.fontSize ?? 11}px;${sh.bold ? 'font-weight:700;' : ''}${sh.italic ? 'font-style:italic;' : ''}">${esc(sh.text)}</div>`
+      : '';
+    parts.push(
+      `<div class="o" style="left:${headW + offX + sh.x - originX}px;top:${headH + offY + sh.y - originY}px;width:${sh.width}px;height:${sh.height}px"><svg width="${sh.width}" height="${sh.height}" viewBox="0 0 ${sh.width} ${sh.height}" style="position:absolute;left:0;top:0;overflow:visible"><path d="${shapePath(sh.kind, sh.width, sh.height, sh.flip)}" fill="${look.fill ?? 'none'}" stroke="${look.line?.color ?? 'none'}" stroke-width="${look.line?.width ?? 1}" stroke-linejoin="round"/></svg>${txt}</div>`,
+    );
   }
   for (const sl of sheet.slicers) {
     if (!onPage(sl.x, sl.y)) continue;

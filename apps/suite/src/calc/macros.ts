@@ -389,6 +389,7 @@ class RangeObj implements BObject {
     if (v instanceof VArray || (typeof v === 'object' && v !== null && !(v instanceof Date))) throw new Fail('Tipo de valor no válido para una celda.');
     const sheetId = this.sheetId;
     if (this.doc.blockedByPivot([{ r1: row, c1: col, r2: row, c2: col }], sheetId)) throw new Fail('No se puede cambiar esta parte de una tabla dinámica.');
+    if (!this.doc.prot.canEdit([{ r1: row, c1: col, r2: row, c2: col }], sheetId, true)) throw new Fail('La hoja está protegida: no se puede cambiar (error 1004).');
     if (v instanceof Date) {
       const style = this.wb.getCell(sheetId, row, col)?.style ?? 0;
       const withFmt = isDateFormat(this.wb.styles.get(style).numFmt) ? style : this.wb.styles.derive(style, { numFmt: 'dd/mm/yyyy' });
@@ -415,6 +416,7 @@ class RangeObj implements BObject {
     for (let r = this.rect.r1; r <= this.rect.r2; r++) for (let c = this.rect.c1; c <= this.rect.c2; c++) this.writeCell(r, c, v, asFormula);
   }
   private style(patch: Partial<Record<keyof Style, unknown>>): void {
+    if (!this.doc.prot.allowed('formatCells', this.sheetId, true)) throw new Fail('La hoja está protegida: no se puede cambiar (error 1004).');
     this.rt.record(this.wb.formatRange(this.sheetId, this.rect, patch));
   }
   private firstStyle(): Style {
@@ -549,10 +551,12 @@ class RangeObj implements BObject {
       case 'clearcontents':
       case 'clearformats': {
         if (this.doc.blockedByPivot([this.rect], this.sheetId)) throw new Fail('No se puede cambiar esta parte de una tabla dinámica.');
+        if (m === 'clearformats' ? !this.doc.prot.allowed('formatCells', this.sheetId, true) : !this.doc.prot.canEdit([this.rect], this.sheetId, true)) throw new Fail('La hoja está protegida: no se puede cambiar (error 1004).');
         this.rt.record(this.wb.clear(this.sheetId, this.rect, m === 'clear' ? 'all' : m === 'clearcontents' ? 'contents' : 'formats'));
         return undefined;
       }
       case 'delete': {
+        if (this.doc.prot.isProtected(this.sheetId)) throw new Fail('La hoja está protegida: no se puede cambiar (error 1004).');
         const whole = this.rect.c1 === 0 && this.rect.c2 === MAX_COLS - 1 ? 'row' : this.rect.r1 === 0 && this.rect.r2 === MAX_ROWS - 1 ? 'col' : null;
         if (whole === 'row') this.rt.record(this.wb.shiftStructure(this.sheetId, 'row', this.rect.r1, -(this.rect.r2 - this.rect.r1 + 1)));
         else if (whole === 'col') this.rt.record(this.wb.shiftStructure(this.sheetId, 'col', this.rect.c1, -(this.rect.c2 - this.rect.c1 + 1)));
@@ -560,6 +564,7 @@ class RangeObj implements BObject {
         return undefined;
       }
       case 'insert': {
+        if (this.doc.prot.isProtected(this.sheetId)) throw new Fail('La hoja está protegida: no se puede cambiar (error 1004).');
         const whole = this.rect.c1 === 0 && this.rect.c2 === MAX_COLS - 1 ? 'row' : this.rect.r1 === 0 && this.rect.r2 === MAX_ROWS - 1 ? 'col' : 'row';
         if (whole === 'row') this.rt.record(this.wb.shiftStructure(this.sheetId, 'row', this.rect.r1, this.rect.r2 - this.rect.r1 + 1));
         else this.rt.record(this.wb.shiftStructure(this.sheetId, 'col', this.rect.c1, this.rect.c2 - this.rect.c1 + 1));

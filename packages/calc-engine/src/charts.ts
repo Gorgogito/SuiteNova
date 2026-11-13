@@ -2,11 +2,12 @@ import { MAX_COLS, MAX_ROWS, normRect, type Rect } from './addr';
 import type { Node } from './ast';
 import { adjustForStructure, printFormula, renameSheetRefs, type StructureChange } from './formula';
 import { parseFormula } from './parser';
+import type { ErrorBars, Trendline } from './chart-fit';
 import type { Scalar } from './values';
 import type { Sheet, Workbook } from './workbook';
 import { DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT } from './workbook';
 
-export type ChartType = 'column' | 'bar' | 'line' | 'pie' | 'area' | 'scatter' | 'doughnut' | 'radar' | 'stock' | 'surface';
+export type ChartType = 'column' | 'bar' | 'line' | 'pie' | 'area' | 'scatter' | 'doughnut' | 'radar' | 'stock' | 'surface' | 'waterfall' | 'funnel' | 'histogram' | 'boxwhisker';
 
 /** Types a series can take inside a combined chart. */
 export type SeriesType = 'column' | 'line' | 'area' | 'scatter';
@@ -68,6 +69,11 @@ export interface ChartSeries {
   secondary?: boolean;
   /** "#rrggbb"; the palette when empty. */
   color?: string;
+  /** Trendlines fitted to this series (not for stacked, pie, radar, stock, surface or 3-D charts). */
+  trendlines?: Trendline[];
+  /** Error bars along Y (and along X in scatter charts). */
+  errY?: ErrorBars;
+  errX?: ErrorBars;
 }
 
 export interface ChartDef {
@@ -88,6 +94,12 @@ export interface ChartDef {
   radar?: { filled?: boolean; markers?: boolean };
   stock?: { kind: StockKind };
   surface?: { wireframe?: boolean; contour?: boolean };
+  /** Waterfall: points shown as totals (from zero) by their index, and whether connector lines are drawn. */
+  waterfall?: { totals?: number[]; connectors?: boolean };
+  /** Histogram: how the classes are made (automatic Scott's rule when empty). */
+  histogram?: { binWidth?: number; binCount?: number; overflow?: number; underflow?: number; closed?: 'right' | 'left' };
+  /** Box and whisker: quartile method and what is drawn besides the box. */
+  boxwhisker?: { inclusive?: boolean; mean?: boolean; outliers?: boolean; inner?: boolean };
   /** Position and size in sheet pixels (zoom 100%), measured from the top-left of cell A1. */
   x: number;
   y: number;

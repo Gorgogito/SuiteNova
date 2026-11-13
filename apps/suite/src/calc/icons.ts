@@ -74,6 +74,14 @@ import {
   ChevronLeft,
   ChevronRight,
   FileCode,
+  Lock,
+  LockOpen,
+  ChartColumnIncreasing,
+  Funnel,
+  ChartColumnBig,
+  Boxes,
+  Shapes,
+  TextCursorInput,
 } from 'lucide-react';
 
 const icons = {
@@ -151,6 +159,14 @@ const icons = {
   prev: ChevronLeft,
   next: ChevronRight,
   macroFile: FileCode,
+  lock: Lock,
+  lockOpen: LockOpen,
+  chartWaterfall: ChartColumnIncreasing,
+  chartFunnel: Funnel,
+  chartHistogram: ChartColumnBig,
+  chartBox: Boxes,
+  shapes: Shapes,
+  textbox: TextCursorInput,
 };
 
 for (const [name, comp] of Object.entries(icons)) registerIcon(name, comp);

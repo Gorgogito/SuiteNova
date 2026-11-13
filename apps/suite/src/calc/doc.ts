@@ -48,6 +48,7 @@ import {
 import { applyPreset, presetById } from './chartPresets';
 import { CalcRuntime } from './macros';
 import { DocObjects, ENTRY_PENDING, overlaps } from './doc-objects';
+import { MSG_BOOK, ProtectionGuard } from './protection';
 import { fillSeries } from './series';
 
 /** The parts of `r` not covered by `cut` (up to four rectangles). */
@@ -143,6 +144,8 @@ export class CalcDoc {
   selectedChart: string | null = null;
   /** Validation, links, notes, pictures, tables, sparklines, pivots, slicers and printing. */
   readonly x: DocObjects = new DocObjects(this);
+  /** Protección de hojas y del libro: qué acciones se permiten. */
+  readonly prot: ProtectionGuard = new ProtectionGuard(this);
   /** Runs the code modules of the workbook. */
   readonly macros: CalcRuntime = new CalcRuntime(this);
   /** Macros and functions of the code modules run only when this is true (a file that comes with code opens with it off). */
@@ -285,17 +288,18 @@ export class CalcDoc {
   }
 
   // ---------------------------------------------------------------------------------- display text
-  display(sheetId: number, row: number, col: number): { text: string; color?: string; value: Scalar; style: Style } {
+  display(sheetId: number, row: number, col: number, numFmt?: string): { text: string; color?: string; value: Scalar; style: Style } {
     const c = this.wb.getCell(sheetId, row, col);
     const style = this.wb.styles.get(c?.style ?? 0);
     const value = c?.value ?? null;
     if (this.showFormulas && c?.formula) return { text: `=${localizeFormula(c.formula.text, this.locale)}`, value, style };
-    const f = formatValue(value, style.numFmt, this.locale);
+    const f = formatValue(value, numFmt ?? style.numFmt, this.locale);
     return { text: f.text, color: f.color, value, style };
   }
 
   /** Text shown in the formula bar / cell editor for a cell. */
   editText(sheetId: number, row: number, col: number): string {
+    if (this.prot.formulaHidden(sheetId, row, col)) return '';
     const c = this.wb.getCell(sheetId, row, col);
     if (!c) return '';
     if (c.formula) return `=${localizeFormula(c.formula.text, this.locale)}`;
@@ -530,6 +534,7 @@ export class CalcDoc {
     const { row, col } = this.sel.active;
     const c = this.wb.getCell(this.activeSheetId, row, col);
     if (c?.spillOf !== undefined) return; // spilled results are read-only
+    if (!this.prot.canEdit([{ r1: row, c1: col, r2: row, c2: col }], this.activeSheetId)) return;
     const text = opts.text ?? this.editText(this.activeSheetId, row, col);
     this.edit = { sheetId: this.activeSheetId, row, col, text, mode: opts.mode ?? (opts.text === undefined ? 'edit' : 'enter'), fromBar: opts.fromBar ?? false };
     this.touch();
@@ -579,6 +584,11 @@ export class CalcDoc {
     const e = this.edit;
     if (!e) return null;
     if (this.blockedByPivot([{ r1: e.row, c1: e.col, r2: e.row, c2: e.col }], e.sheetId)) {
+      this.edit = null;
+      this.touch();
+      return null;
+    }
+    if (!this.prot.canEdit([{ r1: e.row, c1: e.col, r2: e.row, c2: e.col }], e.sheetId)) {
       this.edit = null;
       this.touch();
       return null;
@@ -661,16 +671,19 @@ export class CalcDoc {
 
   clearContents(): void {
     this.commitIfEditing();
+    if (!this.prot.canEdit(this.sel.ranges)) return;
     if (this.blockedByPivot(this.sel.ranges)) return;
     this.run('Borrar contenido', () => this.eachRange((r) => this.wb.clear(this.activeSheetId, r, 'contents')));
   }
 
   clearAll(what: 'all' | 'formats' | 'contents'): void {
+    if (what === 'formats' ? !this.prot.allowed('formatCells') : !this.prot.canEdit(this.sel.ranges)) return;
     if (what !== 'formats' && this.blockedByPivot(this.sel.ranges)) return;
     this.run(what === 'all' ? 'Borrar todo' : what === 'formats' ? 'Borrar formatos' : 'Borrar contenido', () => this.eachRange((r) => this.wb.clear(this.activeSheetId, r, what)));
   }
 
   applyStyle(patch: Partial<Record<keyof Style, unknown>>, label = 'Aplicar formato'): void {
+    if (!this.prot.allowed('formatCells')) return;
     this.commitIfEditing();
     this.run(label, () => this.eachRange((r) => this.wb.formatRange(this.activeSheetId, r, patch)));
   }
@@ -690,6 +703,7 @@ export class CalcDoc {
   }
 
   setBorders(kind: 'all' | 'outer' | 'none' | 'top' | 'bottom' | 'left' | 'right' | 'thickOuter' | 'topBottom' | 'inner'): void {
+    if (!this.prot.allowed('formatCells')) return;
     this.commitIfEditing();
     const thin = { style: 'thin' as const, color: '#000000' };
     const thick = { style: 'thick' as const, color: '#000000' };
@@ -718,6 +732,7 @@ export class CalcDoc {
   }
 
   merge(centre: boolean): void {
+    if (!this.prot.allowed('formatCells')) return;
     this.commitIfEditing();
     const r = this.activeRange;
     if (r.r1 === r.r2 && r.c1 === r.c2) return;
@@ -743,6 +758,7 @@ export class CalcDoc {
   }
 
   unmerge(): void {
+    if (!this.prot.allowed('formatCells')) return;
     const r = this.activeRange;
     this.run('Separar celdas', () =>
       this.wb.editLayout(this.activeSheetId, (s) => {
@@ -757,6 +773,7 @@ export class CalcDoc {
 
   // ---------------------------------------------------------------------------------- layout
   setColWidth(cols: number[], px: number): void {
+    if (!this.prot.allowed('formatColumns')) return;
     this.run('Ancho de columna', () =>
       this.wb.editLayout(this.activeSheetId, (s) => {
         for (const c of cols) s.colWidths.set(c, Math.max(4, Math.round(px)));
@@ -764,6 +781,7 @@ export class CalcDoc {
     );
   }
   setRowHeight(rows: number[], px: number): void {
+    if (!this.prot.allowed('formatRows')) return;
     this.run('Alto de fila', () =>
       this.wb.editLayout(this.activeSheetId, (s) => {
         for (const r of rows) s.rowHeights.set(r, Math.max(4, Math.round(px)));
@@ -784,6 +802,7 @@ export class CalcDoc {
   }
 
   setHidden(axis: 'row' | 'col', hide: boolean): void {
+    if (!this.prot.allowed(axis === 'row' ? 'formatRows' : 'formatColumns')) return;
     this.run(hide ? (axis === 'row' ? 'Ocultar filas' : 'Ocultar columnas') : 'Mostrar', () =>
       this.wb.editLayout(this.activeSheetId, (s) => {
         const set = axis === 'row' ? s.hiddenRows : s.hiddenCols;
@@ -800,6 +819,7 @@ export class CalcDoc {
   }
 
   autoFitColumns(): void {
+    if (!this.prot.allowed('formatColumns')) return;
     this.run('Autoajustar ancho', () =>
       this.wb.editLayout(this.activeSheetId, (s) => {
         for (const c of this.selectedCols()) {
@@ -916,6 +936,15 @@ export class CalcDoc {
   /** Paste. `systemText` is what the OS clipboard holds; if it matches our last copy, formulas/styles are used. */
   paste(systemText: string | null, mode: PasteMode = 'all'): string | null {
     this.commitIfEditing();
+    {
+      const inner = this.clip && (systemText === null || systemText === this.clip.tsv) ? this.clip : null;
+      const lines = inner ? null : (systemText ?? '').replace(/\r?\n$/, '').split(/\r?\n/);
+      let h = inner ? inner.cells.length : (lines?.length ?? 1);
+      let w = inner ? (inner.cells[0]?.length ?? 1) : Math.max(1, ...(lines ?? []).map((l) => l.split('\t').length));
+      if (mode === 'transpose') [h, w] = [w, h];
+      const sel = this.activeRange;
+      if (!this.prot.canEdit([{ r1: sel.r1, c1: sel.c1, r2: Math.max(sel.r2, sel.r1 + h - 1), c2: Math.max(sel.c2, sel.c1 + w - 1) }])) return null;
+    }
     const target = this.sel.active;
     const id = this.activeSheetId;
     const internal = this.clip && (systemText === null || systemText === this.clip.tsv) ? this.clip : null;
@@ -1054,6 +1083,7 @@ export class CalcDoc {
 
   private fillDir(dir: 'down' | 'right'): void {
     this.commitIfEditing();
+    if (!this.prot.canEdit(this.sel.ranges)) return;
     this.run(dir === 'down' ? 'Rellenar hacia abajo' : 'Rellenar hacia la derecha', () =>
       this.eachRange((r) => {
         const patches: Patch[] = [];
@@ -1080,6 +1110,7 @@ export class CalcDoc {
   /** Extend `src` to `target` (the fill handle). Target must share rows or columns with src. */
   fillTo(src: Rect, target: Rect, opts: { increment?: boolean } = {}): void {
     this.commitIfEditing();
+    if (!this.prot.canEdit([target])) return;
     const id = this.activeSheetId;
     const s = normRect(src);
     const t = normRect(target);
@@ -1122,28 +1153,33 @@ export class CalcDoc {
   insertRows(): void {
     this.commitIfEditing();
     const r = this.activeRange;
+    if (!this.prot.allowed('insertRows')) return;
     const n = r.r2 - r.r1 + 1;
     this.run('Insertar filas', () => this.wb.shiftStructure(this.activeSheetId, 'row', r.r1, n));
   }
   insertCols(): void {
     this.commitIfEditing();
     const r = this.activeRange;
+    if (!this.prot.allowed('insertColumns')) return;
     const n = r.c2 - r.c1 + 1;
     this.run('Insertar columnas', () => this.wb.shiftStructure(this.activeSheetId, 'col', r.c1, n));
   }
   deleteRows(): void {
     this.commitIfEditing();
     const r = this.activeRange;
+    if (!this.prot.allowed('deleteRows') || this.prot.hasLockedCells([{ r1: r.r1, r2: r.r2, c1: 0, c2: MAX_COLS - 1 }])) return;
     this.run('Eliminar filas', () => this.wb.shiftStructure(this.activeSheetId, 'row', r.r1, -(r.r2 - r.r1 + 1)));
   }
   deleteCols(): void {
     this.commitIfEditing();
     const r = this.activeRange;
+    if (!this.prot.allowed('deleteColumns') || this.prot.hasLockedCells([{ r1: 0, r2: MAX_ROWS - 1, c1: r.c1, c2: r.c2 }])) return;
     this.run('Eliminar columnas', () => this.wb.shiftStructure(this.activeSheetId, 'col', r.c1, -(r.c2 - r.c1 + 1)));
   }
 
   // ---------------------------------------------------------------------------------- sheets
   addSheet(): void {
+    if (!this.prot.structureOpen()) return;
     this.commitIfEditing();
     const s = this.wb.addSheet();
     this.activeSheetId = s.id;
@@ -1152,6 +1188,7 @@ export class CalcDoc {
   }
 
   renameSheet(id: number, name: string): string | null {
+    if (!this.prot.structureOpen()) return MSG_BOOK;
     const clean = name.trim();
     if (!clean || /[\\/?*[\]:]/.test(clean) || clean.length > 31) return 'El nombre de la hoja no es válido (máx. 31 caracteres, sin \\ / ? * [ ] :).';
     try {
@@ -1165,6 +1202,7 @@ export class CalcDoc {
   }
 
   deleteSheet(id: number): void {
+    if (!this.prot.structureOpen()) return;
     if (this.wb.sheets.length <= 1) return;
     const idx = this.wb.sheets.findIndex((s) => s.id === id);
     this.wb.removeSheet(id);
@@ -1178,6 +1216,7 @@ export class CalcDoc {
   }
 
   duplicateSheet(id: number): void {
+    if (!this.prot.structureOpen()) return;
     const src = this.wb.sheet(id);
     const idx = this.wb.sheets.indexOf(src);
     let name = `${src.name} (2)`;
@@ -1201,6 +1240,7 @@ export class CalcDoc {
   }
 
   moveSheet(id: number, toIndex: number): void {
+    if (!this.prot.structureOpen()) return;
     const from = this.wb.sheets.findIndex((s) => s.id === id);
     if (from < 0) return;
     const [s] = this.wb.sheets.splice(from, 1);
@@ -1220,6 +1260,7 @@ export class CalcDoc {
   sortRange(rect: Rect, byCol: number, ascending: boolean, hasHeader: boolean): void {
     this.commitIfEditing();
     const r = normRect(rect);
+    if (!this.prot.allowed('sort') || !this.prot.canEdit([r])) return;
     const id = this.activeSheetId;
     const top = hasHeader ? r.r1 + 1 : r.r1;
     if (top >= r.r2 || byCol < r.c1 || byCol > r.c2) return;
@@ -1255,6 +1296,7 @@ export class CalcDoc {
 
   removeDuplicates(rect: Rect, hasHeader: boolean): number {
     const r = normRect(rect);
+    if (!this.prot.canEdit([r])) return 0;
     const id = this.activeSheetId;
     const top = hasHeader ? r.r1 + 1 : r.r1;
     const seen = new Set<string>();
@@ -1282,6 +1324,7 @@ export class CalcDoc {
   }
 
   autoSum(fn: 'SUM' | 'AVERAGE' | 'COUNT' | 'MAX' | 'MIN'): void {
+    if (!this.prot.canEdit(this.sel.ranges)) return;
     this.commitIfEditing();
     const id = this.activeSheetId;
     const r = this.activeRange;
@@ -1367,6 +1410,7 @@ export class CalcDoc {
   // ---------------------------------------------------------------------------------- charts
   /** Create a chart from the selected cells (or the data block around the active cell). */
   insertChart(kind: ChartType | string): string | null {
+    if (!this.prot.allowed('objects')) return this.notice;
     this.commitIfEditing();
     const preset = presetById(kind) ?? presetById(kind === 'column' ? 'column' : kind);
     if (!preset) return 'Tipo de gráfico desconocido.';
@@ -1399,6 +1443,7 @@ export class CalcDoc {
 
   /** Change the selected chart into another kind, keeping its data. Returns why it cannot be done. */
   convertChart(presetId: string): string | null {
+    if (!this.prot.allowed('objects')) return this.notice;
     const c = this.chartById(this.selectedChart);
     const preset = presetById(presetId);
     if (!c || !preset) return null;
@@ -1418,6 +1463,7 @@ export class CalcDoc {
   }
 
   updateChart(id: string, patch: Partial<Omit<ChartDef, 'id'>>, label = 'Modificar gráfico'): void {
+    if (!this.prot.allowed('objects')) return;
     this.run(label, () =>
       this.wb.editCharts(this.activeSheetId, (cs) => {
         const i = cs.findIndex((c) => c.id === id);
@@ -1427,6 +1473,7 @@ export class CalcDoc {
   }
 
   deleteChart(id: string): void {
+    if (!this.prot.allowed('objects')) return;
     this.run('Eliminar gráfico', () => this.wb.editCharts(this.activeSheetId, (cs) => void cs.splice(0, cs.length, ...cs.filter((c) => c.id !== id))));
     if (this.selectedChart === id) this.selectedChart = null;
     this.touch();
@@ -1453,6 +1500,7 @@ export class CalcDoc {
 
   /** Turn the autofilter on for the selection (or the data block around the cursor), or off if it is on. */
   toggleAutoFilter(): string | null {
+    if (!this.prot.allowed('autoFilter')) return this.notice;
     this.commitIfEditing();
     const id = this.activeSheetId;
     if (this.sheet.autoFilter) {
@@ -1479,6 +1527,7 @@ export class CalcDoc {
 
   /** Set (or with null clear) the filter of one column and refresh the hidden rows. */
   setColumnFilter(col: number, filter: ColumnFilter | null): void {
+    if (!this.prot.allowed('autoFilter')) return;
     if (this.filterTable) {
       const id = this.filterTable;
       this.run(filter ? 'Filtrar' : 'Borrar filtro', () =>
@@ -1508,6 +1557,7 @@ export class CalcDoc {
   }
 
   clearColumnFilters(): void {
+    if (!this.prot.allowed('autoFilter')) return;
     if (!this.sheet.autoFilter) return;
     this.run('Borrar filtros', () =>
       this.wb.editLayout(this.activeSheetId, (s) => {
@@ -1519,12 +1569,41 @@ export class CalcDoc {
 
   /** Re-evaluate the filters after the data changed (Excel does this only on request). */
   reapplyFilter(): void {
+    if (!this.prot.allowed('autoFilter')) return;
     if (this.sheet.autoFilter) this.run('Volver a aplicar filtro', () => this.wb.reapplyFilter(this.activeSheetId));
   }
 
   filterValues(col: number): ColumnValue[] {
     const af = this.autoFilter;
     return af ? columnValues(this.wb, this.sheet, af, col) : [];
+  }
+
+  /** What the data rows of a filter column hold, to offer the filters that make sense (number, date or colour). */
+  filterColumnInfo(col: number): { kind: 'date' | 'number' | 'text'; fills: string[]; fonts: string[]; blankFill: boolean; blankFont: boolean } {
+    const out = { kind: 'text' as 'date' | 'number' | 'text', fills: [] as string[], fonts: [] as string[], blankFill: false, blankFont: false };
+    const af = this.autoFilter;
+    if (!af) return out;
+    const r = normRect(af.range);
+    let nums = 0;
+    let dates = 0;
+    const fills = new Set<string>();
+    const fonts = new Set<string>();
+    for (let row = r.r1 + 1; row <= r.r2 && row <= r.r1 + 20000; row++) {
+      const c = this.sheet.cells.get(row * MAX_COLS + col);
+      const st = this.wb.styles.get(c?.style ?? 0);
+      if (typeof c?.value === 'number') {
+        nums++;
+        if (isDateFormat(st.numFmt)) dates++;
+      }
+      if (st.bg) fills.add(st.bg.toLowerCase());
+      else out.blankFill = true;
+      if (st.color) fonts.add(st.color.toLowerCase());
+      else out.blankFont = true;
+    }
+    out.kind = dates > 0 && dates >= nums / 2 ? 'date' : nums > 0 ? 'number' : 'text';
+    out.fills = [...fills];
+    out.fonts = [...fonts];
+    return out;
   }
 
   /** Text shown above a filter column: header cell text or its column letter. */
@@ -1536,6 +1615,7 @@ export class CalcDoc {
   }
 
   sortByFilterColumn(col: number, ascending: boolean): void {
+    if (!this.prot.allowed('sort')) return;
     const af = this.autoFilter;
     if (!af) return;
     const rect = normRect(af.range);
@@ -1551,6 +1631,7 @@ export class CalcDoc {
 
   /** Add a rule with the highest priority (like Excel's "New rule"). */
   addCF(rule: Omit<CFRule, 'id' | 'priority'> & { id?: string }): string {
+    if (!this.prot.allowed('formatCells')) return '';
     const id = rule.id ?? newRuleId();
     this.run('Formato condicional', () =>
       this.wb.editLayout(this.activeSheetId, (s) => {
@@ -1562,6 +1643,7 @@ export class CalcDoc {
   }
 
   updateCF(id: string, rule: Partial<CFRule> & { type?: CFRule['type'] }, replace = false): void {
+    if (!this.prot.allowed('formatCells')) return;
     this.run('Modificar regla', () =>
       this.wb.editLayout(this.activeSheetId, (s) => {
         const i = s.condFormats.findIndex((r) => r.id === id);
@@ -1573,11 +1655,13 @@ export class CalcDoc {
   }
 
   deleteCF(id: string): void {
+    if (!this.prot.allowed('formatCells')) return;
     this.run('Eliminar regla', () => this.wb.editLayout(this.activeSheetId, (s) => void (s.condFormats = s.condFormats.filter((r) => r.id !== id))));
   }
 
   /** Move a rule up (+1 priority) or down in the evaluation order. */
   moveCF(id: string, delta: -1 | 1): void {
+    if (!this.prot.allowed('formatCells')) return;
     this.run('Prioridad de regla', () =>
       this.wb.editLayout(this.activeSheetId, (s) => {
         const sorted = [...s.condFormats].sort((a, b) => a.priority - b.priority);
@@ -1592,6 +1676,7 @@ export class CalcDoc {
 
   /** Remove the rules (or the parts of their ranges) that fall inside the selection, or all rules of the sheet. */
   clearCF(scope: 'selection' | 'sheet'): void {
+    if (!this.prot.allowed('formatCells')) return;
     const sel = this.sel.ranges.map((r) => normRect(r));
     this.run('Borrar reglas', () =>
       this.wb.editLayout(this.activeSheetId, (s) => {
@@ -1668,6 +1753,7 @@ export class CalcDoc {
           const row = keyRow(k);
           const col = keyCol(k);
           if (!c.formula && typeof c.value !== 'string' && o.inFormulas === false) continue;
+          if (sheet.protection && this.wb.styles.get(c.style).locked !== false) continue;
           const text = this.cellText(sheet.id, row, col, !!o.inFormulas || !!c.formula);
           if (!test(text)) continue;
           const next = text.replace(re, () => replacement);

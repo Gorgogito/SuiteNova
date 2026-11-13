@@ -13,8 +13,8 @@ export { DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT, Workbook, type ArrayLikeValue, t
 export { ES_FUNCTIONS, canonicalFormula, canonicalFunctionName, localizeFormula, localizedFunctionName, type FormulaLocale } from './locale';
 export type { PrintOptions } from './formula';
 export { adjustChartRefs, colAtPx, colOffsetPx, rangeText, readRangeValues, renameChartRefs, resolveRangeText, rowAtPx, rowOffsetPx, suggestChart, DEFAULT_3D, SERIES_TYPES, STOCK_SERIES, type Chart3D, type ChartAxis, type ChartDef, type ChartSeries, type ChartType, type SeriesType, type StockKind } from './charts';
-export { CFEvaluator, ICON_COUNTS, adjustCFRules, defaultIconThresholds, newRuleId, nextPriority, shiftRect, type CFFormat, type CFKind, type CFOperator, type CFResult, type CFRule, type CFValue, type IconSetName } from './cf';
-export { applyAutoFilter, cellKeyText, columnValues, filterCounts, hasActiveFilter, isRowHidden, rowPasses, type AutoFilter, type ColumnFilter, type ColumnValue, type FilterCondition, type FilterOp } from './filter';
+export { CFEvaluator, CF_PERIODS, ICON_COUNTS, adjustCFRules, defaultIconThresholds, newRuleId, nextPriority, shiftRect, type CFFormat, type CFKind, type CFOperator, type CFResult, type CFRule, type CFValue, type IconSetName } from './cf';
+export { applyAutoFilter, cellKeyText, columnValues, filterCounts, hasActiveFilter, isRowHidden, rowPasses, type AutoFilter, type ColumnFilter, type ColumnValue, type DynamicFilter, type FilterCondition, type FilterOp } from './filter';
 export {
   VALIDATION_OPS,
   checkValidation,
@@ -43,6 +43,14 @@ export {
   type PivotValueField,
   type PrintSettings,
   type SheetImage,
+  type SheetShape,
+  type ShapeKind,
+  SHAPE_KINDS,
+  SHAPE_FILL,
+  SHAPE_LINE,
+  newShapeId,
+  shapeLook,
+  shapePath,
   type SheetName,
   type SlicerDef,
   type SparklineGroup,
@@ -75,3 +83,7 @@ export {
 export { PIVOT_LABELS_EN, PIVOT_LABELS_ES, computePivot, pivotCovers, sourceHeaders, valueCaption, type PivotCell, type PivotCellKind, type PivotData, type PivotLabels, type PivotOutput } from './pivot';
 export { captureObjects, applyObjects, type ObjectsSnap } from './workbook';
 export type { TableArea } from './ast';
+export { DEFAULT_ALLOW, PROTECT_ACTIONS, PROTECT_SPIN, checkPassword, hasPassword, legacyHash, makePasswordHash, type PasswordHash, type ProtectAction, type SheetProtection, type WorkbookProtection } from './protect';
+export { ERROR_KINDS, TREND_TYPES, errorAmounts, fitTrend, fmtCoeff, trendName, trendPath, type ErrorBars, type ErrorKind, type Fit, type TrendType, type Trendline } from './chart-fit';
+export { REL_PERIODS, inPeriod, periodRange, type RelPeriod } from './reldate';
+export { boxStats, histogramBins, scottWidth, waterfallSteps, type BoxStats, type HistogramBin, type HistogramOptions, type WaterfallStep } from './chart-stat';

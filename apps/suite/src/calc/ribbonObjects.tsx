@@ -21,6 +21,7 @@ export function chartEntries(prefix: 'calc.chart.' | 'calc.chartType.'): Entry[]
     ['stock', 'Cotizaciones'],
     ['surface', 'Superficie'],
     ['combo', 'Combinado'],
+    ['stats', 'Estadísticos y financieros'],
   ];
   const out: Entry[] = [];
   for (const [g, label] of groups) {
@@ -42,7 +43,16 @@ export function insertGroups(): RibbonGroup[] {
         { kind: 'button', command: 'calc.table.create', size: 'large', keytip: 'TB' },
       ],
     },
-    { id: 'illustrations', label: 'Ilustraciones', icon: 'picture', items: [{ kind: 'button', command: 'calc.picture', size: 'large', keytip: 'IM' }] },
+    {
+      id: 'illustrations',
+      label: 'Ilustraciones',
+      icon: 'picture',
+      items: [
+        { kind: 'button', command: 'calc.picture', size: 'large', keytip: 'IM' },
+        { kind: 'dropdown', id: 'shapesMenu', label: 'Formas', icon: 'shapes', size: 'large', keytip: 'OF', entries: ['rect', 'roundRect', 'ellipse', 'triangle', 'diamond', 'rightArrow', 'leftArrow', 'line'].map((k) => cmd(`calc.shape.${k}`)) },
+        { kind: 'button', command: 'calc.textbox', size: 'large', keytip: 'QT' },
+      ],
+    },
     {
       id: 'sparklines',
       label: 'Minigráficos',
@@ -93,6 +103,18 @@ export function reviewTab(): RibbonTab {
           { kind: 'button', command: 'calc.link', size: 'large', keytip: 'V' },
           { kind: 'button', command: 'calc.link.open', size: 'small', keytip: 'O' },
           { kind: 'button', command: 'calc.link.remove', size: 'small', keytip: 'Q' },
+        ],
+      },
+      {
+        id: 'protect',
+        label: 'Proteger',
+        icon: 'lock',
+        items: [
+          { kind: 'button', command: 'calc.protectSheet', size: 'large', keytip: 'H' },
+          { kind: 'button', command: 'calc.unprotectSheet', size: 'large', keytip: 'U' },
+          { kind: 'button', command: 'calc.protectBook', size: 'large', keytip: 'L' },
+          { kind: 'button', command: 'calc.unprotectBook', size: 'large', keytip: 'D' },
+          { kind: 'button', command: 'calc.lockCells', size: 'small', keytip: 'B' },
         ],
       },
     ],
@@ -182,6 +204,7 @@ export interface ContextFlags {
   pivot: boolean;
   sparkline: boolean;
   picture: boolean;
+  shape: boolean;
   slicer: boolean;
 }
 
@@ -371,6 +394,17 @@ export function contextualTabs(ui: CalcUI, f: ContextFlags): RibbonTab[] {
     ],
   };
 
+  const shape: RibbonTab = {
+    id: 'shape',
+    label: 'Formato de forma',
+    keytip: 'JF',
+    contextual: { label: 'Herramientas de dibujo', color: '#0f766e', visible: f.shape },
+    groups: [
+      { id: 'shapeFormat', label: 'Estilos de forma', icon: 'settings', items: [{ kind: 'button', command: 'calc.shape.format', size: 'large', keytip: 'FO' }] },
+      { id: 'shapeActions', label: 'Acciones', icon: 'trash', items: [{ kind: 'button', command: 'calc.shape.delete', size: 'large', keytip: 'EF' }] },
+    ],
+  };
+
   const slicer: RibbonTab = {
     id: 'slicer',
     label: 'Segmentación',
@@ -390,5 +424,5 @@ export function contextualTabs(ui: CalcUI, f: ContextFlags): RibbonTab[] {
       { id: 'slActions', label: 'Acciones', icon: 'trash', items: [{ kind: 'button', command: 'calc.slicer.delete', size: 'large', keytip: 'EL' }] },
     ],
   };
-  return [table, pivot, spark, picture, slicer];
+  return [table, pivot, spark, picture, shape, slicer];
 }

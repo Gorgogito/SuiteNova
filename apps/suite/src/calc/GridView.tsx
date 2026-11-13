@@ -454,9 +454,10 @@ export function GridView({ doc, zoom, dark, onZoomChange, onContextMenu, onFilte
   // ---- keyboard
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (doc.edit) return;
-    if (doc.x.selectedImage || doc.x.selectedSlicer) {
+    if (doc.x.selectedImage || doc.x.selectedSlicer || doc.x.selectedShape) {
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (doc.x.selectedImage) doc.x.deleteImage(doc.x.selectedImage);
+        else if (doc.x.selectedShape) doc.x.deleteShape(doc.x.selectedShape);
         else if (doc.x.selectedSlicer) doc.x.deleteSlicer(doc.x.selectedSlicer);
         e.preventDefault();
         return;

@@ -19,6 +19,9 @@ import {
   type StockKind,
   type Workbook,
 } from '@suitenova/calc-engine';
+import { NS_CX } from './chartex-io';
+import { shapeBodyXml } from './shapes-io';
+import { errBarsXml, parseErrBars, parseTrendlines, trendlinesXml } from './chart-fit-io';
 import { DEFAULT_THEME, resolveColor } from './colors';
 import { escapeXml, asArray, attr, textOf, type XNode } from './xml';
 
@@ -67,24 +70,26 @@ function serXml(item: { s: ChartSeries; index: number }, g: Group, def: ChartDef
   const val = `<c:val><c:numRef><c:f>${escapeXml(s.values)}</c:f>${numCache(vals)}</c:numRef></c:val>`;
   const head = `<c:idx val="${index}"/><c:order val="${index}"/>${tx}`;
   const color = s.color;
+  // tendencias y barras de error (no con apiladas ni 3D, donde Excel no las admite)
+  const analysis = (kind: 'scatter' | 'line' | 'other') => (def.stacked || def.threeD ? '' : trendlinesXml(s) + errBarsXml(s, kind, wb, sheetId));
   switch (g.kind) {
     case 'scatter': {
       const x = s.categories ? `<c:xVal><c:numRef><c:f>${escapeXml(s.categories)}</c:f>${numCache(catVals)}</c:numRef></c:xVal>` : '';
       const sp = `<c:spPr><a:ln w="19050"><a:noFill/></a:ln></c:spPr>`;
       const marker = color ? `<c:marker><c:symbol val="circle"/><c:size val="7"/><c:spPr>${solid(color)}</c:spPr></c:marker>` : '';
-      return `<c:ser>${head}${sp}${marker}${x}<c:yVal><c:numRef><c:f>${escapeXml(s.values)}</c:f>${numCache(vals)}</c:numRef></c:yVal><c:smooth val="0"/></c:ser>`;
+      return `<c:ser>${head}${sp}${marker}${analysis('scatter')}${x}<c:yVal><c:numRef><c:f>${escapeXml(s.values)}</c:f>${numCache(vals)}</c:numRef></c:yVal><c:smooth val="0"/></c:ser>`;
     }
     case 'bar': {
       const sp = color ? `<c:spPr>${solid(color)}</c:spPr>` : '';
-      return `<c:ser>${head}${sp}<c:invertIfNegative val="0"/>${cat}${val}</c:ser>`;
+      return `<c:ser>${head}${sp}<c:invertIfNegative val="0"/>${analysis('other')}${cat}${val}</c:ser>`;
     }
     case 'line': {
       const sp = `<c:spPr><a:ln w="28575" cap="rnd">${color ? solid(color) : ''}<a:round/></a:ln></c:spPr>`;
-      return `<c:ser>${head}${sp}<c:marker><c:symbol val="${def.type === 'line' || s.type === 'line' ? 'circle' : 'none'}"/></c:marker>${cat}${val}<c:smooth val="${def.smooth ? 1 : 0}"/></c:ser>`;
+      return `<c:ser>${head}${sp}<c:marker><c:symbol val="${def.type === 'line' || s.type === 'line' ? 'circle' : 'none'}"/></c:marker>${analysis('line')}${cat}${val}<c:smooth val="${def.smooth ? 1 : 0}"/></c:ser>`;
     }
     case 'area': {
       const sp = color ? `<c:spPr>${solid(color)}</c:spPr>` : '';
-      return `<c:ser>${head}${sp}${cat}${val}</c:ser>`;
+      return `<c:ser>${head}${sp}${analysis('other')}${cat}${val}</c:ser>`;
     }
     case 'radar': {
       const filled = !!def.radar?.filled;
@@ -269,7 +274,11 @@ export function chartXml(def: ChartDef, wb: Workbook, sheetId: number): string {
 
 // ------------------------------------------------------------------------------------------------ drawings
 export interface DrawingItem {
-  kind: 'chart' | 'pic';
+  kind: 'chart' | 'pic' | 'shape';
+  /** For shapes: the shape itself. */
+  shape?: import('@suitenova/calc-engine').SheetShape;
+  /** The chart is an Excel 2016 chart (chartex): the anchor carries a fallback for older versions. */
+  ex?: boolean;
   /** Relationship id of the chart or image part. */
   rId: string;
   x: number;
@@ -290,13 +299,22 @@ export function drawingXml(sheet: Sheet, items: DrawingItem[]): string {
         `<xdr:col>${p.col.col}</xdr:col><xdr:colOff>${Math.round(p.col.offset * EMU)}</xdr:colOff><xdr:row>${p.row.row}</xdr:row><xdr:rowOff>${Math.round(p.row.offset * EMU)}</xdr:rowOff>`;
       const id = i + 2;
       const body =
-        c.kind === 'chart'
+        c.kind === 'shape'
+          ? shapeBodyXml(c.shape!, id)
+          : c.kind === 'chart' && c.ex
+          ? `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" Requires="cx1">` +
+            `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +
+            `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="${NS_CX}"><cx:chart xmlns:cx="${NS_CX}" r:id="${c.rId}"/></a:graphicData></a:graphic></xdr:graphicFrame></mc:Choice>` +
+            `<mc:Fallback><xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="0" name=""/><xdr:cNvSpPr><a:spLocks noTextEdit="1"/></xdr:cNvSpPr></xdr:nvSpPr>` +
+            `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.round(c.width * EMU)}" cy="${Math.round(c.height * EMU)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:prstClr val="white"/></a:solidFill></xdr:spPr>` +
+            `<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip"/><a:lstStyle/><a:p><a:r><a:rPr lang="es-ES"/><a:t>Este gráfico no está disponible en esta versión de Excel.</a:t></a:r></a:p></xdr:txBody></xdr:sp></mc:Fallback></mc:AlternateContent>`
+          : c.kind === 'chart'
           ? `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +
             `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="${NS_C}"><c:chart xmlns:c="${NS_C}" r:id="${c.rId}"/></a:graphicData></a:graphic></xdr:graphicFrame>`
           : `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"${c.alt ? ` descr="${escapeXml(c.alt)}"` : ''}/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
             `<xdr:blipFill><a:blip xmlns:r="${NS_R}" r:embed="${c.rId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
             `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.round(c.width * EMU)}" cy="${Math.round(c.height * EMU)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>`;
-      return `<xdr:twoCellAnchor${c.kind === 'pic' ? ' editAs="oneCell"' : ''}><xdr:from>${pt(from)}</xdr:from><xdr:to>${pt(to)}</xdr:to>${body}<xdr:clientData/></xdr:twoCellAnchor>`;
+      return `<xdr:twoCellAnchor${c.kind === 'pic' || c.kind === 'shape' ? ' editAs="oneCell"' : ''}><xdr:from>${pt(from)}</xdr:from><xdr:to>${pt(to)}</xdr:to>${body}<xdr:clientData/></xdr:twoCellAnchor>`;
     })
     .join('');
   void colOffsetPx;
@@ -433,6 +451,13 @@ export function parseChart(doc: XNode, theme: string[] = DEFAULT_THEME): { def: 
       if (isSecondary(g)) ser.secondary = true;
       const t = groupType(g);
       if (t) ser.type = t;
+      if (g.kind === 'bar' || g.kind === 'line' || g.kind === 'area' || g.kind === 'scatter') {
+        const tls = parseTrendlines(s);
+        if (tls.length) ser.trendlines = tls;
+        const eb = parseErrBars(s, g.kind === 'scatter');
+        if (eb.errY) ser.errY = eb.errY;
+        if (eb.errX) ser.errX = eb.errX;
+      }
       series.push(ser);
     }
   }

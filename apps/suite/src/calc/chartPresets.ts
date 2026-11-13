@@ -6,7 +6,7 @@ export interface ChartPreset {
   icon: string;
   /** The family of charts a new chart is first suggested as. */
   type: ChartType;
-  group: 'column' | 'bar' | 'line' | 'area' | 'pie' | 'scatter' | 'radar' | 'stock' | 'surface' | 'combo';
+  group: 'column' | 'bar' | 'line' | 'area' | 'pie' | 'scatter' | 'radar' | 'stock' | 'surface' | 'combo' | 'stats';
   /** What to set on the chart (series types and the rest of the flags are reset first). */
   patch: (def: Pick<ChartDef, 'series'>) => Partial<ChartDef>;
   /** A reason why the data cannot make this chart, in Spanish, or null. */
@@ -27,6 +27,8 @@ const surface3d = (surface: ChartDef['surface']): Pick<ChartPreset, 'patch' | 'c
   patch: () => ({ surface, threeD: d3({ rotX: 25, rotY: 30, rightAngle: false, perspective: 30, depth: 100 }), legend: true }),
   check: surfaceNeeds,
 });
+
+const oneSeries = (what: string) => (def: Pick<ChartDef, 'series'>) => (def.series.length >= 1 ? null : `${what} necesita una serie de datos.`);
 
 export const CHART_PRESETS: ChartPreset[] = [
   { id: 'column', label: 'Columnas agrupadas', icon: 'chartColumn', type: 'column', group: 'column', patch: () => ({}) },
@@ -59,6 +61,10 @@ export const CHART_PRESETS: ChartPreset[] = [
   { id: 'surface3d', label: 'Superficie 3D', icon: 'chartSurface', type: 'surface', group: 'surface', ...surface3d({}) },
   { id: 'surfaceWire', label: 'Superficie 3D (estructura alámbrica)', icon: 'chartSurface', type: 'surface', group: 'surface', ...surface3d({ wireframe: true }) },
   { id: 'surfaceContour', label: 'Contorno', icon: 'chartSurface', type: 'surface', group: 'surface', ...surface3d({ contour: true }) },
+  { id: 'waterfall', label: 'Cascada', icon: 'chartWaterfall', type: 'waterfall', group: 'stats', check: oneSeries('Un gráfico en cascada'), patch: () => ({ waterfall: { connectors: true }, legend: true }) },
+  { id: 'funnel', label: 'Embudo', icon: 'chartFunnel', type: 'funnel', group: 'stats', check: oneSeries('Un gráfico de embudo'), patch: (def) => ({ series: def.series.slice(0, 1), legend: false }) },
+  { id: 'histogram', label: 'Histograma', icon: 'chartHistogram', type: 'histogram', group: 'stats', check: oneSeries('Un histograma'), patch: (def) => ({ histogram: {}, series: def.series.slice(0, 1), legend: false }) },
+  { id: 'boxwhisker', label: 'Cajas y bigotes', icon: 'chartBox', type: 'boxwhisker', group: 'stats', check: oneSeries('Un gráfico de cajas y bigotes'), patch: () => ({ boxwhisker: { mean: true, outliers: true }, legend: false }) },
   {
     id: 'combo',
     label: 'Columnas agrupadas y líneas en el eje secundario',
@@ -105,6 +111,9 @@ export function applyPreset(def: ChartDef, preset: ChartPreset): ChartDef | stri
     radar: undefined,
     stock: undefined,
     surface: undefined,
+    waterfall: undefined,
+    histogram: undefined,
+    boxwhisker: undefined,
     series: def.series.map((s) => ({ ...s, type: undefined, secondary: undefined })),
     axisY2: undefined,
   };
@@ -119,6 +128,7 @@ export function presetOf(def: ChartDef): string {
   const types = new Set(def.series.map((s) => s.type ?? ''));
   const combo = types.size > 1 || def.series.some((s) => s.secondary);
   if (combo) return def.series.some((s) => s.secondary) ? 'combo' : def.series.some((s) => s.type === 'area') ? 'comboArea' : 'comboLine';
+  if (def.type === 'waterfall' || def.type === 'funnel' || def.type === 'histogram' || def.type === 'boxwhisker') return def.type;
   if (def.type === 'stock') return { hlc: 'stockHLC', ohlc: 'stockOHLC', vhlc: 'stockVHLC', vohlc: 'stockVOHLC' }[def.stock?.kind ?? 'hlc'];
   if (def.type === 'surface') return def.surface?.contour ? 'surfaceContour' : def.surface?.wireframe ? 'surfaceWire' : 'surface3d';
   if (def.type === 'radar') return def.radar?.filled ? 'radarFilled' : def.radar?.markers ? 'radarMarkers' : 'radar';

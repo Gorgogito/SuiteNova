@@ -18,7 +18,7 @@ function nums(args: Scalar[], dflt: number[]): number[] | CalcError {
 }
 
 // Excel conventions: pv + pmt*… + fv = 0, type 1 = payments at period start.
-function pmt(rate: number, nper: number, pv: number, fv: number, type: number): number {
+export function pmt(rate: number, nper: number, pv: number, fv: number, type: number): number {
   if (rate === 0) return -(pv + fv) / nper;
   const f = Math.pow(1 + rate, nper);
   return -(rate * (pv * f + fv)) / ((1 + rate * type) * (f - 1));
@@ -60,7 +60,7 @@ scalarFn('NPER', 3, 5, (a) => {
   const x = (p * (1 + rate * type) - fv * rate) / (p * (1 + rate * type) + pv * rate);
   return x <= 0 ? E.NUM : Math.log(x) / Math.log(1 + rate);
 });
-function interestPart(rate: number, per: number, nper: number, pv: number, fv: number, type: number): number | CalcError {
+export function interestPart(rate: number, per: number, nper: number, pv: number, fv: number, type: number): number | CalcError {
   if (per < 1 || per > nper) return E.NUM;
   const p = pmt(rate, nper, pv, fv, type);
   // negative of the outstanding balance before this period (Excel sign convention)
@@ -95,7 +95,7 @@ rawFn('NPV', 2, 255, (args, ctx) => {
   return c.nums.reduce((acc, cf, i) => acc + cf / Math.pow(1 + r, i + 1), 0);
 });
 
-function solve(f: (x: number) => number, guess: number): number | null {
+export function solve(f: (x: number) => number, guess: number): number | null {
   let x = guess;
   for (let i = 0; i < 100; i++) {
     const y = f(x);

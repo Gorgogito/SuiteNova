@@ -61,7 +61,7 @@ describe('autofilter', () => {
     });
     const zip = await JSZip.loadAsync(await writeXlsx(w));
     const xml = await zip.file('xl/worksheets/sheet1.xml')!.async('string');
-    zip.file('xl/worksheets/sheet1.xml', xml.replace(/<filterColumn[\s\S]*<\/filterColumn>/, '<filterColumn colId="1"><top10 val="3"/></filterColumn><filterColumn colId="0"><filters><dateGroupItem year="2024" dateTimeGrouping="year"/></filters></filterColumn>'));
+    zip.file('xl/worksheets/sheet1.xml', xml.replace(/<filterColumn[\s\S]*<\/filterColumn>/, '<filterColumn colId="1"><dynamicFilter type="inventado"/></filterColumn><filterColumn colId="0"><filters><dateGroupItem year="2024" month="1" day="2" hour="3" dateTimeGrouping="hour"/></filters></filterColumn>'));
     const { workbook, warnings } = await readXlsx(await zip.generateAsync({ type: 'uint8array' }));
     expect(workbook.sheets[0]!.autoFilter).toBeDefined();
     expect(Object.keys(workbook.sheets[0]!.autoFilter!.columns)).toEqual([]);
@@ -132,12 +132,12 @@ describe('conditional formatting', () => {
     const styles = await zip.file('xl/styles.xml')!.async('string');
     zip.file('xl/styles.xml', styles.replace(/<dxfs[\s\S]*<\/dxfs>/, '<dxfs count="1"><dxf><font><b/><color theme="5"/></font><fill><patternFill><bgColor rgb="FFFFC7CE"/></patternFill></fill></dxf></dxfs>'));
     const sheet = await zip.file('xl/worksheets/sheet1.xml')!.async('string');
-    zip.file('xl/worksheets/sheet1.xml', sheet.replace('iconSet="3Arrows"', 'iconSet="4Rating"'));
+    zip.file('xl/worksheets/sheet1.xml', sheet.replace('iconSet="3Arrows"', 'iconSet="9Inventado"'));
     const { workbook, warnings } = await readXlsx(await zip.generateAsync({ type: 'uint8array' }));
     const rules = workbook.sheets[0]!.condFormats;
     expect(rules).toHaveLength(1);
     expect(rules[0]!.format).toEqual({ bold: true, color: '#ed7d31', bg: '#ffc7ce' }); // theme accent2 of the default Office theme
-    expect(warnings.join(' ')).toMatch(/4Rating/);
+    expect(warnings.join(' ')).toMatch(/9Inventado/);
   });
 
   it('writes rules that were adjusted by structure changes', async () => {
@@ -148,5 +148,96 @@ describe('conditional formatting', () => {
     const r = workbook.sheets[0]!.condFormats[0]! as { ranges: unknown; formula: string };
     expect(r.ranges).toEqual([{ r1: 2, c1: 1, r2: 5, c2: 1 }]);
     expect(r.formula).toBe('B3>B$2');
+  });
+});
+
+describe('formato condicional y autofiltro ampliados', () => {
+  it('ida y vuelta de fechas, desviación estándar, 20 conjuntos de iconos y barras con negativos', async () => {
+    const { w, id } = sample();
+    const rg = [{ r1: 1, c1: 1, r2: 4, c2: 1 }];
+    const rules = [
+      { type: 'timePeriod', period: 'last7Days', format: { bold: true } },
+      { type: 'timePeriod', period: 'thisWeek', format: { italic: true } },
+      { type: 'average', above: true, stdDev: 2, format: { bold: true } },
+      { type: 'dataBar', color: '#638ec6', min: { type: 'min' }, max: { type: 'max' }, negativeColor: '#cc0000', axis: 'middle', solid: true },
+      { type: 'dataBar', color: '#638ec6', min: { type: 'min' }, max: { type: 'max' }, axis: 'none' },
+      { type: 'dataBar', color: '#638ec6', min: { type: 'min' }, max: { type: 'max' } },
+      ...(['3ArrowsGray', '3TrafficLights2', '3Signs', '3Symbols2', '3Stars', '3Triangles', '4ArrowsGray', '4RedToBlack', '4Rating', '4TrafficLights', '5ArrowsGray', '5Rating', '5Quarters', '5Boxes'] as const).map((set) => ({
+        type: 'iconSet',
+        set,
+        thresholds: Array.from({ length: Number(set[0]) }, (_x, i) => ({ type: 'percent' as const, value: Math.round((i * 100) / Number(set[0])) })),
+      })),
+    ];
+    w.editLayout(id, (s) => {
+      rules.forEach((r, i) => s.condFormats.push({ ...r, id: 'r' + i, ranges: rg, priority: i + 1 } as never));
+    });
+    const bytes = await writeXlsx(w);
+    const zip = await JSZip.loadAsync(bytes);
+    const xml = await zip.file('xl/worksheets/sheet1.xml')!.async('string');
+    expect(xml).toContain('type="timePeriod"');
+    expect(xml).toContain('timePeriod="last7Days"');
+    expect(xml).toContain('stdDev="2"');
+    // la extensión de Excel 2010 solo se escribe para las barras que la necesitan
+    expect((xml.match(/<x14:cfRule type="dataBar"/g) ?? []).length).toBe(2);
+    expect(xml).toContain('axisPosition="middle"');
+    expect(xml).toContain('gradient="0"');
+    expect(xml).toContain('<x14:negativeFillColor rgb="FFCC0000"/>');
+    const { workbook: r, warnings } = await readXlsx(bytes);
+    expect(warnings).toEqual([]);
+    const back = r.sheets[0]!.condFormats;
+    expect(back).toHaveLength(rules.length);
+    back.forEach((b, i) => {
+      for (const [k, v] of Object.entries(rules[i]!)) expect(b[k as keyof typeof b], `rule ${i} ${k}`).toEqual(v);
+    });
+    expect((back[5] as { negativeColor?: string }).negativeColor).toBeUndefined();
+  });
+
+  it('bordes y formato de número dentro de la regla', async () => {
+    const { w, id } = sample();
+    w.editLayout(id, (s) => {
+      s.condFormats.push({
+        id: 'a',
+        ranges: [{ r1: 1, c1: 1, r2: 4, c2: 1 }],
+        priority: 1,
+        type: 'cellIs',
+        operator: 'greaterThan',
+        formula1: '20',
+        format: { bold: true, numFmt: '0.00" kg"', top: { style: 'thin', color: '#ff0000' }, bottom: { style: 'double' }, left: { style: 'thick', color: '#00ff00' } },
+      });
+    });
+    const bytes = await writeXlsx(w);
+    const zip = await JSZip.loadAsync(bytes);
+    const styles = await zip.file('xl/styles.xml')!.async('string');
+    expect(/<dxf>.*<numFmt numFmtId="\d+" formatCode="0.00&quot; kg&quot;"\/>.*<border><left style="thick">/s.test(styles)).toBe(true);
+    const { workbook: r } = await readXlsx(bytes);
+    expect(r.sheets[0]!.condFormats[0]!.format).toEqual({ bold: true, numFmt: '0.00" kg"', top: { style: 'thin', color: '#ff0000' }, bottom: { style: 'double' }, left: { style: 'thick', color: '#00ff00' } });
+  });
+
+  it('autofiltro: diez mejores, dinámicos, por color y agrupaciones de fecha', async () => {
+    const { w, id } = sample();
+    const cases: Record<string, object> = {
+      top: { top: { n: 3 } },
+      topPct: { top: { n: 20, percent: true, bottom: true } },
+      avg: { dynamic: 'aboveAverage' },
+      month: { dynamic: 'thisMonth' },
+      q: { dynamic: { quarter: 2 } },
+      m: { dynamic: { month: 11 } },
+      cell: { color: { kind: 'cell', color: '#ffff00' } },
+      font: { color: { kind: 'font', color: '#00aa00' } },
+      none: { color: { kind: 'cell', color: null } },
+      dates: { dates: [{ year: 2024, month: 5, day: 2 }, { year: 2023 }, { year: 2024, month: 6 }] },
+    };
+    for (const [name, f] of Object.entries(cases)) {
+      w.editLayout(id, (s) => {
+        s.autoFilter = { range: { r1: 0, c1: 0, r2: 4, c2: 1 }, columns: { 1: f as never } };
+      });
+      const { workbook } = await readXlsx(await writeXlsx(w));
+      expect(workbook.sheets[0]!.autoFilter!.columns[1], name).toEqual(f);
+    }
+    w.editLayout(id, (s) => {
+      s.autoFilter = { range: { r1: 0, c1: 0, r2: 4, c2: 1 }, columns: { 1: cases.top as never } };
+    });
+    const xml = await (await JSZip.loadAsync(await writeXlsx(w))).file('xl/worksheets/sheet1.xml')!.async('string');
+    expect(xml).toContain('<top10 val="3"/>');
   });
 });

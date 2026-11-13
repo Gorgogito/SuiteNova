@@ -202,6 +202,10 @@ function withCF(base: Style, res: CFResult | null): Style {
   if (!f && !res.scaleBg) return base;
   return {
     ...base,
+    ...(f?.top ? { top: f.top } : {}),
+    ...(f?.right ? { right: f.right } : {}),
+    ...(f?.bottom ? { bottom: f.bottom } : {}),
+    ...(f?.left ? { left: f.left } : {}),
     ...(f?.color ? { color: f.color } : {}),
     ...(f?.bold ? { bold: true } : {}),
     ...(f?.italic ? { italic: true } : {}),
@@ -224,20 +228,76 @@ function iconColor(index: number, count: number): string {
   return t < 0.5 ? mix(RED, YELLOW, t * 2) : mix(YELLOW, GREEN, (t - 0.5) * 2);
 }
 
+const GRAY_SHADES = ['#9a9a9a', '#8a8a8a', '#6f6f6f', '#4f4f4f', '#2f2f2f'];
+
 /** Draw an icon-set glyph centred at (cx, cy). */
 export function drawCFIcon(ctx: CanvasRenderingContext2D, icon: NonNullable<CFResult['icon']>, cx: number, cy: number, size: number): void {
   const r = size / 2;
-  const color = iconColor(icon.index, icon.count);
+  const { set, index, count } = icon;
+  const color = iconColor(index, count);
   ctx.save();
   ctx.fillStyle = color;
   ctx.strokeStyle = color;
   ctx.lineWidth = Math.max(1.5, size / 8);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  if (icon.set.endsWith('Arrows')) {
+  const circle = (fill: string, rad = r * 0.9) => {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  const mark = (kind: 'check' | 'bang' | 'cross', stroke: string, scale = 1) => {
+    ctx.strokeStyle = stroke;
+    ctx.beginPath();
+    if (kind === 'check') {
+      ctx.moveTo(cx - r * 0.45 * scale, cy);
+      ctx.lineTo(cx - r * 0.1 * scale, cy + r * 0.4 * scale);
+      ctx.lineTo(cx + r * 0.5 * scale, cy - r * 0.4 * scale);
+    } else if (kind === 'bang') {
+      ctx.moveTo(cx, cy - r * 0.5 * scale);
+      ctx.lineTo(cx, cy + r * 0.1 * scale);
+      ctx.moveTo(cx, cy + r * 0.45 * scale);
+      ctx.lineTo(cx, cy + r * 0.46 * scale);
+    } else {
+      ctx.moveTo(cx - r * 0.4 * scale, cy - r * 0.4 * scale);
+      ctx.lineTo(cx + r * 0.4 * scale, cy + r * 0.4 * scale);
+      ctx.moveTo(cx + r * 0.4 * scale, cy - r * 0.4 * scale);
+      ctx.lineTo(cx - r * 0.4 * scale, cy + r * 0.4 * scale);
+    }
+    ctx.stroke();
+  };
+  const star = (fill: 'full' | 'half' | 'empty') => {
+    const pts: [number, number][] = [];
+    for (let i = 0; i < 10; i++) {
+      const rad = i % 2 === 0 ? r : r * 0.45;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      pts.push([cx + Math.cos(a) * rad, cy + Math.sin(a) * rad]);
+    }
+    const path = () => {
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)));
+      ctx.closePath();
+    };
+    ctx.strokeStyle = '#c9a227';
+    ctx.lineWidth = Math.max(1, size / 12);
+    path();
+    ctx.stroke();
+    if (fill !== 'empty') {
+      ctx.save();
+      path();
+      ctx.clip();
+      ctx.fillStyle = '#f2c94c';
+      ctx.fillRect(cx - r, cy - r, fill === 'half' ? r : r * 2, r * 2);
+      ctx.restore();
+    }
+  };
+  const arrows = /^(\d)Arrows(Gray)?$/.exec(set);
+  if (arrows) {
     // clockwise degrees from "up": the best value points up, the worst down
     const table: Record<number, number[]> = { 3: [180, 90, 0], 4: [180, 135, 45, 0], 5: [180, 135, 90, 45, 0] };
-    const deg = table[icon.count]?.[icon.index] ?? 0;
+    const deg = table[count]?.[index] ?? 0;
+    if (arrows[2]) ctx.fillStyle = GRAY_SHADES[Math.min(index, GRAY_SHADES.length - 1)]!;
     ctx.translate(cx, cy);
     ctx.rotate((deg * Math.PI) / 180);
     ctx.beginPath();
@@ -250,32 +310,91 @@ export function drawCFIcon(ctx: CanvasRenderingContext2D, icon: NonNullable<CFRe
     ctx.lineTo(-r * 0.85, -r * 0.05);
     ctx.closePath();
     ctx.fill();
-  } else if (icon.set === '3TrafficLights') {
+  } else if (set === '3TrafficLights') {
+    circle(color);
+  } else if (set === '3TrafficLights2') {
+    circle(color);
+    ctx.strokeStyle = '#222222';
+    ctx.lineWidth = Math.max(1, size / 10);
     ctx.beginPath();
     ctx.arc(cx, cy, r * 0.9, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (icon.set === '3Symbols') {
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.beginPath();
-    if (icon.index === 2) {
-      ctx.moveTo(cx - r * 0.45, cy);
-      ctx.lineTo(cx - r * 0.1, cy + r * 0.4);
-      ctx.lineTo(cx + r * 0.5, cy - r * 0.4);
-    } else if (icon.index === 1) {
-      ctx.moveTo(cx, cy - r * 0.5);
-      ctx.lineTo(cx, cy + r * 0.1);
-      ctx.moveTo(cx, cy + r * 0.45);
-      ctx.lineTo(cx, cy + r * 0.46);
-    } else {
-      ctx.moveTo(cx - r * 0.4, cy - r * 0.4);
-      ctx.lineTo(cx + r * 0.4, cy + r * 0.4);
-      ctx.moveTo(cx + r * 0.4, cy - r * 0.4);
-      ctx.lineTo(cx - r * 0.4, cy + r * 0.4);
-    }
     ctx.stroke();
+  } else if (set === '4TrafficLights') {
+    // de peor a mejor: negro, rojo, amarillo, verde
+    circle(['#262626', '#d64545', '#ebb428', '#40a05a'][index] ?? color);
+  } else if (set === '4RedToBlack') {
+    circle(['#262626', '#8c8c8c', '#e9a5a1', '#d94b45'][index] ?? color);
+  } else if (set === '3Symbols') {
+    circle(color);
+    mark(index === 2 ? 'check' : index === 1 ? 'bang' : 'cross', '#ffffff');
+  } else if (set === '3Symbols2') {
+    mark(index === 2 ? 'check' : index === 1 ? 'bang' : 'cross', color, 1.5);
+  } else if (set === '3Signs') {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (index === 2) ctx.arc(cx, cy, r * 0.9, 0, Math.PI * 2);
+    else if (index === 1) {
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy + r * 0.85);
+      ctx.lineTo(cx - r, cy + r * 0.85);
+      ctx.closePath();
+    } else {
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r, cy);
+      ctx.closePath();
+    }
+    ctx.fill();
+  } else if (set === '3Stars') {
+    star(index === 2 ? 'full' : index === 1 ? 'half' : 'empty');
+  } else if (set === '3Triangles') {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (index === 2) {
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy + r * 0.8);
+      ctx.lineTo(cx - r, cy + r * 0.8);
+    } else if (index === 0) {
+      ctx.moveTo(cx, cy + r);
+      ctx.lineTo(cx + r, cy - r * 0.8);
+      ctx.lineTo(cx - r, cy - r * 0.8);
+    } else {
+      ctx.roundRect(cx - r, cy - r * 0.2, r * 2, r * 0.4, r * 0.2);
+    }
+    ctx.closePath();
+    ctx.fill();
+  } else if (set === '4Rating' || set === '5Rating') {
+    // cuatro barras de altura creciente: se rellenan tantas como indique el icono
+    const filled = count === 4 ? index + 1 : index;
+    const bw = (r * 2) / 4.6;
+    for (let i = 0; i < 4; i++) {
+      const bh = r * 2 * (0.35 + 0.65 * ((i + 1) / 4));
+      ctx.fillStyle = i < filled ? '#3b6ea5' : '#c9d3df';
+      ctx.fillRect(cx - r + i * (bw * 1.2), cy + r - bh, bw, bh);
+    }
+  } else if (set === '5Quarters') {
+    ctx.strokeStyle = '#444444';
+    ctx.lineWidth = Math.max(1, size / 12);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.9, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#444444';
+    for (let q = 0; q < index; q++) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r * 0.9, -Math.PI / 2 + (q * Math.PI) / 2, -Math.PI / 2 + ((q + 1) * Math.PI) / 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (set === '5Boxes') {
+    const s = r * 0.9;
+    ctx.strokeStyle = '#444444';
+    ctx.lineWidth = Math.max(1, size / 12);
+    ctx.strokeRect(cx - s, cy - s, s * 2, s * 2);
+    ctx.fillStyle = '#444444';
+    const cells: [number, number][] = [[0, 1], [1, 1], [1, 0], [0, 0]];
+    for (let q = 0; q < index; q++) ctx.fillRect(cx - s + cells[q]![0] * s, cy - s + cells[q]![1] * s, s, s);
   } else {
     // flags: a pole with a triangular pennant
     ctx.beginPath();
@@ -489,17 +608,36 @@ function drawPane(o: DrawOptions, g: PaneGeometry, mergeOf: Map<number, Rect>, m
       }
     }
     if (res?.bar) {
-      const bw = Math.max(2, (w - 4) * res.bar.fraction);
-      const grad = ctx.createLinearGradient(x + 2, 0, x + 2 + bw, 0);
-      grad.addColorStop(0, res.bar.color);
-      grad.addColorStop(1, res.bar.color + '99');
-      ctx.fillStyle = grad;
-      ctx.fillRect(x + 2, y + 2, bw, h - 4);
+      const bar = res.bar;
+      const inner = w - 4;
+      const bw = bar.fraction > 0 ? Math.max(2, inner * bar.fraction) : 0;
+      const axisX = x + 2 + inner * (bar.from ?? 0);
+      const left = bar.negative ? axisX - bw : axisX;
+      if (bw > 0) {
+        if (bar.solid) ctx.fillStyle = bar.color;
+        else {
+          const grad = ctx.createLinearGradient(bar.negative ? axisX : left, 0, bar.negative ? left : left + bw, 0);
+          grad.addColorStop(0, bar.color);
+          grad.addColorStop(1, bar.color + '99');
+          ctx.fillStyle = grad;
+        }
+        ctx.fillRect(left, y + 2, bw, h - 4);
+      }
+      if (bar.axisLine) {
+        ctx.strokeStyle = p.text;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(Math.round(axisX) + 0.5, y + 2);
+        ctx.lineTo(Math.round(axisX) + 0.5, y + h - 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
     drawBorders(style, x, y, w, h);
     const iconW = res?.icon ? 17 * z : 0;
     if (res?.icon) drawCFIcon(ctx, res.icon, x + 3 * z + 7 * z, y + h / 2, 12 * z);
-    const d = doc.display(doc.activeSheetId, row, col);
+    const d = doc.display(doc.activeSheetId, row, col, res?.format?.numFmt);
     if (d.text === '' || res?.hideValue || (doc.edit && doc.edit.row === row && doc.edit.col === col && doc.edit.sheetId === doc.activeSheetId)) return;
     drawText(d.text, d.value, style, x + iconW, y, w - iconW, h, d.color, r1, c1, c2);
   }

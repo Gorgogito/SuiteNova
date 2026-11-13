@@ -1,3 +1,5 @@
+import { hasPassword, type ChartSeries, type ErrorKind, type ShapeKind, type TrendType } from '@suitenova/calc-engine';
+import { supportsErrorBars, supportsTrend } from './dlg-chartfit';
 import { PIVOT_STYLE_NAMES, TABLE_STYLE_NAMES, normRect, safeUrl, type PageSetup } from '@suitenova/calc-engine';
 import type { CommandDef } from '@suitenova/core-ui';
 import { CHART_PRESETS, presetOf } from './chartPresets';
@@ -36,6 +38,61 @@ export function objectCommands(ui: CalcUI): CommandDef[] {
   add({ id: 'calc.note.hideAll', label: 'Ocultar todas las notas', icon: 'note', enabled: () => d.sheet.comments.length > 0, run: () => x.setAllCommentsVisible(false) });
   add({ id: 'calc.note.prev', label: 'Nota anterior', icon: 'prev', enabled: () => d.sheet.comments.length > 0, run: () => void x.goToComment(-1) });
   add({ id: 'calc.note.next', label: 'Nota siguiente', icon: 'next', enabled: () => d.sheet.comments.length > 0, run: () => void x.goToComment(1) });
+
+  // ---- trendlines and error bars (all series of the selected chart)
+  const chartSel = () => d.chartById(d.selectedChart);
+  const trendOk = () => { const c = chartSel(); return !!c && supportsTrend(c); };
+  const errOk = () => { const c = chartSel(); return !!c && supportsErrorBars(c); };
+  const setAllSeries = (patch: (s: ChartSeries) => Partial<ChartSeries>, label: string) => {
+    const c = chartSel();
+    if (c) d.updateChart(c.id, { series: c.series.map((s) => ({ ...s, ...patch(s) })) }, label);
+  };
+  const trendLabels: [TrendType, string][] = [['linear', 'Lineal'], ['exp', 'Exponencial'], ['log', 'Logarítmica'], ['poly', 'Polinómica'], ['power', 'Potencial'], ['movingAvg', 'Media móvil']];
+  for (const [type, label] of trendLabels) {
+    add({ id: `calc.trend.${type}`, label, icon: 'chartLine', enabled: trendOk, checked: () => !!chartSel()?.series.length && chartSel()!.series.every((s) => s.trendlines?.some((tl) => tl.type === type)),
+      run: () => {
+        const on = !!chartSel()?.series.every((s) => s.trendlines?.some((tl) => tl.type === type));
+        setAllSeries((s) => {
+          const rest = (s.trendlines ?? []).filter((tl) => tl.type !== type);
+          const list = on ? rest : [...rest, { type, ...(type === 'poly' ? { order: 2 } : {}), ...(type === 'movingAvg' ? { period: 2 } : {}) }];
+          return { trendlines: list.length ? list : undefined };
+        }, 'Línea de tendencia');
+      } });
+  }
+  add({ id: 'calc.trend.clear', label: 'Quitar líneas de tendencia', icon: 'eraser', enabled: () => !!chartSel()?.series.some((s) => s.trendlines?.length), run: () => setAllSeries(() => ({ trendlines: undefined }), 'Quitar líneas de tendencia') });
+  const errLabels: [ErrorKind, string][] = [['stderr', 'Error estándar'], ['percent', 'Porcentaje (5 %)'], ['stdev', 'Desviación estándar'], ['fixed', 'Valor fijo (1)']];
+  for (const [kind, label] of errLabels) {
+    add({ id: `calc.err.${kind}`, label, icon: 'sigma', enabled: errOk, checked: () => !!chartSel()?.series.length && chartSel()!.series.every((s) => s.errY?.kind === kind),
+      run: () => {
+        const on = !!chartSel()?.series.every((s) => s.errY?.kind === kind);
+        setAllSeries(() => ({ errY: on ? undefined : { kind, direction: 'both', ...(kind === 'percent' ? { value: 5 } : kind === 'stdev' || kind === 'fixed' ? { value: 1 } : {}) } }), 'Barras de error');
+      } });
+  }
+  add({ id: 'calc.err.clear', label: 'Quitar barras de error', icon: 'eraser', enabled: () => !!chartSel()?.series.some((s) => s.errY || s.errX), run: () => setAllSeries(() => ({ errY: undefined, errX: undefined }), 'Quitar barras de error') });
+
+  // ---- protection
+  const sheetProtected = () => d.prot.isProtected();
+  const bookProtected = () => !!d.wb.protection?.structure;
+  add({ id: 'calc.protectSheet', label: 'Proteger hoja…', icon: 'lock', description: 'Impide cambiar las celdas bloqueadas de la hoja, con una contraseña opcional.', enabled: () => !editing() && !sheetProtected(), run: () => ui.openDialog('protectSheet') });
+  add({ id: 'calc.unprotectSheet', label: 'Quitar protección de la hoja', icon: 'lockOpen', enabled: () => !editing() && sheetProtected(), run: () => {
+    const p = d.sheet.protection;
+    if (p && hasPassword(p)) ui.openDialog('unprotectSheet');
+    else d.prot.unprotectSheet(d.activeSheetId, '');
+  } });
+  add({ id: 'calc.protectBook', label: 'Proteger libro…', icon: 'lock', description: 'Impide añadir, eliminar, mover, copiar, renombrar u ocultar hojas.', enabled: () => !editing() && !bookProtected(), run: () => ui.openDialog('protectBook') });
+  add({ id: 'calc.unprotectBook', label: 'Quitar protección del libro', icon: 'lockOpen', enabled: () => !editing() && bookProtected(), run: () => {
+    const p = d.wb.protection;
+    if (p && hasPassword(p)) ui.openDialog('unprotectBook');
+    else d.prot.unprotectWorkbook('');
+  } });
+  add({ id: 'calc.lockCells', label: 'Bloquear celda', icon: 'lock', description: 'Marca o desmarca las celdas seleccionadas como bloqueadas. Solo surte efecto con la hoja protegida.', enabled: () => !editing() && !sheetProtected(), checked: () => d.currentStyle().locked !== false, run: () => d.applyStyle({ locked: d.currentStyle().locked === false ? undefined : false }, 'Bloquear celda') });
+
+  // ---- shapes and text boxes
+  const shapeKinds: [ShapeKind, string][] = [['rect', 'Rectángulo'], ['roundRect', 'Rectángulo redondeado'], ['ellipse', 'Elipse'], ['triangle', 'Triángulo'], ['diamond', 'Rombo'], ['rightArrow', 'Flecha derecha'], ['leftArrow', 'Flecha izquierda'], ['line', 'Línea']];
+  for (const [kind, label] of shapeKinds) add({ id: `calc.shape.${kind}`, label, icon: kind === 'line' ? 'ruler' : 'shapes', enabled: () => !editing(), run: () => void x.insertShape(kind) });
+  add({ id: 'calc.textbox', label: 'Cuadro de texto', icon: 'textbox', description: 'Inserta un cuadro para escribir texto sobre la hoja. Doble clic para editar el texto.', enabled: () => !editing(), run: () => void x.insertShape('textBox') });
+  add({ id: 'calc.shape.format', label: 'Formato de forma…', icon: 'settings', enabled: () => !!x.selectedShape, run: () => ui.openDialog('shapeFormat') });
+  add({ id: 'calc.shape.delete', label: 'Eliminar forma', icon: 'trash', hint: 'Supr', enabled: () => !!x.selectedShape, run: () => x.selectedShape && x.deleteShape(x.selectedShape) });
 
   // ---- pictures
   add({ id: 'calc.picture', label: 'Imagen…', icon: 'picture', description: 'Inserta una imagen (PNG, JPG, GIF, BMP, WebP o SVG) de un archivo.', enabled: () => !editing(), run: () => void ui.insertPicture() });

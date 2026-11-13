@@ -13,12 +13,14 @@ import {
   type Workbook,
 } from '@suitenova/calc-engine';
 import JSZip from 'jszip';
+import { CT_CHARTEX, REL_CHARTEX, chartExXml, isExType } from './chartex-io';
 import { chartXml, drawingXml, type DrawingItem } from './charts-io';
 import { commentsXml, hyperlinksXml, pageXml, printNames, sparklinesExtXml, tableXml, validationsXml, vmlXml } from './objects-io';
 import { toFileFormula } from './fileformula';
 import { quoteSheetName } from './sheetname';
 import { buildSuitePart } from './suite-part';
-import { autoFilterXml, cfRuleXml, dxfXml } from './filter-cf-io';
+import { autoFilterXml, cfExtXml, cfRuleXml, dxfXml } from './filter-cf-io';
+import { sheetProtectionXml, workbookProtectionXml } from './protect-io';
 import { escapeXml } from './xml';
 
 const NS_MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
@@ -111,9 +113,20 @@ class StyleBuilder {
     return id;
   }
 
+  /** Index of a differential format given as XML (for colour filters on «no fill»). */
+  dxfRaw(xml: string): number {
+    let i = this.dxfIdx.get(xml);
+    if (i === undefined) {
+      i = this.dxfs.length;
+      this.dxfs.push(xml);
+      this.dxfIdx.set(xml, i);
+    }
+    return i;
+  }
+
   /** Index of a differential format (conditional formatting) in styles.xml. */
   dxfFor(f: Parameters<typeof dxfXml>[0]): number {
-    const xml = dxfXml(f);
+    const xml = dxfXml(f, f.numFmt ? this.numFmtId(f.numFmt) : undefined);
     let i = this.dxfIdx.get(xml);
     if (i === undefined) {
       i = this.dxfs.length;
@@ -136,7 +149,9 @@ class StyleBuilder {
     const align = hasAlign
       ? `<alignment${st.hAlign ? ` horizontal="${st.hAlign}"` : ''}${st.vAlign ? ` vertical="${st.vAlign === 'middle' ? 'center' : st.vAlign}"` : ''}${st.wrap ? ' wrapText="1"' : ''}${st.indent ? ` indent="${st.indent}"` : ''}/>`
       : '';
-    const xml = `<xf numFmtId="${fmt}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"${hasAlign ? ' applyAlignment="1">' + align + '</xf>' : '/>'}`;
+    const prot = st.locked === false || st.hidden ? `<protection locked="${st.locked === false ? 0 : 1}"${st.hidden ? ' hidden="1"' : ''}/>` : '';
+    const inner = align + prot;
+    const xml = `<xf numFmtId="${fmt}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"${hasAlign ? ' applyAlignment="1"' : ''}${prot ? ' applyProtection="1"' : ''}${inner ? '>' + inner + '</xf>' : '/>'}`;
     const i = this.xfs.length;
     this.xfs.push(xml);
     this.idx.set(String(styleId), i);
@@ -282,7 +297,9 @@ function sheetXml(st: WriteState, sheet: Sheet, parts: SheetParts): string {
     f.rows || f.cols
       ? `<pane${f.cols ? ` xSplit="${f.cols}"` : ''}${f.rows ? ` ySplit="${f.rows}"` : ''} topLeftCell="${formatA1(f.rows, f.cols)}" activePane="${f.rows && f.cols ? 'bottomRight' : f.rows ? 'bottomLeft' : 'topRight'}" state="frozen"/>`
       : '';
-  const autoFilter = sheet.autoFilter ? autoFilterXml(sheet.autoFilter) : '';
+  const colorDxf = (kind: 'cell' | 'font', color: string | null): number =>
+    color ? st.styles.dxfFor(kind === 'cell' ? { bg: color } : { color }) : st.styles.dxfRaw(kind === 'cell' ? '<dxf><fill><patternFill patternType="none"/></fill></dxf>' : '<dxf><font><color auto="1"/></font></dxf>');
+  const autoFilter = sheet.autoFilter ? autoFilterXml(sheet.autoFilter, colorDxf) : '';
   const condFormats = [...sheet.condFormats]
     .sort((x, y) => x.priority - y.priority)
     .map((r) => cfRuleXml(r, r.format && Object.keys(r.format).length ? st.styles.dxfFor(r.format) : undefined))
@@ -291,7 +308,7 @@ function sheetXml(st: WriteState, sheet: Sheet, parts: SheetParts): string {
   const dim = keys.length ? `<dimension ref="A1:${formatA1(maxR, Math.min(maxC, MAX_COLS - 1))}"/>` : '<dimension ref="A1"/>';
   const page = pageXml(sheet);
   const sparkExt = sparklinesExtXml(sheet);
-  const ext = sparkExt + parts.extra;
+  const ext = sparkExt + cfExtXml(sheet.condFormats) + parts.extra;
 
   return (
     XML_HEAD +
@@ -302,6 +319,7 @@ function sheetXml(st: WriteState, sheet: Sheet, parts: SheetParts): string {
     '<sheetFormatPr defaultRowHeight="15"/>' +
     (cols.length ? `<cols>${cols.join('')}</cols>` : '') +
     `<sheetData>${rows.join('')}</sheetData>` +
+    sheetProtectionXml(sheet.protection) +
     autoFilter +
     merges +
     condFormats +
@@ -353,15 +371,21 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
     // charts and pictures share one drawing part
     const items: DrawingItem[] = [];
     const drawingRels: { id: string; type: string; target: string }[] = [];
-    if (sheet.charts.length || sheet.images.length) {
+    if (sheet.charts.length || sheet.images.length || sheet.shapes.length) {
       const dn = ++drawingCount;
       sheet.charts.forEach((c, i) => {
         const k = ++chartCount;
         const rid = `rId${drawingRels.length + 1}`;
-        drawingRels.push({ id: rid, type: `${NS_REL}/chart`, target: `../charts/chart${k}.xml` });
-        put(`xl/charts/chart${k}.xml`, chartXml(c, wb, sheet.id));
-        types.push(`<Override PartName="/xl/charts/chart${k}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`);
-        items.push({ kind: 'chart', rId: rid, x: c.x, y: c.y, width: c.width, height: c.height, name: `Gráfico ${i + 1}` });
+        if (isExType(c.type)) {
+          drawingRels.push({ id: rid, type: REL_CHARTEX, target: `../charts/chartEx${k}.xml` });
+          put(`xl/charts/chartEx${k}.xml`, chartExXml(c, wb, sheet.id));
+          types.push(`<Override PartName="/xl/charts/chartEx${k}.xml" ContentType="${CT_CHARTEX}"/>`);
+        } else {
+          drawingRels.push({ id: rid, type: `${NS_REL}/chart`, target: `../charts/chart${k}.xml` });
+          put(`xl/charts/chart${k}.xml`, chartXml(c, wb, sheet.id));
+          types.push(`<Override PartName="/xl/charts/chart${k}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`);
+        }
+        items.push({ kind: 'chart', ex: isExType(c.type), rId: rid, x: c.x, y: c.y, width: c.width, height: c.height, name: `Gráfico ${i + 1}` });
       });
       sheet.images.forEach((img, i) => {
         const media = wb.media.get(img.media);
@@ -378,6 +402,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
         drawingRels.push({ id: rid, type: `${NS_REL}/image`, target: `../media/${file}` });
         items.push({ kind: 'pic', rId: rid, x: img.x, y: img.y, width: img.width, height: img.height, name: img.name ?? `Imagen ${i + 1}`, alt: img.alt });
       });
+      sheet.shapes.forEach((s, i) => items.push({ kind: 'shape', shape: s, rId: '', x: s.x, y: s.y, width: s.width, height: s.height, name: s.name ?? `Forma ${i + 1}` }));
       put(`xl/drawings/drawing${dn}.xml`, drawingXml(sheet, items));
       put(`xl/drawings/_rels/drawing${dn}.xml.rels`, relsXml(drawingRels));
       types.push(`<Override PartName="/xl/drawings/drawing${dn}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`);
@@ -434,7 +459,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
   put(
     'xl/workbook.xml',
     XML_HEAD +
-      `<workbook xmlns="${NS_MAIN}" xmlns:r="${NS_REL}"><workbookPr/><bookViews><workbookView/></bookViews><sheets>` +
+      `<workbook xmlns="${NS_MAIN}" xmlns:r="${NS_REL}"><workbookPr/>${workbookProtectionXml(wb.protection)}<bookViews><workbookView/></bookViews><sheets>` +
       sheetFiles.map(({ sheet }, i) => `<sheet name="${escapeXml(sheet.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') +
       '</sheets>' +
       (names ? `<definedNames>${names}</definedNames>` : '') +

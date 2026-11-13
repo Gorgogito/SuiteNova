@@ -1,12 +1,12 @@
 import { DEFAULT_3D, type ChartDef, type FormulaLocale, type Workbook } from '@suitenova/calc-engine';
-import { BarChart, CandlestickChart, LineChart, PieChart, RadarChart, ScatterChart } from 'echarts/charts';
-import { GridComponent, LegendComponent, RadarComponent, TitleComponent, TooltipComponent } from 'echarts/components';
+import { BarChart, BoxplotChart, CandlestickChart, CustomChart, LineChart, PieChart, RadarChart, ScatterChart } from 'echarts/charts';
+import { GraphicComponent, GridComponent, LegendComponent, RadarComponent, TitleComponent, TooltipComponent } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer, SVGRenderer } from 'echarts/renderers';
 import { chart3dSvg } from './chart3d';
 import { chartData, chartOption, type ChartPalette } from './chartOption';
 
-echarts.use([BarChart, LineChart, PieChart, ScatterChart, RadarChart, CandlestickChart, GridComponent, LegendComponent, TitleComponent, TooltipComponent, RadarComponent, CanvasRenderer, SVGRenderer]);
+echarts.use([BarChart, BoxplotChart, LineChart, PieChart, ScatterChart, RadarChart, CandlestickChart, CustomChart, GraphicComponent, GridComponent, LegendComponent, TitleComponent, TooltipComponent, RadarComponent, CanvasRenderer, SVGRenderer]);
 
 export { echarts };
 

@@ -35,7 +35,7 @@ import {
   type TableDef,
   type Workbook,
 } from '@suitenova/calc-engine';
-import { PIVOT_LABELS_EN, PIVOT_LABELS_ES } from '@suitenova/calc-engine';
+import { PIVOT_LABELS_EN, PIVOT_LABELS_ES, newShapeId, type SheetShape, type ShapeKind } from '@suitenova/calc-engine';
 import type { CalcDoc } from './doc';
 
 let counter = 0;
@@ -46,7 +46,7 @@ export const HYPERLINK_COLOR = '#0563c1';
 /** Returned by `commitEdit` while a validation alert waits for the user (nothing to show as an error). */
 export const ENTRY_PENDING = '\u0001entry';
 
-export type ObjectKind = 'image' | 'slicer';
+export type ObjectKind = 'image' | 'slicer' | 'shape';
 
 /** What the user has to answer when a typed value breaks a validation rule. */
 export interface EntryAlert {
@@ -63,6 +63,7 @@ export class DocObjects {
   /** Draw a circle around values that break their rule. */
   circleInvalid = false;
   selectedImage: string | null = null;
+  selectedShape: string | null = null;
   selectedSlicer: string | null = null;
   /** The pivot table whose field list is open. */
   pivotPane: string | null = null;
@@ -88,6 +89,7 @@ export class DocObjects {
   // ------------------------------------------------------------------------------------------------ selection of objects
   selectObject(kind: ObjectKind | null, id: string | null): void {
     this.selectedImage = kind === 'image' ? id : null;
+    this.selectedShape = kind === 'shape' ? id : null;
     this.selectedSlicer = kind === 'slicer' ? id : null;
     if (kind) this.d.selectedChart = null;
     this.d.touch();
@@ -101,6 +103,7 @@ export class DocObjects {
 
   /** Apply a rule to the selected cells, replacing any rule that covered them. */
   setValidation(rule: Omit<DataValidation, 'id' | 'ranges'>, ranges: Rect[] = this.d.sel.ranges.map((r) => normRect(r))): void {
+    if (!this.d.prot.allowed('formatCells')) return;
     this.d.commitIfEditing();
     this.d.run('Validación de datos', () =>
       this.wb.editObjects(this.id, (s) => {
@@ -111,6 +114,7 @@ export class DocObjects {
   }
 
   clearValidation(ranges: Rect[] = this.d.sel.ranges.map((r) => normRect(r))): void {
+    if (!this.d.prot.allowed('formatCells')) return;
     this.d.run('Borrar validación de datos', () =>
       this.wb.editObjects(this.id, (s) => {
         s.validations = this.withoutCells(s.validations, ranges);
@@ -171,6 +175,7 @@ export class DocObjects {
 
   /** Make the selected cell a link. `text` replaces the cell's text when given. */
   setHyperlink(link: { url?: string; location?: string; tooltip?: string; text?: string }, rect: Rect = normRect(this.d.activeRange)): void {
+    if (!this.d.prot.allowed('insertHyperlinks') || !this.d.prot.canEdit([rect])) return;
     this.d.commitIfEditing();
     this.d.run('Insertar hipervínculo', () => {
       const patches = [];
@@ -191,6 +196,7 @@ export class DocObjects {
   }
 
   removeHyperlink(rect: Rect = normRect(this.d.activeRange)): void {
+    if (!this.d.prot.canEdit([rect])) return;
     this.d.run('Quitar hipervínculo', () => {
       const patches = [
         this.wb.editObjects(this.id, (s) => {
@@ -223,6 +229,7 @@ export class DocObjects {
   }
 
   saveComment(row: number, col: number, text: string, author: string): void {
+    if (!this.d.prot.allowed('objects')) return;
     this.d.commitIfEditing();
     this.d.run('Nota', () =>
       this.wb.editObjects(this.id, (s) => {
@@ -236,6 +243,7 @@ export class DocObjects {
   }
 
   deleteComments(rect: Rect = normRect(this.d.activeRange)): void {
+    if (!this.d.prot.allowed('objects')) return;
     this.d.run('Eliminar nota', () =>
       this.wb.editObjects(this.id, (s) => {
         s.comments = s.comments.filter((c) => !rectContains(rect, c.row, c.col));
@@ -272,9 +280,40 @@ export class DocObjects {
     return true;
   }
 
+  // ------------------------------------------------------------------------------------------------ shapes and text boxes
+  /** Put a shape (or a text box) on the sheet next to the active cell. Returns its id ('' when the sheet is protected). */
+  insertShape(kind: ShapeKind): string {
+    if (!this.d.prot.allowed('objects')) return '';
+    this.d.commitIfEditing();
+    const { row, col } = this.d.sel.active;
+    const size: Record<ShapeKind, [number, number]> = { rect: [140, 80], roundRect: [140, 80], ellipse: [120, 90], triangle: [110, 90], diamond: [110, 90], rightArrow: [140, 70], leftArrow: [140, 70], line: [160, 60], textBox: [170, 60] };
+    const [width, height] = size[kind];
+    const shape: SheetShape = { id: newShapeId(), kind, x: colOffsetPx(this.sheet, col) + 12, y: rowOffsetPx(this.sheet, row) + 12, width, height, ...(kind === 'textBox' ? { text: 'Texto' } : {}) };
+    this.d.run('Insertar forma', () => this.wb.editObjects(this.id, (s) => void s.shapes.push(shape)));
+    this.selectObject('shape', shape.id);
+    return shape.id;
+  }
+
+  updateShape(id: string, patch: Partial<Omit<SheetShape, 'id'>>, label = 'Modificar forma'): void {
+    if (!this.d.prot.allowed('objects')) return;
+    this.d.run(label, () =>
+      this.wb.editObjects(this.id, (s) => {
+        const i = s.shapes.findIndex((x) => x.id === id);
+        if (i >= 0) s.shapes[i] = { ...s.shapes[i]!, ...patch };
+      }),
+    );
+  }
+
+  deleteShape(id: string): void {
+    if (!this.d.prot.allowed('objects')) return;
+    if (this.selectedShape === id) this.selectedShape = null;
+    this.d.run('Eliminar forma', () => this.wb.editObjects(this.id, (s) => void (s.shapes = s.shapes.filter((x) => x.id !== id))));
+  }
+
   // ------------------------------------------------------------------------------------------------ pictures
   /** Put a picture on the sheet at the active cell. Sizes are in pixels; big pictures are scaled to fit. */
   insertImage(mime: string, data: Uint8Array, width: number, height: number, name: string): string {
+    if (!this.d.prot.allowed('objects')) return '';
     this.d.commitIfEditing();
     const maxW = 480;
     const scale = width > maxW ? maxW / width : 1;
@@ -288,6 +327,7 @@ export class DocObjects {
   }
 
   updateImage(id: string, patch: Partial<Omit<SheetImage, 'id'>>, label = 'Modificar imagen'): void {
+    if (!this.d.prot.allowed('objects')) return;
     this.d.run(label, () =>
       this.wb.editObjects(this.id, (s) => {
         const i = s.images.findIndex((x) => x.id === id);
@@ -297,6 +337,7 @@ export class DocObjects {
   }
 
   deleteImage(id: string): void {
+    if (!this.d.prot.allowed('objects')) return;
     this.d.run('Eliminar imagen', () => this.wb.editObjects(this.id, (s) => void (s.images = s.images.filter((x) => x.id !== id))));
     if (this.selectedImage === id) this.selectedImage = null;
     this.d.touch();
@@ -311,6 +352,7 @@ export class DocObjects {
 
   /** Make a table of the selection (or of the data block around the cursor). */
   createTable(hasHeader: boolean, rect?: Rect): string | null {
+    if (!this.d.prot.allowed('formatCells')) return this.d.notice;
     this.d.commitIfEditing();
     const r = rect ?? this.defaultBlock();
     if (!r) return 'Selecciona las celdas que quieres convertir en tabla.';
@@ -336,6 +378,7 @@ export class DocObjects {
   }
 
   editTable(id: string, label: string, fn: (t: TableDef) => void): void {
+    if (!this.d.prot.allowed('formatCells')) return;
     this.d.run(label, () =>
       this.wb.editObjects(
         this.id,
@@ -357,6 +400,7 @@ export class DocObjects {
   }
 
   renameTable(id: string, name: string): string | null {
+    if (!this.d.prot.allowed('formatCells')) return this.d.notice;
     if (!validTableName(name)) return 'El nombre de la tabla no es válido: use letras, números, guiones bajos y puntos, sin espacios.';
     let error: string | null = null;
     this.d.run('Cambiar nombre de tabla', () => {
@@ -371,6 +415,7 @@ export class DocObjects {
   }
 
   resizeTable(id: string, rect: Rect): string | null {
+    if (!this.d.prot.allowed('formatCells')) return this.d.notice;
     let error: string | null = null;
     this.d.run('Cambiar tamaño de la tabla', () => {
       try {
@@ -384,6 +429,7 @@ export class DocObjects {
   }
 
   convertTableToRange(id: string): void {
+    if (!this.d.prot.allowed('formatCells')) return;
     this.d.run('Convertir en rango', () => this.wb.removeTable(this.id, id));
   }
 
@@ -428,6 +474,7 @@ export class DocObjects {
    * Returns an error text when the shapes do not fit.
    */
   insertSparklines(type: SparklineType, data: Rect, location: Rect): string | null {
+    if (!this.d.prot.allowed('objects')) return this.d.notice;
     const dr = normRect(data);
     const lr = normRect(location);
     const nLoc = (lr.r2 - lr.r1 + 1) * (lr.c2 - lr.c1 + 1);
@@ -458,6 +505,7 @@ export class DocObjects {
   }
 
   editSparklineGroup(id: string, patch: Partial<SparklineGroup>): void {
+    if (!this.d.prot.allowed('objects')) return;
     this.d.run('Formato de minigráficos', () =>
       this.wb.editObjects(this.id, (s) => {
         const g = s.sparklines.find((x) => x.id === id);
@@ -467,6 +515,7 @@ export class DocObjects {
   }
 
   clearSparklines(rect: Rect = normRect(this.d.activeRange), wholeGroup = false): void {
+    if (!this.d.prot.allowed('objects')) return;
     this.d.run('Borrar minigráficos', () =>
       this.wb.editObjects(this.id, (s) => {
         const hit = (i: { row: number; col: number }) => rectContains(rect, i.row, i.col);
@@ -595,6 +644,7 @@ export class DocObjects {
   }
 
   updatePivot(id: string, label: string, fn: (p: PivotDef) => void): string | null {
+    if (!this.d.prot.allowed('pivotTables')) return this.d.notice;
     const found = this.wb.pivotById(id);
     if (!found) return 'La tabla dinámica ya no existe.';
     let error: string | null = null;
@@ -610,6 +660,7 @@ export class DocObjects {
   }
 
   refreshPivot(id: string): string | null {
+    if (!this.d.prot.allowed('pivotTables')) return this.d.notice;
     const found = this.wb.pivotById(id);
     if (!found) return 'La tabla dinámica ya no existe.';
     let error: string | null = null;
@@ -625,6 +676,7 @@ export class DocObjects {
   }
 
   refreshAllPivots(): string | null {
+    if (!this.d.prot.allowed('pivotTables')) return this.d.notice;
     let error: string | null = null;
     this.d.run('Actualizar todo', () => {
       const patches = [];
@@ -643,6 +695,7 @@ export class DocObjects {
   }
 
   deletePivot(id: string): void {
+    if (!this.d.prot.allowed('pivotTables')) return;
     const found = this.wb.pivotById(id);
     if (!found) return;
     this.d.run('Eliminar tabla dinámica', () => this.wb.removePivot(found.sheet.id, id, true));
@@ -652,6 +705,7 @@ export class DocObjects {
 
   // ------------------------------------------------------------------------------------------------ slicers
   insertSlicer(target: SlicerDef['target'], field: string): string {
+    if (!this.d.prot.allowed('objects')) return '';
     const sheet = this.sheet;
     const existing = sheet.slicers.length;
     let { row, col } = this.d.sel.active;
@@ -680,10 +734,12 @@ export class DocObjects {
   }
 
   setSlicer(id: string, selected: string[] | null): void {
+    if (!this.d.prot.allowed('objects')) return;
     this.d.run('Segmentación', () => this.wb.setSlicerSelection(this.id, id, selected));
   }
 
   updateSlicer(id: string, patch: Partial<Omit<SlicerDef, 'id'>>, label = 'Modificar segmentación'): void {
+    if (!this.d.prot.allowed('objects')) return;
     this.d.run(label, () =>
       this.wb.editObjects(this.id, (s) => {
         const i = s.slicers.findIndex((x) => x.id === id);
@@ -693,6 +749,7 @@ export class DocObjects {
   }
 
   deleteSlicer(id: string): void {
+    if (!this.d.prot.allowed('objects')) return;
     this.d.run('Eliminar segmentación', () => this.wb.editObjects(this.id, (s) => void (s.slicers = s.slicers.filter((x) => x.id !== id))));
     if (this.selectedSlicer === id) this.selectedSlicer = null;
     this.d.touch();

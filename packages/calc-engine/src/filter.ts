@@ -1,6 +1,8 @@
 import { normRect, type Rect } from './addr';
 import { compareScalars, textToNumber } from './coerce';
 import { formatValue } from './format';
+import { inPeriod, type RelPeriod } from './reldate';
+import { serialFromDate, ymdFromSerial } from './dates';
 import { isErr, type Scalar } from './values';
 import type { Sheet, Workbook } from './workbook';
 
@@ -11,11 +13,21 @@ export interface FilterCondition {
   value: string;
 }
 
+/** Filtros dinámicos de Excel: por el promedio, por un periodo relativo a hoy, o por un trimestre/mes de cualquier año. */
+export type DynamicFilter = 'aboveAverage' | 'belowAverage' | RelPeriod | { quarter: 1 | 2 | 3 | 4 } | { month: number };
+
 export interface ColumnFilter {
   /** Allowed display texts (locale independent, see `cellKeyText`); "" stands for blank cells. */
   values?: string[];
   /** One or two conditions combined with AND/OR. */
   conditions?: { list: FilterCondition[]; and: boolean };
+  /** «Diez mejores»: los n valores mayores (o menores), o el n % de ellos. */
+  top?: { n: number; percent?: boolean; bottom?: boolean };
+  dynamic?: DynamicFilter;
+  /** Por color del relleno o de la fuente de la celda; `null` = sin relleno / color automático. */
+  color?: { kind: 'cell' | 'font'; color: string | null };
+  /** Agrupaciones de fecha marcadas en el filtro de valores (año, mes, día). */
+  dates?: { year: number; month?: number; day?: number }[];
 }
 
 export interface AutoFilter {
@@ -93,13 +105,71 @@ function matchesCondition(v: Scalar, text: string, cond: FilterCondition): boole
   }
 }
 
-/** Does a row pass every column filter? */
-export function rowPasses(wb: Workbook, sheet: Sheet, af: AutoFilter, row: number): boolean {
+interface ColStats {
+  nums: number[];
+  mean: number;
+  /** Umbral para «diez mejores» (valor del puesto n), o null si no hay datos. */
+  topCut: number | null;
+}
+
+function statsOf(sheet: Sheet, af: AutoFilter, col: number, f: ColumnFilter): ColStats {
+  const r = normRect(af.range);
+  const nums: number[] = [];
+  for (let row = r.r1 + 1; row <= r.r2; row++) {
+    const v = sheet.cells.get(row * 16384 + col)?.value;
+    if (typeof v === 'number') nums.push(v);
+  }
+  const sorted = [...nums].sort((a, b) => a - b);
+  const mean = nums.length ? nums.reduce((a, x) => a + x, 0) / nums.length : 0;
+  let topCut: number | null = null;
+  if (f.top && sorted.length) {
+    const n = f.top.percent ? Math.max(1, Math.floor((sorted.length * f.top.n) / 100)) : Math.max(1, Math.trunc(f.top.n));
+    const k = Math.min(n, sorted.length);
+    topCut = f.top.bottom ? sorted[k - 1]! : sorted[sorted.length - k]!;
+  }
+  return { nums, mean, topCut };
+}
+
+function passesDynamic(d: DynamicFilter, v: Scalar, st: ColStats, today: number): boolean {
+  if (typeof v !== 'number') return false;
+  if (d === 'aboveAverage') return v > st.mean;
+  if (d === 'belowAverage') return v < st.mean;
+  if (typeof d === 'string') return inPeriod(v, d, today);
+  const { m } = ymdFromSerial(v);
+  return 'quarter' in d ? Math.floor((m - 1) / 3) + 1 === d.quarter : m === d.month;
+}
+
+/** Color del relleno o de la fuente de la celda (sin el contexto de formato condicional). */
+function cellColor(wb: Workbook, sheet: Sheet, row: number, col: number, kind: 'cell' | 'font'): string | null {
+  const st = wb.styles.get(sheet.cells.get(row * 16384 + col)?.style ?? 0);
+  return (kind === 'cell' ? st.bg : st.color) ?? null;
+}
+
+/** Does a row pass every column filter? `cache` evita recalcular estadísticas de columna en cada fila. */
+export function rowPasses(wb: Workbook, sheet: Sheet, af: AutoFilter, row: number, cache: Map<number, ColStats> = new Map()): boolean {
   for (const [colStr, f] of Object.entries(af.columns)) {
     const col = Number(colStr);
     const v: Scalar = sheet.cells.get(row * 16384 + col)?.value ?? null;
     const text = cellKeyText(wb, sheet, row, col);
     if (f.values && !f.values.some((x) => x.toLowerCase() === text.toLowerCase())) return false;
+    if (f.top || f.dynamic) {
+      let st = cache.get(col);
+      if (!st) {
+        st = statsOf(sheet, af, col, f);
+        cache.set(col, st);
+      }
+      if (f.top && (typeof v !== 'number' || st.topCut === null || (f.top.bottom ? v > st.topCut : v < st.topCut))) return false;
+      if (f.dynamic && !passesDynamic(f.dynamic, v, st, Math.floor(serialFromDate(wb.now())))) return false;
+    }
+    if (f.color) {
+      const c = cellColor(wb, sheet, row, col, f.color.kind);
+      if ((c ?? null)?.toLowerCase() !== (f.color.color ?? null)?.toLowerCase()) return false;
+    }
+    if (f.dates) {
+      if (typeof v !== 'number') return false;
+      const { y, m, d } = ymdFromSerial(v);
+      if (!f.dates.some((g) => g.year === y && (g.month === undefined || g.month === m) && (g.day === undefined || g.day === d))) return false;
+    }
     if (f.conditions && f.conditions.list.length) {
       const hits = f.conditions.list.map((c) => matchesCondition(v, text, c));
       if (!(f.conditions.and ? hits.every(Boolean) : hits.some(Boolean))) return false;
@@ -116,7 +186,8 @@ export function applyAutoFilter(wb: Workbook, sheet: Sheet): void {
   for (const af of filters) {
     if (!af) continue;
     const r = normRect(af.range);
-    for (let row = r.r1 + 1; row <= r.r2; row++) if (!rowPasses(wb, sheet, af, row)) sheet.filterHidden.add(row);
+    const cache = new Map<number, ColStats>();
+    for (let row = r.r1 + 1; row <= r.r2; row++) if (!rowPasses(wb, sheet, af, row, cache)) sheet.filterHidden.add(row);
   }
 }
 

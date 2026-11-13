@@ -19,6 +19,12 @@ import './icons';
 import './messages';
 import './messages-cf';
 import './messages-objects';
+import './messages-protect';
+import './messages-chartfit';
+import './messages-cf2';
+import './messages-filter2';
+import './messages-stat';
+import './messages-shape';
 import { calcTabs } from './ribbonDef';
 import { SheetTabs } from './SheetTabs';
 import { ListMenu } from './ObjectLayer';
@@ -287,10 +293,11 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
   const active = doc.sel.active;
   const flags = {
     chart: chartSelected,
-    table: !!doc.sheet.tables.some((tb) => active.row >= tb.ref.r1 && active.row <= tb.ref.r2 && active.col >= tb.ref.c1 && active.col <= tb.ref.c2) && !doc.x.selectedImage && !doc.x.selectedSlicer && !chartSelected,
+    table: !!doc.sheet.tables.some((tb) => active.row >= tb.ref.r1 && active.row <= tb.ref.r2 && active.col >= tb.ref.c1 && active.col <= tb.ref.c2) && !doc.x.selectedImage && !doc.x.selectedSlicer && !doc.x.selectedShape && !chartSelected,
     pivot: !!doc.wb.pivotAt(doc.activeSheetId, active.row, active.col) && !chartSelected,
     sparkline: doc.sheet.sparklines.some((g) => g.items.some((i) => i.row === active.row && i.col === active.col)),
     picture: !!doc.x.selectedImage,
+    shape: !!doc.x.selectedShape,
     slicer: !!doc.x.selectedSlicer,
   };
   const flagKey = Object.values(flags).join(',');

@@ -1,10 +1,10 @@
 import { Button, Checkbox, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Input, Select } from '@fluentui/react-components';
-import { ICON_COUNTS, canonicalFormula, defaultIconThresholds, formatRect, localizeFormula, normRect, parseA1, parseFormula, parseInput, type CFFormat, type CFKind, type CFOperator, type CFRule, type FormulaLocale, type IconSetName, type Rect } from '@suitenova/calc-engine';
+import { CF_PERIODS, ICON_COUNTS, canonicalFormula, defaultIconThresholds, formatRect, localizeFormula, normRect, parseA1, parseFormula, parseInput, type CFFormat, type CFKind, type CFOperator, type CFRule, type FormulaLocale, type IconSetName, type Rect, type RelPeriod } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { CalcUI } from './commands';
 
-export type CFPreset = 'gt' | 'lt' | 'between' | 'eq' | 'text' | 'dup' | 'top' | 'bottom' | 'above' | 'below' | 'new';
+export type CFPreset = 'gt' | 'lt' | 'between' | 'eq' | 'text' | 'date' | 'dup' | 'top' | 'bottom' | 'above' | 'below' | 'new';
 
 const field: React.CSSProperties = { display: 'grid', gap: 4, marginBottom: 10 };
 
@@ -26,7 +26,51 @@ export const SCALE_PRESETS: Record<string, { label: string; stops: string[] }> =
   wb: { label: 'Blanco - Azul', stops: ['#ffffff', '#5a8ac6'] },
 };
 
-export const ICON_LABELS: Record<IconSetName, string> = { '3Arrows': '3 flechas', '3TrafficLights': '3 semáforos', '3Symbols': '3 símbolos', '3Flags': '3 banderas', '4Arrows': '4 flechas', '5Arrows': '5 flechas' };
+export const ICON_LABELS: Record<IconSetName, string> = {
+  '3Arrows': '3 flechas',
+  '3ArrowsGray': '3 flechas (en gris)',
+  '3Flags': '3 banderas',
+  '3TrafficLights': '3 semáforos',
+  '3TrafficLights2': '3 semáforos (con bordes)',
+  '3Signs': '3 señales',
+  '3Symbols': '3 símbolos (con círculo)',
+  '3Symbols2': '3 símbolos (sin círculo)',
+  '3Stars': '3 estrellas',
+  '3Triangles': '3 triángulos',
+  '4Arrows': '4 flechas',
+  '4ArrowsGray': '4 flechas (en gris)',
+  '4RedToBlack': '4 círculos de rojo a negro',
+  '4Rating': '4 valoraciones',
+  '4TrafficLights': '4 semáforos',
+  '5Arrows': '5 flechas',
+  '5ArrowsGray': '5 flechas (en gris)',
+  '5Rating': '5 valoraciones',
+  '5Quarters': '5 cuartos',
+  '5Boxes': '5 cuadros',
+};
+
+export const PERIOD_LABELS: Record<string, string> = {
+  yesterday: 'Ayer',
+  today: 'Hoy',
+  tomorrow: 'Mañana',
+  last7Days: 'En los últimos 7 días',
+  lastWeek: 'La semana pasada',
+  thisWeek: 'Esta semana',
+  nextWeek: 'La próxima semana',
+  lastMonth: 'El mes pasado',
+  thisMonth: 'Este mes',
+  nextMonth: 'El próximo mes',
+};
+
+const BORDER_CHOICES: [string, string][] = [
+  ['none', 'Sin borde'],
+  ['thin', 'Fino'],
+  ['medium', 'Medio'],
+  ['thick', 'Grueso'],
+  ['dashed', 'Guiones'],
+  ['dotted', 'Punteado'],
+  ['double', 'Doble'],
+];
 
 const OPERATORS: [CFOperator, string][] = [
   ['greaterThan', 'es mayor que'],
@@ -89,7 +133,9 @@ export function describeRule(r: CFRule, locale: FormulaLocale): string {
     case 'top':
       return `${r.bottom ? t('Inferiores') : t('Superiores')} ${r.rank}${r.percent ? ' %' : ''}`;
     case 'average':
-      return `${r.above ? t('Por encima del promedio') : t('Por debajo del promedio')}${r.equal ? ` ${t('o igual')}` : ''}`;
+      return `${r.above ? t('Por encima del promedio') : t('Por debajo del promedio')}${r.equal ? ` ${t('o igual')}` : ''}${r.stdDev ? ` (${r.stdDev} ${t('desv. est.')})` : ''}`;
+    case 'timePeriod':
+      return `${t('Fecha')}: ${t(PERIOD_LABELS[r.period] ?? r.period)}`;
     case 'blanks':
       return r.not ? t('Celdas con valores') : t('Celdas en blanco');
     case 'errors':
@@ -192,11 +238,12 @@ export function CustomFilterDialog({ ui, col, onClose }: { ui: CalcUI; col: numb
 }
 
 // -------------------------------------------------------------------------------------------- rule editor
-type RuleType = 'cellIs' | 'text' | 'top' | 'average' | 'duplicates' | 'blanks' | 'errors' | 'expression' | 'colorScale' | 'dataBar' | 'iconSet';
+type RuleType = 'cellIs' | 'text' | 'timePeriod' | 'top' | 'average' | 'duplicates' | 'blanks' | 'errors' | 'expression' | 'colorScale' | 'dataBar' | 'iconSet';
 
 const TYPE_LABELS: [RuleType, string][] = [
   ['cellIs', 'Aplicar formato a celdas cuyo valor…'],
   ['text', 'Aplicar formato a celdas que contienen texto'],
+  ['timePeriod', 'Aplicar formato a celdas con una fecha que ocurre…'],
   ['top', 'Aplicar formato a valores superiores o inferiores'],
   ['average', 'Aplicar formato a valores por encima o por debajo del promedio'],
   ['duplicates', 'Aplicar formato a valores únicos o duplicados'],
@@ -221,6 +268,11 @@ function initialFrom(rule: CFRule | undefined, preset: CFPreset | undefined) {
     percent: false,
     above: true,
     equal: false,
+    stdDev: 0,
+    period: 'today' as RelPeriod,
+    negColor: '#ff0000',
+    barAxis: 'auto' as 'auto' | 'middle' | 'none',
+    barSolid: false,
     unique: false,
     not: false,
     expr: '',
@@ -237,6 +289,7 @@ function initialFrom(rule: CFRule | undefined, preset: CFPreset | undefined) {
     case 'between': s.operator = 'between'; break;
     case 'eq': s.operator = 'equal'; break;
     case 'text': s.type = 'text'; break;
+    case 'date': s.type = 'timePeriod'; break;
     case 'dup': s.type = 'duplicates'; break;
     case 'top': s.type = 'top'; break;
     case 'bottom': s.type = 'top'; s.bottom = true; break;
@@ -261,9 +314,10 @@ export function CFRuleDialog({ ui, preset, editId, onClose }: { ui: CalcUI; pres
     if (r.type === 'text') Object.assign(out, { textMode: r.mode, text: r.text });
     if (r.type === 'duplicates') out.unique = !!r.unique;
     if (r.type === 'top') Object.assign(out, { rank: r.rank, percent: !!r.percent, bottom: !!r.bottom });
-    if (r.type === 'average') Object.assign(out, { above: r.above, equal: !!r.equal });
+    if (r.type === 'average') Object.assign(out, { above: r.above, equal: !!r.equal, stdDev: r.stdDev ?? 0 });
+    if (r.type === 'timePeriod') out.period = r.period;
     if (r.type === 'blanks' || r.type === 'errors') out.not = !!r.not;
-    if (r.type === 'dataBar') Object.assign(out, { barColor: r.color, showValue: r.showValue !== false });
+    if (r.type === 'dataBar') Object.assign(out, { barColor: r.color, showValue: r.showValue !== false, negColor: r.negativeColor ?? '#ff0000', barAxis: r.axis ?? 'auto', barSolid: !!r.solid });
     if (r.type === 'iconSet') Object.assign(out, { iconSet: r.set, reverse: !!r.reverse, showValue: r.showValue !== false });
     const match = Object.entries(FORMAT_PRESETS).find(([, p]) => JSON.stringify(p.format) === JSON.stringify(r.format));
     out.formatKey = match ? match[0] : 'custom';
@@ -310,7 +364,10 @@ export function CFRuleDialog({ ui, preset, editId, onClose }: { ui: CalcUI; pres
         kind = { type: 'top', rank: Math.floor(s.rank), ...(s.percent ? { percent: true } : {}), ...(s.bottom ? { bottom: true } : {}) };
         break;
       case 'average':
-        kind = { type: 'average', above: s.above, ...(s.equal ? { equal: true } : {}) };
+        kind = { type: 'average', above: s.above, ...(s.equal ? { equal: true } : {}), ...(s.stdDev ? { stdDev: s.stdDev } : {}) };
+        break;
+      case 'timePeriod':
+        kind = { type: 'timePeriod', period: s.period };
         break;
       case 'duplicates':
         kind = { type: 'duplicates', ...(s.unique ? { unique: true } : {}) };
@@ -339,7 +396,16 @@ export function CFRuleDialog({ ui, preset, editId, onClose }: { ui: CalcUI; pres
         break;
       }
       case 'dataBar':
-        kind = { type: 'dataBar', color: s.barColor, min: { type: 'min' }, max: { type: 'max' }, ...(s.showValue ? {} : { showValue: false }) };
+        kind = {
+          type: 'dataBar',
+          color: s.barColor,
+          min: { type: 'min' },
+          max: { type: 'max' },
+          ...(s.showValue ? {} : { showValue: false }),
+          ...(s.negColor.toLowerCase() !== '#ff0000' ? { negativeColor: s.negColor } : {}),
+          ...(s.barAxis !== 'auto' ? { axis: s.barAxis } : {}),
+          ...(s.barSolid ? { solid: true } : {}),
+        };
         break;
       case 'iconSet':
         kind = { type: 'iconSet', set: s.iconSet, thresholds: defaultIconThresholds(s.iconSet), ...(s.reverse ? { reverse: true } : {}), ...(s.showValue ? {} : { showValue: false }) };
@@ -399,6 +465,18 @@ export function CFRuleDialog({ ui, preset, editId, onClose }: { ui: CalcUI; pres
           <Input value={s.text} aria-label={t('Texto')} onChange={(_e, v) => { set('text', v.value); setError(''); }} />
         </div>
       )}
+      {s.type === 'timePeriod' && (
+        <div style={field}>
+          <label htmlFor="cf-period">{t('Fecha que ocurre')}</label>
+          <Select id="cf-period" value={s.period} onChange={(_e, v) => set('period', v.value as RelPeriod)}>
+            {CF_PERIODS.map((k) => (
+              <option key={k} value={k}>
+                {t(PERIOD_LABELS[k]!)}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
       {s.type === 'top' && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
           <Select value={s.bottom ? 'bottom' : 'top'} aria-label={t('Superiores o inferiores')} onChange={(_e, v) => set('bottom', v.value === 'bottom')}>
@@ -416,6 +494,12 @@ export function CFRuleDialog({ ui, preset, editId, onClose }: { ui: CalcUI; pres
             <option value="below">{t('Por debajo del promedio')}</option>
           </Select>
           <Checkbox label={t('o igual')} checked={s.equal} onChange={(_e, v) => set('equal', !!v.checked)} />
+          <Select value={String(s.stdDev)} aria-label={t('Desviaciones estándar')} onChange={(_e, v) => set('stdDev', Number(v.value))}>
+            <option value="0">{t('Sin desviación estándar')}</option>
+            <option value="1">{t('1 desviación estándar')}</option>
+            <option value="2">{t('2 desviaciones estándar')}</option>
+            <option value="3">{t('3 desviaciones estándar')}</option>
+          </Select>
         </div>
       )}
       {s.type === 'duplicates' && (
@@ -466,6 +550,14 @@ export function CFRuleDialog({ ui, preset, editId, onClose }: { ui: CalcUI; pres
           <label>{t('Color de la barra')}</label>
           <input type="color" value={s.barColor} aria-label={t('Color de la barra')} onChange={(e) => set('barColor', e.target.value)} />
           <Checkbox label={t('Mostrar el valor')} checked={s.showValue} onChange={(_e, v) => set('showValue', !!v.checked)} />
+          <Checkbox label={t('Relleno sólido')} checked={s.barSolid} onChange={(_e, v) => set('barSolid', !!v.checked)} />
+          <label>{t('Color de los negativos')}</label>
+          <input type="color" value={s.negColor} aria-label={t('Color de los negativos')} onChange={(e) => set('negColor', e.target.value)} />
+          <Select value={s.barAxis} aria-label={t('Posición del eje')} onChange={(_e, v) => set('barAxis', v.value as typeof s.barAxis)}>
+            <option value="auto">{t('Eje automático')}</option>
+            <option value="middle">{t('Eje en el centro')}</option>
+            <option value="none">{t('Sin eje')}</option>
+          </Select>
         </div>
       )}
       {s.type === 'iconSet' && (
@@ -503,6 +595,38 @@ export function CFRuleDialog({ ui, preset, editId, onClose }: { ui: CalcUI; pres
               </label>
               <Checkbox label={t('Negrita')} checked={!!custom.bold} onChange={(_e, v) => setCustom({ ...custom, bold: !!v.checked || undefined })} />
               <Checkbox label={t('Cursiva')} checked={!!custom.italic} onChange={(_e, v) => setCustom({ ...custom, italic: !!v.checked || undefined })} />
+              <label>
+                {t('Formato de número')} <Input style={{ width: 140 }} value={custom.numFmt ?? ''} placeholder="#,##0.00" aria-label={t('Formato de número (código)')} onChange={(_e, v) => setCustom({ ...custom, numFmt: v.value || undefined })} />
+              </label>
+              <label>
+                {t('Borde')}{' '}
+                <Select
+                  style={{ minWidth: 110 }}
+                  value={custom.top?.style ?? 'none'}
+                  aria-label={t('Borde')}
+                  onChange={(_e, v) => {
+                    const b = v.value === 'none' ? undefined : { style: v.value as never, color: custom.top?.color };
+                    setCustom({ ...custom, top: b, right: b, bottom: b, left: b });
+                  }}
+                >
+                  {BORDER_CHOICES.map(([k, l]) => (
+                    <option key={k} value={k}>
+                      {t(l)}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              {custom.top && (
+                <input
+                  type="color"
+                  value={custom.top.color ?? '#000000'}
+                  aria-label={t('Color del borde')}
+                  onChange={(e) => {
+                    const b = { style: custom.top!.style, color: e.target.value };
+                    setCustom({ ...custom, top: b, right: b, bottom: b, left: b });
+                  }}
+                />
+              )}
             </div>
           )}
           <span

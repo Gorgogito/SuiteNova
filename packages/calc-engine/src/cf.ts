@@ -3,9 +3,12 @@ import type { Node } from './ast';
 import { compareScalars, textToNumber } from './coerce';
 import { evaluate } from './evaluator';
 import { cellKeyText } from './filter';
+import { serialFromDate } from './dates';
 import { adjustForStructure, printFormula, renameSheetRefs, shiftRefs, type StructureChange } from './formula';
 import { scalarOf } from './functions/util';
 import { parseFormula } from './parser';
+import { inPeriod, type RelPeriod } from './reldate';
+import type { Border } from './styles';
 import { isErr, type Scalar } from './values';
 import type { Sheet, Workbook } from './workbook';
 
@@ -17,7 +20,27 @@ export interface CFValue {
   value?: number | string;
 }
 
-export type IconSetName = '3Arrows' | '3TrafficLights' | '3Symbols' | '3Flags' | '4Arrows' | '5Arrows';
+export type IconSetName =
+  | '3Arrows'
+  | '3ArrowsGray'
+  | '3Flags'
+  | '3TrafficLights'
+  | '3TrafficLights2'
+  | '3Signs'
+  | '3Symbols'
+  | '3Symbols2'
+  | '3Stars'
+  | '3Triangles'
+  | '4Arrows'
+  | '4ArrowsGray'
+  | '4RedToBlack'
+  | '4Rating'
+  | '4TrafficLights'
+  | '5Arrows'
+  | '5ArrowsGray'
+  | '5Rating'
+  | '5Quarters'
+  | '5Boxes';
 
 export interface CFFormat {
   color?: string;
@@ -26,7 +49,16 @@ export interface CFFormat {
   italic?: boolean;
   underline?: boolean;
   strike?: boolean;
+  /** Formato de número que impone la regla (código de Excel). */
+  numFmt?: string;
+  top?: Border;
+  right?: Border;
+  bottom?: Border;
+  left?: Border;
 }
+
+/** Periodos que ofrece el formato condicional «Fechas» (los demás de `RelPeriod` solo los usa el autofiltro). */
+export const CF_PERIODS: RelPeriod[] = ['yesterday', 'today', 'tomorrow', 'last7Days', 'lastWeek', 'thisWeek', 'nextWeek', 'lastMonth', 'thisMonth', 'nextMonth'];
 
 export type CFKind =
   | { type: 'cellIs'; operator: CFOperator; formula1: string; formula2?: string }
@@ -34,11 +66,12 @@ export type CFKind =
   | { type: 'text'; mode: 'contains' | 'notContains' | 'beginsWith' | 'endsWith'; text: string }
   | { type: 'duplicates'; unique?: boolean }
   | { type: 'top'; rank: number; percent?: boolean; bottom?: boolean }
-  | { type: 'average'; above: boolean; equal?: boolean }
+  | { type: 'average'; above: boolean; equal?: boolean; /** Desviaciones estándar sobre o bajo el promedio (1 a 3). */ stdDev?: number }
+  | { type: 'timePeriod'; period: RelPeriod }
   | { type: 'blanks'; not?: boolean }
   | { type: 'errors'; not?: boolean }
   | { type: 'colorScale'; stops: { cfvo: CFValue; color: string }[] }
-  | { type: 'dataBar'; color: string; min: CFValue; max: CFValue; showValue?: boolean }
+  | { type: 'dataBar'; color: string; min: CFValue; max: CFValue; showValue?: boolean; /** Color de las barras de valores negativos (rojo por defecto). */ negativeColor?: string; /** Dónde va el eje: según los datos (por defecto), en el centro o sin eje (todo hacia la derecha). */ axis?: 'auto' | 'middle' | 'none'; /** Relleno sólido en lugar de degradado. */ solid?: boolean }
   | { type: 'iconSet'; set: IconSetName; thresholds: CFValue[]; reverse?: boolean; showValue?: boolean };
 
 export type CFRule = {
@@ -50,7 +83,28 @@ export type CFRule = {
   format?: CFFormat;
 } & CFKind;
 
-export const ICON_COUNTS: Record<IconSetName, number> = { '3Arrows': 3, '3TrafficLights': 3, '3Symbols': 3, '3Flags': 3, '4Arrows': 4, '5Arrows': 5 };
+export const ICON_COUNTS: Record<IconSetName, number> = {
+  '3Arrows': 3,
+  '3ArrowsGray': 3,
+  '3Flags': 3,
+  '3TrafficLights': 3,
+  '3TrafficLights2': 3,
+  '3Signs': 3,
+  '3Symbols': 3,
+  '3Symbols2': 3,
+  '3Stars': 3,
+  '3Triangles': 3,
+  '4Arrows': 4,
+  '4ArrowsGray': 4,
+  '4RedToBlack': 4,
+  '4Rating': 4,
+  '4TrafficLights': 4,
+  '5Arrows': 5,
+  '5ArrowsGray': 5,
+  '5Rating': 5,
+  '5Quarters': 5,
+  '5Boxes': 5,
+};
 
 /** Default thresholds (percent) for an icon set, as Excel does: equal bands. */
 export function defaultIconThresholds(set: IconSetName): CFValue[] {
@@ -62,7 +116,8 @@ export interface CFResult {
   format?: CFFormat;
   /** Fill from a colour scale. */
   scaleBg?: string;
-  bar?: { fraction: number; color: string };
+  /** Barra de datos: `fraction` es el largo (0 a 1 del ancho); `from` dónde está el eje (0 a 1); `negative` si va hacia la izquierda del eje. */
+  bar?: { fraction: number; color: string; from?: number; negative?: boolean; solid?: boolean; axisLine?: boolean };
   icon?: { set: IconSetName; index: number; count: number };
   /** Hide the cell's value (data bars / icon sets with showValue false). */
   hideValue?: boolean;
@@ -129,6 +184,8 @@ interface Stats {
   min: number;
   max: number;
   mean: number;
+  /** Desviación estándar muestral de los números. */
+  sd: number;
   counts: Map<string, number>;
 }
 
@@ -159,6 +216,7 @@ export class CFEvaluator {
   private stats = new Map<string, Stats>();
   private asts = new Map<string, Node | null>();
   private cache = new Map<number, CFResult | null>();
+  private today: number;
 
   constructor(
     private wb: Workbook,
@@ -166,6 +224,7 @@ export class CFEvaluator {
   ) {
     this.sheet = wb.sheet(sheetId);
     this.rules = [...this.sheet.condFormats].sort((a, b) => a.priority - b.priority);
+    this.today = Math.floor(serialFromDate(wb.now()));
   }
 
   get active(): boolean {
@@ -195,7 +254,8 @@ export class CFEvaluator {
     }
     nums.sort((a, b) => a - b);
     const mean = nums.length ? nums.reduce((a, x) => a + x, 0) / nums.length : 0;
-    s = { nums, min: nums[0] ?? 0, max: nums[nums.length - 1] ?? 0, mean, counts };
+    const sd = nums.length > 1 ? Math.sqrt(nums.reduce((a, x) => a + (x - mean) * (x - mean), 0) / (nums.length - 1)) : 0;
+    s = { nums, min: nums[0] ?? 0, max: nums[nums.length - 1] ?? 0, mean, sd, counts };
     this.stats.set(rule.id, s);
     return s;
   }
@@ -302,9 +362,12 @@ export class CFEvaluator {
       }
       case 'average': {
         if (typeof v !== 'number') return false;
-        const m = this.statsFor(rule).mean;
+        const st = this.statsFor(rule);
+        const m = rule.stdDev ? st.mean + (rule.above ? 1 : -1) * rule.stdDev * st.sd : st.mean;
         return rule.above ? (rule.equal ? v >= m : v > m) : rule.equal ? v <= m : v < m;
       }
+      case 'timePeriod':
+        return typeof v === 'number' && inPeriod(v, rule.period, this.today);
       case 'blanks':
         return rule.not ? v !== null && v !== '' : v === null || v === '';
       case 'errors':
@@ -349,9 +412,18 @@ export class CFEvaluator {
           const st = this.statsFor(rule);
           const lo = this.threshold(rule, rule.min, st, row, col);
           const hi = this.threshold(rule, rule.max, st, row, col);
-          const fraction = hi === lo ? 1 : Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
           out = { ...(out ?? {}) };
-          out.bar ??= { fraction, color: rule.color };
+          const axis = rule.axis ?? 'auto';
+          if (axis === 'none' || lo >= 0 || hi === lo) {
+            const fraction = hi === lo ? 1 : Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
+            out.bar ??= { fraction, color: rule.color, ...(rule.solid ? { solid: true } : {}) };
+          } else {
+            // con negativos hay un eje: a su derecha van los positivos y a su izquierda los negativos, con la misma escala
+            const span = axis === 'middle' ? 2 * Math.max(Math.abs(lo), Math.abs(hi)) : hi - lo;
+            const from = axis === 'middle' ? 0.5 : Math.min(1, Math.max(0, -lo / (hi - lo)));
+            const len = Math.min(v < 0 ? from : 1 - from, Math.abs(v) / span);
+            out.bar ??= { fraction: len, from, color: v < 0 ? (rule.negativeColor ?? '#ff0000') : rule.color, negative: v < 0, axisLine: true, ...(rule.solid ? { solid: true } : {}) };
+          }
           if (rule.showValue === false) out.hideValue = true;
           hit = true;
         }

@@ -1,3 +1,4 @@
+import type { SheetProtection, WorkbookProtection } from './protect';
 import { cellKey, keyCol, keyRow, MAX_COLS, MAX_ROWS, normRect, rectContains, type Rect } from './addr';
 import type { Node } from './ast';
 import { evaluate } from './evaluator';
@@ -17,6 +18,7 @@ import {
   type PivotDef,
   type PrintSettings,
   type SheetImage,
+  type SheetShape,
   type SheetName,
   type SlicerDef,
   type SparklineGroup,
@@ -73,6 +75,7 @@ export interface Sheet {
   hyperlinks: Hyperlink[];
   comments: CellComment[];
   images: SheetImage[];
+  shapes: SheetShape[];
   tables: TableDef[];
   sparklines: SparklineGroup[];
   pivots: PivotDef[];
@@ -80,6 +83,8 @@ export interface Sheet {
   /** Names that only exist in this sheet. */
   names: Map<string, SheetName & { ast: Node }>;
   print: PrintSettings;
+  /** Hoja protegida: qué se permite y la contraseña (solo su hash). */
+  protection?: SheetProtection;
 }
 
 /** The parts of a sheet that are plain data (copied for undo and for duplicating a sheet). */
@@ -88,6 +93,7 @@ export interface ObjectsSnap {
   hyperlinks: Hyperlink[];
   comments: CellComment[];
   images: SheetImage[];
+  shapes: SheetShape[];
   tables: TableDef[];
   sparklines: SparklineGroup[];
   pivots: PivotDef[];
@@ -102,6 +108,7 @@ export function captureObjects(s: Sheet): ObjectsSnap {
     hyperlinks: s.hyperlinks,
     comments: s.comments,
     images: s.images,
+    shapes: s.shapes,
     tables: s.tables,
     sparklines: s.sparklines,
     pivots: s.pivots,
@@ -117,6 +124,7 @@ export function applyObjects(s: Sheet, o: ObjectsSnap): void {
   s.hyperlinks = c.hyperlinks;
   s.comments = c.comments;
   s.images = c.images;
+  s.shapes = c.shapes ?? [];
   s.tables = c.tables;
   s.sparklines = c.sparklines;
   s.pivots = c.pivots;
@@ -203,6 +211,8 @@ export class Workbook implements EvalHost {
   macros: { name: string; code: string }[] = [];
   /** Pictures of the workbook, by key; sheets refer to them. */
   media = new Map<string, MediaItem>();
+  /** Protección de la estructura del libro. */
+  protection?: WorkbookProtection;
   /** Workbook-default font; per-cell fonts are stored only when they differ. */
   defaultFont = { name: 'Calibri', size: 11 };
   private nextSheetId = 1;
@@ -261,6 +271,7 @@ export class Workbook implements EvalHost {
       hyperlinks: [],
       comments: [],
       images: [],
+      shapes: [],
       tables: [],
       sparklines: [],
       pivots: [],

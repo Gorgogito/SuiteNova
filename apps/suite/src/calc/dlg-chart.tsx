@@ -4,6 +4,7 @@ import { t } from '@suitenova/core-ui';
 import { useState } from 'react';
 import type { CalcUI } from './commands';
 import { chartData } from './chartOption';
+import { AnalysisTab, supportsErrorBars, supportsTrend } from './dlg-chartfit';
 import { Modal, field, row2 } from './modal';
 
 const SERIES_LABEL: Record<SeriesType, string> = { column: 'Columna', line: 'Línea', area: 'Área', scatter: 'Puntos' };
@@ -82,8 +83,9 @@ export function ChartFormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => 
         <Tab value="general">{t('General')}</Tab>
         {combinable && <Tab value="series">{t('Series')}</Tab>}
         {cartesian && <Tab value="axes">{t('Ejes')}</Tab>}
+        {(supportsTrend(def) || supportsErrorBars(def)) && <Tab value="analysis">{t('Análisis')}</Tab>}
         {(threeD || def.type === 'surface') && <Tab value="3d">{t('Giro 3D')}</Tab>}
-        {(def.type === 'radar' || def.type === 'surface' || def.type === 'stock') && <Tab value="type">{t('Opciones del tipo')}</Tab>}
+        {(['radar', 'surface', 'stock', 'waterfall', 'funnel', 'histogram', 'boxwhisker'] as string[]).includes(def.type) && <Tab value="type">{t('Opciones del tipo')}</Tab>}
       </TabList>
       {tab === 'general' && (
         <>
@@ -132,6 +134,7 @@ export function ChartFormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => 
           ))}
         </>
       )}
+      {tab === 'analysis' && <AnalysisTab def={def} names={data.series.map((s) => s.name)} setSeries={setSeries} />}
       {tab === 'axes' && (
         <>
           <AxisFields title={def.type === 'bar' ? t('Eje de categorías (vertical)') : t('Eje horizontal')} axis={def.axisX ?? {}} onChange={(a) => set({ axisX: a })} log={def.type === 'scatter'} />
@@ -176,6 +179,89 @@ export function ChartFormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => 
             <>
               <Checkbox label={t('Estructura alámbrica')} checked={!!def.surface?.wireframe} onChange={(_e, v) => set({ surface: { ...def.surface, wireframe: v.checked ? true : undefined } })} />
               <Checkbox label={t('Contorno (vista desde arriba)')} checked={!!def.surface?.contour} onChange={(_e, v) => set({ surface: { ...def.surface, contour: v.checked ? true : undefined } })} />
+            </>
+          )}
+          {def.type === 'waterfall' && (
+            <>
+              <p>{t('Los puntos que son totales parten de cero y fijan el acumulado; los demás suman o restan al anterior.')}</p>
+              <div style={field}>
+                <label htmlFor="wf-tot">{t('Puntos que son totales (números separados por comas, el primero es 1)')}</label>
+                <Input
+                  id="wf-tot"
+                  placeholder="1, 6"
+                  value={(def.waterfall?.totals ?? []).map((i) => i + 1).join(', ')}
+                  onChange={(_e, v) => {
+                    const totals = v.value
+                      .split(/[;,\s]+/)
+                      .map((x) => Math.trunc(Number(x)) - 1)
+                      .filter((x) => Number.isFinite(x) && x >= 0);
+                    set({ waterfall: { ...def.waterfall, totals: totals.length ? [...new Set(totals)] : undefined } });
+                  }}
+                />
+              </div>
+              <Checkbox label={t('Líneas de conexión')} checked={def.waterfall?.connectors !== false} onChange={(_e, v) => set({ waterfall: { ...def.waterfall, connectors: v.checked ? undefined : false } })} />
+            </>
+          )}
+          {def.type === 'funnel' && <p>{t('El embudo dibuja los valores de la primera serie en el orden en que aparecen en las celdas.')}</p>}
+          {def.type === 'histogram' && (
+            <>
+              <div style={field}>
+                <label htmlFor="hg-mode">{t('Clases')}</label>
+                <Select
+                  id="hg-mode"
+                  value={def.histogram?.binWidth !== undefined ? 'width' : def.histogram?.binCount !== undefined ? 'count' : 'auto'}
+                  onChange={(_e, v) => set({ histogram: { ...def.histogram, binWidth: v.value === 'width' ? (def.histogram?.binWidth ?? 10) : undefined, binCount: v.value === 'count' ? (def.histogram?.binCount ?? 5) : undefined } })}
+                >
+                  <option value="auto">{t('Automáticas')}</option>
+                  <option value="width">{t('Por ancho de clase')}</option>
+                  <option value="count">{t('Por número de clases')}</option>
+                </Select>
+              </div>
+              <div style={row2}>
+                {def.histogram?.binWidth !== undefined && (
+                  <div style={field}>
+                    <label htmlFor="hg-w">{t('Ancho de clase')}</label>
+                    <Input id="hg-w" type="number" value={String(def.histogram.binWidth)} onChange={(_e, v) => set({ histogram: { ...def.histogram, binWidth: Number(v.value) > 0 ? Number(v.value) : undefined } })} />
+                  </div>
+                )}
+                {def.histogram?.binCount !== undefined && (
+                  <div style={field}>
+                    <label htmlFor="hg-n">{t('Número de clases')}</label>
+                    <Input id="hg-n" type="number" value={String(def.histogram.binCount)} onChange={(_e, v) => set({ histogram: { ...def.histogram, binCount: Number(v.value) >= 1 ? Math.trunc(Number(v.value)) : undefined } })} />
+                  </div>
+                )}
+              </div>
+              <div style={row2}>
+                <div style={field}>
+                  <label htmlFor="hg-o">{t('Clase de desbordamiento (valores mayores que)')}</label>
+                  <Input id="hg-o" value={def.histogram?.overflow === undefined ? '' : String(def.histogram.overflow)} placeholder={t('Ninguna')} onChange={(_e, v) => set({ histogram: { ...def.histogram, overflow: v.value.trim() === '' || Number.isNaN(Number(v.value)) ? undefined : Number(v.value) } })} />
+                </div>
+                <div style={field}>
+                  <label htmlFor="hg-u">{t('Clase de subdesbordamiento (valores menores o iguales que)')}</label>
+                  <Input id="hg-u" value={def.histogram?.underflow === undefined ? '' : String(def.histogram.underflow)} placeholder={t('Ninguna')} onChange={(_e, v) => set({ histogram: { ...def.histogram, underflow: v.value.trim() === '' || Number.isNaN(Number(v.value)) ? undefined : Number(v.value) } })} />
+                </div>
+              </div>
+              <div style={field}>
+                <label htmlFor="hg-c">{t('Intervalos')}</label>
+                <Select id="hg-c" value={def.histogram?.closed ?? 'right'} onChange={(_e, v) => set({ histogram: { ...def.histogram, closed: v.value === 'left' ? 'left' : undefined } })}>
+                  <option value="right">{t('Cerrados por la derecha (a, b]')}</option>
+                  <option value="left">{t('Cerrados por la izquierda [a, b)')}</option>
+                </Select>
+              </div>
+            </>
+          )}
+          {def.type === 'boxwhisker' && (
+            <>
+              <div style={field}>
+                <label htmlFor="bw-q">{t('Cálculo de los cuartiles')}</label>
+                <Select id="bw-q" value={def.boxwhisker?.inclusive ? 'inclusive' : 'exclusive'} onChange={(_e, v) => set({ boxwhisker: { ...def.boxwhisker, inclusive: v.value === 'inclusive' ? true : undefined } })}>
+                  <option value="exclusive">{t('Mediana exclusiva')}</option>
+                  <option value="inclusive">{t('Mediana inclusiva')}</option>
+                </Select>
+              </div>
+              <Checkbox label={t('Mostrar marcadores de la media')} checked={def.boxwhisker?.mean !== false} onChange={(_e, v) => set({ boxwhisker: { ...def.boxwhisker, mean: v.checked ? undefined : false } })} />
+              <Checkbox label={t('Mostrar puntos atípicos')} checked={def.boxwhisker?.outliers !== false} onChange={(_e, v) => set({ boxwhisker: { ...def.boxwhisker, outliers: v.checked ? undefined : false } })} />
+              <Checkbox label={t('Mostrar puntos internos')} checked={!!def.boxwhisker?.inner} onChange={(_e, v) => set({ boxwhisker: { ...def.boxwhisker, inner: v.checked ? true : undefined } })} />
             </>
           )}
           {def.type === 'stock' && <p>{t('El orden de las series determina su papel: {order}.', { order: (def.stock?.kind ?? 'hlc').split('').join(' · ').toUpperCase() })}</p>}

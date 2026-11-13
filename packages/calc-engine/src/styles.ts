@@ -27,6 +27,10 @@ export interface Style {
   right?: Border;
   bottom?: Border;
   left?: Border;
+  /** Celda bloqueada (por defecto sí): solo cuenta con la hoja protegida. Se guarda únicamente `false`. */
+  locked?: boolean;
+  /** Oculta la fórmula en la barra de fórmulas cuando la hoja está protegida. */
+  hidden?: boolean;
 }
 
 function canonical(s: Style): string {

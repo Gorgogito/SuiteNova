@@ -49,7 +49,7 @@ rawFn('COUNTBLANK', 1, 1, (args, ctx) => {
   return flatten(a, ctx).filter((v) => v === null || v === '').length;
 });
 
-function numbersSorted(args: Value[], ctx: Parameters<typeof collectNumbers>[1]): { nums: number[]; error: CalcError | null } {
+export function numbersSorted(args: Value[], ctx: Parameters<typeof collectNumbers>[1]): { nums: number[]; error: CalcError | null } {
   const c = collectNumbers(args, ctx);
   return { nums: c.nums.slice().sort((a, b) => a - b), error: c.error };
 }
@@ -117,7 +117,7 @@ alias('VARP', 'VAR.P');
 alias('STDEV', 'STDEV.S');
 alias('STDEVP', 'STDEV.P');
 
-function percentile(sorted: number[], p: number, exclusive = false): number | CalcError {
+export function percentile(sorted: number[], p: number, exclusive = false): number | CalcError {
   const n = sorted.length;
   if (!n) return E.NUM;
   if (exclusive) {

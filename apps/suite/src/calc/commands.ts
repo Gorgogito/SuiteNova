@@ -35,7 +35,12 @@ export type DialogKind =
   | 'pageSetup'
   | 'printPreview'
   | 'macros'
-  | 'macroEditor';
+  | 'macroEditor'
+  | 'protectSheet'
+  | 'protectBook'
+  | 'unprotectSheet'
+  | 'unprotectBook'
+  | 'shapeFormat';
 
 export interface CalcUI {
   doc: CalcDoc;
@@ -300,6 +305,7 @@ export function calcCommands(ui: CalcUI): CommandDef[] {
     ['between', 'Entre…', 'cfRule'],
     ['eq', 'Igual a…', 'cfRule'],
     ['text', 'Texto que contiene…', 'cfRule'],
+    ['date', 'Una fecha que ocurre…', 'cfRule'],
     ['dup', 'Valores duplicados…', 'cfRule'],
     ['top', '10 superiores…', 'cfRule'],
     ['bottom', '10 inferiores…', 'cfRule'],
