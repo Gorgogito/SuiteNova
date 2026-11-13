@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { Fragment, type Mark, type Node as PMNode } from 'prosemirror-model';
-import { markTypes, nodeTypes, writerSchema, type Align, type ListFormat } from '../schema';
+import { PARAGRAPH_STYLES, markTypes, nodeTypes, writerSchema, type Align, type ListFormat, type ParagraphStyleDef } from '../schema';
 import { DEFAULT_DOC_DEFAULTS, type DocDefaults } from '../styles';
 import { EMU_PER_PX, emptyWriterDoc, makeSection, twipsToPt, type CommentData, type NotesOptions, type Protection, type ReadResult, type Source, type Watermark, type WriterDoc } from './model';
 import { defaultSection, newSectionId, noRefs, oneColumn, type Columns, type HFRefs, type SectionProps } from '../sections';
@@ -289,6 +289,8 @@ interface Shared {
   footnotes: Map<string, PMNode>;
   endnotes: Map<string, PMNode>;
   noteSeq: number;
+  /** Estilos de párrafo propios del archivo que se usan en el texto (Nova Writer los conserva como estilos). */
+  custom: Map<string, ParagraphStyleDef>;
 }
 
 function resolveChain(sh: Shared, id: string | undefined, depth = 0): { pp: PP; rp: RP; borders: boolean } {
@@ -296,6 +298,36 @@ function resolveChain(sh: Shared, id: string | undefined, depth = 0): { pp: PP; 
   if (!s || depth > 20) return { pp: {}, rp: {}, borders: false };
   const parent = s.basedOn ? resolveChain(sh, s.basedOn, depth + 1) : { pp: {}, rp: {}, borders: false };
   return { pp: merge(parent.pp, s.pp), rp: merge(parent.rp, s.rp), borders: s.borders ?? parent.borders };
+}
+
+/** Id de estilo válido como nombre XML y como clase CSS. */
+const safeStyleId = (id: string): string => id.replace(/[^A-Za-z0-9_-]/g, '_') || 'Estilo';
+
+/** El estilo de párrafo propio `id` (con la cadena «basado en» ya resuelta), o null si no es un estilo de párrafo. */
+function customStyle(sh: Shared, id: string | undefined): ParagraphStyleDef | null {
+  const s = id ? sh.styles.get(id) : undefined;
+  if (!id || !s || s.type !== 'paragraph') return null;
+  const sid = safeStyleId(id);
+  const have = sh.custom.get(sid);
+  if (have) return have;
+  const { pp, rp } = resolveChain(sh, id);
+  const base = sh.basePP;
+  const baseRP = sh.baseRP;
+  const def: ParagraphStyleDef = { id: sid, name: s.name };
+  if (rp.font && rp.font !== baseRP.font) def.fontFamily = rp.font;
+  if (rp.sz && rp.sz !== baseRP.sz) def.fontSize = rp.sz;
+  if (rp.b && !baseRP.b) def.bold = true;
+  if (rp.i && !baseRP.i) def.italic = true;
+  if (rp.u && !baseRP.u) def.underline = true;
+  if (rp.color && rp.color !== baseRP.color) def.color = rp.color;
+  if (pp.before !== undefined && pp.before !== base.before) def.spaceBefore = pp.before;
+  if (pp.after !== undefined && pp.after !== base.after) def.spaceAfter = pp.after;
+  if (pp.line !== undefined && !pp.lineRule && pp.line !== base.line) def.lineHeight = pp.line;
+  if (pp.jc && pp.jc !== base.jc) def.align = pp.jc;
+  if (pp.left) def.indentLeft = pp.left;
+  if (pp.tabs?.length) def.tabs = pp.tabs.map((x) => ({ pos: x.pos, kind: x.kind, ...(x.leader ? { leader: x.leader } : {}) }));
+  sh.custom.set(sid, def);
+  return def;
 }
 
 const builtinOf = (sh: Shared, id: string | undefined): string | null => {
@@ -453,7 +485,10 @@ class Converter {
     const pPrNode = findKid(p, 'pPr');
     const direct = parsePPr(pPrNode);
     const styleId = attrOf(findKid(pPrNode, 'pStyle') ?? {}, 'val');
-    const builtin = builtinOf(sh, styleId);
+    let builtin = builtinOf(sh, styleId);
+    // un estilo propio se conserva como estilo: el párrafo solo lleva lo que tiene aparte de él
+    const own = builtin ? null : customStyle(sh, styleId);
+    if (own) builtin = own.id;
     const chain = resolveChain(sh, styleId);
     const pp = builtin ? direct : merge(chain.pp, direct);
     const list = pp.numId && pp.numId > 0 ? { numId: pp.numId, ilvl: Math.min(pp.ilvl ?? 0, 8) } : undefined;
@@ -869,6 +904,27 @@ class Converter {
     let borders = resolveChain(sh, styleId).borders;
     if (bordersNode) borders = kidsOf(bordersNode).some((e) => !['nil', 'none'].includes(attrOf(e, 'val') ?? 'nil'));
     const grid = findKids(findKid(t, 'tblGrid'), 'gridCol').map((g) => Math.round((num(attrOf(g, 'w')) ?? 0) / 15));
+    // propiedades de la tabla: alineación, color y grosor del borde, márgenes de celda y fila de encabezado
+    const tblProps: Record<string, unknown> = {};
+    const jcv = attrOf(findKid(tblPr, 'jc') ?? {}, 'val');
+    if (jcv === 'center') tblProps.align = 'center';
+    else if (jcv === 'right' || jcv === 'end') tblProps.align = 'right';
+    if (bordersNode) {
+      const edge = kidsOf(bordersNode).find((e) => !['nil', 'none'].includes(attrOf(e, 'val') ?? 'nil'));
+      const col = edge && attrOf(edge, 'color');
+      if (col && col !== 'auto' && /^[0-9a-f]{6}$/i.test(col)) tblProps.borderColor = '#' + col.toLowerCase();
+      const sz = edge && num(attrOf(edge, 'sz'));
+      if (sz && sz !== 4) tblProps.borderWidth = sz / 8;
+    }
+    const mar = findKid(tblPr, 'tblCellMar');
+    if (mar) {
+      const side = (n: string) => num(attrOf(findKid(mar, n) ?? {}, 'w'));
+      const x = side('left') ?? side('right');
+      const y = side('top') ?? side('bottom');
+      if ((x !== undefined && x !== 108) || (y !== undefined && y !== 0)) tblProps.padding = { x: twipsToPt(x ?? 108), y: twipsToPt(y ?? 0) };
+    }
+    const firstTr = findKids(t, 'tr')[0];
+    if (firstTr && findKid(findKid(firstTr, 'trPr'), 'tblHeader')) tblProps.headerRow = true;
 
     interface Cell { col: number; span: number; rowspan: number; node: XNode }
     const rows: Cell[][] = [];
@@ -908,7 +964,7 @@ class Converter {
       });
       return nodeTypes.table_row!.create(null, cells.length ? cells : [nodeTypes.table_cell!.create(null, [nodeTypes.paragraph!.create()])]);
     });
-    return nodeTypes.table!.create({ borders }, trNodes.length ? trNodes : [nodeTypes.table_row!.create(null, [nodeTypes.table_cell!.create(null, [nodeTypes.paragraph!.create()])])]);
+    return nodeTypes.table!.create({ borders, ...tblProps }, trNodes.length ? trNodes : [nodeTypes.table_row!.create(null, [nodeTypes.table_cell!.create(null, [nodeTypes.paragraph!.create()])])]);
   }
 }
 
@@ -1211,7 +1267,7 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
   const commentsRead = readComments(await text(zip, 'word/comments.xml'), await text(zip, 'word/commentsExtended.xml'));
   const sh: Shared = {
     zip, styles, baseRP, basePP, fonts, numbering, abstracts, media, warnings, counters: new Map(), sections: 0,
-    comments: commentsRead.info, footnotes: new Map(), endnotes: new Map(), noteSeq: 0,
+    comments: commentsRead.info, footnotes: new Map(), endnotes: new Map(), noteSeq: 0, custom: new Map(),
   };
   await readNotes(zip, 'word/footnotes.xml', 'footnotes', sh, sh.footnotes);
   await readNotes(zip, 'word/endnotes.xml', 'endnotes', sh, sh.endnotes);
@@ -1373,6 +1429,7 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
   const doc: WriterDoc = {
     ...emptyWriterDoc(defaults),
     body,
+    ...(sh.custom.size ? { styles: [...PARAGRAPH_STYLES.map((s) => ({ ...s })), ...sh.custom.values()] } : {}),
     parts,
     evenAndOdd,
     trackChanges,

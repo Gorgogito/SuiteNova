@@ -19,6 +19,10 @@ export function formatCommands(ui: WriterUI): CommandDef[] {
   add({ id: 'writer.fontDialog', label: 'Fuente…', icon: 'bold', shortcut: 'Ctrl+D', description: 'Cambia la fuente, el tamaño, el subrayado, los efectos y el espaciado entre caracteres.', enabled: ready, run: () => ui.openDialog('font') });
   add({ id: 'writer.paragraphDialog', label: 'Párrafo…', icon: 'alignLeft', description: 'Sangrías, espaciado, interlineado y paginación del párrafo.', enabled: ready, run: () => ui.openDialog('paragraph') });
   add({ id: 'writer.autocorrect', label: 'Opciones de autocorrección…', icon: 'spell', description: 'Elige qué se corrige mientras escribe: comillas, símbolos, mayúsculas, listas y vínculos.', run: () => ui.openDialog('autocorrect') });
+  add({ id: 'writer.styles', label: 'Estilos…', icon: 'paintbrush', description: 'Panel de estilos: aplicar, crear, modificar y eliminar estilos de párrafo.', enabled: ready, run: () => ui.openDialog('styles') });
+  add({ id: 'writer.style.new', label: 'Crear un estilo…', icon: 'plus', description: 'Crea un estilo nuevo con el formato del texto seleccionado.', enabled: ready, run: () => ui.openDialog('styleEdit', { id: null }) });
+  add({ id: 'writer.style.modify', label: 'Modificar estilo…', icon: 'settings', description: 'Cambia el estilo del párrafo actual; todos los párrafos que lo usan se actualizan.', enabled: ready, run: () => ui.openDialog('styleEdit', { id: c.currentStyleId() }) });
+  add({ id: 'writer.style.update', label: 'Actualizar el estilo para que coincida con la selección', icon: 'refresh', enabled: ready, run: () => { c.updateStyleFromSelection(); c.view?.focus(); } });
   add({ id: 'writer.symbol', label: 'Símbolo…', icon: 'hash', description: 'Inserta símbolos y caracteres especiales.', enabled: ready, run: () => ui.openDialog('symbol') });
 
   const cases: [CaseMode, string][] = [

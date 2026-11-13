@@ -9,6 +9,8 @@ import { BookmarkDialog, CaptionDialog, CiteDialog, IndexMarkDialog, NoteOptions
 import { ControlDialog, EquationDialog, ShapeDialog } from './dlg-objects';
 import { FontDialog, ParagraphDialog, SymbolDialog } from './dlg-format';
 import { AutoCorrectDialog } from './dlg-autocorrect';
+import { TableConvertDialog, TablePropsDialog, TableSortDialog } from './dlg-table';
+import { StyleEditDialog, StylesDialog } from './dlg-styles';
 import { TemplatesDialog } from './dlg-templates';
 import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
 import { EncryptDialog, SignDialog, SignatureInfoDialog } from './dlg-security';
@@ -239,6 +241,10 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
   switch (kind) {
     case 'link':
       return <LinkDialog ui={ui} remove={!!(arg as { remove?: boolean } | undefined)?.remove} onClose={onClose} />;
+    case 'styles':
+      return <StylesDialog ui={ui} onClose={onClose} />;
+    case 'styleEdit':
+      return <StyleEditDialog ui={ui} id={(arg as { id: string | null } | undefined)?.id ?? null} onClose={onClose} />;
     case 'autocorrect':
       return <AutoCorrectDialog ui={ui} onClose={onClose} />;
     case 'font':
@@ -247,6 +253,14 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
       return <ParagraphDialog ui={ui} onClose={onClose} />;
     case 'symbol':
       return <SymbolDialog ui={ui} onClose={onClose} />;
+    case 'tableProps':
+      return <TablePropsDialog ui={ui} onClose={onClose} />;
+    case 'tableSort':
+      return <TableSortDialog ui={ui} onClose={onClose} />;
+    case 'tableToText':
+      return <TableConvertDialog ui={ui} toText onClose={onClose} />;
+    case 'textToTable':
+      return <TableConvertDialog ui={ui} toText={false} onClose={onClose} />;
     case 'tableSize':
       return <TableDialog ui={ui} onClose={onClose} />;
     case 'toc':

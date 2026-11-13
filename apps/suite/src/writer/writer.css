@@ -141,13 +141,13 @@
 .nw-doc table.nw-table th {
   position: relative;
   vertical-align: top;
-  padding: 0 5.4pt;
+  padding: var(--nw-py, 0) var(--nw-px, 5.4pt);
   box-sizing: border-box;
   overflow-wrap: anywhere;
 }
 .nw-doc table.nw-borders td,
 .nw-doc table.nw-borders th {
-  border: 1px solid #000;
+  border: var(--nw-bw, 0.75pt) solid var(--nw-bc, #000);
 }
 .nw-doc table.nw-table:not(.nw-borders) td {
   border: 1px dotted rgba(0, 0, 0, 0.18);

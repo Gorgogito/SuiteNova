@@ -70,3 +70,34 @@ describe('DOCX: formato de carácter y de párrafo ampliado', () => {
     expect(firstBlocks(r.doc)[0]!.attrs.outlineLevel).toBeNull();
   });
 });
+
+describe('DOCX: propiedades de tabla', () => {
+  const cell = (text: string, bg?: string) => nodeTypes.table_cell!.create({ colwidth: [120], ...(bg ? { background: bg } : {}) }, p(text));
+  const table = (attrs: Record<string, unknown>) => nodeTypes.table!.create(attrs, [nodeTypes.table_row!.create(null, [cell('a', '#336699'), cell('b')]), nodeTypes.table_row!.create(null, [cell('c'), cell('d')])]);
+
+  it('alineación, color y grosor del borde, márgenes de celda y fila de encabezado', async () => {
+    const { r, xml } = await roundTrip(wd(table({ borders: true, align: 'center', borderColor: '#cc3300', borderWidth: 2, padding: { x: 8, y: 3 }, headerRow: true })));
+    const tbl = firstBlocks(r.doc)[0]!;
+    expect(tbl.type.name).toBe('table');
+    expect(tbl.attrs).toMatchObject({ borders: true, align: 'center', borderColor: '#cc3300', borderWidth: 2, headerRow: true, padding: { x: 8, y: 3 } });
+    expect(tbl.firstChild!.firstChild!.attrs.background).toBe('#336699');
+    expect(xml).toContain('<w:jc w:val="center"/>');
+    expect(xml).toContain('w:sz="16" w:space="0" w:color="CC3300"');
+    expect(xml).toContain('<w:tblHeader/>');
+    expect(xml).toContain('<w:tblCellMar><w:top w:w="60" w:type="dxa"/><w:left w:w="160" w:type="dxa"/>');
+    // orden del esquema: tblW, jc, tblBorders, tblLayout, tblCellMar
+    const pr = /<w:tblPr>.*?<\/w:tblPr>/s.exec(xml)![0];
+    const order = ['<w:tblW', '<w:jc', '<w:tblBorders', '<w:tblLayout', '<w:tblCellMar', '<w:tblLook'].map((k) => pr.indexOf(k));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(order.every((i) => i >= 0)).toBe(true);
+  });
+
+  it('una tabla sin propiedades especiales no las inventa', async () => {
+    const { r, xml } = await roundTrip(wd(table({ borders: true })));
+    const tbl = firstBlocks(r.doc)[0]!;
+    expect(tbl.attrs).toMatchObject({ align: null, borderColor: null, borderWidth: null, padding: null, headerRow: false });
+    expect(xml).not.toContain('<w:tblHeader/>');
+    expect(xml).not.toContain('<w:tblCellMar>');
+    expect(xml).not.toContain('<w:jc w:val="center"/><w:tblBorders');
+  });
+});

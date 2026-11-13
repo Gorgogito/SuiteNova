@@ -1,6 +1,7 @@
+import { TABLE_STYLES } from './table-tools';
 import { Popover, PopoverSurface, PopoverTrigger } from '@fluentui/react-components';
 import { Icon, RibbonItemView, t, type RibbonItem, type RibbonTab } from '@suitenova/core-ui';
-import { MARGIN_PRESETS, PAGE_SIZES, PARAGRAPH_STYLES, markTypes } from '@suitenova/writer-core';
+import { MARGIN_PRESETS, PAGE_SIZES, markTypes } from '@suitenova/writer-core';
 import { ChevronDown } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { Command } from 'prosemirror-state';
@@ -39,7 +40,7 @@ function StyleSelect({ ui }: { ui: WriterUI }) {
   const cur = (c.state && selectionParagraph(c.state)?.attrs.style) || 'Normal';
   return (
     <select className="nv-select" style={{ width: 120 }} aria-label={t('Estilo de párrafo')} title={t('Estilo de párrafo')} value={cur} onChange={(e) => run(ui, setStyle(e.target.value))}>
-      {PARAGRAPH_STYLES.filter((x) => !x.hidden).map((s) => (
+      {c.styles.filter((x) => !x.hidden).map((s) => (
         <option key={s.id} value={s.id}>
           {t(s.name)}
         </option>
@@ -166,7 +167,7 @@ function FontGroup({ ui }: { ui: WriterUI }) {
           item={{
             kind: 'dropdown',
             id: 'caseMenu',
-            label: 'Cambiar mayúsculas y minúsculas',
+            label: 'Mayús./minús.',
             icon: 'caseSensitive',
             size: 'small',
             entries: ['sentence', 'lower', 'upper', 'title', 'toggle'].map((k) => ({ kind: 'command' as const, command: `writer.case.${k}` })),
@@ -286,7 +287,24 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         id: 'styles',
         label: 'Estilos',
         icon: 'document',
-        items: [{ kind: 'custom', id: 'styleGroup', label: 'Estilos', keytip: 'L', render: () => <StyleSelect ui={ui} /> }],
+        items: [
+          { kind: 'custom', id: 'styleGroup', label: 'Estilos', keytip: 'L', render: () => <StyleSelect ui={ui} /> },
+          {
+            kind: 'dropdown',
+            id: 'styleActionsMenu',
+            label: 'Gestionar',
+            icon: 'paintbrush',
+            size: 'small',
+            keytip: 'EA',
+            entries: [
+              { kind: 'command' as const, command: 'writer.styles' },
+              { kind: 'separator' as const },
+              { kind: 'command' as const, command: 'writer.style.new' },
+              { kind: 'command' as const, command: 'writer.style.modify' },
+              { kind: 'command' as const, command: 'writer.style.update' },
+            ],
+          },
+        ],
       },
       {
         id: 'editing',
@@ -329,7 +347,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           },
         ],
       },
-      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [{ kind: 'button', command: 'writer.table', size: 'large', keytip: 'T' }] },
+      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [{ kind: 'button', command: 'writer.table', size: 'large', keytip: 'T' }, { kind: 'button', command: 'writer.table.fromText', size: 'small', keytip: 'XT' }] },
       {
         id: 'illustrations',
         label: 'Ilustraciones',
@@ -837,6 +855,41 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           { kind: 'button', command: 'writer.table.valign.top', size: 'small', keytip: 'VT' },
           { kind: 'button', command: 'writer.table.valign.middle', size: 'small', keytip: 'VM' },
           { kind: 'button', command: 'writer.table.valign.bottom', size: 'small', keytip: 'VB' },
+        ],
+      },
+      {
+        id: 'tablestyle',
+        label: 'Estilos de tabla',
+        icon: 'gridlines',
+        items: [
+          {
+            kind: 'dropdown',
+            id: 'tableStylesMenu',
+            label: 'Estilos de tabla',
+            icon: 'gridlines',
+            size: 'large',
+            keytip: 'TS',
+            entries: [
+              ...TABLE_STYLES.map((s) => ({ kind: 'command' as const, command: `writer.table.style.${s.id}` })),
+              { kind: 'separator' as const },
+              { kind: 'command' as const, command: 'writer.table.opt.headerRow' },
+              { kind: 'command' as const, command: 'writer.table.opt.bandedRows' },
+              { kind: 'command' as const, command: 'writer.table.opt.firstCol' },
+              { kind: 'command' as const, command: 'writer.table.opt.lastRow' },
+            ],
+          },
+          { kind: 'button', command: 'writer.table.props', size: 'large', keytip: 'TP' },
+        ],
+      },
+      {
+        id: 'tabledata',
+        label: 'Datos',
+        icon: 'arrowDownAZ',
+        items: [
+          { kind: 'button', command: 'writer.table.sort', size: 'small', keytip: 'SO' },
+          { kind: 'button', command: 'writer.table.distribute', size: 'small', keytip: 'DC' },
+          { kind: 'button', command: 'writer.table.fit', size: 'small', keytip: 'AF' },
+          { kind: 'button', command: 'writer.table.toText', size: 'small', keytip: 'TT' },
         ],
       },
       { id: 'tabledel', label: 'Tabla', icon: 'trash', items: [{ kind: 'button', command: 'writer.table.delete', size: 'large', keytip: 'TD' }] },

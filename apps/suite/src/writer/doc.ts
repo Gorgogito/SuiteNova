@@ -55,6 +55,8 @@ import {
   type WriterDoc,
 } from '@suitenova/writer-core';
 import { removeCommentMarks } from './review';
+import { selectionParagraph } from './editing';
+import { PARAGRAPH_STYLES, styleById, tableCssVars, type ParagraphStyleDef } from '@suitenova/writer-core';
 import { backspaceCommand, deleteCommand, enterCommand, shiftTabCommand, tabCommand } from './editing';
 import { tabsPlugin } from './tabs';
 import { formsPlugin } from './forms';
@@ -81,6 +83,8 @@ class NovaTableView extends TableView {
   }
   private sync(node: PMNode) {
     this.table.className = `nw-table${node.attrs.borders ? ' nw-borders' : ''}`;
+    for (const k of ['margin-left', 'margin-right', '--nw-bc', '--nw-bw', '--nw-px', '--nw-py']) this.table.style.removeProperty(k);
+    for (const [k, v] of tableCssVars(node.attrs)) this.table.style.setProperty(k, v);
   }
 }
 
@@ -448,7 +452,7 @@ export class WriterCtl {
       handleDOMEvents: {
         // «Copiar formato»: se aplica al soltar el ratón o la tecla, cuando la selección ya está terminada
         mouseup: (v) => this.finishPainter(v),
-        keyup: (v) => this.finishPainter(v),
+        keyup: (v, e) => ((e as KeyboardEvent).key === 'Shift' ? this.finishPainter(v) : false),
         contextmenu: (v, event) => {
           const at = v.posAtCoords({ left: event.clientX, top: event.clientY });
           const m = at ? misspellingAt(v, at.pos) : null;
@@ -1162,6 +1166,95 @@ export class WriterCtl {
     for (const m of [...matches].reverse()) tr.insertText(text, m.from, m.to);
     v.dispatch(tr);
     return matches.length;
+  }
+
+  // ---------- estilos de párrafo ----------
+
+  /** Id del estilo del párrafo donde está el cursor. */
+  currentStyleId(): string {
+    const st = this.state;
+    return (st && selectionParagraph(st)?.attrs.style) || 'Normal';
+  }
+
+  /** Un estilo nuevo con el formato del párrafo y del texto donde está la selección. */
+  styleFromSelection(name: string): ParagraphStyleDef {
+    const st = this.state;
+    const def: ParagraphStyleDef = { id: '', name };
+    if (!st) return def;
+    const p = selectionParagraph(st);
+    const a = p?.attrs ?? {};
+    const base = styleById(this.styles, a.style);
+    Object.assign(def, base ? { ...base, id: '', name, hidden: undefined, heading: undefined, wordName: undefined } : {});
+    if (a.align) def.align = a.align;
+    if (a.indentLeft) def.indentLeft = a.indentLeft;
+    if (a.spaceBefore !== null && a.spaceBefore !== undefined) def.spaceBefore = a.spaceBefore;
+    if (a.spaceAfter !== null && a.spaceAfter !== undefined) def.spaceAfter = a.spaceAfter;
+    if (a.lineHeight && !a.lineRule) def.lineHeight = a.lineHeight;
+    const marks = st.selection.empty ? (st.storedMarks ?? st.selection.$from.marks()) : st.doc.resolve(Math.min(st.selection.from + 1, st.selection.to)).marks();
+    for (const m of marks) {
+      if (m.type.name === 'fontFamily') def.fontFamily = m.attrs.value;
+      else if (m.type.name === 'fontSize') def.fontSize = m.attrs.value;
+      else if (m.type.name === 'strong') def.bold = true;
+      else if (m.type.name === 'em') def.italic = true;
+      else if (m.type.name === 'underline') def.underline = true;
+      else if (m.type.name === 'color') def.color = m.attrs.value;
+    }
+    return def;
+  }
+
+  private stylesChanged(): void {
+    this.dirty = true;
+    this.touch();
+    if (this.mainView) repaginate(this.mainView);
+  }
+
+  /** Cambia un estilo existente (o lo añade si no está). */
+  upsertStyle(def: ParagraphStyleDef): void {
+    const i = this.styles.findIndex((s) => s.id === def.id);
+    this.styles = i >= 0 ? this.styles.map((s, j) => (j === i ? { ...def } : s)) : [...this.styles, { ...def }];
+    this.stylesChanged();
+  }
+
+  /** Añade un estilo propio nuevo con un id único derivado del nombre. */
+  addStyle(def: ParagraphStyleDef): ParagraphStyleDef {
+    const stem = def.name.replace(/[^A-Za-z0-9]+/g, '') || 'Estilo';
+    let id = stem;
+    for (let n = 2; this.styles.some((s) => s.id === id); n++) id = `${stem}${n}`;
+    const made = { ...def, id, hidden: undefined };
+    this.styles = [...this.styles, made];
+    this.stylesChanged();
+    return made;
+  }
+
+  /** Quita un estilo propio; los párrafos que lo usaban pasan a Normal. */
+  deleteStyle(id: string): void {
+    if (PARAGRAPH_STYLES.some((s) => s.id === id)) return;
+    const v = this.mainView;
+    if (v) {
+      const tr = v.state.tr;
+      v.state.doc.descendants((n, pos) => {
+        if (n.type.name === 'paragraph' && n.attrs.style === id) tr.setNodeMarkup(pos, undefined, { ...n.attrs, style: null });
+        return true;
+      });
+      if (tr.docChanged) v.dispatch(tr);
+    }
+    this.styles = this.styles.filter((s) => s.id !== id);
+    this.stylesChanged();
+  }
+
+  /** Devuelve un estilo integrado a su definición original. */
+  resetStyle(id: string): void {
+    const orig = PARAGRAPH_STYLES.find((s) => s.id === id);
+    if (orig) this.upsertStyle({ ...orig });
+  }
+
+  /** Pone en el estilo del párrafo actual el formato de la selección («Actualizar estilo para coincidir con la selección»). */
+  updateStyleFromSelection(): void {
+    const id = this.currentStyleId();
+    const cur = this.styles.find((s) => s.id === id);
+    if (!cur) return;
+    const fresh = this.styleFromSelection(cur.name);
+    this.upsertStyle({ ...cur, ...fresh, id: cur.id, name: cur.name, next: cur.next, hidden: cur.hidden, heading: cur.heading, wordName: cur.wordName });
   }
 
   clearFind(): void {

@@ -12,6 +12,7 @@ import { mailCommands } from './commands-mail';
 import { spellCommands } from './commands-spell';
 import { securityCommands } from './commands-security';
 import { formatCommands } from './commands-format';
+import { tableCommands } from './commands-table';
 import {
   FONT_SIZES,
   changeIndent,
@@ -33,7 +34,7 @@ import {
   updateParagraphs,
 } from './editing';
 
-export type WriterDialog = 'link' | 'pageSetup' | 'about' | 'shortcuts' | 'tableSize' | 'columns' | 'watermark' | 'protect' | 'unprotect' | 'user' | 'toc' | 'tof' | 'caption' | 'xref' | 'bookmark' | 'indexMark' | 'cite' | 'sources' | 'noteOptions' | 'equation' | 'shape' | 'control' | 'envelope' | 'labels' | 'recipients' | 'mergeField' | 'mergeBlock' | 'mergeRule' | 'finishMerge' | 'templates' | 'spell' | 'userDict' | 'encrypt' | 'sign' | 'signInfo' | 'macros' | 'macroEditor' | 'font' | 'paragraph' | 'symbol' | 'autocorrect';
+export type WriterDialog = 'link' | 'pageSetup' | 'about' | 'shortcuts' | 'tableSize' | 'columns' | 'watermark' | 'protect' | 'unprotect' | 'user' | 'toc' | 'tof' | 'caption' | 'xref' | 'bookmark' | 'indexMark' | 'cite' | 'sources' | 'noteOptions' | 'equation' | 'shape' | 'control' | 'envelope' | 'labels' | 'recipients' | 'mergeField' | 'mergeBlock' | 'mergeRule' | 'finishMerge' | 'templates' | 'spell' | 'userDict' | 'encrypt' | 'sign' | 'signInfo' | 'macros' | 'macroEditor' | 'font' | 'paragraph' | 'symbol' | 'autocorrect' | 'styles' | 'styleEdit' | 'tableProps' | 'tableSort' | 'tableToText' | 'textToTable';
 
 export interface WriterUI {
   ctl: WriterCtl;
@@ -260,6 +261,7 @@ export function writerCommands(ui: WriterUI): CommandDef[] {
   // ---- view
   add({ id: 'writer.zoomFit', label: 'Ajustar al ancho', icon: 'fit', run: () => ui.fitWidth() });
   defs.push(...formatCommands(ui));
+  defs.push(...tableCommands(ui));
   defs.push(...layoutCommands(ui));
   defs.push(...reviewCommands(ui));
   defs.push(...refsCommands(ui));

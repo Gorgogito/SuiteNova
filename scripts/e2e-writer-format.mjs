@@ -77,7 +77,7 @@ await check('Fuente…: subrayado doble con color, espaciado y versalitas desde 
 await check('Cambiar mayúsculas: Tipo oración, MAYÚSCULAS y poner cada palabra en mayúscula', async () => {
   const apply = async (label) => {
     await selectAllText();
-    await page.getByRole('button', { name: 'Cambiar mayúsculas y minúsculas' }).click();
+    await page.getByRole('button', { name: 'Mayús./minús.' }).click();
     await page.getByRole('menuitem', { name: new RegExp('^' + label) }).click();
     await page.waitForTimeout(250);
   };
@@ -140,7 +140,9 @@ await check('Copiar formato: el formato de una palabra pasa a otra con un clic e
   assert.equal(await ev(() => !!window.__novaWriter.ctl.painter), true);
   // selecciona «plana» (las últimas 5 letras)
   await page.keyboard.press('End');
-  for (let i = 0; i < 5; i++) await page.keyboard.press('Shift+ArrowLeft');
+  await page.keyboard.down('Shift');
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowLeft');
+  await page.keyboard.up('Shift');
   await page.waitForTimeout(300);
   assert.equal(await ev(() => !!window.__novaWriter.ctl.painter), false);
   const marks = await ev(() => {

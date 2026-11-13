@@ -1,5 +1,5 @@
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { readDoc, readOdt, readRtf, writeOdt, writeRtf, WrongPasswordError, decryptPackage, defaultStyles, encryptPackage, isEncryptedPackage, nodeTypes, ptToPx, readDocx, styleCss, writeDocx } from '@suitenova/writer-core';
+import { readDoc, readOdt, readRtf, writeOdt, writeRtf, WrongPasswordError, decryptPackage, encryptPackage, isEncryptedPackage, nodeTypes, ptToPx, readDocx, styleCss, writeDocx } from '@suitenova/writer-core';
 import { isInTable } from 'prosemirror-tables';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { helpTab, zoomCommands } from '../common';
@@ -54,7 +54,7 @@ export function buildPrintHtml(ctl: WriterCtl, sheet: HTMLElement): string {
   const heads = [...document.head.querySelectorAll('style, link[rel="stylesheet"]')].map((n) => n.outerHTML).join('\n');
   const w = (first.width / 72).toFixed(4);
   const h = (first.height / 72).toFixed(4);
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${(ctl.fileName ?? 'Documento').replace(/</g, '&lt;')}</title>${heads}<style>${styleCss(defaultStyles(), ctl.defaults)}
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${(ctl.fileName ?? 'Documento').replace(/</g, '&lt;')}</title>${heads}<style>${styleCss(ctl.styles, ctl.defaults)}
 @page{size:${w}in ${h}in;margin:0}
 html,body{margin:0;padding:0;background:#fff!important;height:auto!important;overflow:visible!important}
 .nw-sheet{box-shadow:none!important;margin:0!important}
@@ -350,7 +350,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
         await saveBytes(`${(ctl.fileName ?? 'Documento1').replace(/\.[^.]+$/, '')}.txt`, new TextEncoder().encode(ctl.text()), [{ name: 'Texto', extensions: ['txt'] }]);
       },
       exportHtml: async () => {
-        const html = `<!doctype html><html><head><meta charset="utf-8"><title>${(ctl.fileName ?? 'Documento').replace(/</g, '&lt;')}</title><style>body{max-width:42em;margin:2em auto;padding:0 1em}${styleCss(defaultStyles(), ctl.defaults)}.nw-table{border-collapse:collapse}.nw-borders td,.nw-borders th{border:1px solid #000}</style></head><body class="nw-doc">${ctl.html()}</body></html>`;
+        const html = `<!doctype html><html><head><meta charset="utf-8"><title>${(ctl.fileName ?? 'Documento').replace(/</g, '&lt;')}</title><style>body{max-width:42em;margin:2em auto;padding:0 1em}${styleCss(ctl.styles, ctl.defaults)}.nw-table{border-collapse:collapse}.nw-borders td,.nw-borders th{border:1px solid #000}</style></head><body class="nw-doc">${ctl.html()}</body></html>`;
         await saveBytes(`${(ctl.fileName ?? 'Documento1').replace(/\.[^.]+$/, '')}.html`, new TextEncoder().encode(html), [{ name: 'Página web', extensions: ['html'] }]);
       },
       print: () => {

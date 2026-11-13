@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
 import { Node as PMNode } from 'prosemirror-model';
-import { DEFAULT_DOC_DEFAULTS, defaultPage, defaultSection, docFromText, emptyWriterDoc, ensureSections, makeSection, nodeTypes, plainText, readDocx, sectionPropsOf, wordCount, writeDocx, writerSchema, type WriterDoc } from './index';
+import { PARAGRAPH_STYLES, DEFAULT_DOC_DEFAULTS, defaultPage, defaultSection, docFromText, emptyWriterDoc, ensureSections, makeSection, nodeTypes, plainText, readDocx, sectionPropsOf, wordCount, writeDocx, writerSchema, type WriterDoc } from './index';
 
 const p = (text: string, attrs: Record<string, unknown> = {}, marks: any[] = []) => nodeTypes.paragraph!.create(attrs, text ? writerSchema.text(text, marks) : undefined);
 const mk = (name: string, attrs?: Record<string, unknown>) => writerSchema.marks[name]!.create(attrs);
@@ -159,7 +159,7 @@ describe('lectura de un DOCX al estilo de Word', () => {
   }
   const ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
 
-  it('aplana estilos propios y reconoce los integrados por nombre (estilos con id traducido)', async () => {
+  it('conserva los estilos propios como estilos y reconoce los integrados por nombre (estilos con id traducido)', async () => {
     const styles = `
       <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="22"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
       <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
@@ -168,12 +168,40 @@ describe('lectura de un DOCX al estilo de Word', () => {
     const r = await build(`<w:p><w:pPr><w:pStyle w:val="Ttulo1"/></w:pPr><w:r><w:t>Cap</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Destacado"/></w:pPr><w:r><w:t>Hola</w:t></w:r></w:p>`, {}, styles);
     const b = flat(r.doc);
     expect(b.child(0).attrs.style).toBe('Heading1');
-    expect(b.child(1).attrs).toMatchObject({ style: null, align: 'center', spaceBefore: 12 });
-    expect(b.child(1).firstChild!.marks.map((m) => m.type.name).sort()).toEqual(['color', 'em']);
+    // el estilo propio viaja como estilo: el párrafo no repite su formato y el estilo lo lleva en la tabla
+    expect(b.child(1).attrs).toMatchObject({ style: 'Destacado', align: null, spaceBefore: null });
+    expect(b.child(1).firstChild!.marks).toEqual([]);
+    const def = r.doc.styles!.find((s) => s.id === 'Destacado')!;
+    expect(def).toMatchObject({ name: 'Destacado', align: 'center', spaceBefore: 12, italic: true, color: '#ff0000' });
+    expect(r.doc.styles!.some((s) => s.id === 'Heading1')).toBe(true);
     expect(r.doc.defaults).toMatchObject({ fontFamily: 'Arial', fontSize: 11, spaceAfter: 8 });
     expect(r.doc.defaults.lineHeight).toBeCloseTo(1.08, 2);
     expect(pageOf(r.doc).width).toBeCloseTo(595.3, 1);
     expect(pageOf(r.doc).marginLeft).toBeCloseTo(85.05, 1);
+  });
+
+  it('un estilo propio «basado en» otro hereda su formato, y sobrevive a guardar y volver a leer', async () => {
+    const styles = `
+      <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+      <w:style w:type="paragraph" w:styleId="Base"><w:name w:val="Mi base"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="240"/><w:ind w:left="720"/></w:pPr><w:rPr><w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/><w:sz w:val="24"/></w:rPr></w:style>
+      <w:style w:type="paragraph" w:styleId="Hijo"><w:name w:val="Mi hijo"/><w:basedOn w:val="Base"/><w:rPr><w:b/><w:u w:val="double"/></w:rPr></w:style>
+      <w:style w:type="character" w:styleId="Car"><w:name w:val="Car"/><w:rPr><w:b/></w:rPr></w:style>
+      <w:style w:type="table" w:styleId="Tabla"><w:name w:val="Tabla"/></w:style>`;
+    const r = await build(`<w:p><w:pPr><w:pStyle w:val="Hijo"/></w:pPr><w:r><w:t>uno</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Hijo"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t>dos</w:t></w:r></w:p>`, {}, styles);
+    const def = r.doc.styles!.find((s) => s.id === 'Hijo')!;
+    expect(def).toMatchObject({ name: 'Mi hijo', fontFamily: 'Georgia', fontSize: 12, spaceAfter: 12, indentLeft: 36, bold: true, underline: true });
+    expect(r.doc.styles!.filter((s) => !PARAGRAPH_STYLES.some((x) => x.id === s.id)).map((s) => s.id)).toEqual(['Hijo']); // solo los usados
+    const b = flat(r.doc);
+    expect(b.child(0).attrs.style).toBe('Hijo');
+    expect(b.child(1).firstChild!.marks.map((m) => m.type.name)).toEqual(['em']); // lo directo se conserva
+    // guardar y volver a leer
+    const w = await writeDocx(r.doc);
+    const xml = await JSZip.loadAsync(w.data).then((z) => z.file('word/styles.xml')!.async('string'));
+    expect(xml).toContain('w:styleId="Hijo"');
+    expect(xml).toContain('<w:name w:val="Mi hijo"/>');
+    const again = await readDocx(w.data);
+    expect(again.doc.styles!.find((s) => s.id === 'Hijo')).toMatchObject({ fontFamily: 'Georgia', fontSize: 12, bold: true, indentLeft: 36 });
+    expect(flat(again.doc).child(0).attrs.style).toBe('Hijo');
   });
 
   it('resuelve la fuente del tema', async () => {

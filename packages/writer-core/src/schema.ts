@@ -473,8 +473,37 @@ const tNodes = tableNodes({
   },
 });
 // tables carry a flag for visible borders ("Table Grid" in Word)
-(tNodes.table as NodeSpec).attrs = { borders: { default: true } };
-(tNodes.table as NodeSpec).toDOM = (node) => ['table', { class: `nw-table${node.attrs.borders ? ' nw-borders' : ''}` }, ['tbody', 0]];
+(tNodes.table as NodeSpec).attrs = {
+  borders: { default: true },
+  /** Alineación de la tabla en la página (null = a la izquierda). */
+  align: { default: null },
+  /** Color y grosor (pt) del borde de las celdas. */
+  borderColor: { default: null },
+  borderWidth: { default: null },
+  /** Margen interior de las celdas en pt: { x, y }. */
+  padding: { default: null },
+  /** La primera fila es de encabezado (Word la repite en cada página). */
+  headerRow: { default: false },
+};
+
+/** Propiedades CSS de una tabla (alineación, borde y márgenes de celda) como pares [nombre, valor]. */
+export function tableCssVars(attrs: Record<string, unknown>): [string, string][] {
+  const out: [string, string][] = [];
+  if (attrs.align === 'center') out.push(['margin-left', 'auto'], ['margin-right', 'auto']);
+  else if (attrs.align === 'right') out.push(['margin-left', 'auto'], ['margin-right', '0']);
+  if (attrs.borderColor) out.push(['--nw-bc', String(attrs.borderColor)]);
+  if (attrs.borderWidth) out.push(['--nw-bw', `${attrs.borderWidth}pt`]);
+  const pad = attrs.padding as { x?: number; y?: number } | null;
+  if (pad) {
+    if (pad.x !== undefined) out.push(['--nw-px', `${pad.x}pt`]);
+    if (pad.y !== undefined) out.push(['--nw-py', `${pad.y}pt`]);
+  }
+  return out;
+}
+(tNodes.table as NodeSpec).toDOM = (node) => {
+  const css = tableCssVars(node.attrs).map(([k, v]) => `${k}:${v}`).join(';');
+  return ['table', { class: `nw-table${node.attrs.borders ? ' nw-borders' : ''}`, ...(css ? { style: css } : {}) }, ['tbody', 0]];
+};
 
 export const writerSchema = new Schema({ nodes: { ...nodes, ...tNodes }, marks });
 

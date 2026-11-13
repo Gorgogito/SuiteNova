@@ -432,14 +432,20 @@ function tableXml(t: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
   const known = cols.filter(Boolean);
   const fallback = known.length ? Math.round(known.reduce((s, n) => s + n, 0) / known.length) : 2000;
   const grid = cols.map((w) => w || fallback);
+  const bw = Math.max(2, Math.round((t.attrs.borderWidth ?? 0.5) * 8)); // en octavos de punto
+  const bc = t.attrs.borderColor ? hex(t.attrs.borderColor) : 'auto';
   const borders = t.attrs.borders
-    ? '<w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((s) => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="auto"/>`).join('') + '</w:tblBorders>'
+    ? '<w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((s) => `<w:${s} w:val="single" w:sz="${bw}" w:space="0" w:color="${bc}"/>`).join('') + '</w:tblBorders>'
     : '';
-  let out = `<w:tbl><w:tblPr>${t.attrs.borders ? '<w:tblStyle w:val="TableGrid"/>' : ''}<w:tblW w:w="0" w:type="auto"/>${borders}<w:tblLayout w:type="fixed"/><w:tblLook w:val="04A0"/></w:tblPr>`;
+  const jc = t.attrs.align === 'center' || t.attrs.align === 'right' ? `<w:jc w:val="${t.attrs.align}"/>` : '';
+  const pad = t.attrs.padding as { x?: number; y?: number } | null;
+  const mar = pad ? `<w:tblCellMar><w:top w:w="${ptToTwips(pad.y ?? 0)}" w:type="dxa"/><w:left w:w="${ptToTwips(pad.x ?? 5.4)}" w:type="dxa"/><w:bottom w:w="${ptToTwips(pad.y ?? 0)}" w:type="dxa"/><w:right w:w="${ptToTwips(pad.x ?? 5.4)}" w:type="dxa"/></w:tblCellMar>` : '';
+  let out = `<w:tbl><w:tblPr>${t.attrs.borders ? '<w:tblStyle w:val="TableGrid"/>' : ''}<w:tblW w:w="0" w:type="auto"/>${jc}${borders}<w:tblLayout w:type="fixed"/>${mar}<w:tblLook w:val="04A0"/></w:tblPr>`;
   out += `<w:tblGrid>${grid.map((w) => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>`;
   const occ: { left: number; span: number }[] = [];
+  let rowIndex = 0;
   t.forEach((row) => {
-    out += '<w:tr>';
+    out += rowIndex++ === 0 && t.attrs.headerRow ? '<w:tr><w:trPr><w:tblHeader/></w:trPr>' : '<w:tr>';
     let col = 0;
     const flushOcc = () => {
       while (occ[col] && occ[col]!.left > 0) {
