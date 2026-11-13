@@ -1148,3 +1148,12 @@
   color: #3b2f00;
   border-bottom: 1px solid #d8b800;
 }
+
+/* ---- underline styles, double strikethrough, text effects ---- */
+.nw-doc u.nw-u-double { text-decoration-style: double; }
+.nw-doc u.nw-u-thick { text-decoration-thickness: 0.14em; }
+.nw-doc u.nw-u-dotted { text-decoration-style: dotted; }
+.nw-doc u.nw-u-dash { text-decoration-style: dashed; }
+.nw-doc u.nw-u-dotDash { text-decoration-style: dashed; text-decoration-thickness: 0.07em; }
+.nw-doc u.nw-u-wavy { text-decoration-style: wavy; }
+.nw-doc .nw-dstrike { text-decoration: line-through; text-decoration-style: double; }

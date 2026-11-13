@@ -7,6 +7,7 @@ import { WriterCtl, findMatches } from './doc';
 import './messages';
 import './messages-more';
 import './messages-objects';
+import './messages-format';
 import { writerTabs } from './ribbonDef';
 import { measureLayout } from './paginate';
 

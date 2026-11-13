@@ -7,6 +7,8 @@ import { ColumnsDialog, WatermarkDialog } from './dlg-layout';
 import { ProtectDialog, UnprotectDialog, UserDialog } from './dlg-review';
 import { BookmarkDialog, CaptionDialog, CiteDialog, IndexMarkDialog, NoteOptionsDialog, SourcesDialog, TocDialog, XRefDialog } from './dlg-refs';
 import { ControlDialog, EquationDialog, ShapeDialog } from './dlg-objects';
+import { FontDialog, ParagraphDialog, SymbolDialog } from './dlg-format';
+import { AutoCorrectDialog } from './dlg-autocorrect';
 import { TemplatesDialog } from './dlg-templates';
 import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
 import { EncryptDialog, SignDialog, SignatureInfoDialog } from './dlg-security';
@@ -237,6 +239,14 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
   switch (kind) {
     case 'link':
       return <LinkDialog ui={ui} remove={!!(arg as { remove?: boolean } | undefined)?.remove} onClose={onClose} />;
+    case 'autocorrect':
+      return <AutoCorrectDialog ui={ui} onClose={onClose} />;
+    case 'font':
+      return <FontDialog ui={ui} onClose={onClose} />;
+    case 'paragraph':
+      return <ParagraphDialog ui={ui} onClose={onClose} />;
+    case 'symbol':
+      return <SymbolDialog ui={ui} onClose={onClose} />;
     case 'tableSize':
       return <TableDialog ui={ui} onClose={onClose} />;
     case 'toc':

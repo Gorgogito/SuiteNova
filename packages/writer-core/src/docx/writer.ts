@@ -89,14 +89,19 @@ export class RelSink {
 
 // ---------- runs ----------
 
+const UNDERLINE_TO_FILE: Record<string, string> = { single: 'single', double: 'double', thick: 'thick', dotted: 'dotted', dash: 'dash', dotDash: 'dotDash', wavy: 'wave' };
+
 function rPr(marks: readonly Mark[], extra = ''): string {
+  let dstrike = '', spacing = '';
   let fonts = '', b = '', i = '', strike = '', color = '', sz = '', u = '', shd = '', va = '', style = '', caps = '', lang = '';
   for (const m of marks) {
     switch (m.type.name) {
       case 'strong': b = '<w:b/><w:bCs/>'; break;
       case 'em': i = '<w:i/><w:iCs/>'; break;
-      case 'underline': u = '<w:u w:val="single"/>'; break;
+      case 'underline': u = `<w:u w:val="${UNDERLINE_TO_FILE[m.attrs.style] ?? 'single'}"${m.attrs.color ? ` w:color="${hex(m.attrs.color)}"` : ''}/>`; break;
       case 'strike': strike = '<w:strike/>'; break;
+      case 'dstrike': dstrike = '<w:dstrike/>'; break;
+      case 'spacing': spacing = `<w:spacing w:val="${Math.round(m.attrs.value * 20)}"/>`; break;
       case 'superscript': va = '<w:vertAlign w:val="superscript"/>'; break;
       case 'subscript': va = '<w:vertAlign w:val="subscript"/>'; break;
       case 'color': color = `<w:color w:val="${hex(m.attrs.value)}"/>`; break;
@@ -109,7 +114,7 @@ function rPr(marks: readonly Mark[], extra = ''): string {
     }
   }
   // schema order of w:rPr: rStyle, rFonts, b, i, caps/smallCaps, strike, color, sz, highlight/shd, u, vertAlign, lang
-  const inner = extra + style + fonts + b + i + caps + strike + color + sz + u + shd + va + lang;
+  const inner = extra + style + fonts + b + i + caps + strike + dstrike + color + spacing + sz + u + shd + va + lang;
   return inner ? `<w:rPr>${inner}</w:rPr>` : '';
 }
 
@@ -365,6 +370,7 @@ export function paragraphXml(p: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, 
   let ppr = '';
   if (a.style && a.style !== 'Normal') ppr += `<w:pStyle w:val="${esc(a.style)}"/>`;
   if (a.keepNext) ppr += '<w:keepNext/>';
+  if (a.keepLines) ppr += '<w:keepLines/>';
   if (a.pageBreakBefore) ppr += '<w:pageBreakBefore/>';
   if (list) ppr += `<w:numPr><w:ilvl w:val="${list.level}"/><w:numId w:val="${list.numId}"/></w:numPr>`;
   if (a.border) {
@@ -379,7 +385,7 @@ export function paragraphXml(p: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, 
   const sp: string[] = [];
   if (a.spaceBefore !== null) sp.push(`w:before="${ptToTwips(a.spaceBefore)}"`);
   if (a.spaceAfter !== null) sp.push(`w:after="${ptToTwips(a.spaceAfter)}"`);
-  if (a.lineHeight) sp.push(`w:line="${Math.round(a.lineHeight * 240)}" w:lineRule="auto"`);
+  if (a.lineHeight) sp.push(a.lineRule === 'exact' || a.lineRule === 'atLeast' ? `w:line="${ptToTwips(a.lineHeight)}" w:lineRule="${a.lineRule}"` : `w:line="${Math.round(a.lineHeight * 240)}" w:lineRule="auto"`);
   if (sp.length) ppr += `<w:spacing ${sp.join(' ')}/>`;
   if (!list) {
     const ind: string[] = [];
@@ -390,6 +396,7 @@ export function paragraphXml(p: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, 
     if (ind.length) ppr += `<w:ind ${ind.join(' ')}/>`;
   }
   if (a.align) ppr += `<w:jc w:val="${a.align === 'justify' ? 'both' : a.align}"/>`;
+  if (typeof a.outlineLevel === 'number') ppr += `<w:outlineLvl w:val="${a.outlineLevel}"/>`;
   if (a.ins || a.del) {
     ppr += '<w:rPr>';
     if (a.ins) ppr += `<w:ins ${ctx.rev(a.ins.author, a.ins.date)}/>`;

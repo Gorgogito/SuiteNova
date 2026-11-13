@@ -162,6 +162,16 @@ function FontGroup({ ui }: { ui: WriterUI }) {
         <Item item={btn('writer.fontGrow')} />
         <Item item={btn('writer.fontShrink')} />
         <Item item={btn('writer.clearFormat')} />
+        <Item
+          item={{
+            kind: 'dropdown',
+            id: 'caseMenu',
+            label: 'Cambiar mayúsculas y minúsculas',
+            icon: 'caseSensitive',
+            size: 'small',
+            entries: ['sentence', 'lower', 'upper', 'title', 'toggle'].map((k) => ({ kind: 'command' as const, command: `writer.case.${k}` })),
+          }}
+        />
       </Row>
       <Row>
         <Item item={btn('writer.bold')} />
@@ -173,6 +183,8 @@ function FontGroup({ ui }: { ui: WriterUI }) {
         <Sep />
         <ColorMenu ui={ui} kind="highlight" />
         <ColorMenu ui={ui} kind="color" />
+        <Sep />
+        <Item item={btn('writer.fontDialog')} />
       </Row>
     </Rows>
   );
@@ -223,6 +235,8 @@ function ParagraphGroup() {
         <Item item={btn('writer.alignCenter')} />
         <Item item={btn('writer.alignRight')} />
         <Item item={btn('writer.alignJustify')} />
+        <Sep />
+        <Item item={btn('writer.paragraphDialog')} />
       </Row>
     </Rows>
   );
@@ -263,6 +277,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           },
           { kind: 'button', command: 'writer.cut', keytip: 'X' },
           { kind: 'button', command: 'writer.copy', keytip: 'C' },
+          { kind: 'button', command: 'writer.formatPainter', keytip: 'FP' },
         ],
       },
       { id: 'font', label: 'Fuente', icon: 'bold', items: [{ kind: 'custom', id: 'fontGroup', label: 'Fuente', keytip: 'FN', render: () => <FontGroup ui={ui} /> }] },
@@ -401,6 +416,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         label: 'Texto',
         icon: 'hash',
         items: [
+          { kind: 'button', command: 'writer.symbol', size: 'small', keytip: 'SY' },
           { kind: 'button', command: 'writer.field.page', size: 'small', keytip: 'FP' },
           { kind: 'button', command: 'writer.field.pages', size: 'small', keytip: 'FT' },
           { kind: 'button', command: 'writer.field.date', size: 'small', keytip: 'FD2' },
@@ -639,6 +655,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
               { kind: 'command', command: 'writer.spell.lang.en' },
               { kind: 'separator' },
               { kind: 'command', command: 'writer.spell.dictionary' },
+              { kind: 'command', command: 'writer.autocorrect' },
             ],
           },
         ],

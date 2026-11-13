@@ -1,6 +1,7 @@
+import { autoCorrectPlugin, autoListRules, loadAutoCorrect, type AutoCorrectOptions } from './autocorrect';
+import { applyFormat, type CopiedFormat } from './format-tools';
 import { baseKeymap, chainCommands } from 'prosemirror-commands';
 import { history, redo, undo } from 'prosemirror-history';
-import { inputRules, wrappingInputRule } from 'prosemirror-inputrules';
 import { keymap } from 'prosemirror-keymap';
 import { DOMParser as PMDOMParser, DOMSerializer, type Node as PMNode } from 'prosemirror-model';
 import { EditorState, NodeSelection, Plugin, PluginKey, TextSelection, type Transaction } from 'prosemirror-state';
@@ -184,6 +185,10 @@ export class WriterCtl {
   author?: string;
   pageSpecs: PageSpec[] = [{ section: 0, blank: false, notes: [], number: 1, inSection: 0 }];
   showMarks = false;
+  /** Autocorrección al escribir (se guarda en este equipo). */
+  autoCorrect: AutoCorrectOptions = loadAutoCorrect();
+  /** «Copiar formato» activo: el formato copiado se aplica a la próxima selección. */
+  painter: CopiedFormat | null = null;
   viewMode: ViewMode = 'print';
   showRuler = true;
   showNav = false;
@@ -192,6 +197,26 @@ export class WriterCtl {
   markup: 'all' | 'simple' | 'none' | 'original' = 'all';
   activeComment: string | null = null;
   editingComment: string | null = null;
+  /** Dónde estaba la selección al copiar el formato: no cuenta como destino. */
+  painterSel: { from: number; to: number } | null = null;
+
+  /** Aplica el formato copiado a la selección terminada (si hay una nueva) y desactiva «Copiar formato». */
+  finishPainter(v: EditorView): false {
+    if (!this.painter) return false;
+    // ProseMirror lee la selección del DOM de forma asíncrona: se mira un instante después
+    setTimeout(() => {
+      const fmt = this.painter;
+      const s = v.state.selection;
+      const at = this.painterSel;
+      if (!fmt || s.empty || (at && at.from === s.from && at.to === s.to)) return;
+      this.painter = null;
+      this.painterSel = null;
+      applyFormat(fmt, true)(v.state, v.dispatch);
+      this.touch();
+    }, 40);
+    return false;
+  }
+
   /** The footnote or endnote whose text is being written, by id. */
   noteEdit: string | null = null;
   tabKind: 'left' | 'center' | 'right' | 'decimal' | 'bar' = 'left';
@@ -348,15 +373,10 @@ export class WriterCtl {
   // ---------- editor lifecycle ----------
 
   private plugins(): Plugin[] {
-    const isList = (n: string) => nodeTypes[n]!;
     return [
       history(),
-      inputRules({
-        rules: [
-          wrappingInputRule(/^\s*([-+*•])\s$/, isList('bullet_list')),
-          wrappingInputRule(/^(\d+)\.\s$/, isList('ordered_list'), (m) => ({ start: Number(m[1]), format: 'decimal' }), (m, node) => node.childCount + (node.attrs.start as number) === Number(m[1])),
-        ],
-      }),
+      autoListRules(() => this.autoCorrect),
+      autoCorrectPlugin(() => this.autoCorrect),
       keymap({
         Enter: enterCommand,
         Tab: tabCommand,
@@ -426,6 +446,9 @@ export class WriterCtl {
         this.touch();
       },
       handleDOMEvents: {
+        // «Copiar formato»: se aplica al soltar el ratón o la tecla, cuando la selección ya está terminada
+        mouseup: (v) => this.finishPainter(v),
+        keyup: (v) => this.finishPainter(v),
         contextmenu: (v, event) => {
           const at = v.posAtCoords({ left: event.clientX, top: event.clientY });
           const m = at ? misspellingAt(v, at.pos) : null;

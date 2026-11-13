@@ -87,13 +87,14 @@ function paragraphDOM(node: PMNode): DOMOutputSpec {
   if (a.indentFirst) css.push(`text-indent:${ptCss(a.indentFirst)}`);
   if (a.spaceBefore !== null) css.push(`margin-top:${ptCss(a.spaceBefore)}`);
   if (a.spaceAfter !== null) css.push(`margin-bottom:${ptCss(a.spaceAfter)}`);
-  if (a.lineHeight) css.push(`line-height:${a.lineHeight}`);
+  if (a.lineHeight) css.push(`line-height:${a.lineRule === 'exact' || a.lineRule === 'atLeast' ? `${a.lineHeight}pt` : a.lineHeight}`);
   if (a.shade) css.push(`background-color:${a.shade}`);
   if (a.border) css.push(`border:${a.border.width ?? 0.5}pt solid ${a.border.color ?? '#000'};padding:${a.border.space ?? 1}pt`);
   const attrs: Record<string, string> = { class: `nw-p ${styleClass(a.style)}${a.ins ? ' nw-pins' : ''}${a.del ? ' nw-pdel' : ''}` };
   if (css.length) attrs.style = css.join(';');
   if (a.tag) attrs['data-tag'] = a.tag;
   if (a.tabs?.length) attrs['data-tabs'] = JSON.stringify(a.tabs);
+  if (a.keepLines) attrs['data-keep-lines'] = '1';
   return ['p', attrs, 0];
 }
 
@@ -142,8 +143,14 @@ const nodes: Record<string, NodeSpec> = {
       spaceBefore: { default: null },
       spaceAfter: { default: null },
       lineHeight: { default: null },
+      /** How `lineHeight` is read: a multiple of the font size (null), or points: exactly / at least. */
+      lineRule: { default: null },
       style: { default: null },
       keepNext: { default: false },
+      /** Do not split the paragraph between two pages. */
+      keepLines: { default: false },
+      /** Outline level 0-8 (Word's outlineLvl); null = body text. */
+      outlineLevel: { default: null },
       pageBreakBefore: { default: false },
       /** Note tag (Nova Notes): to-do box, done, important or question. */
       tag: { default: null },
@@ -401,8 +408,20 @@ const marks: Record<string, MarkSpec> = {
   },
   strong: { parseDOM: [{ tag: 'strong' }, { tag: 'b' }, { style: 'font-weight=700' }, { style: 'font-weight=bold' }], toDOM: () => ['strong', 0] },
   em: { parseDOM: [{ tag: 'em' }, { tag: 'i' }, { style: 'font-style=italic' }], toDOM: () => ['em', 0] },
-  underline: { parseDOM: [{ tag: 'u' }, { style: 'text-decoration=underline' }], toDOM: () => ['u', 0] },
-  strike: { parseDOM: [{ tag: 's' }, { tag: 'del' }, { tag: 'strike' }, { style: 'text-decoration=line-through' }], toDOM: () => ['s', 0] },
+  underline: {
+    attrs: { style: { default: 'single' }, color: { default: null } },
+    parseDOM: [{ tag: 'u' }, { style: 'text-decoration=underline' }],
+    toDOM: (m) => ['u', { ...(m.attrs.style !== 'single' ? { class: `nw-u-${m.attrs.style}` } : {}), ...(m.attrs.color ? { style: `text-decoration-color:${m.attrs.color}` } : {}) }, 0],
+  },
+  /** Double strikethrough. */
+  dstrike: { excludes: 'strike', parseDOM: [{ tag: 'span.nw-dstrike' }], toDOM: () => ['span', { class: 'nw-dstrike' }, 0] },
+  /** Character spacing in points (positive expands, negative condenses). */
+  spacing: {
+    attrs: { value: {} },
+    parseDOM: [{ style: 'letter-spacing', getAttrs: (v) => ({ value: parseFloat(v as string) || 0 }) }],
+    toDOM: (m) => ['span', { style: `letter-spacing:${m.attrs.value}pt` }, 0],
+  },
+  strike: { excludes: 'dstrike', parseDOM: [{ tag: 's' }, { tag: 'del' }, { tag: 'strike' }, { style: 'text-decoration=line-through' }], toDOM: () => ['s', 0] },
   superscript: { excludes: 'subscript', parseDOM: [{ tag: 'sup' }], toDOM: () => ['sup', 0] },
   subscript: { excludes: 'superscript', parseDOM: [{ tag: 'sub' }], toDOM: () => ['sub', 0] },
   color: {

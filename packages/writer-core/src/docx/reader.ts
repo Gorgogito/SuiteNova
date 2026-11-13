@@ -12,6 +12,10 @@ import { attrOf, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOfNode,
 // ---------- property bags ----------
 
 interface RP {
+  ustyle?: string;
+  ucolor?: string;
+  dstrike?: boolean;
+  spc?: number;
   b?: boolean;
   i?: boolean;
   u?: boolean;
@@ -43,6 +47,9 @@ interface PP {
   after?: number;
   line?: number;
   keepNext?: boolean;
+  keepLines?: boolean;
+  outline?: number;
+  lineRule?: 'exact' | 'atLeast';
   pageBreakBefore?: boolean;
   contextual?: boolean;
   numId?: number;
@@ -71,6 +78,7 @@ const HIGHLIGHT: Record<string, string> = {
   yellow: 'FFFF00', green: '00FF00', cyan: '00FFFF', magenta: 'FF00FF', blue: '0000FF', red: 'FF0000', darkBlue: '000080', darkCyan: '008080', darkGreen: '008000',
   darkMagenta: '800080', darkRed: '800000', darkYellow: '808000', darkGray: '808080', lightGray: 'C0C0C0', black: '000000', white: 'FFFFFF',
 };
+const UNDERLINE_FROM_FILE: Record<string, string> = { single: 'single', words: 'single', double: 'double', thick: 'thick', dotted: 'dotted', dottedHeavy: 'dotted', dash: 'dash', dashedHeavy: 'dash', dashLong: 'dash', dashLongHeavy: 'dash', dotDash: 'dotDash', dashDotHeavy: 'dotDash', dotDotDash: 'dotDash', dashDotDotHeavy: 'dotDash', wave: 'wavy', wavyHeavy: 'wavy', wavyDouble: 'wavy' };
 const BUILTIN_BY_NAME: Record<string, string> = {
   title: 'Title', subtitle: 'Subtitle', quote: 'Quote', caption: 'Caption', 'heading 1': 'Heading1', 'heading 2': 'Heading2', 'heading 3': 'Heading3', 'heading 4': 'Heading4', 'heading 5': 'Heading5', 'heading 6': 'Heading6',
   'toc heading': 'TOCHeading', 'toc 1': 'TOC1', 'toc 2': 'TOC2', 'toc 3': 'TOC3', 'toc 4': 'TOC4', 'toc 5': 'TOC5', 'toc 6': 'TOC6', 'table of figures': 'TableofFigures', bibliography: 'Bibliography', 'footnote text': 'FootnoteText', 'endnote text': 'EndnoteText', header: 'Header', footer: 'Footer', 'index heading': 'IndexHeading', 'index 1': 'Index1', 'annotation text': 'CommentText',
@@ -94,11 +102,23 @@ function parseRPr(n: XNode | undefined, fonts: Fonts): RP {
     switch (tagOf(k)) {
       case 'b': setDef(rp, 'b', toggle(k)); break;
       case 'i': setDef(rp, 'i', toggle(k)); break;
-      case 'strike':
-      case 'dstrike': setDef(rp, 'strike', toggle(k)); break;
+      case 'strike': setDef(rp, 'strike', toggle(k)); break;
+      case 'dstrike': setDef(rp, 'dstrike', toggle(k)); break;
+      case 'spacing': {
+        const v = num(attrOf(k, 'val'));
+        if (v !== undefined && v !== 0) rp.spc = twipsToPt(v);
+        break;
+      }
       case 'caps': if (toggle(k)) rp.caps = 'all'; break;
       case 'smallCaps': if (toggle(k)) rp.caps = 'small'; break;
-      case 'u': rp.u = attrOf(k, 'val') !== 'none'; break;
+      case 'u': {
+        const v = attrOf(k, 'val') ?? 'single';
+        rp.u = v !== 'none';
+        if (rp.u) rp.ustyle = UNDERLINE_FROM_FILE[v] ?? 'single';
+        const c = attrOf(k, 'color');
+        if (c && c !== 'auto' && /^[0-9a-f]{6}$/i.test(c)) rp.ucolor = '#' + c.toLowerCase();
+        break;
+      }
       case 'lang': {
         const v = attrOf(k, 'val');
         if (v) rp.lang = v;
@@ -167,9 +187,19 @@ function parsePPr(n: XNode | undefined): PP {
         if (a !== undefined) pp.after = twipsToPt(a);
         const rule = attrOf(k, 'lineRule') ?? 'auto';
         if (l !== undefined && rule === 'auto') pp.line = Math.round((l / 240) * 100) / 100;
+        else if (l !== undefined && (rule === 'exact' || rule === 'atLeast')) {
+          pp.line = twipsToPt(l);
+          pp.lineRule = rule;
+        }
         break;
       }
       case 'keepNext': setDef(pp, 'keepNext', toggle(k)); break;
+      case 'keepLines': setDef(pp, 'keepLines', toggle(k)); break;
+      case 'outlineLvl': {
+        const v = num(attrOf(k, 'val'));
+        if (v !== undefined && v >= 0 && v <= 8) pp.outline = v;
+        break;
+      }
       case 'pageBreakBefore': setDef(pp, 'pageBreakBefore', toggle(k)); break;
       case 'contextualSpacing': setDef(pp, 'contextual', toggle(k)); break;
       case 'numPr': {
@@ -442,8 +472,11 @@ class Converter {
       attrs.spaceBefore = 0;
       attrs.spaceAfter = 0;
     }
-    if (pp.line !== undefined && pp.line !== base.line) attrs.lineHeight = pp.line;
+    if (pp.line !== undefined && (pp.lineRule || pp.line !== base.line)) attrs.lineHeight = pp.line;
+    if (pp.lineRule) attrs.lineRule = pp.lineRule;
     if (pp.keepNext) attrs.keepNext = true;
+    if (pp.keepLines) attrs.keepLines = true;
+    if (pp.outline !== undefined && !(builtin && /^Heading\d$/.test(builtin))) attrs.outlineLevel = pp.outline;
     if (pp.pageBreakBefore) attrs.pageBreakBefore = true;
     const tabs = direct.tabs ?? (builtin ? undefined : chain.pp.tabs);
     if (tabs) attrs.tabs = tabs;
@@ -690,8 +723,10 @@ class Converter {
     const m: Mark[] = [];
     if (eff.b && !base.b) m.push(markTypes.strong!.create());
     if (eff.i && !base.i) m.push(markTypes.em!.create());
-    if (eff.u && !base.u) m.push(markTypes.underline!.create());
+    if (eff.u && !base.u) m.push(markTypes.underline!.create({ style: eff.ustyle ?? 'single', color: eff.ucolor ?? null }));
     if (eff.strike && !base.strike) m.push(markTypes.strike!.create());
+    if (eff.dstrike && !base.dstrike) m.push(markTypes.dstrike!.create());
+    if (eff.spc && eff.spc !== base.spc) m.push(markTypes.spacing!.create({ value: eff.spc }));
     if (eff.color && eff.color !== base.color) m.push(markTypes.color!.create({ value: eff.color }));
     if (eff.hl && eff.hl !== base.hl) m.push(markTypes.highlight!.create({ value: eff.hl }));
     if (eff.font && eff.font !== base.font) m.push(markTypes.fontFamily!.create({ value: eff.font }));

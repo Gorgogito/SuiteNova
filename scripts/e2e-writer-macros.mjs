@@ -74,7 +74,7 @@ await check('one undo reverts the whole macro', async () => {
   await page.keyboard.press('Control+z');
   await settle(400);
   const t = await ev(() => window.__novaWriter.ctl.mainView.state.doc.textContent);
-  assert.equal(t, 'mal mal y mal');
+  assert.equal(t, 'Mal mal y mal'); // la autocorrección pone la mayúscula inicial al escribir
 });
 
 await check('a syntax error is reported with its line, and the immediate window evaluates', async () => {

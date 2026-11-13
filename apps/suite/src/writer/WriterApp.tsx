@@ -19,6 +19,7 @@ import './icons-more';
 import './messages';
 import './messages-more';
 import './messages-objects';
+import './messages-format';
 import { PageOverlay } from './PageOverlay';
 import { ZonesLayer } from './ZonesLayer';
 import { NavPane } from './NavPane';

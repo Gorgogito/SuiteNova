@@ -295,7 +295,7 @@ export function measureLayout(view: EditorView, host: HTMLElement, ctx: MeasureC
           return;
         }
         let split = j;
-        if (total >= 4) {
+        if (total >= 4 && !node.attrs.keepLines) {
           if (total - split < 2) split = total - 2; // widow control
           if (i === 0 && split < 2) split = 0; // orphan control: move the whole paragraph
         } else if (i === 0) split = 0; // short paragraphs are not split
