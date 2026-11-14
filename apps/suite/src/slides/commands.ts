@@ -2,10 +2,15 @@ import type { CommandDef } from '@suitenova/core-ui';
 import { redo as pmRedo, undo as pmUndo } from 'prosemirror-history';
 import type { SlidesCtl } from './ctl';
 import { applyPara, applyRun, applyTextFormat, canFormatText } from './textcmds';
+import type { MergeOp } from '@suitenova/slides-core';
 import { addNodeAt, deleteNode, segmentCount, setNodeKind, setSegmentKind, toggleClosed, type NodeKind } from '@suitenova/slides-core';
 import { addLayout, deleteLayout, deleteMaster, duplicateLayout, duplicateMaster, moveLayout, newPlaceholder, type PhType } from '@suitenova/slides-core';
 import { fitCrop, cellsOf, deleteCols, deleteRows, distributeCols, distributeRows, insertCols, insertRows, mapCells, mergeCells, type CellRange } from '@suitenova/slides-core';
 import { imageDims } from './render/assets';
+import { textCommands2 } from './commands-text2';
+import { designCommands } from './commands-design';
+import { pictureCommands2 } from './commands-picture2';
+import { reviewCommands2 } from './commands-review2';
 import { effectsOf, moveEffect, removeEffect, transitionToAll } from './animctl';
 
 export type SlidesDialog =
@@ -44,7 +49,21 @@ export type SlidesDialog =
   | 'masterLayout'
   | 'equation'
   | 'sections'
-  | 'actionSettings';
+  | 'actionSettings'
+  | 'symbol'
+  | 'replaceFonts'
+  | 'removeBg'
+  | 'compress'
+  | 'icons'
+  | 'album'
+  | 'print'
+  | 'docProps'
+  | 'accessibility'
+  | 'compareDecks'
+  | 'reuse'
+  | 'zoomSummary'
+  | 'zoomSlide'
+  | 'narration';
 
 export interface SlidesUI {
   ctl: SlidesCtl;
@@ -56,6 +75,10 @@ export interface SlidesUI {
   print(): void;
   present(from: 'start' | 'current', opts?: { presenter?: boolean; rehearse?: boolean; preview?: 'transition' | 'animation'; show?: string }): void;
   insertPicture(): void;
+  /** takes a picture of the screen or a window the person chooses */
+  captureScreen(): Promise<void>;
+  /** pastes from the system clipboard (images, text) or, failing that, from Nova Slides' own copy */
+  pasteSystem(textOnly: boolean): Promise<void>;
   /** stores a file in the presentation and returns its asset id */
   addAsset(data: Uint8Array, mime: string, name: string): string;
   /** asks for a picture file and returns the id of the asset it was stored as */
@@ -103,7 +126,9 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
   add({ id: 'slides.redo', label: 'Rehacer', icon: 'redo', shortcut: ['Ctrl+Y', 'Ctrl+Shift+Z'], enabled: () => c.canRedo || !!c.editor, run: () => (c.editor && c.editor.hasFocus() ? pmRedo(c.editor.state, c.editor.dispatch) : c.redo()) });
   add({ id: 'slides.cut', label: 'Cortar', icon: 'cut', shortcut: 'Ctrl+X', enabled: () => !c.editor && (hasSel() || c.selSlides.length > 0), run: () => c.cut() });
   add({ id: 'slides.copy', label: 'Copiar', icon: 'copy', shortcut: 'Ctrl+C', enabled: () => !c.editor, run: () => c.copy() });
-  add({ id: 'slides.paste', label: 'Pegar', icon: 'paste', shortcut: 'Ctrl+V', enabled: () => !c.editor && !!c.clip, run: () => c.paste() });
+  // Ctrl+V is left to the browser (a paste event) so that images and text from other programs arrive; see SlidesApp
+  add({ id: 'slides.paste', label: 'Pegar', icon: 'paste', description: 'Pega lo copiado en Nova Slides o en otro programa (imágenes y texto). Atajo: Ctrl+V.', enabled: () => !c.editor, run: () => void ui.pasteSystem(false) });
+  add({ id: 'slides.paste.text', label: 'Pegar solo el texto', icon: 'paste', description: 'Pega como texto sin formato lo que hay en el portapapeles, en un cuadro de texto nuevo.', enabled: () => !c.editor, run: () => void ui.pasteSystem(true) });
   add({ id: 'slides.duplicate', label: 'Duplicar objeto', icon: 'copy', shortcut: 'Ctrl+D', enabled: hasSel, run: () => c.duplicateSelected() });
   add({ id: 'slides.delete', label: 'Eliminar objeto', icon: 'trash', enabled: hasSel, run: () => c.deleteSelected() });
   add({ id: 'slides.selectAll', label: 'Seleccionar todo', run: () => c.selectAll() });
@@ -233,6 +258,16 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
   add({ id: 'slides.distributeV', label: 'Distribuir verticalmente', icon: 'distributeV', enabled: () => c.selection.length >= 3, run: () => c.distribute('v') });
   add({ id: 'slides.group', label: 'Agrupar', icon: 'group', shortcut: 'Ctrl+G', enabled: () => c.selection.length >= 2, run: () => c.group() });
   add({ id: 'slides.ungroup', label: 'Desagrupar', icon: 'ungroup', shortcut: 'Ctrl+Shift+G', enabled: () => c.selected.some((e) => e.kind === 'group' && !e.smartart), run: () => c.ungroup() });
+  const mergeOk = () => c.selected.filter((e) => e.kind === 'shape').length >= 2;
+  const merges: [MergeOp, string, string, string][] = [
+    ['union', 'Unión', 'Une las formas en una sola.', 'shapeUnion'],
+    ['combine', 'Combinar', 'Une las formas y quita las zonas donde se solapan.', 'shapeCombine'],
+    ['fragment', 'Fragmentar', 'Corta las formas en todos sus trozos.', 'shapeFragment'],
+    ['intersect', 'Intersección', 'Deja solo la zona común a todas las formas.', 'shapeIntersect'],
+    ['subtract', 'Restar', 'Quita de la primera forma seleccionada las zonas de las demás.', 'shapeSubtract'],
+  ];
+  for (const [op, label, description, icon] of merges) add({ id: `slides.shape.${op}`, label, description, icon, enabled: mergeOk, run: () => c.mergeSelected(op) });
+  add({ id: 'slides.sel.pane', label: 'Panel de selección', icon: 'layers', description: 'Lista los objetos de la diapositiva para seleccionarlos, ocultarlos, renombrarlos o cambiar su orden.', checked: () => c.pane === 'selection', run: () => ((c.pane = c.pane === 'selection' ? 'none' : 'selection'), c.touch()) });
   add({ id: 'slides.rotateRight', label: 'Girar a la derecha 90°', icon: 'rotate', enabled: hasSel, run: () => c.patchSelected('Girar', (e) => rot(c, e, 90)) });
   add({ id: 'slides.rotateLeft', label: 'Girar a la izquierda 90°', icon: 'rotate', enabled: hasSel, run: () => c.patchSelected('Girar', (e) => rot(c, e, -90)) });
   add({ id: 'slides.flipH', label: 'Voltear horizontalmente', icon: 'flipH', enabled: hasSel, run: () => c.patchSelected('Voltear', (e) => ({ ...e, xfrm: { ...c.xfrmOf(e), flipH: !c.xfrmOf(e).flipH } }) as typeof e) });
@@ -452,6 +487,10 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
   add({ id: 'slides.view.snap', label: 'Ajustar a la cuadrícula y a las guías', icon: 'magnet', checked: () => c.snap, run: () => ((c.snap = !c.snap), c.touch()) });
   add({ id: 'slides.view.notesPane', label: 'Notas', icon: 'notes', checked: () => c.showNotes, run: () => ((c.showNotes = !c.showNotes), c.touch()) });
   add({ id: 'slides.view.fit', label: 'Ajustar a la ventana', icon: 'fit', run: () => ((c.zoom = 0), c.touch()) });
+  defs.push(...textCommands2(ui));
+  defs.push(...designCommands(ui));
+  defs.push(...pictureCommands2(ui));
+  defs.push(...reviewCommands2(ui));
   return defs;
 }
 

@@ -118,7 +118,7 @@ export function FontGroup({ ui }: { ui: SlidesUI }) {
 }
 
 /** A popover holding a grid of choices. */
-export function Gallery({ label, icon, size = 'large', children, wide }: { label: string; icon: string; size?: 'large' | 'small'; children: (close: () => void) => ReactNode; wide?: boolean }) {
+export function Gallery({ label, icon, size = 'large', children, wide, iconOnly }: { label: string; icon: string; size?: 'large' | 'small'; iconOnly?: boolean; children: (close: () => void) => ReactNode; wide?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={(_e, d) => setOpen(d.open)} positioning="below-start">
@@ -126,7 +126,7 @@ export function Gallery({ label, icon, size = 'large', children, wide }: { label
         <button type="button" className={`nv-btn nv-btn--${size}`} aria-haspopup="dialog" aria-label={label} title={label}>
           <Icon name={icon} />
           <span className="nv-btn__label">
-            {label} <ChevronDown size={11} />
+            {!iconOnly && label} <ChevronDown size={11} />
           </span>
         </button>
       </PopoverTrigger>
@@ -164,13 +164,13 @@ export function ShapePreview({ prst, size = 26 }: { prst: string; size?: number 
   );
 }
 
-export function ShapesGallery({ ui, label = 'Formas', size = 'large' as 'large' | 'small' }: { ui: SlidesUI; label?: string; size?: 'large' | 'small' }) {
+export function ShapesGallery({ ui, label = 'Formas', size = 'large' as 'large' | 'small', icon = 'shape-rect', onPick, onlyShapes, iconOnly }: { ui: SlidesUI; label?: string; size?: 'large' | 'small'; iconOnly?: boolean; icon?: string; onPick?: (prst: string) => void; onlyShapes?: boolean }) {
   const c = useUi(ui);
   return (
-    <Gallery label={t(label)} icon="shape-rect" size={size} wide>
+    <Gallery label={t(label)} icon={icon} size={size} wide iconOnly={iconOnly}>
       {(close) => (
         <div className="sl-shapes" role="menu" aria-label={t('Formas')}>
-          {SHAPE_GROUPS.map((g) => (
+          {SHAPE_GROUPS.filter((g) => !onlyShapes || g.title !== 'Líneas').map((g) => (
             <div key={g.title}>
               <div className="sl-swatchtitle">{t(g.title)}</div>
               <div className="sl-shapegrid">
@@ -184,6 +184,12 @@ export function ShapesGallery({ ui, label = 'Formas', size = 'large' as 'large' 
                       title={s}
                       aria-label={s}
                       onClick={() => {
+                        if (onPick) {
+                          onPick(s);
+                          close();
+                          c.containerFocus?.();
+                          return;
+                        }
                         c.setTool(/^(line|straightConnector1|bentConnector\d|curvedConnector\d)$/.test(s) ? { kind: 'line', prst: s } : { kind: 'shape', prst: s });
                         close();
                         c.containerFocus?.();
@@ -294,11 +300,11 @@ export const SHADOW_PRESETS: { id: string; label: string; fx: Effects }[] = [
 ];
 export const REFLECTION_PRESET: Effects['reflection'] = { blur: 0.5, stA: 50, stPos: 0, endA: 0, endPos: 35, dist: 0, dir: 90, fadeDir: 90, sx: 100, sy: -100, algn: 'bl', rotWithShape: false };
 
-export function EffectsMenu({ ui }: { ui: SlidesUI }) {
+export function EffectsMenu({ ui, iconOnly }: { ui: SlidesUI; iconOnly?: boolean }) {
   const c = useUi(ui);
   const set = (fn: (e: Effects) => Effects) => c.patchSelected('Efectos', (el) => ({ ...el, effects: fn((el as { effects?: Effects }).effects ?? {}) }) as SlideElement);
   return (
-    <Gallery label={t('Efectos de forma')} icon="shadow" size="small">
+    <Gallery label={t('Efectos de forma')} icon="shadow" size="small" iconOnly={iconOnly}>
       {(close) => (
         <div className="sl-effects" role="menu">
           <div className="sl-swatchtitle">{t('Sombra')}</div>

@@ -1,4 +1,4 @@
-import { cropBy, panCrop, type CropHandle, type PicEl, addNodeAt, newId, clearCells, scaleTable, curveThrough, dragHandle, findElement, geometryOf, localToSlide, moveHandle, moveNode, nearestOnPaths, newFreeform, newLine, newShape, newTextBox, pathsToSvg, presetDefaults, simplify, slideToLocal, updateElement, visualBox, type Box, type Paths, type Pt, type ConnEl, type ShapeEl, type SlideElement, type TableEl, type Xfrm } from '@suitenova/slides-core';
+import { connectEnd, nearestSite, sitesOf, cropBy, panCrop, type CropHandle, type PicEl, addNodeAt, newId, clearCells, scaleTable, curveThrough, dragHandle, findElement, geometryOf, localToSlide, moveHandle, moveNode, nearestOnPaths, newFreeform, newLine, newShape, newTextBox, pathsToSvg, presetDefaults, simplify, slideToLocal, updateElement, visualBox, type Box, type Paths, type Pt, type ConnEl, type ShapeEl, type SlideElement, type TableEl, type Xfrm } from '@suitenova/slides-core';
 import { CommentMarks } from './comments';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ShapeTextEditor } from './edit/TextEditor';
@@ -70,6 +70,10 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
   const [marquee, setMarquee] = useState<Box | null>(null);
   const [smart, setSmart] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
   const [draw, setDraw] = useState<Box | null>(null);
+  /** the connection site a line end would stick to, and the sites chosen for the line being drawn / dragged */
+  const [hint, setHint] = useState<{ x: number; y: number } | null>(null);
+  const connRef = useRef<{ a: { id: string; idx: number } | null; b: { id: string; idx: number } | null }>({ a: null, b: null });
+  const endConn = useRef<{ id: string; idx: number } | null>(null);
   const [ff, setFf] = useState<FreeformDraft | null>(null);
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
   const zoom = ctl.zoom > 0 ? ctl.zoom / 100 : fit;
@@ -368,6 +372,10 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
     const g = gref.current;
     if (!g) {
       if (ff && ff.mode !== 'scribble') setFf({ ...ff, hover: toSlide(e) });
+      if (ctl.tool.kind === 'line') {
+        const ns = nearestSite(slide, ctl.xfrmOf, toSlide(e), 12);
+        setHint(ns ? { x: ns.site.x, y: ns.site.y } : null);
+      }
       return;
     }
     const p = toSlide(e);
@@ -410,12 +418,22 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
     if (g.kind === 'draw') {
       let x2 = p.x;
       let y2 = p.y;
-      if (e.shiftKey && ctl.tool.kind !== 'line') {
+      let x1 = g.start.x;
+      let y1 = g.start.y;
+      if (ctl.tool.kind === 'line' && !e.altKey) {
+        // the ends of a new line stick to the connection sites near them
+        const sa = nearestSite(slide, ctl.xfrmOf, g.start, 12);
+        const sb = nearestSite(slide, ctl.xfrmOf, p, 12);
+        connRef.current = { a: sa ? { id: sa.el.id, idx: sa.site.idx } : null, b: sb ? { id: sb.el.id, idx: sb.site.idx } : null };
+        if (sa) ((x1 = sa.site.x), (y1 = sa.site.y));
+        if (sb) ((x2 = sb.site.x), (y2 = sb.site.y));
+        setHint(sb ? { x: sb.site.x, y: sb.site.y } : null);
+      } else if (e.shiftKey && ctl.tool.kind !== 'line') {
         const m = Math.max(Math.abs(p.x - g.start.x), Math.abs(p.y - g.start.y));
         x2 = g.start.x + Math.sign(p.x - g.start.x || 1) * m;
         y2 = g.start.y + Math.sign(p.y - g.start.y || 1) * m;
       }
-      setDraw({ x: Math.min(g.start.x, x2), y: Math.min(g.start.y, y2), w: Math.abs(x2 - g.start.x), h: Math.abs(y2 - g.start.y), ...(ctl.tool.kind === 'line' ? { x1: g.start.x, y1: g.start.y, x2, y2 } : {}) } as Box);
+      setDraw({ x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1), ...(ctl.tool.kind === 'line' ? { x1, y1, x2, y2 } : {}) } as Box);
       return;
     }
     if (g.kind === 'guide') {
@@ -443,6 +461,10 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
         q = { x: p.x + sn.dx, y: p.y + sn.dy };
         setSmart({ v: sn.v, h: sn.hh });
       }
+      const ns = e.altKey || e.shiftKey ? null : nearestSite(slide, ctl.xfrmOf, p, 12, [g.id]);
+      endConn.current = ns ? { id: ns.el.id, idx: ns.site.idx } : null;
+      setHint(ns ? { x: ns.site.x, y: ns.site.y } : null);
+      if (ns) q = { x: ns.site.x, y: ns.site.y };
       const a = g.which === 'a' ? q : g.fixed;
       const b = g.which === 'a' ? g.fixed : q;
       const nx: Xfrm = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y), ...(a.x > b.x ? { flipH: true } : {}), ...(a.y > b.y ? { flipV: true } : {}) };
@@ -595,6 +617,10 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
       /* ya soltado */
     }
     if (g.kind === 'lineend') {
+      const t = endConn.current;
+      endConn.current = null;
+      setHint(null);
+      if (t) ctl.liveDeck((d) => connectEnd(d, slide.id, g.id, g.which === 'a' ? 'start' : 'end', t));
       ctl.endGesture();
       return;
     }
@@ -648,7 +674,10 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
         el = clickOnly || !dd || dd.x1 === undefined ? newLine(tool.prst, p.x - 72, p.y, p.x + 72, p.y) : newLine(tool.prst, dd.x1, dd.y1!, dd.x2!, dd.y2!);
       } else if (tool.kind === 'shape') el = newShape(tool.prst, box.x, box.y, box.w, box.h);
       else return;
-      ctl.addElement(el);
+      if (el.kind === 'cxn' && !clickOnly && (connRef.current.a || connRef.current.b)) ctl.addConnector(el, connRef.current.a, connRef.current.b);
+      else ctl.addElement(el);
+      connRef.current = { a: null, b: null };
+      setHint(null);
       ctl.setTool({ kind: 'select' });
       if (tool.kind === 'text' || (el.kind === 'shape' && tool.kind === 'shape')) ctl.beginEdit(el.id);
       return;
@@ -885,6 +914,11 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
             />
           ))}
           <CommentMarks ctl={ctl} zoom={zoom} />
+          {(ctl.tool.kind === 'line' || gesture?.kind === 'lineend') &&
+            slide.shapes
+              .filter((el) => (el.kind === 'shape' || el.kind === 'pic' || el.kind === 'table' || el.kind === 'chart') && !el.hidden)
+              .flatMap((el) => sitesOf(el, ctl.xfrmOf(el)).map((s) => ({ ...s, key: `${el.id}:${s.idx}` })))
+              .map((s) => <div key={s.key} className={`sl-site${hint && Math.hypot(hint.x - s.x, hint.y - s.y) < 0.5 ? ' sl-site--on' : ''}`} data-testid="conn-site" style={{ left: s.x, top: s.y, width: 9 / zoom, height: 9 / zoom, borderWidth: 1.5 / zoom }} />)}
           {smart.v.map((x, i) => <div key={`v${i}`} className="sl-smart" style={{ left: x, top: 0, bottom: 0, width: 1 / zoom }} />)}
           {smart.h.map((y, i) => <div key={`h${i}`} className="sl-smart" style={{ top: y, left: 0, right: 0, height: 1 / zoom }} />)}
           {editingEl && editingEl.kind === 'shape' && <ShapeTextEditor ctl={ctl} el={editingEl} ctx={editCtx} />}

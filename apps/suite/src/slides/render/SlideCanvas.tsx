@@ -471,7 +471,7 @@ export function useSlideEnv(deck: Deck, slide: Slide | undefined, urls: AssetUrl
   }, [deck, slide, urls, slideNumber, prompts, onLink, layoutOverride]);
 }
 
-export function SlideCanvas({ deck, slide, urls, slideNumber, mode, prompts = true, editingId, editingCell, hidden, onLink, layoutOverride, tree }: SlideCanvasProps) {
+export function SlideCanvas({ deck, slide, urls, slideNumber, mode, prompts = true, editingId, editingCell, hidden, onLink, layoutOverride, tree, transparent }: SlideCanvasProps & { transparent?: boolean }) {
   const { ctx, chain } = useSlideEnv(deck, tree ? undefined : slide, urls, slideNumber, prompts, onLink, layoutOverride);
   const w = deck.size.w;
   const h = deck.size.h;
@@ -484,8 +484,8 @@ export function SlideCanvas({ deck, slide, urls, slideNumber, mode, prompts = tr
   // master/layout shapes inherit from nothing: they are drawn with their own chain
   const staticCtx: CanvasCtx = { ...base, onSlide: false };
   return (
-    <div className={`sl-slide sl-mode-${mode}`} style={{ position: 'relative', width: w, height: h, overflow: 'hidden', background: '#fff' }} data-slide={slide?.id}>
-      <BackgroundView deck={deck} chain={chain} env={ctx.env} w={w} h={h} />
+    <div className={`sl-slide sl-mode-${mode}`} style={{ position: 'relative', width: w, height: h, overflow: 'hidden', background: transparent ? 'transparent' : '#fff' }} data-slide={slide?.id}>
+      {!transparent && <BackgroundView deck={deck} chain={chain} env={ctx.env} w={w} h={h} />}
       {showMaster && master && nonPh(master.shapes).map((e) => <ElementView key={`m${e.id}`} el={e} ctx={staticCtx} />)}
       {showLayout && layout && nonPh(layout.shapes).map((e) => <ElementView key={`l${e.id}`} el={e} ctx={staticCtx} />)}
       {tree ? tree.shapes.map((e) => <ElementView key={e.id} el={e} ctx={{ ...base, onSlide: tree.owner === 'layout' }} />) : slide.shapes.map((e) => <ElementView key={e.id} el={e} ctx={base} />)}

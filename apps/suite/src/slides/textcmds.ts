@@ -1,4 +1,4 @@
-import { cellsOf, docNode, levelStyle, mapDoc, mergeR, textContext, updateElement, type CellRange, type ParaProps, type RunProps, type ShapeEl, type SlideElement, type TableEl, type TextBody } from '@suitenova/slides-core';
+import { cellsOf, docNode, levelStyle, mapDoc, mapDocCase, caseParts, type CaseMode, mergeR, textContext, updateElement, type CellRange, type ParaProps, type RunProps, type ShapeEl, type SlideElement, type TableEl, type TextBody } from '@suitenova/slides-core';
 import type { SlidesCtl } from './ctl';
 import { currentRun, setPara, setRun, type EditContext } from './edit/pm';
 import { shapeLayout, type CanvasCtx } from './render/SlideCanvas';
@@ -178,4 +178,39 @@ export function applyTextFormat(ctl: SlidesCtl, ids: string[], f: TextFormat, la
       ),
     })),
   );
+}
+
+/** Changes upper/lower case: the selected text while editing, otherwise all the text of the selected objects. */
+export function applyCase(ctl: SlidesCtl, mode: CaseMode): void {
+  const v = ctl.editor;
+  if (!v) {
+    ctl.patchSelected('Cambiar mayúsculas y minúsculas', (el) => mapBodies(el, (t) => ({ ...t, doc: mapDocCase(t.doc, mode) }), ctl.cellSelection?.range));
+    return;
+  }
+  let { from, to } = v.state.selection;
+  if (from === to) {
+    // no selection: the word around the cursor
+    const $p = v.state.doc.resolve(from);
+    const txt = $p.parent.textBetween(0, $p.parent.content.size, ' ', ' ');
+    let a = $p.parentOffset;
+    let b = a;
+    while (a > 0 && /\p{L}|\p{N}/u.test(txt[a - 1]!)) a--;
+    while (b < txt.length && /\p{L}|\p{N}/u.test(txt[b]!)) b++;
+    from = $p.start() + a;
+    to = $p.start() + b;
+  }
+  const segs: { a: number; b: number; text: string; marks: readonly import('prosemirror-model').Mark[] }[] = [];
+  v.state.doc.nodesBetween(from, to, (n, pos) => {
+    if (!n.isText) return true;
+    const a = Math.max(from, pos);
+    const b = Math.min(to, pos + n.nodeSize);
+    if (b > a) segs.push({ a, b, text: n.text!.slice(a - pos, b - pos), marks: n.marks });
+    return false;
+  });
+  if (!segs.length) return;
+  const out = caseParts(segs.map((x) => x.text), mode);
+  const tr = v.state.tr;
+  for (let i = segs.length - 1; i >= 0; i--) tr.replaceWith(segs[i]!.a, segs[i]!.b, v.state.schema.text(out[i]!, segs[i]!.marks));
+  v.dispatch(tr);
+  v.focus();
 }

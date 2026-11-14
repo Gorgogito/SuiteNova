@@ -5,12 +5,17 @@ import type { SlidesUI } from './commands';
 import { PlaceholderGallery } from './MasterPanel';
 import { ColorPicker, EffectsMenu, FillMenu, FontGroup, LayoutGallery, OutlineMenu, ShapesGallery, useUi } from './ribbonParts';
 import { applyRun } from './textcmds';
+import { DIAGRAM_LAYOUTS } from '@suitenova/slides-core';
+import { ArtisticMenu } from './ribbonParts3';
+import { BgStylesGallery, ColorsGallery, FontsGallery } from './ribbonParts3';
+import { TextEffectsMenu, TextFillPicker, TextOutlinePicker } from './ribbonParts2';
 import { CorrectionsMenu, PictureShapeGallery, RecolorMenu } from './PicRibbon';
 import { TableBordersMenu, TableShadingPicker, TableStyleGallery } from './TableRibbon';
 import { AnimGallery, AnimOptions, AnimTiming, TransitionGallery, TransitionOptions, TransitionTiming } from './animUi';
 
 type Leaf = Exclude<RibbonItem, { kind: 'separator' }>;
 const btn = (command: string, extra: Partial<Extract<Leaf, { kind: 'button' }>> = {}): Leaf => ({ kind: 'button', command, size: 'small', iconOnly: true, ...extra });
+const dd = (id: string, label: string, icon: string, keytip: string, cmds: string[]): Leaf => ({ kind: 'dropdown', id, label, icon, size: 'small', iconOnly: true, keytip, entries: cmds.map((c) => (c === '-' ? { kind: 'separator' as const } : { kind: 'command' as const, command: c })) });
 const L = (command: string, keytip?: string): Leaf => ({ kind: 'button', command, size: 'large', keytip });
 const S = (command: string, keytip?: string): Leaf => ({ kind: 'button', command, size: 'small', keytip });
 const Item = ({ item }: { item: Leaf }) => <RibbonItemView item={item} />;
@@ -81,7 +86,7 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
         id: 'clipboard',
         label: 'Portapapeles',
         icon: 'paste',
-        items: [{ kind: 'button', command: 'slides.paste', size: 'large', keytip: 'V' }, S('slides.cut', 'X'), S('slides.copy', 'C'), S('slides.painter', 'FP'), S('slides.painter.sticky', 'FQ')],
+        items: [{ kind: 'dropdown', id: 'pasteMenu', label: 'Pegar', icon: 'paste', size: 'large', keytip: 'V', primaryCommand: 'slides.paste', entries: [{ kind: 'command', command: 'slides.paste' }, { kind: 'command', command: 'slides.paste.text' }] }, S('slides.cut', 'X'), S('slides.copy', 'C'), S('slides.painter', 'FP'), S('slides.painter.sticky', 'FQ')],
       },
       {
         id: 'slides',
@@ -90,9 +95,10 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
         items: [
           { kind: 'custom', id: 'newSlide', label: 'Nueva diapositiva', keytip: 'NS', render: () => <LayoutGallery ui={ui} label="Nueva diapositiva" icon="slideNew" apply="new" /> },
           { kind: 'custom', id: 'layout', label: 'Diseño', keytip: 'DS', render: () => <LayoutGallery ui={ui} label="Diseño" icon="layout" apply="change" /> },
+          btn('slides.slide.reset', { keytip: 'RD' }),
           S('slides.sections', 'SE'),
           S('slides.slide.duplicate', 'DD'),
-          S('slides.slide.delete', 'DX'),
+          btn('slides.slide.delete', { keytip: 'DX' }),
         ],
       },
       { id: 'font', label: 'Fuente', icon: 'bold', items: [{ kind: 'custom', id: 'textGroup', label: 'Fuente', keytip: 'FN', render: () => <TextGroup ui={ui} /> }] },
@@ -128,6 +134,9 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
               { kind: 'command', command: 'slides.group' },
               { kind: 'command', command: 'slides.ungroup' },
               { kind: 'separator' },
+              { kind: 'command', command: 'slides.sel.pane' },
+              { kind: 'command', command: 'slides.saveAsPicture' },
+              { kind: 'separator' },
               { kind: 'command', command: 'slides.rotateRight' },
               { kind: 'command', command: 'slides.rotateLeft' },
               { kind: 'command', command: 'slides.flipH' },
@@ -136,10 +145,25 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
           },
           { kind: 'custom', id: 'fillMenu', label: 'Relleno de forma', keytip: 'RF', render: () => <FillMenu ui={ui} /> },
           { kind: 'custom', id: 'outlineMenu', label: 'Contorno de forma', keytip: 'CF', render: () => <OutlineMenu ui={ui} /> },
-          { kind: 'custom', id: 'effectsMenu', label: 'Efectos de forma', keytip: 'EF', render: () => <EffectsMenu ui={ui} /> },
+          { kind: 'custom', id: 'effectsMenu', label: 'Efectos de forma', keytip: 'EF', render: () => <EffectsMenu ui={ui} iconOnly /> },
         ],
       },
-      { id: 'editing', label: 'Edición', icon: 'search', items: [S('slides.review.find', 'BU'), S('slides.selectAll', 'ST')] },
+      {
+        id: 'textTools',
+        label: 'Texto',
+        icon: 'textDirection',
+        items: [
+          dd('lineSp', 'Espaciado entre líneas', 'lineSpacing', 'IL', ['slides.lineSp.10', 'slides.lineSp.15', 'slides.lineSp.20', 'slides.lineSp.25', 'slides.lineSp.30', '-', 'slides.lineSp.options']),
+          dd('textDir', 'Dirección del texto', 'textDirection', 'DX', ['slides.dir.horz', 'slides.dir.vert', 'slides.dir.vert270', 'slides.dir.eaVert']),
+          dd('textAnchor', 'Alinear texto', 'anchorMiddle', 'AV', ['slides.anchor.t', 'slides.anchor.ctr', 'slides.anchor.b']),
+          dd('textFit', 'Ajuste automático', 'autofit', 'AF', ['slides.autofit.none', 'slides.autofit.norm', 'slides.autofit.shape']),
+          dd('charSp', 'Espaciado entre caracteres', 'charSpacing', 'EC', ['slides.charSp.vtight', 'slides.charSp.tight', 'slides.charSp.normal', 'slides.charSp.loose', 'slides.charSp.vloose', '-', 'slides.charSp.options']),
+          dd('changeCase', 'Cambiar mayúsculas y minúsculas', 'changeCase', 'MM', ['slides.case.sentence', 'slides.case.lower', 'slides.case.upper', 'slides.case.title', 'slides.case.toggle']),
+          { kind: 'button', command: 'slides.fonts.replace', size: 'small', iconOnly: true, keytip: 'RZ' },
+          dd('toSmartArt', 'Convertir en SmartArt', 'smartart', 'CS', DIAGRAM_LAYOUTS.map((l) => `slides.toSmartArt.${l.id}`)),
+        ],
+      },
+      { id: 'editing', label: 'Edición', icon: 'search', items: [btn('slides.review.find', { keytip: 'BU' }), btn('slides.selectAll', { keytip: 'ST' })] },
     ],
   };
 
@@ -148,13 +172,13 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     label: 'Insertar',
     keytip: 'N',
     groups: [
-      { id: 'slidesI', label: 'Diapositivas', icon: 'slideNew', items: [{ kind: 'custom', id: 'newSlide2', label: 'Nueva diapositiva', keytip: 'NS', render: () => <LayoutGallery ui={ui} label="Nueva diapositiva" icon="slideNew" apply="new" /> }] },
+      { id: 'slidesI', label: 'Diapositivas', icon: 'slideNew', items: [{ kind: 'custom', id: 'newSlide2', label: 'Nueva diapositiva', keytip: 'NS', render: () => <LayoutGallery ui={ui} label="Nueva diapositiva" icon="slideNew" apply="new" /> }, btn('slides.insert.reuse', { keytip: 'RU' })] },
       { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [L('slides.insert.table', 'TB')] },
-      { id: 'images', label: 'Imágenes', icon: 'image', items: [L('slides.insert.picture', 'IM')] },
+      { id: 'images', label: 'Imágenes', icon: 'image', items: [L('slides.insert.picture', 'IM'), btn('slides.insert.screenshot', { keytip: 'CP' }), btn('slides.insert.album', { keytip: 'AF' }), btn('slides.insert.icons', { keytip: 'IC' })] },
       { id: 'illustr', label: 'Ilustraciones', icon: 'shape-rect', items: [{ kind: 'custom', id: 'shapes2', label: 'Formas', keytip: 'FO', render: () => <ShapesGallery ui={ui} /> }, L('slides.insert.smartart', 'SA'), L('slides.insert.chart', 'GR'), S('slides.draw.polygon', 'FF'), S('slides.draw.curve', 'FC'), S('slides.draw.scribble', 'FG')] },
-      { id: 'links', label: 'Vínculos', icon: 'link', items: [L('slides.insert.hyperlink', 'K'), L('slides.action', 'AX')] },
+      { id: 'links', label: 'Vínculos', icon: 'link', items: [L('slides.insert.hyperlink', 'K'), L('slides.action', 'AX'), dd('zoomMenu', 'Zoom', 'zoomIn', 'ZM', ['slides.insert.zoomSummary', 'slides.insert.zoomSlide'])] },
       { id: 'comments', label: 'Comentarios', icon: 'comment', items: [L('slides.insert.comment', 'CO')] },
-      { id: 'textI', label: 'Texto', icon: 'textbox', items: [L('slides.insert.textbox', 'CT'), L('slides.insert.headerFooter', 'EP'), L('slides.insert.wordart', 'WA'), S('slides.insert.equation', 'EQ')] },
+      { id: 'textI', label: 'Texto', icon: 'textbox', items: [L('slides.insert.textbox', 'CT'), L('slides.insert.headerFooter', 'EP'), L('slides.insert.wordart', 'WA'), S('slides.insert.equation', 'EQ'), S('slides.insert.symbol', 'SY'), S('slides.insert.dateShort', 'FE'), S('slides.insert.dateLong', 'FG2'), S('slides.insert.slideNumber', 'NU')] },
       { id: 'media', label: 'Multimedia', icon: 'video', items: [L('slides.insert.video', 'VI'), L('slides.insert.audio', 'AU')] },
     ],
   };
@@ -165,7 +189,25 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     keytip: 'G',
     groups: [
       { id: 'themes', label: 'Temas', icon: 'palette', items: [L('slides.design.themes', 'TM')] },
-      { id: 'customize', label: 'Personalizar', icon: 'ruler', items: [L('slides.slide.size', 'TA'), L('slides.design.background', 'FD')] },
+      {
+        id: 'variants',
+        label: 'Variantes',
+        icon: 'palette',
+        items: [
+          { kind: 'custom', id: 'varColors', label: 'Colores', keytip: 'VC', render: () => <ColorsGallery ui={ui} /> },
+          { kind: 'custom', id: 'varFonts', label: 'Fuentes', keytip: 'VF', render: () => <FontsGallery ui={ui} /> },
+          { kind: 'custom', id: 'varBg', label: 'Estilos de fondo', keytip: 'VE', render: () => <BgStylesGallery ui={ui} /> },
+        ],
+      },
+      {
+        id: 'customize',
+        label: 'Personalizar',
+        icon: 'ruler',
+        items: [
+          { kind: 'dropdown', id: 'slideSizeMenu', label: 'Tamaño de diapositiva', icon: 'ruler', size: 'large', keytip: 'TA', entries: [{ kind: 'command', command: 'slides.design.size.wide' }, { kind: 'command', command: 'slides.design.size.standard' }, { kind: 'separator' }, { kind: 'command', command: 'slides.design.size.custom' }] },
+          L('slides.design.background', 'FD'),
+        ],
+      },
     ],
   };
 
@@ -231,6 +273,7 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
       { id: 'start', label: 'Iniciar', icon: 'play', items: [L('slides.show.start', 'PP'), L('slides.show.current', 'PC'), L('slides.show.custom', 'PE')] },
       { id: 'setup', label: 'Configurar', icon: 'settings', items: [L('slides.show.setup', 'CP'), S('slides.slide.hide', 'OC'), L('slides.show.rehearse', 'EN')] },
       { id: 'monitors', label: 'Monitores', icon: 'monitor', items: [L('slides.show.presenter', 'MO')] },
+      { id: 'narr', label: 'Grabación', icon: 'mic', items: [L('slides.show.narration', 'GN')] },
     ],
   };
 
@@ -239,7 +282,8 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     label: 'Revisar',
     keytip: 'R',
     groups: [
-      { id: 'proof', label: 'Revisión', icon: 'spell', items: [L('slides.review.spelling', 'OR')] },
+      { id: 'proof', label: 'Revisión', icon: 'spell', items: [L('slides.review.spelling', 'OR'), L('slides.review.accessibility', 'CA')] },
+      { id: 'docReview', label: 'Documento', icon: 'compareDocs', items: [L('slides.review.compare', 'CM'), L('slides.doc.properties', 'DQ')] },
       { id: 'comm', label: 'Comentarios', icon: 'comment', items: [L('slides.insert.comment', 'CN'), L('slides.review.comments', 'CP')] },
     ],
   };
@@ -265,7 +309,41 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     keytip: 'FF',
     contextual: { label: 'Herramientas de dibujo', color: '#c55a11', visible: hasShape },
     groups: [
-      { id: 'insShapes', label: 'Insertar formas', icon: 'shape-rect', items: [{ kind: 'custom', id: 'shapes3', label: 'Formas', keytip: 'FO', render: () => <ShapesGallery ui={ui} /> }] },
+      {
+        id: 'insShapes',
+        label: 'Insertar formas',
+        icon: 'shape-rect',
+        items: [
+          { kind: 'custom', id: 'shapes3', label: 'Formas', keytip: 'FO', render: () => <ShapesGallery ui={ui} /> },
+          { kind: 'custom', id: 'changeShape', label: 'Cambiar forma', keytip: 'CS', render: () => <ShapesGallery ui={ui} label="Cambiar forma" icon="changeShape" size="small" iconOnly onlyShapes onPick={(prst) => ui.ctl.changeShape(prst)} /> },
+          {
+            kind: 'dropdown',
+            id: 'mergeShapes',
+            label: 'Combinar formas',
+            icon: 'shapeUnion',
+            size: 'small',
+            iconOnly: true,
+            keytip: 'CB',
+            entries: [
+              { kind: 'command', command: 'slides.shape.union' },
+              { kind: 'command', command: 'slides.shape.combine' },
+              { kind: 'command', command: 'slides.shape.fragment' },
+              { kind: 'command', command: 'slides.shape.intersect' },
+              { kind: 'command', command: 'slides.shape.subtract' },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'wordartStyles',
+        label: 'Estilos de WordArt',
+        icon: 'wordart',
+        items: [
+          { kind: 'custom', id: 'textFill', label: 'Relleno de texto', keytip: 'WF', render: () => <TextFillPicker ui={ui} /> },
+          { kind: 'custom', id: 'textOutline', label: 'Contorno de texto', keytip: 'WO', render: () => <TextOutlinePicker ui={ui} /> },
+          { kind: 'custom', id: 'textEffects', label: 'Efectos de texto', keytip: 'WE', render: () => <TextEffectsMenu ui={ui} /> },
+        ],
+      },
       {
         id: 'styles',
         label: 'Estilos de forma',
@@ -349,6 +427,9 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
         label: 'Ajustar',
         icon: 'contrast',
         items: [
+          btn('slides.pic.removeBg', { keytip: 'QF' }),
+          { kind: 'custom', id: 'picArtistic', label: 'Efectos artísticos', keytip: 'EA', render: () => <ArtisticMenu ui={ui} /> },
+          btn('slides.pic.compress', { keytip: 'CM' }),
           { kind: 'custom', id: 'picCorr', label: 'Correcciones', keytip: 'CO', render: () => <CorrectionsMenu ui={ui} /> },
           { kind: 'custom', id: 'picRecolor', label: 'Recolorear', keytip: 'RE', render: () => <RecolorMenu ui={ui} /> },
           S('slides.pic.change', 'CI2'),

@@ -54,13 +54,13 @@ function inlineStyles(from: Element, to: Element): void {
 const frame = () => new Promise<void>((ok) => requestAnimationFrame(() => ok()));
 
 /** A slide drawn on a canvas `width` pixels wide. */
-export async function slideToCanvas(deck: Deck, slide: Slide, urls: AssetUrls, index: number, width: number): Promise<HTMLCanvasElement> {
+export async function slideToCanvas(deck: Deck, slide: Slide, urls: AssetUrls, index: number, width: number, transparent = false): Promise<HTMLCanvasElement> {
   const host = document.createElement('div');
   host.style.cssText = `position:fixed;left:-99999px;top:0;width:${deck.size.w}px;height:${deck.size.h}px;overflow:hidden;`;
   document.body.appendChild(host);
   const root = createRoot(host);
   try {
-    flushSync(() => root.render(<SlideCanvas deck={deck} slide={slide} urls={urls} slideNumber={index + 1} mode="show" prompts={false} />));
+    flushSync(() => root.render(<SlideCanvas deck={deck} slide={slide} urls={urls} slideNumber={index + 1} mode="show" prompts={false} transparent={transparent} />));
     await frame();
     await document.fonts?.ready;
     // pictures decode before the copy is made
@@ -94,8 +94,10 @@ export async function slideToCanvas(deck: Deck, slide: Slide, urls: AssetUrls, i
     cv.width = Math.round(width);
     cv.height = Math.round((width * h) / w);
     const g = cv.getContext('2d')!;
-    g.fillStyle = '#fff';
-    g.fillRect(0, 0, cv.width, cv.height);
+    if (!transparent) {
+      g.fillStyle = '#fff';
+      g.fillRect(0, 0, cv.width, cv.height);
+    }
     g.drawImage(img, 0, 0, cv.width, cv.height);
     return cv;
   } finally {

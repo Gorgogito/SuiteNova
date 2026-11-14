@@ -4,6 +4,8 @@ import './messages-more1';
 import './messages-more2';
 import './messages-more3';
 import './messages-more4';
+import './messages-objects';
+import './messages-text2';
 
 // Spanish literals are the source text; English is provided here. Missing entries fall back to Spanish.
 registerMessages('en', {

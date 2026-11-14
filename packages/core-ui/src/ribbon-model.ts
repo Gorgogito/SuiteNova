@@ -24,6 +24,8 @@ export interface DropdownItem {
   icon?: string;
   size?: ItemSize;
   entries: MenuEntry[];
+  /** Show only the icon (small dropdowns); the label stays as tooltip and accessible name. */
+  iconOnly?: boolean;
   /** When set, the control is a split button: the main part runs this command. */
   primaryCommand?: string;
   keytip?: string;

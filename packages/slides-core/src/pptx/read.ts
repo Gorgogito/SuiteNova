@@ -364,8 +364,16 @@ export async function readPptx(data: Uint8Array): Promise<ReadResult> {
   }
   const core = getText('docProps/core.xml');
   if (core) {
-    deck.props.title = /<dc:title>([^<]*)<\/dc:title>/.exec(core)?.[1];
-    deck.props.author = /<dc:creator>([^<]*)<\/dc:creator>/.exec(core)?.[1];
+    const prop = (tag: string) => {
+      const v = new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`).exec(core)?.[1];
+      return v === undefined ? undefined : v.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+    };
+    deck.props.title = prop('dc:title');
+    deck.props.author = prop('dc:creator');
+    deck.props.subject = prop('dc:subject');
+    deck.props.keywords = prop('cp:keywords');
+    deck.props.category = prop('cp:category');
+    deck.props.description = prop('dc:description');
   }
 
   // resolve hyperlinks to slides (they pointed at part paths) and animation targets

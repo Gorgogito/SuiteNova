@@ -7,6 +7,11 @@ import { ActionDialog, AltTextDialog, PositionDialog, ThemesDialog } from './For
 import { MasterPropsDialog } from './MasterPanel';
 import { NovaArtDialog, SmartArtDialog } from './FormDialogs5';
 import { ExportMediaDialog } from './FormDialogs8';
+import { ReplaceFontsDialog, SymbolDialog } from './dlg-text2';
+import { PrintDialog } from './dlg-print';
+import { NarrationDialog } from './dlg-narration';
+import { AccessibilityDialog, CompareDeckDialog, DocPropsDialog, ReuseSlidesDialog, ZoomDialog } from './dlg-review';
+import { AlbumDialog, CompressDialog, IconsDialog, RemoveBackgroundDialog } from './dlg-picture2';
 import { EquationDialog, PictureCorrectionsDialog } from './FormDialogs7';
 import { TableCellDialog, TableSizeDialog, TableSplitDialog } from './FormDialogs6';
 import { CommentDialog, CustomShowsDialog, FindReplaceDialog, SectionsDialog, SetupShowDialog, SlideSizeDialog, SpellingDialog } from './FormDialogs2';
@@ -123,6 +128,20 @@ export function Dialogs({ ui, dialog, onClose }: { ui: SlidesUI; dialog: { kind:
   if (kind === 'tableSplit') return <TableSplitDialog ui={ui} onClose={onClose} />;
   if (kind === 'tableCell') return <TableCellDialog ui={ui} onClose={onClose} />;
   if (kind === 'tableSize') return <TableSizeDialog ui={ui} onClose={onClose} />;
+  if (kind === 'narration') return <NarrationDialog ui={ui} onClose={onClose} />;
+  if (kind === 'docProps') return <DocPropsDialog ui={ui} onClose={onClose} />;
+  if (kind === 'accessibility') return <AccessibilityDialog ui={ui} onClose={onClose} />;
+  if (kind === 'compareDecks') return <CompareDeckDialog ui={ui} onClose={onClose} />;
+  if (kind === 'reuse') return <ReuseSlidesDialog ui={ui} onClose={onClose} />;
+  if (kind === 'zoomSummary') return <ZoomDialog ui={ui} onClose={onClose} />;
+  if (kind === 'zoomSlide') return <ZoomDialog ui={ui} onClose={onClose} single />;
+  if (kind === 'print') return <PrintDialog ui={ui} onClose={onClose} />;
+  if (kind === 'removeBg') return <RemoveBackgroundDialog ui={ui} onClose={onClose} />;
+  if (kind === 'compress') return <CompressDialog ui={ui} onClose={onClose} />;
+  if (kind === 'icons') return <IconsDialog ui={ui} onClose={onClose} />;
+  if (kind === 'album') return <AlbumDialog ui={ui} onClose={onClose} />;
+  if (kind === 'symbol') return <SymbolDialog ui={ui} onClose={onClose} />;
+  if (kind === 'replaceFonts') return <ReplaceFontsDialog ui={ui} onClose={onClose} />;
   if (kind === 'columnsDialog') return <ColumnsDialog ui={ui} onClose={onClose} />;
   return <PendingDialog kind={kind} onClose={onClose} />;
 }

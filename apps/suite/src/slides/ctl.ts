@@ -14,6 +14,13 @@ import {
   findElement,
   foldMasterDeck,
   geometryToPaths,
+  flattenPaths,
+  connectEnd,
+  rerouteConnectors,
+  localToSlide,
+  mergeRegions,
+  newFreeform,
+  regionToPaths,
   normalizePaths,
   pathsToCust,
   groupElements,
@@ -21,6 +28,9 @@ import {
   moveElements,
   moveSlides,
   newDeck,
+  newTextBox,
+  docFromText,
+  docText,
   newId,
   removeElements,
   reorderElements,
@@ -33,6 +43,7 @@ import {
   updateSlide,
   virtualMasterDeck,
   type AlignHow,
+  type MergeOp,
   type CellRange,
   type Clr,
   type Ln,
@@ -102,7 +113,12 @@ export class SlidesCtl {
   }
   /** Puts an edited deck back: in master view the one-slide deck is folded into the master or layout. */
   private commit(next: Deck): void {
-    this.real = this.inMaster ? foldMasterDeck(this.real, next, this.masterTarget!) : next;
+    if (this.inMaster) {
+      this.real = foldMasterDeck(this.real, next, this.masterTarget!);
+      return;
+    }
+    // connectors stuck to shapes follow them
+    this.real = rerouteConnectors(next, next.slides[this.realIndex]?.id, (s, e) => effectiveXfrm(chainFor(next, s), e, true));
   }
   fileName: string | null = null;
   filePath: string | null = null;
@@ -149,6 +165,8 @@ export class SlidesCtl {
   /** format painter: the copied formatting and whether it stays on */
   painter: { fmt: Partial<SlideElement>; text?: { r: import('@suitenova/slides-core').RunProps; p: import('@suitenova/slides-core').ParaProps }; sticky: boolean } | null = null;
   clip: Clip | null = null;
+  /** the plain text that went to the system clipboard with the last copy, to tell our own copy from one made elsewhere */
+  clipText = '';
   /** the text editor being used (for commands) */
   editor: EditorView | null = null;
   urls: AssetUrls;
@@ -646,6 +664,61 @@ export class SlidesCtl {
     });
     if (ids.length) this.select(ids);
   }
+  /** Merge the selected shapes (union, combine, intersect, subtract, fragment) into freeform shapes. The first selected one gives the format. */
+  mergeSelected(op: MergeOp): boolean {
+    const els = this.selection.map((id) => this.element(id)).filter((e): e is ShapeEl => !!e && e.kind === 'shape');
+    if (els.length < 2) return false;
+    const regions = els.map((e) => {
+      const x = this.xfrmOf(e);
+      const paths = geometryToPaths(e.geom, x.w, x.h).map((sp) => ({ ...sp, nodes: sp.nodes.map((n) => ({ ...n, ...localToSlide(n, x), ...(n.hin ? { hin: localToSlide(n.hin, x) } : {}), ...(n.hout ? { hout: localToSlide(n.hout, x) } : {}) })) }));
+      return flattenPaths(paths);
+    });
+    if (regions.some((r) => !r.length)) {
+      this.say('Alguna de las formas no tiene un contorno cerrado: no se puede combinar.');
+      return false;
+    }
+    const parts = mergeRegions(regions, op);
+    if (!parts.length) {
+      this.say(op === 'intersect' ? 'Las formas no se cruzan: no queda nada.' : 'No queda nada tras combinar las formas.');
+      return false;
+    }
+    const base = els[0]!;
+    const made = parts.map((reg, i) => {
+      const f = newFreeform(regionToPaths(reg), op === 'fragment' ? `Fragmento ${i + 1}` : 'Forma combinada');
+      return { ...f, fill: base.fill, ln: base.ln, effects: base.effects, style: base.style ?? f.style } as ShapeEl;
+    });
+    const gone = new Set(els.map((e) => e.id));
+    this.apply('Combinar formas', (d) =>
+      updateSlide(d, this.slide.id, (s) => {
+        const first = s.shapes.findIndex((e) => gone.has(e.id));
+        const rest = s.shapes.filter((e) => !gone.has(e.id));
+        const at = Math.min(first, rest.length);
+        return { ...s, shapes: [...rest.slice(0, at), ...made, ...rest.slice(at)] };
+      }),
+    { selection: made.map((m) => m.id) });
+    return true;
+  }
+  /** Change the preset geometry of the selected shapes keeping size, text and format. */
+  changeShape(prst: string): void {
+    this.patchSelected('Cambiar forma', (e) => (e.kind === 'shape' ? ({ ...e, geom: { prst } } as SlideElement) : e));
+  }
+  /** Rename an object (it shows in the selection pane and is stored in the file). */
+  renameElement(id: string, name: string): void {
+    this.patch([id], 'Cambiar el nombre', (e) => ({ ...e, name: name.trim() || undefined }) as SlideElement);
+  }
+  setHidden(id: string, hidden: boolean): void {
+    this.patch([id], hidden ? 'Ocultar objeto' : 'Mostrar objeto', (e) => ({ ...e, hidden: hidden || undefined }) as SlideElement);
+  }
+  /** Adds a connector (a line) with its ends stuck to the given sites, as one undo step. */
+  addConnector(el: SlideElement, a: { id: string; idx: number } | null, b: { id: string; idx: number } | null): void {
+    const sid = this.slide.id;
+    this.apply('Insertar línea', (d) => {
+      let n = addElements(d, sid, [el]);
+      if (a) n = connectEnd(n, sid, el.id, 'start', a);
+      if (b) n = connectEnd(n, sid, el.id, 'end', b);
+      return n;
+    }, { selection: [el.id] });
+  }
   duplicateSelected(): void {
     const els = this.selected.map((e) => {
       const c = cloneElement(e);
@@ -658,7 +731,22 @@ export class SlidesCtl {
   copy(): void {
     if (this.selection.length) this.clip = { els: this.selected };
     else this.clip = { els: [], slides: this.deck.slides.filter((s) => this.selSlides.includes(s.id)) };
+    // the text also goes to the system clipboard, so it can be pasted in other programs
+    const parts = (this.clip.els.length ? this.clip.els : this.clip.slides?.flatMap((s) => s.shapes) ?? []).flatMap((e) => (e.kind === 'shape' && e.text ? [docText(e.text.doc)] : []));
+    this.clipText = parts.join('\n');
+    void navigator.clipboard?.writeText(this.clipText).catch(() => undefined);
     this.touch();
+  }
+  /** Pastes text that comes from outside as a new text box. */
+  pasteText(text: string): void {
+    const clean = text.replace(/\r\n?/g, '\n').replace(/\n+$/, '');
+    if (!clean.trim()) return;
+    const lines = clean.split('\n');
+    const w = Math.min(this.deck.size.w * 0.7, Math.max(160, Math.max(...lines.map((l) => l.length)) * 11));
+    const h = Math.min(this.deck.size.h * 0.8, lines.length * 30 + 12);
+    const tb = newTextBox((this.deck.size.w - w) / 2, Math.max(20, (this.deck.size.h - h) / 2), w, h);
+    const el: ShapeEl = { ...tb, text: { ...tb.text!, doc: docFromText(clean) } };
+    this.apply('Pegar texto', (d) => addElements(d, this.slide.id, [el]), { selection: [el.id] });
   }
   cut(): void {
     this.copy();

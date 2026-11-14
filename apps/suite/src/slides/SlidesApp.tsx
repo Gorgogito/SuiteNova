@@ -13,9 +13,10 @@ import { Dialogs } from './Dialogs';
 import { FormatPane } from './FormatPane';
 import { AnimPane } from './animUi';
 import { CommentsPane } from './comments';
+import { SelectionPane } from './SelectionPane';
 import { NotesPane } from './NotesPane';
 import { slidesTabs } from './ribbonDef';
-import { chainFor, newId } from '@suitenova/slides-core';
+import { chainFor, newId, newShape } from '@suitenova/slides-core';
 import { colorContext } from '@suitenova/slides-core';
 import type { CanvasCtx } from './render/SlideCanvas';
 import { Stage } from './Stage';
@@ -142,16 +143,54 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
       save: (as) => saveNow(as),
       exportAs: async (kind) => {
         if (kind === 'png' || kind === 'video') return setDialog({ kind: 'exportMedia', arg: kind });
+        if (kind === 'pdf') return setDialog({ kind: 'print' });
         const { exportDeck } = await import('./export/exporters');
         await exportDeck(ctl, kind);
       },
-      print: () => void import('./export/exporters').then((m) => m.printDeck(ctl)),
+      print: () => setDialog({ kind: 'print' }),
       present: (from, opts) => {
         if (!opts?.presenter) return setPresent({ from, ...opts });
         const session = newId('s');
         void openWindowQuery(`app=slides&role=presenter&session=${session}`, t('Vista de moderador'), `presenter-${session}`).then(() => setPresent({ from, ...opts, session }));
       },
       insertPicture: () => fileRef.current?.click(),
+      captureScreen: async () => {
+        try {
+          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+          const video = document.createElement('video');
+          video.srcObject = stream;
+          video.muted = true;
+          await video.play();
+          await new Promise((r) => setTimeout(r, 250));
+          const cv = document.createElement('canvas');
+          cv.width = video.videoWidth;
+          cv.height = video.videoHeight;
+          cv.getContext('2d')!.drawImage(video, 0, 0);
+          stream.getTracks().forEach((tr) => tr.stop());
+          const blob = await new Promise<Blob | null>((ok) => cv.toBlob(ok, 'image/png'));
+          if (blob) ctl.emit('files', [new File([blob], 'Captura de pantalla.png', { type: 'image/png' })]);
+        } catch (e) {
+          ctl.say((e as Error).name === 'NotAllowedError' ? 'No se concedió permiso para capturar la pantalla.' : 'No se pudo capturar la pantalla.');
+        }
+      },
+      pasteSystem: async (textOnly) => {
+        try {
+          const items = await navigator.clipboard.read();
+          for (const it of items) {
+            const img = it.types.find((x) => x.startsWith('image/'));
+            if (img && !textOnly) {
+              const blob = await it.getType(img);
+              ctl.emit('files', [new File([blob], 'Imagen pegada.' + img.split('/')[1], { type: img })]);
+              return;
+            }
+          }
+          const txt = await navigator.clipboard.readText();
+          if (txt && (textOnly || txt !== ctl.clipText)) return ctl.pasteText(txt);
+        } catch {
+          /* no permission to read the clipboard: use our own copy */
+        }
+        if (!textOnly) ctl.paste();
+      },
       addAsset,
       pickAsset: () =>
         new Promise<string | null>((resolve) => {
@@ -216,6 +255,23 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
       ctl.addElement(newMedia(kind, id, f.type, (ctl.deck.size.w - w) / 2, (ctl.deck.size.h - h) / 2, w, h));
     }
   };
+  // Ctrl+V: the browser sends a paste event with what is on the system clipboard
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const tgt = e.target as HTMLElement | null;
+      if (ctl.editor || tgt?.closest('input, textarea, select, [contenteditable="true"], .ProseMirror, [role=dialog]')) return;
+      const cd = e.clipboardData;
+      if (!cd) return;
+      e.preventDefault();
+      const imgs = [...cd.files].filter((f) => f.type.startsWith('image/'));
+      const txt = cd.getData('text/plain');
+      if (imgs.length) ctl.emit('files', imgs);
+      else if (txt && txt !== ctl.clipText) ctl.pasteText(txt);
+      else ctl.paste();
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [ctl]);
   useEffect(
     () =>
       ctl.on('files', (files: File[]) => {
@@ -265,6 +321,16 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
         return { slides: ctl.deck.slides.length, warnings: ctl.warnings };
       },
       show: (i: number) => ctl.goTo(i),
+      buildPrint: async (o: object) => {
+        const m = await import('./export/printing');
+        return m.buildPrint(ctl, { ...m.DEFAULT_PRINT, ...o });
+      },
+      endPrint: async () => (await import('./export/printing')).endPrint(),
+      addShape: (prst: string, x: number, y: number, w: number, h: number) => {
+        const e = newShape(prst, x, y, w, h);
+        ctl.addElement(e);
+        return e.id;
+      },
       write: async () => [...(await writePptx(ctl.realDeck)).data],
     };
   }, [ctl, loadFile]);
@@ -359,6 +425,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
         {ctl.pane === 'format' && <FormatPane ui={ui} />}
         {ctl.pane === 'animations' && <AnimPane ui={ui} />}
         {ctl.pane === 'comments' && <CommentsPane ui={ui} />}
+        {ctl.pane === 'selection' && <SelectionPane ui={ui} />}
         <input
           ref={fileRef}
           type="file"

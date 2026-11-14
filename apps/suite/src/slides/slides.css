@@ -626,3 +626,20 @@
 .sl-ruler { z-index: 3; user-select: none; touch-action: none; }
 .sl-guidetip { position: absolute; background: #222; color: #fff; border-radius: 3px; pointer-events: none; z-index: 8; white-space: nowrap; }
 .sl-stagearea.painter-on .sl-surface { cursor: copy; }
+
+.sl-selbar { display: flex; gap: 6px; margin-bottom: 8px; }
+.sl-sellist { list-style: none; margin: 0; padding: 0; }
+.sl-sellist li { display: flex; align-items: center; gap: 2px; border-radius: 4px; }
+.sl-sellist li.is-on { background: var(--colorBrandBackground2, #dbe7f7); }
+.sl-sellist li.is-hidden .sl-selitem { opacity: 0.5; text-decoration: line-through; }
+.sl-selitem { flex: 1; text-align: left; background: none; border: 0; padding: 5px 6px; cursor: pointer; color: inherit; font: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-selname { flex: 1; min-width: 0; font: inherit; padding: 3px 4px; }
+.sl-selbtn { background: none; border: 0; padding: 4px; cursor: pointer; color: inherit; display: inline-flex; border-radius: 3px; }
+.sl-selbtn:hover { background: var(--colorNeutralBackground1Hover, #eee); }
+
+.sl-bggrid { display: grid; grid-template-columns: repeat(4, 56px); gap: 6px; padding: 6px; }
+.sl-bggrid button { width: 56px; height: 40px; border: 1px solid rgba(128,128,128,.5); border-radius: 3px; cursor: pointer; }
+.sl-bggrid button:hover { outline: 2px solid var(--colorBrandStroke1, #c55a11); }
+
+.sl-site { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; background: #fff; border-style: solid; border-color: #0f6cbd; pointer-events: none; box-sizing: border-box; }
+.sl-site--on { background: #0f6cbd; }

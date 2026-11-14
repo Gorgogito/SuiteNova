@@ -90,9 +90,9 @@ function DropdownView({ item }: { item: DropdownItem }) {
   const label = t(item.label);
   const primary = item.primaryCommand ? registry.get(item.primaryCommand) : undefined;
   const trigger = (
-    <button type="button" className={`nv-btn ${primary && large ? 'nv-btn--chevron' : large ? 'nv-btn--large' : 'nv-btn--small'} nv-btn--menu`} data-nv-item={item.id} aria-label={label} aria-haspopup="menu">
+    <button type="button" className={`nv-btn ${primary && large ? 'nv-btn--chevron' : large ? 'nv-btn--large' : 'nv-btn--small'} nv-btn--menu`} data-nv-item={item.id} aria-label={label} title={label} aria-haspopup="menu">
       {!primary && <Icon name={item.icon} size={large ? 28 : 16} />}
-      {!primary && <span className="nv-btn__label">{label}</span>}
+      {!primary && !item.iconOnly && <span className="nv-btn__label">{label}</span>}
       <ChevronDown size={12} className="nv-btn__chevron" />
       <KeytipBadge itemId={item.id} />
     </button>

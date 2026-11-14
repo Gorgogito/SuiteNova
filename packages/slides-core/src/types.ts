@@ -653,7 +653,7 @@ export interface Deck {
   sections: Section[];
   assets: Record<string, Asset>;
   commentAuthors: { name: string; initials: string }[];
-  props: { title?: string; author?: string; created?: number; modified?: number; lastModifiedBy?: string };
+  props: { title?: string; author?: string; subject?: string; keywords?: string; category?: string; description?: string; created?: number; modified?: number; lastModifiedBy?: string };
   show: ShowProps;
   guides?: Guide[];
   /** text defaults of the presentation (`p:defaultTextStyle`) */

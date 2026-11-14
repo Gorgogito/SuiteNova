@@ -540,7 +540,9 @@ await check('size, find & replace, spelling, comments, sections, show setup, cus
   assert.ok(await page.locator('.sl-thumbs, .sl-panel').getByText('Cierre').count());
   // slide size
   await tab('Diseño');
-  await btn('Tamaño de la diapositiva…');
+  await page.getByRole('button', { name: 'Tamaño de diapositiva' }).click();
+  await settle(350);
+  await page.getByRole('menuitem', { name: 'Tamaño personalizado…' }).click();
   await page.getByLabel('Tamaño de las diapositivas').selectOption('4x3');
   await accept();
   assert.deepEqual(await ev(() => window.__novaSlides.ctl.deck.size), { w: 720, h: 540, type: 'screen4x3' });
