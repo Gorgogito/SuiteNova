@@ -5,7 +5,7 @@ import { DOMSerializer, type Node as PMNode } from 'prosemirror-model';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { emptyDoc, formatPageNumber, markTypes, noteDoc, ptToPx, writerSchema } from '@suitenova/writer-core';
+import { emptyDoc, formatPageNumber, markTypes, noteDoc, ptToPx, writerSchema, type SectionProps } from '@suitenova/writer-core';
 import { PAGE_GAP, type WriterCtl } from './doc';
 import { backspaceCommand, deleteCommand, enterCommand, shiftTabCommand, tabCommand } from './editing';
 
@@ -143,7 +143,8 @@ export function PageOverlay({ ctl }: { ctl: WriterCtl }) {
         const h = editing?.kind === 'header' ? '' : hfHtml(header);
         const f = editing?.kind === 'footer' ? '' : hfHtml(footer);
         return (
-          <div key={i} className={`nw-page${r.spec.blank ? ' nw-page-blank' : ''}`} style={{ top: r.topCss, left: r.left, width: r.width, height: r.height }}>
+          <div key={i} className={`nw-page${r.spec.blank ? ' nw-page-blank' : ''}`} style={{ top: r.topCss, left: r.left, width: r.width, height: r.height, ...(ctl.pageColor ? { background: ctl.pageColor } : {}) }}>
+            {sec.props.borders && <PageBorder b={sec.props.borders} p={p} />}
             {wm && <Watermark wm={wm} width={r.width} height={r.height} />}
             {h && (
               <div
@@ -163,6 +164,20 @@ export function PageOverlay({ ctl }: { ctl: WriterCtl }) {
         );
       })}
     </div>
+  );
+}
+
+/** The border drawn around a page: measured from the page edge or from the text area. */
+function PageBorder({ b, p }: { b: NonNullable<SectionProps['borders']>; p: SectionProps['page'] }) {
+  const off = (margin: number) => ptToPx(b.from === 'text' ? Math.max(0, margin - b.offset) : b.offset);
+  const style = b.style === 'triple' ? 'double' : b.style === 'thick' ? 'solid' : b.style;
+  const w = b.style === 'thick' ? Math.max(b.width, 3) : b.style === 'double' || b.style === 'triple' ? Math.max(b.width, 3) : b.width;
+  return (
+    <div
+      className="nw-page-border"
+      data-style={b.style}
+      style={{ position: 'absolute', top: off(p.marginTop), right: off(p.marginRight), bottom: off(p.marginBottom), left: off(p.marginLeft), border: `${ptToPx(w)}px ${style} ${b.color}`, pointerEvents: 'none', boxSizing: 'border-box' }}
+    />
   );
 }
 

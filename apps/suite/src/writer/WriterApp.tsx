@@ -20,7 +20,9 @@ import './messages';
 import './messages-more';
 import './messages-objects';
 import './messages-format';
+import './messages-review';
 import { PageOverlay } from './PageOverlay';
+import { LineNumbersLayer } from './LineNumbers';
 import { ZonesLayer } from './ZonesLayer';
 import { NavPane } from './NavPane';
 import { ReviewPane } from './ReviewPane';
@@ -515,6 +517,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
               style={{ width: web ? undefined : sheetW, height: web ? undefined : total, ...(web ? { zoom: z } : { transform: `scale(${z})` }), ['--nw-gap' as string]: `${PAGE_GAP}px`, ['--nw-sheet-w' as string]: `${sheetW}px` }}
             >
               {!web && <PageOverlay ctl={ctl} />}
+              {!web && <LineNumbersLayer ctl={ctl} />}
               <div ref={mountRef} className="nw-editor" style={{ left: 0, top: web ? 0 : ptToPx(firstPage.marginTop), width: sheetW }} />
               {!web && <ZonesLayer ctl={ctl} />}
             </div>

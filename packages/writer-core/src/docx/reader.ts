@@ -51,6 +51,7 @@ interface PP {
   outline?: number;
   lineRule?: 'exact' | 'atLeast';
   pageBreakBefore?: boolean;
+  noLn?: boolean;
   contextual?: boolean;
   numId?: number;
   ilvl?: number;
@@ -201,6 +202,7 @@ function parsePPr(n: XNode | undefined): PP {
         break;
       }
       case 'pageBreakBefore': setDef(pp, 'pageBreakBefore', toggle(k)); break;
+      case 'suppressLineNumbers': setDef(pp, 'noLn', toggle(k)); break;
       case 'contextualSpacing': setDef(pp, 'contextual', toggle(k)); break;
       case 'numPr': {
         const id = num(attrOf(findKid(k, 'numId') ?? {}, 'val'));
@@ -513,6 +515,13 @@ class Converter {
     if (pp.keepLines) attrs.keepLines = true;
     if (pp.outline !== undefined && !(builtin && /^Heading\d$/.test(builtin))) attrs.outlineLevel = pp.outline;
     if (pp.pageBreakBefore) attrs.pageBreakBefore = true;
+    if (pp.noLn) attrs.noLineNumbers = true;
+    const firstRun = kidsOf(p).find((k) => tagOf(k) === 'r');
+    const firstInner = firstRun && kidsOf(firstRun).find((k) => tagOf(k) !== 'rPr');
+    if (firstInner && tagOf(firstInner) === 'br' && attrOf(firstInner, 'type') === 'column') {
+      attrs.columnBreakBefore = true;
+      this.dropColBreak = true;
+    }
     const tabs = direct.tabs ?? (builtin ? undefined : chain.pp.tabs);
     if (tabs) attrs.tabs = tabs;
     if (pp.shade) attrs.shade = pp.shade;
@@ -534,6 +543,8 @@ class Converter {
     }
     return { pieces: out, list };
   }
+
+  private dropColBreak = false;
 
   // -- inline content --
 
@@ -721,10 +732,12 @@ class Converter {
           case 'delText': buf += textOfNode(c); break;
           case 'tab': buf += '\t'; break;
           case 'noBreakHyphen': buf += '‑'; break;
+          case 'softHyphen': buf += '\u00ad'; break;
           case 'br': {
             const ty = attrOf(c, 'type');
             flush();
             if (ty === 'page') onPageBreak();
+            else if (ty === 'column' && this.dropColBreak) this.dropColBreak = false;
             else cur().push(nodeTypes.hard_break!.create());
             break;
           }
@@ -1281,6 +1294,11 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
   const settingsXml = await text(zip, 'word/settings.xml');
   const settings = settingsXml ? rootOf(parseXml(settingsXml), 'settings') : undefined;
   const evenAndOdd = !!findKid(settings, 'evenAndOddHeaders');
+  const hyph = findKid(settings, 'autoHyphenation');
+  const autoHyphenate = !!hyph && !['0', 'false', 'off'].includes(attrOf(hyph, 'val') ?? '1');
+  const bg = findKid(root, 'background');
+  const bgColor = bg && attrOf(bg, 'color');
+  const pageColor = bgColor && /^[0-9a-f]{6}$/i.test(bgColor) && !!findKid(settings, 'displayBackgroundShape') ? '#' + bgColor.toLowerCase() : null;
   const trackChanges = !!findKid(settings, 'trackRevisions');
   const protection = readProtection(settings);
   const noteOpts = readNotesOptions(settings);
@@ -1352,6 +1370,30 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
       }
       props.cols = c;
     }
+    const pb = findKid(sect, 'pgBorders');
+    const edge = pb && ['top', 'left', 'bottom', 'right'].map((s) => findKid(pb, s)).find((e) => e && !['nil', 'none'].includes(attrOf(e, 'val') ?? 'nil'));
+    if (pb && edge) {
+      const v = attrOf(edge, 'val');
+      const style = v === 'double' || v === 'dotted' || v === 'dashed' || v === 'triple' || v === 'thick' ? v : 'single';
+      const col = attrOf(edge, 'color');
+      props.borders = {
+        style,
+        color: col && /^[0-9a-f]{6}$/i.test(col) ? '#' + col.toLowerCase() : '#000000',
+        width: Math.max(0.25, (num(attrOf(edge, 'sz')) ?? 4) / 8),
+        offset: num(attrOf(edge, 'space')) ?? 24,
+        from: attrOf(pb, 'offsetFrom') === 'text' ? 'text' : 'page',
+      };
+    }
+    const lnt = findKid(sect, 'lnNumType');
+    if (lnt) {
+      const rs = attrOf(lnt, 'restart');
+      props.lineNumbers = {
+        countBy: Math.max(1, num(attrOf(lnt, 'countBy')) ?? 1),
+        start: (num(attrOf(lnt, 'start')) ?? 0) + 1,
+        restart: rs === 'continuous' || rs === 'newSection' ? rs : 'newPage',
+        distance: attrOf(lnt, 'distance') ? twipsToPt(num(attrOf(lnt, 'distance')) ?? 0) : 18,
+      };
+    }
     const pn = findKid(sect, 'pgNumType');
     if (pn) {
       const st = num(attrOf(pn, 'start'));
@@ -1406,8 +1448,12 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
     spaceAfter: basePP.after ?? 0,
   };
   const core = await text(zip, 'docProps/core.xml');
-  const title = core && /<dc:title>([^<]*)<\/dc:title>/.exec(core)?.[1];
-  const author = core && /<dc:creator>([^<]*)<\/dc:creator>/.exec(core)?.[1];
+  const coreProp = (tag: string): string | undefined => {
+    const v = core && new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(core)?.[1];
+    return v ? v.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&') : undefined;
+  };
+  const title = coreProp('dc:title');
+  const author = coreProp('dc:creator');
   const types = await text(zip, '[Content_Types].xml');
 
   // our own part and the bibliography sources
@@ -1432,6 +1478,8 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
     ...(sh.custom.size ? { styles: [...PARAGRAPH_STYLES.map((s) => ({ ...s })), ...sh.custom.values()] } : {}),
     parts,
     evenAndOdd,
+    pageColor,
+    autoHyphenate,
     trackChanges,
     protection,
     watermark: watermark ?? nova.watermark ?? null,
@@ -1445,6 +1493,10 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
     isTemplate: !!types && /wordprocessingml\.template\.main\+xml/.test(types),
     title: title || undefined,
     author: author || undefined,
+    subject: coreProp('dc:subject'),
+    keywords: coreProp('cp:keywords'),
+    description: coreProp('dc:description'),
+    category: coreProp('cp:category'),
   };
   return { doc, warnings: [...warnings] };
 }

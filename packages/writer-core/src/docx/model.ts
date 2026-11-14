@@ -105,11 +105,20 @@ export interface WriterDoc {
   parts: Record<string, PMNode>;
   /** Different headers and footers for even and odd pages. */
   evenAndOdd: boolean;
+  /** Page colour of the whole document (null = white). */
+  pageColor?: string | null;
+  /** Hyphenate words automatically at the end of a line. */
+  autoHyphenate?: boolean;
   defaults: DocDefaults;
   /** Paragraph styles of the document (built-in ones may be modified). */
   styles?: StyleTable;
   title?: string;
   author?: string;
+  /** Otras propiedades del documento (docProps/core.xml). */
+  subject?: string;
+  keywords?: string;
+  description?: string;
+  category?: string;
   comments: CommentData[];
   trackChanges: boolean;
   protection: Protection | null;
@@ -140,7 +149,7 @@ export const ptToTwips = (pt: number): number => Math.round(pt * 20);
 
 /** The section attributes as a plain attrs object. */
 export function sectionAttrs(p: SectionProps): Record<string, unknown> {
-  return { id: p.id, start: p.start, page: p.page, cols: p.cols, titlePg: p.titlePg, header: p.header, footer: p.footer, pgNumStart: p.pgNumStart, pgNumFmt: p.pgNumFmt };
+  return { id: p.id, start: p.start, page: p.page, cols: p.cols, titlePg: p.titlePg, header: p.header, footer: p.footer, pgNumStart: p.pgNumStart, pgNumFmt: p.pgNumFmt, borders: p.borders, lineNumbers: p.lineNumbers };
 }
 
 export function sectionPropsOf(node: PMNode): SectionProps {
@@ -155,6 +164,8 @@ export function sectionPropsOf(node: PMNode): SectionProps {
     footer: a.footer ?? noRefs(),
     pgNumStart: a.pgNumStart ?? null,
     pgNumFmt: a.pgNumFmt ?? 'decimal',
+    borders: a.borders ?? null,
+    lineNumbers: a.lineNumbers ?? null,
   };
 }
 

@@ -170,7 +170,7 @@ await check('de tabla a texto y de texto a tabla', async () => {
   await editor.click();
   await page.keyboard.press('Control+A');
   await page.getByRole('tab', { name: 'Insertar', exact: true }).click();
-  await page.getByRole('button', { name: /^Convertir texto en tabla/ }).click();
+  await page.getByRole('button', { name: /^Texto a tabla/ }).click();
   await page.waitForTimeout(300);
   await dialog().locator('#cv-sep').selectOption('semicolon');
   await shot('texto-a-tabla');

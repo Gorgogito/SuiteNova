@@ -23,3 +23,4 @@ export * from './crypto/encrypt';
 export * from './formats/rtf';
 export * from './formats/odt';
 export * from './formats/doc';
+export * from './review-tools';

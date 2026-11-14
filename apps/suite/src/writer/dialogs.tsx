@@ -9,6 +9,8 @@ import { BookmarkDialog, CaptionDialog, CiteDialog, IndexMarkDialog, NoteOptions
 import { ControlDialog, EquationDialog, ShapeDialog } from './dlg-objects';
 import { FontDialog, ParagraphDialog, SymbolDialog } from './dlg-format';
 import { AutoCorrectDialog } from './dlg-autocorrect';
+import { LineNumbersDialog, PageBordersDialog } from './dlg-page';
+import { AccessibilityDialog, CompareDialog, DocPropsDialog, WordCountDialog } from './dlg-docreview';
 import { TableConvertDialog, TablePropsDialog, TableSortDialog } from './dlg-table';
 import { StyleEditDialog, StylesDialog } from './dlg-styles';
 import { TemplatesDialog } from './dlg-templates';
@@ -253,6 +255,18 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
       return <ParagraphDialog ui={ui} onClose={onClose} />;
     case 'symbol':
       return <SymbolDialog ui={ui} onClose={onClose} />;
+    case 'wordCount':
+      return <WordCountDialog ui={ui} onClose={onClose} />;
+    case 'docProps':
+      return <DocPropsDialog ui={ui} onClose={onClose} />;
+    case 'accessibility':
+      return <AccessibilityDialog ui={ui} onClose={onClose} />;
+    case 'compare':
+      return <CompareDialog ui={ui} onClose={onClose} />;
+    case 'pageBorders':
+      return <PageBordersDialog ui={ui} onClose={onClose} />;
+    case 'lineNumbers':
+      return <LineNumbersDialog ui={ui} onClose={onClose} />;
     case 'tableProps':
       return <TablePropsDialog ui={ui} onClose={onClose} />;
     case 'tableSort':

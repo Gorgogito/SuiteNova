@@ -1,4 +1,5 @@
 import { TABLE_STYLES } from './table-tools';
+import { COVERS } from './cover';
 import { Popover, PopoverSurface, PopoverTrigger } from '@fluentui/react-components';
 import { Icon, RibbonItemView, t, type RibbonItem, type RibbonTab } from '@suitenova/core-ui';
 import { MARGIN_PRESETS, PAGE_SIZES, markTypes } from '@suitenova/writer-core';
@@ -119,6 +120,39 @@ function ColorMenu({ ui, kind }: { ui: WriterUI; kind: 'color' | 'highlight' }) 
         </PopoverSurface>
       </Popover>
     </div>
+  );
+}
+
+/** Page colour: a palette in a pop-over, plus «sin color». */
+function PageColor({ ui }: { ui: WriterUI }) {
+  const c = useCtl(ui);
+  const [open, setOpen] = useState(false);
+  const apply = (col: string | null) => {
+    c.setPageColor(col);
+    setOpen(false);
+  };
+  return (
+    <Popover open={open} onOpenChange={(_e, d) => setOpen(d.open)} positioning="below-start">
+      <PopoverTrigger disableButtonEnhancement>
+        <button type="button" className="nv-btn nv-btn--large" title={t('Color de página')} aria-label={t('Color de página')}>
+          <Icon name="fillColor" />
+          <span className="nv-btn-label">{t('Color de página')}</span>
+          <ChevronDown size={12} />
+        </button>
+      </PopoverTrigger>
+      <PopoverSurface>
+        <div className="nv-swatches" role="group" aria-label={t('Color de página')}>
+          {PALETTE.flat().map((col) => (
+            <button key={col} type="button" style={{ background: col }} aria-label={col} title={col} onClick={() => apply(col)} />
+          ))}
+        </div>
+        <div style={{ padding: '4px 8px 8px' }}>
+          <button type="button" className="nv-btn nv-btn--small" onClick={() => apply(null)}>
+            {t('Sin color de página')}
+          </button>
+        </div>
+      </PopoverSurface>
+    </Popover>
   );
 }
 
@@ -328,6 +362,19 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         label: 'Páginas',
         icon: 'pageBreak',
         items: [
+          {
+            kind: 'dropdown',
+            id: 'coverMenu',
+            label: 'Portada',
+            icon: 'file',
+            size: 'large',
+            keytip: 'PT',
+            entries: [
+              ...COVERS.map((cv) => ({ kind: 'command' as const, command: `writer.cover.${cv.id}` })),
+              { kind: 'separator' as const },
+              { kind: 'command' as const, command: 'writer.cover.remove' },
+            ],
+          },
           { kind: 'button', command: 'writer.pageBreak', size: 'large', keytip: 'PB' },
           {
             kind: 'dropdown',
@@ -510,11 +557,45 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
             keytip: 'SA',
             entries: [
               { kind: 'command', command: 'writer.break.page' },
+              { kind: 'command', command: 'writer.break.column' },
               { kind: 'separator' },
               { kind: 'command', command: 'writer.break.nextPage' },
               { kind: 'command', command: 'writer.break.continuous' },
               { kind: 'command', command: 'writer.break.evenPage' },
               { kind: 'command', command: 'writer.break.oddPage' },
+            ],
+          },
+          {
+            kind: 'dropdown',
+            id: 'lineNumbersMenu',
+            label: 'Números de línea',
+            icon: 'listOrdered',
+            size: 'large',
+            keytip: 'LN',
+            entries: [
+              { kind: 'command', command: 'writer.lineNumbers.none' },
+              { kind: 'command', command: 'writer.lineNumbers.continuous' },
+              { kind: 'command', command: 'writer.lineNumbers.page' },
+              { kind: 'command', command: 'writer.lineNumbers.section' },
+              { kind: 'command', command: 'writer.lineNumbers.suppress' },
+              { kind: 'separator' },
+              { kind: 'command', command: 'writer.lineNumbers.options' },
+            ],
+          },
+          {
+            kind: 'dropdown',
+            id: 'hyphenationMenu',
+            label: 'División silábica',
+            icon: 'caseSensitive',
+            size: 'large',
+            keytip: 'GU',
+            entries: [
+              { kind: 'command', command: 'writer.hyphenation.none' },
+              { kind: 'command', command: 'writer.hyphenation.auto' },
+              { kind: 'command', command: 'writer.hyphenation.fill' },
+              { kind: 'command', command: 'writer.hyphenation.clear' },
+              { kind: 'separator' },
+              { kind: 'command', command: 'writer.hyphenation.soft' },
             ],
           },
         ],
@@ -538,6 +619,8 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
               { kind: 'command' as const, command: 'writer.watermark.remove' },
             ],
           },
+          { kind: 'custom', id: 'pageColor', label: 'Color de página', keytip: 'PC', render: () => <PageColor ui={ui} /> },
+          { kind: 'button', command: 'writer.pageBorders', size: 'large', keytip: 'PD' },
         ],
       },
     ],
@@ -676,6 +759,17 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
               { kind: 'command', command: 'writer.autocorrect' },
             ],
           },
+        ],
+      },
+      {
+        id: 'docReview',
+        label: 'Documento',
+        icon: 'document',
+        items: [
+          { kind: 'button', command: 'writer.review.wordCount', size: 'large', keytip: 'WC' },
+          { kind: 'button', command: 'writer.review.accessibility', size: 'large', keytip: 'AY' },
+          { kind: 'button', command: 'writer.review.compare', size: 'large', keytip: 'CM' },
+          { kind: 'button', command: 'writer.doc.properties', size: 'large', keytip: 'DQ' },
         ],
       },
       {

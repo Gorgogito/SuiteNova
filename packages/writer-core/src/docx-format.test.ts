@@ -101,3 +101,77 @@ describe('DOCX: propiedades de tabla', () => {
     expect(xml).not.toContain('<w:jc w:val="center"/><w:tblBorders');
   });
 });
+
+describe('DOCX: configuración de página ampliada', () => {
+  const sec = (over: Record<string, unknown>, ...blocks: PMNode[]) => makeSection(blocks, { ...defaultSection(defaultPage()), ...over });
+  const wdSec = (s: PMNode, extra: Partial<WriterDoc> = {}): WriterDoc => ({ ...emptyWriterDoc({ ...DEFAULT_DOC_DEFAULTS }), body: nodeTypes.doc!.create(null, [s]), ...extra });
+
+  it('borde de página y números de línea por sección', async () => {
+    const borders = { style: 'double', color: '#336699', width: 2.25, offset: 20, from: 'text' };
+    const lineNumbers = { countBy: 5, start: 3, restart: 'continuous', distance: 12 };
+    const { r, xml } = await roundTrip(wdSec(sec({ borders, lineNumbers }, p('hola'))));
+    const props = r.doc.body.firstChild!.attrs;
+    expect(props.borders).toEqual(borders);
+    expect(props.lineNumbers).toEqual(lineNumbers);
+    expect(xml).toContain('<w:pgBorders w:offsetFrom="text"><w:top w:val="double" w:sz="18" w:space="20" w:color="336699"/>');
+    expect(xml).toContain('<w:lnNumType w:countBy="5" w:start="2" w:distance="240" w:restart="continuous"/>');
+    // orden del esquema: pgMar, pgBorders, lnNumType, pgNumType, cols
+    const s = /<w:sectPr>.*?<\/w:sectPr>/s.exec(xml)![0];
+    expect(s.indexOf('<w:pgMar')).toBeLessThan(s.indexOf('<w:pgBorders'));
+    expect(s.indexOf('<w:pgBorders')).toBeLessThan(s.indexOf('<w:lnNumType'));
+  });
+
+  it('sin borde ni números no se escribe nada', async () => {
+    const { r, xml } = await roundTrip(wdSec(sec({}, p('hola'))));
+    expect(r.doc.body.firstChild!.attrs.borders).toBeNull();
+    expect(r.doc.body.firstChild!.attrs.lineNumbers).toBeNull();
+    expect(xml).not.toContain('pgBorders');
+    expect(xml).not.toContain('lnNumType');
+  });
+
+  it('color de página y división automática de palabras', async () => {
+    const { r, w } = await roundTrip(wdSec(sec({}, p('hola')), { pageColor: '#fff2cc', autoHyphenate: true }));
+    expect(r.doc.pageColor).toBe('#fff2cc');
+    expect(r.doc.autoHyphenate).toBe(true);
+    const z = await JSZip.loadAsync(w.data);
+    expect(await z.file('word/document.xml')!.async('string')).toContain('<w:background w:color="FFF2CC"/>');
+    const settings = await z.file('word/settings.xml')!.async('string');
+    expect(settings).toContain('<w:displayBackgroundShape/>');
+    expect(settings).toContain('<w:autoHyphenation/>');
+    const plain = await roundTrip(wdSec(sec({}, p('hola'))));
+    expect(plain.r.doc.pageColor).toBeNull();
+    expect(plain.r.doc.autoHyphenate).toBe(false);
+  });
+
+  it('guion opcional, salto de columna y párrafo sin número de línea', async () => {
+    const { r, xml } = await roundTrip(wd(p('ca­sa'), p('segunda', { columnBreakBefore: true, noLineNumbers: true })));
+    const b = firstBlocks(r.doc);
+    expect(b[0]!.textContent).toBe('ca­sa');
+    expect(b[1]!.attrs).toMatchObject({ columnBreakBefore: true, noLineNumbers: true });
+    expect(b[1]!.textContent).toBe('segunda');
+    expect(xml).toContain('<w:softHyphen/>');
+    expect(xml).toContain('<w:br w:type="column"/>');
+    expect(xml).toContain('<w:suppressLineNumbers/>');
+    expect(b).toHaveLength(2); // el salto de columna no crea un párrafo ni un salto de línea
+  });
+
+  it('los párrafos de portada conservan su estilo', async () => {
+    const { r } = await roundTrip(wd(p('Título', { style: 'CoverTitle' }), p('Sub', { style: 'CoverSubtitle' }), p('Autor', { style: 'CoverMeta' })));
+    expect(firstBlocks(r.doc).map((b) => b.attrs.style)).toEqual(['CoverTitle', 'CoverSubtitle', 'CoverMeta']);
+  });
+});
+
+describe('propiedades del documento', () => {
+  it('asunto, palabras clave, descripción y categoría viajan en docProps/core.xml', async () => {
+    const d = { ...wd(p('hola')), title: 'Informe <1>', author: 'Ana', subject: 'Ventas & más', keywords: 'a, b', description: 'Notas "internas"', category: 'Finanzas' };
+    const { data } = await writeDocx(d);
+    const back = (await readDocx(data)).doc;
+    expect(back).toMatchObject({ title: 'Informe <1>', author: 'Ana', subject: 'Ventas & más', keywords: 'a, b', description: 'Notas "internas"', category: 'Finanzas' });
+  });
+  it('sin propiedades, se leen como vacías', async () => {
+    const { data } = await writeDocx(wd(p('hola')));
+    const back = (await readDocx(data)).doc;
+    expect(back.subject).toBeUndefined();
+    expect(back.keywords).toBeUndefined();
+  });
+});

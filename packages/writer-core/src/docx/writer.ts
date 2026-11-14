@@ -119,12 +119,13 @@ function rPr(marks: readonly Mark[], extra = ''): string {
 }
 
 function textRuns(text: string, props: string, deleted = false): string {
-  const parts = text.split(/(\t)/);
+  const parts = text.split(/(\t|\u00ad)/);
   let out = '';
   const t = deleted ? 'w:delText' : 'w:t';
   for (const p of parts) {
     if (p === '') continue;
     if (p === '\t') out += `<w:r>${props}<w:tab/></w:r>`;
+    else if (p === '\u00ad') out += `<w:r>${props}<w:softHyphen/></w:r>`;
     else out += `<w:r>${props}<${t} xml:space="preserve">${esc(p)}</${t}></w:r>`;
   }
   return out;
@@ -372,6 +373,7 @@ export function paragraphXml(p: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, 
   if (a.keepNext) ppr += '<w:keepNext/>';
   if (a.keepLines) ppr += '<w:keepLines/>';
   if (a.pageBreakBefore) ppr += '<w:pageBreakBefore/>';
+  if (a.noLineNumbers) ppr += '<w:suppressLineNumbers/>';
   if (list) ppr += `<w:numPr><w:ilvl w:val="${list.level}"/><w:numId w:val="${list.numId}"/></w:numPr>`;
   if (a.border) {
     const b = a.border as { width?: number; color?: string; space?: number };
@@ -403,7 +405,7 @@ export function paragraphXml(p: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, 
     if (a.del) ppr += `<w:del ${ctx.rev(a.del.author, a.del.date)}/>`;
     ppr += '</w:rPr>';
   }
-  return `<w:p>${ppr ? `<w:pPr>${ppr}</w:pPr>` : ''}${inlineXml(p, ctx, part, rels)}</w:p>`;
+  return `<w:p>${ppr ? `<w:pPr>${ppr}</w:pPr>` : ''}${a.columnBreakBefore ? '<w:r><w:br w:type="column"/></w:r>' : ''}${inlineXml(p, ctx, part, rels)}</w:p>`;
 }
 
 function listXml(list: PMNode, depth: number, ctx: Ctx, part: PartCtx, rels: RelSink): string {
@@ -612,9 +614,18 @@ function sectPrXml(sec: SectionProps, hf: Map<string, string>): string {
     cols = `<w:cols w:num="${sec.cols.count}" w:space="${ptToTwips(sec.cols.space)}"${sec.cols.sep ? ' w:sep="1"' : ''}${equal ? ' w:equalWidth="1"/>' : ` w:equalWidth="0">${widths.map((w, i) => `<w:col w:w="${ptToTwips(w)}"${i < widths.length - 1 ? ` w:space="${ptToTwips(sec.cols.space)}"` : ''}/>`).join('')}</w:cols>`}`;
   }
   const pgNum = sec.pgNumStart !== null || sec.pgNumFmt !== 'decimal' ? `<w:pgNumType${sec.pgNumStart !== null ? ` w:start="${sec.pgNumStart}"` : ''}${sec.pgNumFmt !== 'decimal' ? ` w:fmt="${sec.pgNumFmt}"` : ''}/>` : '';
+  let pgBorders = '';
+  if (sec.borders) {
+    const b = sec.borders;
+    const val = { single: 'single', double: 'double', dotted: 'dotted', dashed: 'dashed', triple: 'triple', thick: 'thick' }[b.style];
+    const side = (s: string) => `<w:${s} w:val="${val}" w:sz="${Math.min(96, Math.max(2, Math.round(b.width * 8)))}" w:space="${Math.min(31, Math.max(0, Math.round(b.offset)))}" w:color="${hex(b.color)}"/>`;
+    pgBorders = `<w:pgBorders w:offsetFrom="${b.from === 'text' ? 'text' : 'page'}">${side('top')}${side('left')}${side('bottom')}${side('right')}</w:pgBorders>`;
+  }
+  const ln = sec.lineNumbers;
+  const lnNum = ln ? `<w:lnNumType w:countBy="${Math.max(1, Math.round(ln.countBy))}" w:start="${Math.max(0, Math.round(ln.start) - 1)}" w:distance="${ptToTwips(ln.distance)}" w:restart="${ln.restart}"/>` : '';
   return (
     `<w:sectPr>${refs}${type}<w:pgSz w:w="${ptToTwips(pg.width)}" w:h="${ptToTwips(pg.height)}"${pg.width > pg.height ? ' w:orient="landscape"' : ''}/>` +
-    `<w:pgMar w:top="${ptToTwips(pg.marginTop)}" w:right="${ptToTwips(pg.marginRight)}" w:bottom="${ptToTwips(pg.marginBottom)}" w:left="${ptToTwips(pg.marginLeft)}" w:header="${ptToTwips(pg.headerDistance)}" w:footer="${ptToTwips(pg.footerDistance)}" w:gutter="0"/>${pgNum}${cols}${sec.titlePg ? '<w:titlePg/>' : ''}</w:sectPr>`
+    `<w:pgMar w:top="${ptToTwips(pg.marginTop)}" w:right="${ptToTwips(pg.marginRight)}" w:bottom="${ptToTwips(pg.marginBottom)}" w:left="${ptToTwips(pg.marginLeft)}" w:header="${ptToTwips(pg.headerDistance)}" w:footer="${ptToTwips(pg.footerDistance)}" w:gutter="0"/>${pgBorders}${lnNum}${pgNum}${cols}${sec.titlePg ? '<w:titlePg/>' : ''}</w:sectPr>`
   );
 }
 
@@ -775,7 +786,7 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
     if (c.props) overrides.push([`/customXml/${c.propsFile}`, 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml']);
   });
 
-  zip.file('word/document.xml', `${XML_HEAD}<w:document ${W_NS}><w:body>${bodyContent}${finalSect}</w:body></w:document>`);
+  zip.file('word/document.xml', `${XML_HEAD}<w:document ${W_NS}>${doc.pageColor ? `<w:background w:color="${hex(doc.pageColor)}"/>` : ''}<w:body>${bodyContent}${finalSect}</w:body></w:document>`);
   zip.file('word/styles.xml', stylesXml(doc));
   zip.file('word/numbering.xml', numberingXml(ctx));
   zip.file('word/settings.xml', settingsXml(doc, ctx));
@@ -808,7 +819,7 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   zip.file(
     'docProps/core.xml',
-    `${XML_HEAD}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${esc(doc.title ?? '')}</dc:title><dc:creator>${esc(doc.author ?? '')}</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified></cp:coreProperties>`,
+    `${XML_HEAD}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${esc(doc.title ?? '')}</dc:title><dc:subject>${esc(doc.subject ?? '')}</dc:subject><dc:creator>${esc(doc.author ?? '')}</dc:creator><cp:keywords>${esc(doc.keywords ?? '')}</cp:keywords><dc:description>${esc(doc.description ?? '')}</dc:description><cp:category>${esc(doc.category ?? '')}</cp:category><dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified></cp:coreProperties>`,
   );
   zip.file('docProps/app.xml', `${XML_HEAD}<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Nova Writer</Application></Properties>`);
 

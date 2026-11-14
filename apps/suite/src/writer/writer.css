@@ -1157,3 +1157,12 @@
 .nw-doc u.nw-u-dotDash { text-decoration-style: dashed; text-decoration-thickness: 0.07em; }
 .nw-doc u.nw-u-wavy { text-decoration-style: wavy; }
 .nw-doc .nw-dstrike { text-decoration: line-through; text-decoration-style: double; }
+
+/* ---- hyphenation, column breaks ---- */
+.nw-doc.nw-hyphens p.nw-p {
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+.nw-doc p.nw-p[data-col-break] {
+  break-before: column;
+}

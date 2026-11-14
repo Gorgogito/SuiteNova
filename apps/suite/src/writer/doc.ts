@@ -187,6 +187,10 @@ export class WriterCtl {
   styles: StyleTable = defaultStyles();
   title?: string;
   author?: string;
+  subject?: string;
+  keywords?: string;
+  description?: string;
+  category?: string;
   pageSpecs: PageSpec[] = [{ section: 0, blank: false, notes: [], number: 1, inSection: 0 }];
   showMarks = false;
   /** Autocorrección al escribir (se guarda en este equipo). */
@@ -231,6 +235,9 @@ export class WriterCtl {
   trackChanges = false;
   protection: Protection | null = null;
   watermark: Watermark | null = null;
+  /** Page colour of the whole document (null = white) and automatic hyphenation. */
+  pageColor: string | null = null;
+  autoHyphenate = false;
   sources: Source[] = [];
   citeStyle: CiteStyle = 'apa';
   notesOptions: NotesOptions = defaultNotesOptions();
@@ -439,7 +446,7 @@ export class WriterCtl {
         content_control: (n, v, g) => new ControlView(n, v, g as () => number | undefined, this.nodeHost),
         field: (n, _v, _g, d) => new FieldView(n, d),
       },
-      attributes: { class: 'nw-doc', spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Documento' },
+      attributes: () => ({ class: `nw-doc${this.autoHyphenate ? ' nw-hyphens' : ''}`, lang: this.hyphenLang(), spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Documento' }),
       dispatchTransaction: (tr: Transaction) => {
         const v = this.mainView!;
         const tracking = !this.readOnly && (this.trackChanges || this.protection?.mode === 'trackedChanges');
@@ -504,10 +511,17 @@ export class WriterCtl {
     this.styles = doc.styles ?? defaultStyles();
     this.title = doc.title;
     this.author = doc.author;
+    this.subject = doc.subject;
+    this.keywords = doc.keywords;
+    this.description = doc.description;
+    this.category = doc.category;
     this.comments = doc.comments;
     this.trackChanges = doc.trackChanges;
     this.protection = doc.protection;
     this.watermark = doc.watermark;
+    this.pageColor = doc.pageColor ?? null;
+    this.autoHyphenate = !!doc.autoHyphenate;
+    this.refreshEditorAttrs();
     this.sources = doc.sources;
     this.citeStyle = doc.citeStyle;
     this.notesOptions = doc.notes;
@@ -584,10 +598,16 @@ export class WriterCtl {
       styles: this.styles,
       title: this.title,
       author: this.author,
+      subject: this.subject,
+      keywords: this.keywords,
+      description: this.description,
+      category: this.category,
       comments: this.comments,
       trackChanges: this.trackChanges,
       protection: this.protection,
       watermark: this.watermark,
+      pageColor: this.pageColor,
+      autoHyphenate: this.autoHyphenate,
       sources: this.sources,
       citeStyle: this.citeStyle,
       notes: this.notesOptions,
@@ -732,6 +752,45 @@ export class WriterCtl {
     }
     this.dirty = true;
     this.touch();
+  }
+
+  /** Language the browser hyphenates by: the spelling language, else the one of the interface. */
+  hyphenLang(): string {
+    const l = this.spellLang;
+    return l && l !== 'off' ? String(l) : document.documentElement.lang || 'es';
+  }
+
+  /** Re-read the attributes of the editor element (class and language) and measure the pages again. */
+  refreshEditorAttrs(): void {
+    const v = this.mainView;
+    if (!v) return;
+    v.setProps({});
+    repaginate(v);
+  }
+
+  setPageColor(color: string | null): void {
+    this.pageColor = color;
+    this.dirty = true;
+    this.touch();
+  }
+
+  setAutoHyphenate(on: boolean): void {
+    this.autoHyphenate = on;
+    this.dirty = true;
+    this.refreshEditorAttrs();
+    this.touch();
+  }
+
+  /** Give every section the same border / line numbering (or each its own when `scope` is `section`). */
+  setSectionsProps(patch: Partial<SectionProps>, scope: 'section' | 'document' = 'document'): void {
+    const v = this.mainView;
+    if (!v) return;
+    const list = this.sections();
+    const targets = scope === 'document' || list.length === 1 ? list : [this.currentSection()];
+    let tr = v.state.tr;
+    for (const s of targets) tr = tr.setNodeMarkup(s.pos, undefined, { ...sectionAttrs(s.props), ...patch });
+    v.dispatch(tr);
+    repaginate(v);
   }
 
   setWatermark(wm: Watermark | null): void {

@@ -11,6 +11,30 @@ export interface Columns {
   widths: number[] | null;
 }
 
+/** Border drawn around the pages of a section (the four sides alike). */
+export interface PageBorders {
+  style: 'single' | 'double' | 'dotted' | 'dashed' | 'triple' | 'thick';
+  color: string;
+  /** Line width, pt. */
+  width: number;
+  /** Distance from the page edge (`page`) or from the text (`text`), pt. */
+  offset: number;
+  from: 'page' | 'text';
+}
+export const defaultPageBorders = (): PageBorders => ({ style: 'single', color: '#000000', width: 1, offset: 24, from: 'page' });
+
+/** Numbers printed in the left margin beside every line of text. */
+export interface LineNumbers {
+  /** Number every n-th line. */
+  countBy: number;
+  /** First number shown. */
+  start: number;
+  restart: 'newPage' | 'newSection' | 'continuous';
+  /** Distance between the number and the text, pt. */
+  distance: number;
+}
+export const defaultLineNumbers = (): LineNumbers => ({ countBy: 1, start: 1, restart: 'newPage', distance: 18 });
+
 export type SectionStart = 'nextPage' | 'continuous' | 'evenPage' | 'oddPage';
 export type HFKind = 'default' | 'first' | 'even';
 /** Ids of the header/footer parts of a section; `null` means "same as the previous section". */
@@ -34,6 +58,10 @@ export interface SectionProps {
   pgNumStart: number | null;
   /** Page number format. */
   pgNumFmt: 'decimal' | 'lowerLetter' | 'upperLetter' | 'lowerRoman' | 'upperRoman';
+  /** Page border (null = none). */
+  borders: PageBorders | null;
+  /** Line numbering (null = none). */
+  lineNumbers: LineNumbers | null;
 }
 
 export const noRefs = (): HFRefs => ({ default: null, first: null, even: null });
@@ -43,7 +71,7 @@ let counter = 0;
 export const newSectionId = (): string => `s${Date.now().toString(36)}${(counter++).toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
 
 export function defaultSection(page: PageSetup = defaultPage()): SectionProps {
-  return { id: newSectionId(), start: 'nextPage', page, cols: oneColumn(), titlePg: false, header: noRefs(), footer: noRefs(), pgNumStart: null, pgNumFmt: 'decimal' };
+  return { id: newSectionId(), start: 'nextPage', page, cols: oneColumn(), titlePg: false, header: noRefs(), footer: noRefs(), pgNumStart: null, pgNumFmt: 'decimal', borders: null, lineNumbers: null };
 }
 
 /** Width of each column in pt for a page and column definition. */

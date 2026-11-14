@@ -87,7 +87,7 @@ export function footnotesXml(list: NoteOut[], ctx: CtxLike, part: unknown, rels:
 }
 
 export function settingsXml(doc: WriterDoc, ctx: CtxLike): string {
-  let out = '';
+  let out = doc.pageColor ? '<w:displayBackgroundShape/>' : '';
   if (doc.trackChanges) out += '<w:trackRevisions/>';
   const p = doc.protection;
   if (p) {
@@ -95,6 +95,7 @@ export function settingsXml(doc: WriterDoc, ctx: CtxLike): string {
     out += `<w:documentProtection w:edit="${p.mode}" w:enforcement="1"${crypt}/>`;
   }
   out += '<w:defaultTabStop w:val="720"/>';
+  if (doc.autoHyphenate) out += '<w:autoHyphenation/>';
   if (doc.evenAndOdd) out += '<w:evenAndOddHeaders/>';
   const fmt = (f: string) => (f === 'symbols' ? 'chicago' : f);
   if (ctx.footnotes.length || doc.notes.footnoteFormat !== 'decimal' || doc.notes.footnoteRestart !== 'continuous') {

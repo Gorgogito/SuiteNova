@@ -64,6 +64,9 @@ export const PARAGRAPH_STYLES: ParagraphStyleDef[] = [
   { id: 'IndexHeading', name: 'Encabezado de índice', wordName: 'index heading', hidden: true, bold: true, spaceBefore: 8, spaceAfter: 4 },
   { id: 'Index1', name: 'Índice 1', wordName: 'index 1', hidden: true, spaceAfter: 0, lineHeight: 1 },
   { id: 'CommentText', name: 'Texto de comentario', wordName: 'annotation text', hidden: true, fontSize: 10, spaceAfter: 0 },
+  { id: 'CoverTitle', name: 'Título de portada', wordName: 'Cover Title', hidden: true, fontSize: 36, bold: true, spaceAfter: 12 },
+  { id: 'CoverSubtitle', name: 'Subtítulo de portada', wordName: 'Cover Subtitle', hidden: true, fontSize: 16, color: '#595959', spaceAfter: 12 },
+  { id: 'CoverMeta', name: 'Datos de portada', wordName: 'Cover Meta', hidden: true, fontSize: 12, color: '#595959', spaceAfter: 2 },
 ];
 
 export const STYLE_BY_ID = new Map(PARAGRAPH_STYLES.map((s) => [s.id, s]));
@@ -95,6 +98,8 @@ function paragraphDOM(node: PMNode): DOMOutputSpec {
   if (a.tag) attrs['data-tag'] = a.tag;
   if (a.tabs?.length) attrs['data-tabs'] = JSON.stringify(a.tabs);
   if (a.keepLines) attrs['data-keep-lines'] = '1';
+  if (a.columnBreakBefore) attrs['data-col-break'] = '1';
+  if (a.noLineNumbers) attrs['data-no-ln'] = '1';
   return ['p', attrs, 0];
 }
 
@@ -152,6 +157,10 @@ const nodes: Record<string, NodeSpec> = {
       /** Outline level 0-8 (Word's outlineLvl); null = body text. */
       outlineLevel: { default: null },
       pageBreakBefore: { default: false },
+      /** Start the paragraph in the next column of a column section. */
+      columnBreakBefore: { default: false },
+      /** Leave this paragraph out of the line numbers of its section. */
+      noLineNumbers: { default: false },
       /** Note tag (Nova Notes): to-do box, done, important or question. */
       tag: { default: null },
       /** Custom tab stops: { pos (pt from the left margin), kind, leader }. */
@@ -345,6 +354,8 @@ const nodes: Record<string, NodeSpec> = {
       footer: { default: null },
       pgNumStart: { default: null },
       pgNumFmt: { default: 'decimal' },
+      borders: { default: null },
+      lineNumbers: { default: null },
     },
     parseDOM: [{ tag: 'section.nw-section' }],
     toDOM: sectionDOM,
