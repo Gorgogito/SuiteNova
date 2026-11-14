@@ -282,10 +282,11 @@ export interface RibbonFlags {
   inTable: boolean;
   hf: boolean;
   outline: boolean;
+  image: boolean;
 }
 
 export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>): RibbonTab[] {
-  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
+  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
   const inTable = flags.inTable;
   const home: RibbonTab = {
     id: 'home',
@@ -868,6 +869,51 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
+  const imageTab: RibbonTab = {
+    id: 'imageTools',
+    label: 'Formato de imagen',
+    keytip: 'JP',
+    contextual: { label: 'Herramientas de imagen', color: '#b5651d', visible: flags.image },
+    groups: [
+      {
+        id: 'imgFormat',
+        label: 'Imagen',
+        icon: 'image',
+        items: [
+          { kind: 'button', command: 'writer.image.format', size: 'large', keytip: 'KF' },
+          { kind: 'button', command: 'writer.image.reset', size: 'large', keytip: 'KX' },
+        ],
+      },
+      {
+        id: 'imgRotate',
+        label: 'Girar',
+        icon: 'arrowRight',
+        items: [
+          { kind: 'button', command: 'writer.image.rotateRight', size: 'small', keytip: 'KR' },
+          { kind: 'button', command: 'writer.image.rotateLeft', size: 'small', keytip: 'KL' },
+          { kind: 'button', command: 'writer.image.flipH', size: 'small', keytip: 'KH' },
+          { kind: 'button', command: 'writer.image.flipV', size: 'small', keytip: 'KV' },
+        ],
+      },
+      {
+        id: 'imgWrap',
+        label: 'Organizar',
+        icon: 'alignLeft',
+        items: [
+          {
+            kind: 'dropdown',
+            id: 'imgWrapMenu',
+            label: 'Ajuste del texto',
+            icon: 'alignLeft',
+            size: 'large',
+            keytip: 'KW',
+            entries: ['inline', 'left', 'right', 'top'].map((k) => ({ kind: 'command' as const, command: `writer.image.wrap.${k}` })),
+          },
+        ],
+      },
+    ],
+  };
+
   const hf: RibbonTab = {
     id: 'hfTools',
     label: 'Encabezado y pie',
@@ -1103,5 +1149,5 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
-  return [home, insert, layout, refs, mailings, review, view, developer, table, hf, outlineTab, helpTab()];
+  return [home, insert, layout, refs, mailings, review, view, developer, table, imageTab, hf, outlineTab, helpTab()];
 }

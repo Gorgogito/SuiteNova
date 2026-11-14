@@ -175,3 +175,35 @@ describe('propiedades del documento', () => {
     expect(back.keywords).toBeUndefined();
   });
 });
+
+describe('imágenes: recorte, giro, borde y ajuste', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const img = (attrs: Record<string, unknown>) => nodeTypes.paragraph!.create(null, [writerSchema.nodes.image!.create({ src: PNG, alt: 'Pie', width: 120, height: 80, ...attrs })]);
+  const back = async (attrs: Record<string, unknown>) => {
+    const { data } = await writeDocx(wd(img(attrs)));
+    const d = (await readDocx(data)).doc;
+    return firstBlocks(d)[0]!.firstChild!.attrs;
+  };
+  it('una imagen sin extras sigue igual (en línea, sin recorte)', async () => {
+    const a = await back({});
+    expect(a).toMatchObject({ alt: 'Pie', width: 120, height: 80, crop: null, rotate: 0, flipH: false, border: null, wrap: null });
+  });
+  it('recorte, giro, volteo y borde viajan en el .docx', async () => {
+    const a = await back({ crop: { l: 0.1, t: 0.2, r: 0.05, b: 0 }, rotate: 90, flipH: true, border: { color: '#ff0000', width: 2 } });
+    expect(a.crop).toEqual({ l: 0.1, t: 0.2, r: 0.05, b: 0 });
+    expect(a).toMatchObject({ rotate: 90, flipH: true, flipV: false, border: { color: '#ff0000', width: 2 } });
+  });
+  it.each(['left', 'right', 'top'])('ajuste «%s» se escribe como ancla y se lee igual', async (wrap) => {
+    const a = await back({ wrap });
+    expect(a.wrap).toBe(wrap);
+    expect(a).toMatchObject({ width: 120, height: 80 });
+  });
+  it('el DOM de una imagen recortada recorta con una caja y se puede volver a leer', () => {
+    const node = writerSchema.nodes.image!.create({ src: PNG, width: 100, height: 50, crop: { l: 0.5, t: 0, r: 0, b: 0 }, rotate: 10 });
+    const dom = writerSchema.nodes.image!.spec.toDOM!(node) as unknown as any[];
+    expect(dom[0]).toBe('span');
+    expect(dom[1].style).toContain('overflow:hidden');
+    expect(dom[2][1].style).toContain('width:200.0px');
+    expect(dom[2][1].style).toContain('left:-100.0px');
+  });
+});

@@ -10,6 +10,7 @@ import { ControlDialog, EquationDialog, ShapeDialog } from './dlg-objects';
 import { FontDialog, ParagraphDialog, SymbolDialog } from './dlg-format';
 import { AutoCorrectDialog } from './dlg-autocorrect';
 import { LineNumbersDialog, PageBordersDialog } from './dlg-page';
+import { ImageFormatDialog } from './dlg-image';
 import { AccessibilityDialog, CompareDialog, DocPropsDialog, WordCountDialog } from './dlg-docreview';
 import { TableConvertDialog, TablePropsDialog, TableSortDialog } from './dlg-table';
 import { StyleEditDialog, StylesDialog } from './dlg-styles';
@@ -255,6 +256,8 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
       return <ParagraphDialog ui={ui} onClose={onClose} />;
     case 'symbol':
       return <SymbolDialog ui={ui} onClose={onClose} />;
+    case 'imageFormat':
+      return <ImageFormatDialog ui={ui} onClose={onClose} />;
     case 'wordCount':
       return <WordCountDialog ui={ui} onClose={onClose} />;
     case 'docProps':

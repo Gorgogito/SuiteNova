@@ -126,7 +126,7 @@ await check('bullet and numbered lists, Tab indents', async () => {
 await check('table: insert, type in cells, contextual tab, add row', async () => {
   await clearDoc();
   await page.getByRole('tab', { name: 'Insertar' }).click();
-  await page.getByRole('button', { name: 'Tabla…' }).click();
+  await page.getByRole('button', { name: 'Tabla…', exact: true }).click();
   await page.getByLabel('Número de columnas').fill('3');
   await page.getByLabel('Número de filas').fill('2');
   await page.getByRole('button', { name: 'Aceptar' }).click();

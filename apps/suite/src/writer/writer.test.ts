@@ -9,6 +9,7 @@ import './messages-more';
 import './messages-objects';
 import './messages-format';
 import './messages-review';
+import './messages-image';
 import { writerTabs } from './ribbonDef';
 import { measureLayout } from './paginate';
 

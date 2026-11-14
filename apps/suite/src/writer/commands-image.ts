@@ -1,0 +1,58 @@
+import type { CommandDef } from '@suitenova/core-ui';
+import { NodeSelection, type EditorState } from 'prosemirror-state';
+import type { WriterUI } from './commands';
+
+export type ImageWrap = 'left' | 'right' | 'top' | null;
+
+/** The selected picture (position and attributes), or null. */
+export function selectedImage(state: EditorState | null | undefined): { pos: number; attrs: Record<string, any> } | null {
+  const s = state?.selection;
+  return s instanceof NodeSelection && s.node.type.name === 'image' ? { pos: s.from, attrs: s.node.attrs } : null;
+}
+
+/** Change attributes of the selected picture in one undoable step, keeping it selected. */
+export function patchImage(ui: WriterUI, patch: Record<string, unknown>): boolean {
+  const v = ui.ctl.mainView;
+  const sel = selectedImage(v?.state);
+  if (!v || !sel) return false;
+  const tr = v.state.tr.setNodeMarkup(sel.pos, null, { ...sel.attrs, ...patch });
+  v.dispatch(tr.setSelection(NodeSelection.create(tr.doc, sel.pos)));
+  return true;
+}
+
+/** Picture tools: format dialog, rotate, flip, text wrapping and reset. */
+export function imageCommands(ui: WriterUI): CommandDef[] {
+  const c = ui.ctl;
+  const sel = () => selectedImage(c.mainState);
+  const ready = () => !!c.mainView && !c.readOnly && !!sel();
+  const at = () => sel()?.attrs ?? {};
+  const defs: CommandDef[] = [
+    { id: 'writer.image.format', label: 'Formato de imagen…', icon: 'image', description: 'Texto alternativo, tamaño, recorte, giro, borde y ajuste de texto de la imagen seleccionada.', enabled: ready, run: () => ui.openDialog('imageFormat') },
+    { id: 'writer.image.rotateRight', label: 'Girar a la derecha', icon: 'arrowRight', description: 'Gira la imagen 90° en el sentido de las agujas del reloj.', enabled: ready, run: () => patchImage(ui, { rotate: (((at().rotate ?? 0) + 90) % 360) }) },
+    { id: 'writer.image.rotateLeft', label: 'Girar a la izquierda', icon: 'arrowLeft', description: 'Gira la imagen 90° en sentido contrario.', enabled: ready, run: () => patchImage(ui, { rotate: (((at().rotate ?? 0) + 270) % 360) }) },
+    { id: 'writer.image.flipH', label: 'Voltear horizontalmente', icon: 'columns2', enabled: ready, checked: () => !!at().flipH, run: () => patchImage(ui, { flipH: !at().flipH }) },
+    { id: 'writer.image.flipV', label: 'Voltear verticalmente', icon: 'panelTop', enabled: ready, checked: () => !!at().flipV, run: () => patchImage(ui, { flipV: !at().flipV }) },
+    {
+      id: 'writer.image.reset',
+      label: 'Restablecer imagen',
+      icon: 'eraser',
+      description: 'Quita el recorte, el giro, el volteo, el borde y el ajuste de texto (el tamaño se conserva).',
+      enabled: () => ready() && (!!at().crop || !!at().rotate || !!at().flipH || !!at().flipV || !!at().border || !!at().wrap),
+      run: () => {
+        const a = at();
+        const crop = a.crop as { l: number; t: number; r: number; b: number } | null;
+        const kx = crop ? 1 - crop.l - crop.r : 1;
+        const ky = crop ? 1 - crop.t - crop.b : 1;
+        patchImage(ui, { crop: null, rotate: 0, flipH: false, flipV: false, border: null, wrap: null, width: a.width ? Math.round(a.width / kx) : null, height: a.height ? Math.round(a.height / ky) : null });
+      },
+    },
+  ];
+  const wraps: [string, string, ImageWrap, string][] = [
+    ['inline', 'En línea con el texto', null, 'alignJustify'],
+    ['left', 'A la izquierda, texto alrededor', 'left', 'alignLeft'],
+    ['right', 'A la derecha, texto alrededor', 'right', 'alignRight'],
+    ['top', 'Arriba y abajo', 'top', 'alignCenter'],
+  ];
+  for (const [id, label, wrap, icon] of wraps) defs.push({ id: `writer.image.wrap.${id}`, label, icon, enabled: ready, checked: () => (at().wrap ?? null) === wrap, run: () => patchImage(ui, { wrap }) });
+  return defs;
+}

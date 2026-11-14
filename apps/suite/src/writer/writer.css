@@ -80,6 +80,7 @@
   max-width: 100%;
   vertical-align: baseline;
 }
+.nw-doc .nw-imgbox.ProseMirror-selectednode,
 .nw-doc img.ProseMirror-selectednode {
   outline: 2px solid #2b6cb0;
 }

@@ -135,6 +135,49 @@ function sectionDOM(node: PMNode): DOMOutputSpec {
   return ['section', attrs, 0];
 }
 
+
+export interface ImageCrop { l: number; t: number; r: number; b: number }
+
+/** DOM of an image: a plain `img`, or a clipping box around it when it is cropped. */
+export function imageDOM(a: Record<string, any>): DOMOutputSpec {
+  const crop = a.crop as ImageCrop | null;
+  const w: number | null = a.width ? Math.round(a.width) : null;
+  const h: number | null = a.height ? Math.round(a.height) : null;
+  const outer: string[] = [];
+  const tf = [a.rotate ? `rotate(${a.rotate}deg)` : '', a.flipH ? 'scaleX(-1)' : '', a.flipV ? 'scaleY(-1)' : ''].filter(Boolean).join(' ');
+  if (tf) outer.push(`transform:${tf}`);
+  const bd = a.border as { color: string; width: number } | null;
+  if (bd) outer.push(`outline:${bd.width}pt solid ${bd.color}`);
+  if (a.wrap === 'left') outer.push('float:left', 'margin:0 12px 6px 0');
+  else if (a.wrap === 'right') outer.push('float:right', 'margin:0 0 6px 12px');
+  else if (a.wrap === 'top') outer.push('display:block', 'margin:6px auto');
+  const data: Record<string, string> = {};
+  if (crop) data['data-crop'] = JSON.stringify(crop);
+  if (a.rotate) data['data-rotate'] = String(a.rotate);
+  if (a.flipH) data['data-fliph'] = '1';
+  if (a.flipV) data['data-flipv'] = '1';
+  if (bd) data['data-border'] = JSON.stringify(bd);
+  if (a.wrap) data['data-wrap'] = a.wrap;
+  const attrs: Record<string, string> = { src: a.src, alt: a.alt, class: 'nw-image', ...data };
+  if (!crop) {
+    if (w) attrs.width = String(w);
+    if (h) attrs.height = String(h);
+    if (outer.length) attrs.style = outer.join(';');
+    return ['img', attrs];
+  }
+  const kx = Math.max(0.05, 1 - crop.l - crop.r);
+  const ky = Math.max(0.05, 1 - crop.t - crop.b);
+  const bw = w ?? 200;
+  const bh = h ?? 150;
+  const fw = bw / kx;
+  const fh = bh / ky;
+  attrs['data-w'] = String(bw);
+  attrs['data-h'] = String(bh);
+  attrs.style = `position:absolute;max-width:none;width:${fw.toFixed(1)}px;height:${fh.toFixed(1)}px;left:${(-crop.l * fw).toFixed(1)}px;top:${(-crop.t * fh).toFixed(1)}px`;
+  const box = ['display:inline-block', 'position:relative', 'overflow:hidden', `width:${bw}px`, `height:${bh}px`, ...outer];
+  return ['span', { class: 'nw-imgbox', style: box.join(';') }, ['img', attrs]];
+}
+
 const nodes: Record<string, NodeSpec> = {
   doc: { content: 'block+' },
   paragraph: {
@@ -199,23 +242,51 @@ const nodes: Record<string, NodeSpec> = {
     inline: true,
     group: 'inline',
     draggable: true,
-    attrs: { src: {}, alt: { default: '' }, width: { default: null }, height: { default: null } },
+    attrs: {
+      src: {},
+      alt: { default: '' },
+      /** Displayed size in px (after cropping). */
+      width: { default: null },
+      height: { default: null },
+      /** Cropped part on each side, as a fraction (0–0.95) of the full picture. */
+      crop: { default: null },
+      /** Rotation in degrees (0–359) and mirroring. */
+      rotate: { default: 0 },
+      flipH: { default: false },
+      flipV: { default: false },
+      /** Outline: colour `#rrggbb` and width in pt. */
+      border: { default: null },
+      /** Text wrapping: in the line (null), floating left or right with text around it, or alone on its lines (`top`). */
+      wrap: { default: null },
+    },
     parseDOM: [
       {
         tag: 'img[src]',
         getAttrs: (dom) => {
           const el = dom as HTMLElement;
-          return { src: el.getAttribute('src'), alt: el.getAttribute('alt') ?? '', width: Number(el.getAttribute('width')) || null, height: Number(el.getAttribute('height')) || null };
+          const json = (k: string) => {
+            try {
+              return el.dataset[k] ? JSON.parse(el.dataset[k]!) : null;
+            } catch {
+              return null;
+            }
+          };
+          return {
+            src: el.getAttribute('src'),
+            alt: el.getAttribute('alt') ?? '',
+            width: Number(el.dataset.w ?? el.getAttribute('width')) || null,
+            height: Number(el.dataset.h ?? el.getAttribute('height')) || null,
+            crop: json('crop'),
+            rotate: Number(el.dataset.rotate) || 0,
+            flipH: el.dataset.fliph === '1',
+            flipV: el.dataset.flipv === '1',
+            border: json('border'),
+            wrap: el.dataset.wrap || null,
+          };
         },
       },
     ],
-    toDOM: (node) => {
-      const a = node.attrs;
-      const attrs: Record<string, string> = { src: a.src, alt: a.alt, class: 'nw-image' };
-      if (a.width) attrs.width = String(Math.round(a.width));
-      if (a.height) attrs.height = String(Math.round(a.height));
-      return ['img', attrs];
-    },
+    toDOM: (node) => imageDOM(node.attrs),
   },
   /**
    * A field. Page number, page count, date and so on are shown as their value in headers/footers and as a placeholder in

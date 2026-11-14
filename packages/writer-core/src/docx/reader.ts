@@ -792,7 +792,7 @@ class Converter {
     return m;
   }
 
-  private image(rid: string | undefined, w: number | null, h: number | null, alt: string, cur: () => PMNode[], marks: Mark[] = []) {
+  private image(rid: string | undefined, w: number | null, h: number | null, alt: string, cur: () => PMNode[], marks: Mark[] = [], extra: Record<string, unknown> = {}) {
     const rel = rid ? this.rels.get(rid) : undefined;
     if (!rel) return;
     if (rel.external) {
@@ -805,7 +805,7 @@ class Converter {
       this.warn(`Formato de imagen no admitido (${rel.target.split('.').pop()}); se omite.`);
       return;
     }
-    cur().push(nodeTypes.image!.create({ src: uri, alt, width: w, height: h }, null, marks.filter((m) => m.type.name === 'ins' || m.type.name === 'del' || m.type.name === 'comment')));
+    cur().push(nodeTypes.image!.create({ src: uri, alt, width: w, height: h, ...extra }, null, marks.filter((m) => m.type.name === 'ins' || m.type.name === 'del' || m.type.name === 'comment')));
   }
 
   private drawing(d: XNode, cur: () => PMNode[], marks: Mark[]) {
@@ -818,7 +818,6 @@ class Converter {
       this.warn('Los grupos de formas no se admiten y se omiten.');
       return;
     }
-    if (findDeep(d, 'anchor')) this.warn('Las imágenes flotantes se convierten en imágenes en línea.');
     const blip = findDeep(d, 'blip');
     if (!blip) {
       if (findDeep(d, 'chart') || findDeep(d, 'dgm')) this.warn('Los gráficos y diagramas incrustados no se admiten y se omiten.');
@@ -827,7 +826,35 @@ class Converter {
     const ext = findDeep(d, 'extent');
     const cx = num(ext && attrOf(ext, 'cx')), cy = num(ext && attrOf(ext, 'cy'));
     const pr = findDeep(d, 'docPr');
-    this.image(attrOf(blip, 'embed'), cx ? Math.round(cx / EMU_PER_PX) : null, cy ? Math.round(cy / EMU_PER_PX) : null, (pr && (attrOf(pr, 'descr') ?? attrOf(pr, 'title'))) || '', cur, marks);
+    const extra: Record<string, unknown> = {};
+    const src = findDeep(d, 'srcRect');
+    if (src) {
+      const f = (k: string) => Math.min(0.95, Math.max(0, (num(attrOf(src, k)) ?? 0) / 100000));
+      const crop = { l: f('l'), t: f('t'), r: f('r'), b: f('b') };
+      if (crop.l || crop.t || crop.r || crop.b) extra.crop = crop;
+    }
+    const xf = findDeep(d, 'xfrm');
+    if (xf) {
+      const rot = num(attrOf(xf, 'rot'));
+      if (rot) extra.rotate = Math.round((((rot / 60000) % 360) + 360) % 360);
+      if (/^(1|true)$/.test(attrOf(xf, 'flipH') ?? '')) extra.flipH = true;
+      if (/^(1|true)$/.test(attrOf(xf, 'flipV') ?? '')) extra.flipV = true;
+    }
+    const ln = findDeep(d, 'ln');
+    const lc = ln && findDeep(ln, 'srgbClr');
+    if (ln && lc && !findDeep(ln, 'noFill')) extra.border = { color: `#${(attrOf(lc, 'val') ?? '000000').toLowerCase()}`, width: Math.max(0.25, Math.round(((num(attrOf(ln, 'w')) ?? 12700) / 12700) * 4) / 4) };
+    const anchor = findDeep(d, 'anchor');
+    if (anchor) {
+      if (findDeep(anchor, 'wrapTopAndBottom')) extra.wrap = 'top';
+      else if (findDeep(anchor, 'wrapSquare') || findDeep(anchor, 'wrapTight') || findDeep(anchor, 'wrapThrough')) {
+        const ph = findDeep(anchor, 'positionH');
+        const al = ph && textOfNode(findDeep(ph, 'align') ?? {});
+        const side = findDeep(anchor, 'wrapSquare') ?? findDeep(anchor, 'wrapTight') ?? findDeep(anchor, 'wrapThrough');
+        extra.wrap = al === 'right' || (al !== 'left' && attrOf(side!, 'wrapText') === 'left') ? 'right' : 'left';
+        if (!al) this.warn('La posición exacta de una imagen flotante se convierte en «a la izquierda» o «a la derecha» con el texto alrededor.');
+      } else this.warn('Las imágenes flotantes detrás o delante del texto, o sin ajuste, se convierten en imágenes en línea.');
+    }
+    this.image(attrOf(blip, 'embed'), cx ? Math.round(cx / EMU_PER_PX) : null, cy ? Math.round(cy / EMU_PER_PX) : null, (pr && (attrOf(pr, 'descr') ?? attrOf(pr, 'title'))) || '', cur, marks, extra);
   }
 
   /** A DrawingML shape (`wps:wsp`) or text box. */

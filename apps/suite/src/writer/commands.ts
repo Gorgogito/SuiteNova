@@ -15,6 +15,7 @@ import { formatCommands } from './commands-format';
 import { tableCommands } from './commands-table';
 import { pageCommands } from './commands-page';
 import { docReviewCommands } from './commands-docreview';
+import { imageCommands } from './commands-image';
 import {
   FONT_SIZES,
   changeIndent,
@@ -36,7 +37,7 @@ import {
   updateParagraphs,
 } from './editing';
 
-export type WriterDialog = 'link' | 'pageSetup' | 'about' | 'shortcuts' | 'tableSize' | 'columns' | 'watermark' | 'protect' | 'unprotect' | 'user' | 'toc' | 'tof' | 'caption' | 'xref' | 'bookmark' | 'indexMark' | 'cite' | 'sources' | 'noteOptions' | 'equation' | 'shape' | 'control' | 'envelope' | 'labels' | 'recipients' | 'mergeField' | 'mergeBlock' | 'mergeRule' | 'finishMerge' | 'templates' | 'spell' | 'userDict' | 'encrypt' | 'sign' | 'signInfo' | 'macros' | 'macroEditor' | 'font' | 'paragraph' | 'symbol' | 'autocorrect' | 'styles' | 'styleEdit' | 'tableProps' | 'tableSort' | 'tableToText' | 'textToTable' | 'pageBorders' | 'lineNumbers' | 'wordCount' | 'docProps' | 'accessibility' | 'compare';
+export type WriterDialog = 'link' | 'pageSetup' | 'about' | 'shortcuts' | 'tableSize' | 'columns' | 'watermark' | 'protect' | 'unprotect' | 'user' | 'toc' | 'tof' | 'caption' | 'xref' | 'bookmark' | 'indexMark' | 'cite' | 'sources' | 'noteOptions' | 'equation' | 'shape' | 'control' | 'envelope' | 'labels' | 'recipients' | 'mergeField' | 'mergeBlock' | 'mergeRule' | 'finishMerge' | 'templates' | 'spell' | 'userDict' | 'encrypt' | 'sign' | 'signInfo' | 'macros' | 'macroEditor' | 'font' | 'paragraph' | 'symbol' | 'autocorrect' | 'styles' | 'styleEdit' | 'tableProps' | 'tableSort' | 'tableToText' | 'textToTable' | 'pageBorders' | 'lineNumbers' | 'wordCount' | 'docProps' | 'accessibility' | 'compare' | 'imageFormat';
 
 export interface WriterUI {
   ctl: WriterCtl;
@@ -266,6 +267,7 @@ export function writerCommands(ui: WriterUI): CommandDef[] {
   defs.push(...tableCommands(ui));
   defs.push(...pageCommands(ui));
   defs.push(...docReviewCommands(ui));
+  defs.push(...imageCommands(ui));
   defs.push(...layoutCommands(ui));
   defs.push(...reviewCommands(ui));
   defs.push(...refsCommands(ui));

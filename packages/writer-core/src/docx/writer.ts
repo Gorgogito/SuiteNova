@@ -170,12 +170,28 @@ function imageXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, props: s
   const h = Math.round((node.attrs.height ?? 150) * EMU_PER_PX);
   const id = ctx.docPrId++;
   const alt = esc(node.attrs.alt ?? '');
-  return (
-    `<w:r>${props}<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${w}" cy="${h}"/><wp:docPr id="${id}" name="Imagen ${id}" descr="${alt}"/>` +
+  const at = node.attrs;
+  const crop = at.crop as { l: number; t: number; r: number; b: number } | null;
+  const pct = (v: number) => Math.round(Math.min(0.95, Math.max(0, v)) * 100000);
+  const rot = Math.round((((at.rotate ?? 0) % 360) + 360) % 360 * 60000);
+  const xfrm = `<a:xfrm${rot ? ` rot="${rot}"` : ''}${at.flipH ? ' flipH="1"' : ''}${at.flipV ? ' flipV="1"' : ''}>`;
+  const bd = at.border as { color: string; width: number } | null;
+  const line = bd ? `<a:ln w="${Math.round(bd.width * 12700)}"><a:solidFill><a:srgbClr val="${bd.color.replace('#', '').toUpperCase()}"/></a:solidFill></a:ln>` : '';
+  const graphic =
+    `<wp:docPr id="${id}" name="Imagen ${id}" descr="${alt}"/>` +
     `<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>` +
     `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="${esc(name)}" descr="${alt}"/><pic:cNvPicPr/></pic:nvPicPr>` +
-    `<pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
-    `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`
+    `<pic:blipFill><a:blip r:embed="${rid}"/>${crop ? `<a:srcRect l="${pct(crop.l)}" t="${pct(crop.t)}" r="${pct(crop.r)}" b="${pct(crop.b)}"/>` : ''}<a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr>${xfrm}<a:off x="0" y="0"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${line}</pic:spPr></pic:pic></a:graphicData></a:graphic>`;
+  const extent = `<wp:extent cx="${w}" cy="${h}"/>`;
+  const wrap = at.wrap as 'left' | 'right' | 'top' | null;
+  if (!wrap) return `<w:r>${props}<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">${extent}${graphic}</wp:inline></w:drawing></w:r>`;
+  const align = wrap === 'top' ? 'center' : wrap;
+  const wrapXml = wrap === 'top' ? '<wp:wrapTopAndBottom/>' : `<wp:wrapSquare wrapText="${wrap === 'left' ? 'right' : 'left'}"/>`;
+  return (
+    `<w:r>${props}<w:drawing><wp:anchor distT="0" distB="76200" distL="${wrap === 'right' ? 152400 : 0}" distR="${wrap === 'left' ? 152400 : 0}" simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">` +
+    `<wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:align>${align}</wp:align></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>` +
+    `${extent}<wp:effectExtent l="0" t="0" r="0" b="0"/>${wrapXml}${graphic}</wp:anchor></w:drawing></w:r>`
   );
 }
 
