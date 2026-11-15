@@ -21,11 +21,14 @@ Objetivo: tener un catálogo de formas único (como las Formas de Office) compar
 - [x] Slides migrado a `ShapeGallery` (`slides/ribbonParts.tsx`: `ShapesGallery` es ahora un envoltorio; se quitó la lista duplicada de categorías). Selectores de e2e cambiados a `[data-shape="..."]` (e2e-slides, e2e-slides-objects). Los 9 e2e de Slides en verde, typecheck limpio, captura revisada.
 - [x] `docs/LIMITACIONES.md`: sección «Formas comunes».
 
-### Pendiente / a revisar
-- [ ] e2e propio de Writer para la galería de formas (`scripts/e2e-writer-shapes.mjs`): insertar varias formas, guardar .docx y releer.
-- [ ] README: mencionar `shapes-core` y la galería común.
-- [ ] Siguiente del subproducto (a decidir con el usuario): puntos de ajuste, rotación en Calc, agrupar formas en Calc/Writer.
-- [ ] Commit (solo cuando el usuario lo pida). Archivos sueltos sin versionar: `Pruductos.png`, `SubProductos.png` (referencias del usuario).
+- [x] Commit `05ebddd` (galería común en Slides, Calc y Writer).
+- [x] `scripts/e2e-writer-shapes.mjs` (6 comprobaciones: 9 categorías, insertar 4 formas, dibujo distinto, botón de acción, cuadro de texto editable, ida y vuelta .docx).
+- [x] README: `shapes-core` en la tabla y en la estructura.
+
+### Siguiente (orden fijado por el usuario)
+1. [ ] Puntos de ajuste (amarillos) en Calc y Writer.
+2. [ ] Rotación en Calc.
+3. [ ] Agrupar formas en Calc y Writer.
 
 ## Cómo retomar
 1. `git status` y este archivo.
