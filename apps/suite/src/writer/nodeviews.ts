@@ -1,3 +1,4 @@
+import { resolveKind, shapeSvg } from '@suitenova/shapes-core';
 import { parseMath, toMathML } from '@suitenova/writer-core';
 import type { Node as PMNode } from 'prosemirror-model';
 import { NodeSelection, TextSelection } from 'prosemirror-state';
@@ -59,28 +60,6 @@ export class MathView implements NodeView {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** The drawing of each kind of shape in a 100 x 100 box (stretched to the size of the shape). */
-export const SHAPE_PATHS: Record<string, string> = {
-  rect: 'M0 0H100V100H0Z',
-  textbox: 'M0 0H100V100H0Z',
-  roundRect: 'M14 0H86Q100 0 100 14V86Q100 100 86 100H14Q0 100 0 86V14Q0 0 14 0Z',
-  ellipse: 'M50 0A50 50 0 1 1 49.99 0Z',
-  triangle: 'M50 0L100 100H0Z',
-  rightTriangle: 'M0 0L100 100H0Z',
-  diamond: 'M50 0L100 50L50 100L0 50Z',
-  pentagon: 'M50 0L100 38L81 100H19L0 38Z',
-  hexagon: 'M25 0H75L100 50L75 100H25L0 50Z',
-  star5: 'M50 0L61 35H98L68 57L79 92L50 71L21 92L32 57L2 35H39Z',
-  rightArrow: 'M0 30H62V0L100 50L62 100V70H0Z',
-  leftArrow: 'M100 30H38V0L0 50L38 100V70H100Z',
-  upArrow: 'M30 100V38H0L50 0L100 38H70V100Z',
-  downArrow: 'M30 0V62H0L50 100L100 62H70V0Z',
-  line: 'M0 100L100 0',
-  callout: 'M0 0H100V75H40L18 100V75H0Z',
-  cloud: 'M25 80Q0 80 5 55Q0 30 25 30Q30 5 55 12Q75 0 85 25Q105 35 92 58Q100 80 75 80Z',
-  heart: 'M50 95L8 52Q-8 28 15 12Q35 0 50 22Q65 0 85 12Q108 28 92 52Z',
-};
-
 export function shapeCss(a: Record<string, any>): string {
   const css = [`width:${a.width}px`, `height:${a.height}px`];
   if (a.wrap === 'left') css.push('float:left', 'margin:0 10px 6px 0');
@@ -95,19 +74,17 @@ export class ShapeView implements NodeView {
   dom: HTMLElement;
   contentDOM: HTMLElement;
   private svg: SVGSVGElement;
-  private path: SVGPathElement;
+  private paths: SVGGElement;
   private handles: HTMLElement[] = [];
   private grip: HTMLElement;
   constructor(private node: PMNode, private view: EditorView, private getPos: () => number | undefined, private host: NodeViewHost) {
     this.dom = document.createElement('span');
     this.svg = document.createElementNS(SVG_NS, 'svg');
     this.svg.setAttribute('class', 'nw-shape-bg');
-    this.svg.setAttribute('viewBox', '0 0 100 100');
     this.svg.setAttribute('preserveAspectRatio', 'none');
     this.svg.setAttribute('contenteditable', 'false');
-    this.path = document.createElementNS(SVG_NS, 'path');
-    this.path.setAttribute('vector-effect', 'non-scaling-stroke');
-    this.svg.appendChild(this.path);
+    this.paths = document.createElementNS(SVG_NS, 'g');
+    this.svg.appendChild(this.paths);
     this.dom.appendChild(this.svg);
     this.contentDOM = document.createElement('div');
     this.contentDOM.className = 'nw-shape-text';
@@ -137,11 +114,10 @@ export class ShapeView implements NodeView {
     this.dom.dataset.kind = a.kind;
     this.dom.dataset.wrap = a.wrap;
     this.dom.setAttribute('style', shapeCss(a));
-    this.path.setAttribute('d', SHAPE_PATHS[a.kind] ?? SHAPE_PATHS.rect!);
-    const invisible = a.kind === 'textbox' && a.strokeWidth === 0 && a.fill === '#ffffff';
-    this.path.setAttribute('fill', a.kind === 'line' || invisible ? 'none' : a.fill);
-    this.path.setAttribute('stroke', a.strokeWidth > 0 ? a.stroke : 'none');
-    this.path.setAttribute('stroke-width', String(a.strokeWidth));
+    // the drawing comes from the common shape catalog, in pixels (the view box is the size of the shape)
+    this.svg.setAttribute('viewBox', `0 0 ${a.width} ${a.height}`);
+    const invisible = resolveKind(a.kind) === 'textbox' && a.strokeWidth === 0 && a.fill === '#ffffff';
+    this.paths.innerHTML = shapeSvg(a.kind, a.width, a.height, { fill: invisible ? null : a.fill, stroke: a.strokeWidth > 0 ? a.stroke : null, strokeWidth: a.strokeWidth });
     this.dom.title = a.alt || '';
   }
   private setSelected(on: boolean) {

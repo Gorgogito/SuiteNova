@@ -381,14 +381,23 @@ describe('shapes and text boxes', () => {
     const zip = await JSZip.loadAsync(await writeXlsx(w));
     const path = 'xl/drawings/drawing1.xml';
     let xml = await zip.file(path)!.async('string');
-    // sin relleno ni línea propios + estilo del tema, como los inserta Excel; y una estrella que no se dibuja
-    xml = xml.replace(/<xdr:spPr>.*?<\/xdr:spPr>/s, '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="476250" cy="476250"/></a:xfrm><a:prstGeom prst="star5"><a:avLst/></a:prstGeom></xdr:spPr><xdr:style/>').replace('<xdr:cNvSpPr/>', '<xdr:cNvSpPr/>');
+    // sin relleno ni línea propios + estilo del tema, como los inserta Excel; y una geometría que no existe
+    xml = xml.replace(/<xdr:spPr>.*?<\/xdr:spPr>/s, '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="476250" cy="476250"/></a:xfrm><a:prstGeom prst="noSuchShape"><a:avLst/></a:prstGeom></xdr:spPr><xdr:style/>').replace('<xdr:cNvSpPr/>', '<xdr:cNvSpPr/>');
     zip.file(path, xml);
     const { workbook, warnings } = await readXlsx(await zip.generateAsync({ type: 'uint8array' }));
     const s = workbook.sheets[0]!.shapes[0]!;
     expect(s.kind).toBe('rect');
     expect(s.fill).toBe('#4472c4');
     expect(warnings.join(' ')).toMatch(/geometría/);
+  });
+
+  it('keeps any DrawingML preset by its name (stars, callouts, flow chart…) and writes it back', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.editObjects(id, (sh) => void sh.shapes.push({ id: 'a', kind: 'star5', x: 10, y: 10, width: 80, height: 80 } as never, { id: 'b', kind: 'wedgeRectCallout', x: 120, y: 10, width: 100, height: 60 } as never, { id: 'c', kind: 'bentConnector3', x: 10, y: 120, width: 100, height: 40 } as never));
+    const r = await readXlsx(await writeXlsx(w));
+    expect(r.workbook.sheets[0]!.shapes.map((x) => x.kind)).toEqual(['star5', 'wedgeRectCallout', 'bentConnector3']);
+    expect(r.warnings.join(' ')).not.toMatch(/geometría/);
   });
 });
 

@@ -202,6 +202,9 @@ importers:
       '@suitenova/plan-core':
         specifier: workspace:*
         version: link:../../packages/plan-core
+      '@suitenova/shapes-core':
+        specifier: workspace:*
+        version: link:../../packages/shapes-core
       '@suitenova/slides-core':
         specifier: workspace:*
         version: link:../../packages/slides-core
@@ -344,6 +347,10 @@ importers:
         version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
 
   packages/calc-engine:
+    dependencies:
+      '@suitenova/shapes-core':
+        specifier: workspace:*
+        version: link:../shapes-core
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -494,6 +501,9 @@ importers:
 
   packages/writer-core:
     dependencies:
+      '@suitenova/shapes-core':
+        specifier: workspace:*
+        version: link:../shapes-core
       fast-xml-parser:
         specifier: ^5.2.0
         version: 5.11.2
@@ -549,6 +559,9 @@ importers:
       '@suitenova/calc-engine':
         specifier: workspace:*
         version: link:../calc-engine
+      '@suitenova/shapes-core':
+        specifier: workspace:*
+        version: link:../shapes-core
       fast-xml-parser:
         specifier: ^5.2.0
         version: 5.11.2

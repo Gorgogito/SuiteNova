@@ -99,7 +99,7 @@ await check('change shape keeps size and swaps the geometry', async () => {
   await page.getByRole('tab', { name: /Formato de forma/ }).click();
   await page.getByRole('button', { name: /Cambiar forma/ }).click();
   await shot('change-shape-gallery');
-  await page.locator('.sl-shapegrid button[aria-label=triangle]').click();
+  await page.locator('[data-shape="triangle"]').click();
   await settle();
   const after = await ev(() => { const c = window.__novaSlides.ctl; return { x: c.xfrmOf(c.selected[0]), g: c.selected[0].geom }; });
   assert.equal(after.g.prst, 'triangle');

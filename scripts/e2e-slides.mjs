@@ -135,7 +135,7 @@ await check('bullets, levels and numbering in a content placeholder', async () =
 await check('draw shapes, move, resize and rotate (each one undo step), and undo/redo', async () => {
   await tab('Inicio');
   await btn('Formas');
-  await page.locator('.sl-shapes button[aria-label="ellipse"]').click();
+  await page.locator('[data-shape="ellipse"]').click();
   const a = await at(100, 300);
   const b = await at(260, 420);
   await page.mouse.move(a.x, a.y);

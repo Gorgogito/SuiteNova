@@ -1,3 +1,4 @@
+import { isLineKind, resolveKind } from '@suitenova/shapes-core';
 import { normRect, rectContains, type Rect } from './addr';
 import { evaluate } from './evaluator';
 import { adjustForStructure, printFormula, shiftRefs, type StructureChange } from './formula';
@@ -285,7 +286,8 @@ export interface SheetImage {
 }
 
 // ------------------------------------------------------------------------------------------------ shapes and text boxes
-export type ShapeKind = 'rect' | 'roundRect' | 'ellipse' | 'triangle' | 'diamond' | 'rightArrow' | 'leftArrow' | 'line' | 'textBox';
+/** A DrawingML preset (`rect`, `star5`…; see `@suitenova/shapes-core`) or `textBox`, the borderless box meant for text. */
+export type ShapeKind = string;
 export const SHAPE_KINDS: ShapeKind[] = ['rect', 'roundRect', 'ellipse', 'triangle', 'diamond', 'rightArrow', 'leftArrow', 'line', 'textBox'];
 
 export interface SheetShape {
@@ -318,36 +320,11 @@ export const SHAPE_LINE = '#2f528f';
 
 /** What a shape looks like when nothing is set: filled boxes like Excel's, a bare text box, an accent line. */
 export function shapeLook(s: SheetShape): { fill: string | null; line: { color: string; width: number } | null } {
-  const textBox = s.kind === 'textBox';
-  const isLine = s.kind === 'line';
+  const textBox = resolveKind(s.kind) === 'textbox';
+  const isLine = isLineKind(s.kind);
   const fill = s.fill !== undefined ? s.fill : textBox || isLine ? null : SHAPE_FILL;
   const line = s.line === null ? null : { color: s.line?.color ?? (textBox ? '#7f7f7f' : isLine ? SHAPE_LINE : SHAPE_LINE), width: s.line?.width ?? (isLine ? 2 : 1) };
   return { fill, line };
-}
-
-/** SVG path (in a w × h box) of a shape's outline. */
-export function shapePath(kind: ShapeKind, w: number, h: number, flip = false): string {
-  const f = (n: number) => String(Math.round(n * 100) / 100);
-  switch (kind) {
-    case 'ellipse':
-      return `M0,${f(h / 2)} A${f(w / 2)},${f(h / 2)} 0 1 0 ${f(w)},${f(h / 2)} A${f(w / 2)},${f(h / 2)} 0 1 0 0,${f(h / 2)} Z`;
-    case 'roundRect': {
-      const r = Math.min(w, h) / 6;
-      return `M${f(r)},0 H${f(w - r)} A${f(r)},${f(r)} 0 0 1 ${f(w)},${f(r)} V${f(h - r)} A${f(r)},${f(r)} 0 0 1 ${f(w - r)},${f(h)} H${f(r)} A${f(r)},${f(r)} 0 0 1 0,${f(h - r)} V${f(r)} A${f(r)},${f(r)} 0 0 1 ${f(r)},0 Z`;
-    }
-    case 'triangle':
-      return `M${f(w / 2)},0 L${f(w)},${f(h)} L0,${f(h)} Z`;
-    case 'diamond':
-      return `M${f(w / 2)},0 L${f(w)},${f(h / 2)} L${f(w / 2)},${f(h)} L0,${f(h / 2)} Z`;
-    case 'rightArrow':
-      return `M0,${f(h / 4)} L${f(w / 2)},${f(h / 4)} L${f(w / 2)},0 L${f(w)},${f(h / 2)} L${f(w / 2)},${f(h)} L${f(w / 2)},${f((3 * h) / 4)} L0,${f((3 * h) / 4)} Z`;
-    case 'leftArrow':
-      return `M${f(w)},${f(h / 4)} L${f(w / 2)},${f(h / 4)} L${f(w / 2)},0 L0,${f(h / 2)} L${f(w / 2)},${f(h)} L${f(w / 2)},${f((3 * h) / 4)} L${f(w)},${f((3 * h) / 4)} Z`;
-    case 'line':
-      return flip ? `M${f(w)},0 L0,${f(h)}` : `M0,0 L${f(w)},${f(h)}`;
-    default:
-      return `M0,0 H${f(w)} V${f(h)} H0 Z`;
-  }
 }
 
 let shapeCounter = 0;

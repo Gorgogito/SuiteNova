@@ -35,6 +35,7 @@ import {
   type TableDef,
   type Workbook,
 } from '@suitenova/calc-engine';
+import { isLineKind } from '@suitenova/shapes-core';
 import { PIVOT_LABELS_EN, PIVOT_LABELS_ES, newShapeId, type SheetShape, type ShapeKind } from '@suitenova/calc-engine';
 import type { CalcDoc } from './doc';
 
@@ -286,8 +287,8 @@ export class DocObjects {
     if (!this.d.prot.allowed('objects')) return '';
     this.d.commitIfEditing();
     const { row, col } = this.d.sel.active;
-    const size: Record<ShapeKind, [number, number]> = { rect: [140, 80], roundRect: [140, 80], ellipse: [120, 90], triangle: [110, 90], diamond: [110, 90], rightArrow: [140, 70], leftArrow: [140, 70], line: [160, 60], textBox: [170, 60] };
-    const [width, height] = size[kind];
+    const size: Record<string, [number, number]> = { ellipse: [120, 90], triangle: [110, 90], diamond: [110, 90], rightArrow: [140, 70], leftArrow: [140, 70], textBox: [170, 60] };
+    const [width, height] = size[kind] ?? (isLineKind(kind) ? [160, 60] : [140, 80]);
     const shape: SheetShape = { id: newShapeId(), kind, x: colOffsetPx(this.sheet, col) + 12, y: rowOffsetPx(this.sheet, row) + 12, width, height, ...(kind === 'textBox' ? { text: 'Texto' } : {}) };
     this.d.run('Insertar forma', () => this.wb.editObjects(this.id, (s) => void s.shapes.push(shape)));
     this.selectObject('shape', shape.id);

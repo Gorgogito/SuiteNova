@@ -6,7 +6,8 @@ import { EMU_PER_PX, emptyWriterDoc, makeSection, twipsToPt, type CommentData, t
 import { defaultSection, newSectionId, noRefs, oneColumn, type Columns, type HFRefs, type SectionProps } from '../sections';
 import { fromOMML, toTex } from '../math';
 import { noteBodyOf } from '../notes';
-import { PRST_SHAPE, parseFieldInstr } from './shared';
+import { hasPreset } from '@suitenova/shapes-core';
+import { parseFieldInstr } from './shared';
 import { attrOf, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOfNode, toggle, type XNode } from './xml';
 
 // ---------- property bags ----------
@@ -866,8 +867,8 @@ class Converter {
     const geom = findKid(spPr, 'prstGeom');
     const prst = attrOf(geom ?? {}, 'prst') ?? 'rect';
     const isTxBox = !!attrOf(findKid(wsp, 'cNvSpPr') ?? {}, 'txBox');
-    let kind = PRST_SHAPE[prst] ?? 'rect';
-    if (!PRST_SHAPE[prst] && prst !== 'rect') this.warn(`La forma "${prst}" se muestra como un rectángulo.`);
+    let kind = hasPreset(prst) ? prst : 'rect';
+    if (!hasPreset(prst)) this.warn(`La forma "${prst}" se muestra como un rectángulo.`);
     if (isTxBox && kind === 'rect') kind = 'textbox';
     const colorOf = (n: XNode | undefined): string | null => {
       const sf = n && findKid(n, 'solidFill');

@@ -1,13 +1,11 @@
 /** Formas y cuadros de texto de la hoja (`xdr:sp` y `xdr:cxnSp` del dibujo de SpreadsheetML). */
 import { SHAPE_FILL, SHAPE_LINE, type SheetShape, type ShapeKind } from '@suitenova/calc-engine';
+import { hasPreset, isLineKind, presetOf } from '@suitenova/shapes-core';
 import { resolveColor } from './colors';
 import { asArray, attr, escapeXml, textOf, type XNode } from './xml';
 
 const EMU = 9525;
 const hex = (c: string) => c.replace('#', '').toUpperCase();
-
-const PRST: Record<ShapeKind, string> = { rect: 'rect', roundRect: 'roundRect', ellipse: 'ellipse', triangle: 'triangle', diamond: 'diamond', rightArrow: 'rightArrow', leftArrow: 'leftArrow', line: 'line', textBox: 'rect' };
-const KIND_FROM_PRST: Record<string, ShapeKind> = { rect: 'rect', roundRect: 'roundRect', ellipse: 'ellipse', triangle: 'triangle', diamond: 'diamond', rightArrow: 'rightArrow', leftArrow: 'leftArrow', line: 'line', straightConnector1: 'line' };
 
 const fillXml = (fill: string | null | undefined): string => (fill === undefined ? '' : fill === null ? '<a:noFill/>' : `<a:solidFill><a:srgbClr val="${hex(fill)}"/></a:solidFill>`);
 const lineXml = (line: SheetShape['line']): string =>
@@ -28,8 +26,8 @@ function textXml(s: SheetShape): string {
 export function shapeBodyXml(s: SheetShape, id: number): string {
   const name = escapeXml(s.name ?? `Forma ${id - 1}`);
   const xfrm = `<a:xfrm${s.flip ? ' flipH="1"' : ''}><a:off x="0" y="0"/><a:ext cx="${Math.round(s.width * EMU)}" cy="${Math.round(s.height * EMU)}"/></a:xfrm>`;
-  const geom = `<a:prstGeom prst="${PRST[s.kind]}"><a:avLst/></a:prstGeom>`;
-  if (s.kind === 'line') {
+  const geom = `<a:prstGeom prst="${presetOf(s.kind)}"><a:avLst/></a:prstGeom>`;
+  if (isLineKind(s.kind)) {
     return `<xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="${id}" name="${name}"${s.alt ? ` descr="${escapeXml(s.alt)}"` : ''}/><xdr:cNvCxnSpPr/></xdr:nvCxnSpPr><xdr:spPr>${xfrm}${geom}${lineXml(s.line === undefined ? { color: SHAPE_LINE, width: 2 } : s.line)}</xdr:spPr></xdr:cxnSp>`;
   }
   const hasText = !!s.text || s.kind === 'textBox';
@@ -50,7 +48,8 @@ export function parseShape(a: XNode, theme: string[]): { shape: Omit<SheetShape,
   const spPr = sp.spPr;
   const prst = attr(spPr?.prstGeom, 'prst') ?? 'rect';
   const isCxn = a.cxnSp !== undefined && a.sp === undefined;
-  const known = KIND_FROM_PRST[prst];
+  // las 187 geometrías de DrawingML se conservan por su nombre; un conector recto es una línea
+  const known: ShapeKind | undefined = prst === 'straightConnector1' ? 'line' : hasPreset(prst) ? prst : undefined;
   const txBox = attr((sp.nvSpPr ?? {}).cNvSpPr, 'txBox') === '1';
   let kind: ShapeKind = known ?? (isCxn ? 'line' : 'rect');
   if (kind === 'rect' && txBox) kind = 'textBox';
@@ -68,7 +67,7 @@ export function parseShape(a: XNode, theme: string[]): { shape: Omit<SheetShape,
   // relleno: explícito, sin relleno, o el del estilo por omisión de Excel
   if (spPr?.noFill !== undefined) out.fill = null;
   else if (spPr?.solidFill !== undefined) out.fill = color(spPr.solidFill) ?? SHAPE_FILL;
-  else if (sp.style !== undefined && kind !== 'line' && kind !== 'textBox') out.fill = SHAPE_FILL;
+  else if (sp.style !== undefined && !isLineKind(kind) && kind !== 'textBox') out.fill = SHAPE_FILL;
   const ln = spPr?.ln;
   if (ln?.noFill !== undefined) out.line = null;
   else if (ln || sp.style !== undefined) {
@@ -76,7 +75,7 @@ export function parseShape(a: XNode, theme: string[]): { shape: Omit<SheetShape,
     const c = color(ln?.solidFill) ?? (sp.style !== undefined ? SHAPE_LINE : undefined);
     out.line = { ...(c ? { color: c } : {}), ...(w > 0 ? { width: Math.round(w * 4) / 4 } : {}) };
   }
-  if (attr(spPr?.xfrm, 'flipH') === '1' && kind === 'line') out.flip = true;
+  if (attr(spPr?.xfrm, 'flipH') === '1' && isLineKind(kind)) out.flip = true;
   const nv = (sp.nvSpPr ?? sp.nvCxnSpPr)?.cNvPr;
   const name = attr(nv, 'name');
   if (name) out.name = name;

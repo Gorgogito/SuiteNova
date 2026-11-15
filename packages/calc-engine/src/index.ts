@@ -50,7 +50,6 @@ export {
   SHAPE_LINE,
   newShapeId,
   shapeLook,
-  shapePath,
   type SheetName,
   type SlicerDef,
   type SparklineGroup,

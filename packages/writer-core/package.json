@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@suitenova/shapes-core": "workspace:*",
     "fast-xml-parser": "^5.2.0",
     "jszip": "^3.10.1",
     "prosemirror-commands": "^1.7.0",

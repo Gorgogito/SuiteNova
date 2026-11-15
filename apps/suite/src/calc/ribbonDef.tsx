@@ -441,7 +441,7 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
     ],
   };
 
-  const insertAll = insertGroups();
+  const insertAll = insertGroups(ui);
   const insert: RibbonTab = {
     id: 'insert',
     label: 'Insertar',

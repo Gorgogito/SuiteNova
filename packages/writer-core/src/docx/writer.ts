@@ -7,7 +7,8 @@ import { EMU_PER_PX, ptToTwips, sectionPropsOf, type CommentData, type WriteResu
 import { columnWidths, noRefs, type SectionProps } from '../sections';
 import { resolvePart } from '../layout';
 import { parseMath, toOMML } from '../math';
-import { REL, SHAPE_PRST, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml } from './shared';
+import { presetOf, resolveKind } from '@suitenova/shapes-core';
+import { REL, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml } from './shared';
 import { commentsExtendedXml, commentsXml, customXmlParts, footnotesXml, settingsXml, watermarkParagraph, type NoteOut } from './writer-parts';
 
 const NUM_FMT: Record<ListFormat, string> = { decimal: 'decimal', lowerLetter: 'lowerLetter', upperLetter: 'upperLetter', lowerRoman: 'lowerRoman', upperRoman: 'upperRoman' };
@@ -226,8 +227,8 @@ function shapeXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string 
   const w = Math.round(a.width * EMU_PER_PX);
   const h = Math.round(a.height * EMU_PER_PX);
   const id = ctx.docPrId++;
-  const prst = SHAPE_PRST[a.kind] ?? 'rect';
-  const isText = a.kind === 'textbox';
+  const prst = presetOf(a.kind);
+  const isText = resolveKind(a.kind) === 'textbox';
   const fill = isText && a.fill === '#ffffff' ? '<a:noFill/>' : `<a:solidFill><a:srgbClr val="${hex(a.fill)}"/></a:solidFill>`;
   const line = isText && a.stroke === '#000000' && a.strokeWidth === 0 ? '<a:ln><a:noFill/></a:ln>' : `<a:ln w="${Math.round(a.strokeWidth * 9525)}"><a:solidFill><a:srgbClr val="${hex(a.stroke)}"/></a:solidFill></a:ln>`;
   let content = '';

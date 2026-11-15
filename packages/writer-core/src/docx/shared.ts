@@ -52,29 +52,6 @@ export function hex(c: string): string {
 
 // ---------------------------------------------------------------------------------------------------- shapes
 
-/** Preset geometry of DrawingML for each shape kind of the editor. */
-export const SHAPE_PRST: Record<string, string> = {
-  rect: 'rect',
-  textbox: 'rect',
-  roundRect: 'roundRect',
-  ellipse: 'ellipse',
-  triangle: 'triangle',
-  rightTriangle: 'rtTriangle',
-  diamond: 'diamond',
-  pentagon: 'pentagon',
-  hexagon: 'hexagon',
-  star5: 'star5',
-  rightArrow: 'rightArrow',
-  leftArrow: 'leftArrow',
-  upArrow: 'upArrow',
-  downArrow: 'downArrow',
-  line: 'line',
-  callout: 'wedgeRectCallout',
-  cloud: 'cloud',
-  heart: 'heart',
-};
-export const PRST_SHAPE: Record<string, string> = Object.fromEntries(Object.entries(SHAPE_PRST).filter(([k]) => k !== 'textbox').map(([k, v]) => [v, k]));
-
 // ---------------------------------------------------------------------------------------------------- fields
 
 export interface FieldSpec {

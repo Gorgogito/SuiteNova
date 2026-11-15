@@ -1,6 +1,8 @@
 import { Popover, PopoverSurface, PopoverTrigger } from '@fluentui/react-components';
 import { Icon, t } from '@suitenova/core-ui';
-import { clrCss, geometryOf, presetNames, type Clr, type Effects, type Fill, type Ln, type RunProps, type SlideElement } from '@suitenova/slides-core';
+import { isLineKind, SHAPE_CATEGORIES } from '@suitenova/shapes-core';
+import { ShapeGallery } from '../shapes/ShapeGallery';
+import { clrCss, geometryOf, type Clr, type Effects, type Fill, type Ln, type RunProps, type SlideElement } from '@suitenova/slides-core';
 import { ChevronDown } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { FONT_NAMES, FONT_SIZES, type SlidesUI } from './commands';
@@ -139,19 +141,6 @@ export function Gallery({ label, icon, size = 'large', children, wide, iconOnly 
 
 // ------------------------------------------------------------------------------------------------ shapes gallery
 
-const SHAPE_GROUPS: { title: string; shapes: string[] }[] = [
-  { title: 'Líneas', shapes: ['line', 'straightConnector1', 'bentConnector3', 'curvedConnector3'] },
-  { title: 'Rectángulos', shapes: ['rect', 'roundRect', 'snip1Rect', 'snip2SameRect', 'snipRoundRect', 'round1Rect', 'round2SameRect'] },
-  { title: 'Formas básicas', shapes: ['ellipse', 'triangle', 'rtTriangle', 'diamond', 'parallelogram', 'trapezoid', 'pentagon', 'hexagon', 'heptagon', 'octagon', 'decagon', 'dodecagon', 'pie', 'chord', 'teardrop', 'frame', 'halfFrame', 'corner', 'diagStripe', 'plus', 'plaque', 'can', 'cube', 'bevel', 'donut', 'noSmoking', 'blockArc', 'foldedCorner', 'smileyFace', 'heart', 'lightningBolt', 'sun', 'moon', 'cloud', 'arc', 'bracketPair', 'bracePair', 'leftBracket', 'rightBracket', 'leftBrace', 'rightBrace'] },
-  { title: 'Flechas de bloque', shapes: ['rightArrow', 'leftArrow', 'upArrow', 'downArrow', 'leftRightArrow', 'upDownArrow', 'quadArrow', 'leftRightUpArrow', 'bentArrow', 'uturnArrow', 'leftUpArrow', 'bentUpArrow', 'curvedRightArrow', 'curvedLeftArrow', 'curvedUpArrow', 'curvedDownArrow', 'stripedRightArrow', 'notchedRightArrow', 'homePlate', 'chevron', 'rightArrowCallout', 'leftArrowCallout', 'upArrowCallout', 'downArrowCallout', 'circularArrow'] },
-  { title: 'Formas de ecuación', shapes: ['mathPlus', 'mathMinus', 'mathMultiply', 'mathDivide', 'mathEqual', 'mathNotEqual'] },
-  { title: 'Diagrama de flujo', shapes: ['flowChartProcess', 'flowChartAlternateProcess', 'flowChartDecision', 'flowChartInputOutput', 'flowChartPredefinedProcess', 'flowChartInternalStorage', 'flowChartDocument', 'flowChartMultidocument', 'flowChartTerminator', 'flowChartPreparation', 'flowChartManualInput', 'flowChartManualOperation', 'flowChartConnector', 'flowChartOffpageConnector', 'flowChartPunchedCard', 'flowChartPunchedTape', 'flowChartSummingJunction', 'flowChartOr', 'flowChartCollate', 'flowChartSort', 'flowChartExtract', 'flowChartMerge', 'flowChartOnlineStorage', 'flowChartDelay', 'flowChartMagneticTape', 'flowChartMagneticDisk', 'flowChartMagneticDrum', 'flowChartDisplay'] },
-  { title: 'Estrellas y cintas', shapes: ['star4', 'star5', 'star6', 'star7', 'star8', 'star10', 'star12', 'star16', 'star24', 'star32', 'irregularSeal1', 'irregularSeal2', 'ribbon', 'ribbon2', 'ellipseRibbon', 'ellipseRibbon2', 'verticalScroll', 'horizontalScroll', 'wave', 'doubleWave'] },
-  { title: 'Llamadas', shapes: ['wedgeRectCallout', 'wedgeRoundRectCallout', 'wedgeEllipseCallout', 'cloudCallout', 'borderCallout1', 'borderCallout2', 'borderCallout3', 'accentCallout1', 'accentCallout2', 'accentCallout3', 'callout1', 'callout2', 'callout3', 'accentBorderCallout1'] },
-  { title: 'Botones de acción', shapes: ['actionButtonBackPrevious', 'actionButtonForwardNext', 'actionButtonBeginning', 'actionButtonEnd', 'actionButtonHome', 'actionButtonInformation', 'actionButtonReturn', 'actionButtonMovie', 'actionButtonDocument', 'actionButtonSound', 'actionButtonHelp', 'actionButtonBlank'] },
-];
-const known = new Set(presetNames());
-
 export function ShapePreview({ prst, size = 26 }: { prst: string; size?: number }) {
   const g = geometryOf({ prst }, size - 6, size - 6);
   const isLine = /^(line|straightConnector1|bentConnector\d|curvedConnector\d)$/.test(prst);
@@ -166,44 +155,20 @@ export function ShapePreview({ prst, size = 26 }: { prst: string; size?: number 
 
 export function ShapesGallery({ ui, label = 'Formas', size = 'large' as 'large' | 'small', icon = 'shape-rect', onPick, onlyShapes, iconOnly }: { ui: SlidesUI; label?: string; size?: 'large' | 'small'; iconOnly?: boolean; icon?: string; onPick?: (prst: string) => void; onlyShapes?: boolean }) {
   const c = useUi(ui);
+  const categories = onlyShapes ? SHAPE_CATEGORIES.filter((g) => g.id !== 'lines').map((g) => g.id) : undefined;
   return (
-    <Gallery label={t(label)} icon={icon} size={size} wide iconOnly={iconOnly}>
-      {(close) => (
-        <div className="sl-shapes" role="menu" aria-label={t('Formas')}>
-          {SHAPE_GROUPS.filter((g) => !onlyShapes || g.title !== 'Líneas').map((g) => (
-            <div key={g.title}>
-              <div className="sl-swatchtitle">{t(g.title)}</div>
-              <div className="sl-shapegrid">
-                {g.shapes
-                  .filter((s) => known.has(s))
-                  .map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      role="menuitem"
-                      title={s}
-                      aria-label={s}
-                      onClick={() => {
-                        if (onPick) {
-                          onPick(s);
-                          close();
-                          c.containerFocus?.();
-                          return;
-                        }
-                        c.setTool(/^(line|straightConnector1|bentConnector\d|curvedConnector\d)$/.test(s) ? { kind: 'line', prst: s } : { kind: 'shape', prst: s });
-                        close();
-                        c.containerFocus?.();
-                      }}
-                    >
-                      <ShapePreview prst={s} />
-                    </button>
-                  ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Gallery>
+    <ShapeGallery
+      label={label}
+      icon={icon}
+      size={size}
+      iconOnly={iconOnly}
+      categories={categories}
+      onPick={(s) => {
+        if (onPick) onPick(s);
+        else c.setTool(isLineKind(s) ? { kind: 'line', prst: s } : { kind: 'shape', prst: s });
+        c.containerFocus?.();
+      }}
+    />
   );
 }
 

@@ -1,4 +1,5 @@
-import { listChoices, shapeLook, shapePath, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
+import { isLineKind, shapeSvg } from '@suitenova/shapes-core';
+import { listChoices, shapeLook, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { Check, FilterX, ListChecks } from 'lucide-react';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
@@ -149,15 +150,15 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit 
   return (
     <div
       className={`calc-shape ${selected ? 'is-selected' : ''}`}
-      style={{ left: rect.x, top: rect.y, width: w, height: s.kind === 'line' ? Math.max(h, 6) : h }}
+      style={{ left: rect.x, top: rect.y, width: w, height: isLineKind(s.kind) ? Math.max(h, 6) : h }}
       data-shape-id={s.id}
       role="img"
       aria-label={s.alt ?? s.name ?? s.text ?? t('Forma')}
       onPointerDown={(e) => (editing ? e.stopPropagation() : onDown(e, 'move'))}
-      onDoubleClick={() => s.kind !== 'line' && onEdit()}
+      onDoubleClick={() => !isLineKind(s.kind) && onEdit()}
     >
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
-        <path d={shapePath(s.kind, w, h, s.flip)} fill={look.fill ?? 'none'} stroke={look.line?.color ?? 'none'} strokeWidth={(look.line?.width ?? 1) * zoom} strokeLinejoin="round" />
+        <g dangerouslySetInnerHTML={{ __html: shapeSvg(s.kind, w, h, { fill: look.fill, stroke: look.line?.color ?? null, strokeWidth: (look.line?.width ?? 1) * zoom, flip: s.flip }) }} />
       </svg>
       {editing ? (
         <textarea

@@ -572,3 +572,10 @@ Límites que quedan:
 - **Grupos personalizados del panel de navegación:** «Ver los objetos por: Mis grupos». Se crean grupos con nombre, se agregan objetos desde el menú contextual («Agregar al grupo…»; un objeto puede estar en varios) y se quitan; el resto queda en «Objetos sin agrupar». Los grupos se guardan en el archivo, siguen los cambios de nombre y no se llevan los objetos al eliminar un grupo. Los objetos eliminados desaparecen del grupo al mostrarlo. Sigue sin haber agrupación por fecha de creación o de modificación ni «tablas y vistas relacionadas», ni cambiar el nombre de un grupo (se elimina y se crea otro).
 - **Tablas vinculadas (a otros archivos o servidores): no existen, y no es un descuido.** Nova Base trabaja con el archivo cargado en memoria dentro de un entorno que no abre otros archivos por su cuenta: no puede mantener un vínculo vivo con un Excel, un CSV, otra base de datos SQLite o un servidor ODBC. Lo más parecido es **importar** de nuevo (Datos externos), que trae los datos otra vez a una tabla nueva; las **especificaciones de importación guardadas** tampoco existen.
 - **Otras herramientas de Access que no están:** analizador de rendimiento, analizador de tablas, base de datos dividida, convertir a otro formato, ejecutable (`.accde`), firma digital y bloqueo de edición de objetos.
+
+## Formas comunes (Slides, Calc y Writer)
+
+- Las tres aplicaciones usan **un solo catálogo** (`packages/shapes-core`, 9 categorías de formas DrawingML) y **la misma galería de la cinta**. Slides dibuja con su propio motor de geometría, que ahora vive en ese paquete.
+- Writer y Calc guardan la forma en DOCX/XLSX con el nombre del preset; los documentos de versiones anteriores con nombres antiguos (`callout`, `rightTriangle`, `textBox`) se leen como su preset actual.
+- **Sin probar con Office real:** ninguna forma escrita se ha abierto en Word, Excel ni PowerPoint. Los nombres en español de las formas cubren las más comunes; las demás se muestran con su nombre DrawingML.
+- Calc y Writer **no tienen** todavía puntos de ajuste (amarillos) ni agrupar formas (Calc tampoco rota; Writer sí rota); Slides sí tiene ajustes.

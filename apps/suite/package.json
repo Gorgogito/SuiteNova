@@ -12,6 +12,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@suitenova/shapes-core": "workspace:*",
     "@fluentui/react-components": "^9.74.9",
     "@kenjiuno/msgreader": "1.29.0",
     "@suitenova/base-core": "workspace:*",

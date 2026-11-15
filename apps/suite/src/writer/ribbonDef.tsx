@@ -8,6 +8,8 @@ import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { Command } from 'prosemirror-state';
 import { isInTable, setCellAttr } from 'prosemirror-tables';
 import { helpTab, viewTab } from '../common';
+import { ShapeGallery } from '../shapes/ShapeGallery';
+import { insertShapeKind } from './commands-objects';
 import { FONT_NAMES, FONT_SIZES, type WriterUI } from './commands';
 import { markAttr, selectionParagraph, setMark, setStyle } from './editing';
 
@@ -402,34 +404,8 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         icon: 'image',
         items: [
           { kind: 'button', command: 'writer.image', size: 'large', keytip: 'IM' },
-          {
-            kind: 'dropdown',
-            id: 'shapesMenu',
-            label: 'Formas',
-            icon: 'shapes',
-            size: 'large',
-            keytip: 'SH',
-            entries: [
-              { kind: 'command', command: 'writer.shape.textbox' },
-              { kind: 'command', command: 'writer.shape.rect' },
-              { kind: 'command', command: 'writer.shape.roundRect' },
-              { kind: 'command', command: 'writer.shape.ellipse' },
-              { kind: 'command', command: 'writer.shape.triangle' },
-              { kind: 'command', command: 'writer.shape.rightTriangle' },
-              { kind: 'command', command: 'writer.shape.diamond' },
-              { kind: 'command', command: 'writer.shape.pentagon' },
-              { kind: 'command', command: 'writer.shape.hexagon' },
-              { kind: 'command', command: 'writer.shape.star5' },
-              { kind: 'command', command: 'writer.shape.rightArrow' },
-              { kind: 'command', command: 'writer.shape.leftArrow' },
-              { kind: 'command', command: 'writer.shape.upArrow' },
-              { kind: 'command', command: 'writer.shape.downArrow' },
-              { kind: 'command', command: 'writer.shape.line' },
-              { kind: 'command', command: 'writer.shape.callout' },
-              { kind: 'command', command: 'writer.shape.cloud' },
-              { kind: 'command', command: 'writer.shape.heart' },
-            ],
-          },
+          { kind: 'custom', id: 'shapesGallery', label: 'Formas', keytip: 'SH', render: () => <ShapeGallery onPick={(k) => insertShapeKind(ui, k)} /> },
+          { kind: 'button', command: 'writer.shape.textbox', size: 'small', iconOnly: true, keytip: 'CX' },
           {
             kind: 'dropdown',
             id: 'equationMenu',

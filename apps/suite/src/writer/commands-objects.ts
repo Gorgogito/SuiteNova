@@ -1,3 +1,4 @@
+import { isLineKind, resolveKind } from '@suitenova/shapes-core';
 import type { CommandDef } from '@suitenova/core-ui';
 import { nodeTypes } from '@suitenova/writer-core';
 import { NodeSelection } from 'prosemirror-state';
@@ -33,6 +34,28 @@ export const CONTROL_KINDS: { type: ControlType; label: string; description: str
   { type: 'combo', label: 'Cuadro combinado', description: 'Permite elegir un elemento de una lista o escribir otro.' },
   { type: 'date', label: 'Selector de fecha', description: 'Permite elegir una fecha en un calendario.' },
 ];
+
+/** Puts a shape of any kind of the common catalog (or a text box) at the cursor. */
+export function insertShapeKind(ui: WriterUI, kind: string): void {
+  const v = ui.ctl.mainView;
+  if (!v) return;
+  const text = resolveKind(kind) === 'textbox';
+  const line = isLineKind(kind);
+  const node = nodeTypes.shape!.create(
+    {
+      kind,
+      width: text ? 200 : line ? 140 : 120,
+      height: text ? 80 : line ? 40 : 90,
+      fill: text ? '#ffffff' : '#bcd4f0',
+      stroke: line ? '#2b6cb0' : text ? '#000000' : '#2b6cb0',
+      strokeWidth: line ? 2 : 1,
+      id: `shape-${Date.now().toString(36)}`,
+    },
+    text ? [nodeTypes.paragraph!.create()] : undefined,
+  );
+  v.dispatch(v.state.tr.replaceSelectionWith(node, false).scrollIntoView());
+  v.focus();
+}
 
 /** Equations, shapes and content controls. */
 export function objectCommands(ui: WriterUI): CommandDef[] {
@@ -90,26 +113,7 @@ export function objectCommands(ui: WriterUI): CommandDef[] {
   );
 
   // ---- shapes
-  const insertShape = (kind: string) => {
-    const v = c.mainView;
-    if (!v) return;
-    const text = kind === 'textbox';
-    const line = kind === 'line';
-    const node = nodeTypes.shape!.create(
-      {
-        kind,
-        width: text ? 200 : line ? 140 : 120,
-        height: text ? 80 : line ? 40 : 90,
-        fill: text ? '#ffffff' : '#bcd4f0',
-        stroke: line ? '#2b6cb0' : text ? '#000000' : '#2b6cb0',
-        strokeWidth: line ? 2 : 1,
-        id: `shape-${Date.now().toString(36)}`,
-      },
-      text ? [nodeTypes.paragraph!.create()] : undefined,
-    );
-    v.dispatch(v.state.tr.replaceSelectionWith(node, false).scrollIntoView());
-    v.focus();
-  };
+  const insertShape = (kind: string) => insertShapeKind(ui, kind);
   add({ id: 'writer.shape.textbox', label: 'Cuadro de texto', icon: 'textbox', description: 'Dibuja un cuadro donde se puede escribir texto.', enabled: ready, run: () => insertShape('textbox') });
   for (const s of SHAPE_KINDS) add({ id: `writer.shape.${s.id}`, label: s.label, icon: 'shapes', enabled: ready, run: () => insertShape(s.id) });
   add({ id: 'writer.shape.format', label: 'Formato de forma…', icon: 'settings', enabled: () => ready() && !!selectedShape(), run: () => { const s = selectedShape(); if (s) ui.openDialog('shape', s); } });

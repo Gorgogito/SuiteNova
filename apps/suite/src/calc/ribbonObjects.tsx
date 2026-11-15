@@ -1,4 +1,5 @@
 import type { RibbonGroup, RibbonItem, RibbonTab } from '@suitenova/core-ui';
+import { ShapeGallery } from '../shapes/ShapeGallery';
 import { CHART_PRESETS } from './chartPresets';
 import type { CalcUI } from './commands';
 import { TableNameField } from './dlg-table';
@@ -32,7 +33,7 @@ export function chartEntries(prefix: 'calc.chart.' | 'calc.chartType.'): Entry[]
 }
 
 /** Groups added to the Insert tab. */
-export function insertGroups(): RibbonGroup[] {
+export function insertGroups(ui: CalcUI): RibbonGroup[] {
   return [
     {
       id: 'tables',
@@ -49,7 +50,7 @@ export function insertGroups(): RibbonGroup[] {
       icon: 'picture',
       items: [
         { kind: 'button', command: 'calc.picture', size: 'large', keytip: 'IM' },
-        { kind: 'dropdown', id: 'shapesMenu', label: 'Formas', icon: 'shapes', size: 'large', keytip: 'OF', entries: ['rect', 'roundRect', 'ellipse', 'triangle', 'diamond', 'rightArrow', 'leftArrow', 'line'].map((k) => cmd(`calc.shape.${k}`)) },
+        { kind: 'custom', id: 'shapesGallery', label: 'Formas', keytip: 'OF', render: () => <ShapeGallery onPick={(k) => void ui.doc.x.insertShape(k)} /> },
         { kind: 'button', command: 'calc.textbox', size: 'large', keytip: 'QT' },
       ],
     },
