@@ -423,3 +423,26 @@
   cursor: grab;
   z-index: 3;
 }
+.calc-shape__rot {
+  position: absolute;
+  left: 50%;
+  top: -26px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--nv-accent);
+  cursor: grab;
+  z-index: 3;
+}
+.calc-shape__rot::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 8px;
+  width: 1px;
+  height: 12px;
+  background: var(--nv-accent);
+}

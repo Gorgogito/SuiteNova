@@ -306,6 +306,8 @@ export interface SheetShape {
   flip?: boolean;
   /** Valores de ajuste de la forma (los tiradores amarillos), como en `a:avLst` de DrawingML; ausente = los de la forma por omisión. */
   adj?: Record<string, number>;
+  /** Giro en grados (0–359, sentido horario) alrededor del centro; ausente = 0. */
+  rotation?: number;
   text?: string;
   textColor?: string;
   fontSize?: number;

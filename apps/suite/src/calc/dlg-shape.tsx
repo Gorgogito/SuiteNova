@@ -1,6 +1,7 @@
 import { Button, Checkbox, Input, Select, Textarea } from '@fluentui/react-components';
 import { SHAPE_FILL, SHAPE_LINE, shapeLook, type SheetShape } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
+import { isLineKind } from '@suitenova/shapes-core';
 import { useState } from 'react';
 import type { CalcUI } from './commands';
 import { Modal, field, row2 } from './modal';
@@ -13,7 +14,7 @@ export function ShapeFormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => 
   if (!shape || !s) return null;
   const look = shapeLook(s);
   const set = (patch: Partial<SheetShape>) => setS((x) => (x ? { ...x, ...patch } : x));
-  const isLine = s.kind === 'line';
+  const isLine = isLineKind(s.kind);
   return (
     <Modal
       title={t('Formato de forma')}
@@ -100,6 +101,10 @@ export function ShapeFormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => 
           </div>
         </>
       )}
+      <div style={field}>
+        <label htmlFor="sh-rot">{t('Rotación (grados)')}</label>
+        <Input id="sh-rot" type="number" style={{ width: 90 }} min={0} max={359} value={String(s.rotation ?? 0)} onChange={(_e, v) => set({ rotation: ((((Number(v.value) || 0) % 360) + 360) % 360) || undefined })} />
+      </div>
       <div style={field}>
         <label htmlFor="sh-name">{t('Nombre')}</label>
         <Input id="sh-name" value={s.name ?? ''} onChange={(_e, v) => set({ name: v.value || undefined })} />

@@ -155,6 +155,62 @@ await check('puntos de ajuste: el tirador amarillo cambia la esquina, se deshace
   assert.equal(await page.locator(`[data-shape-id="${line}"] .calc-shape__adj`).count(), 0);
 });
 
+await check('rotación: asa, comandos Girar, cuadro de formato, redimensionar girada y deshacer', async () => {
+  const id = await ev(() => {
+    const d = window.__novaCalc.doc;
+    const i = d.x.insertShape('rect');
+    d.x.selectObject('shape', i);
+    return i;
+  });
+  await page.waitForTimeout(300);
+  const rotOf = async () => (await shapes()).find((x) => x.id === id).rotation;
+  // asa de giro: arrastrar a la derecha del centro = 90°
+  const box = await page.locator(`[data-shape-id="${id}"]`).boundingBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const h = await page.locator(`[data-shape-id="${id}"] .calc-shape__rot`).boundingBox();
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.keyboard.down('Shift');
+  await page.mouse.move(cx + 120, cy + 3, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  await page.waitForTimeout(300);
+  assert.equal(await rotOf(), 90);
+  assert.ok((await page.locator(`[data-shape-id="${id}"]`).getAttribute('style')).includes('rotate(90deg)'));
+  await shot('girada');
+  // comandos de la cinta (la pestaña contextual de la forma ya está activa)
+  await page.locator('[data-nv-item="calc.shape.rotateRight"]').click();
+  await page.waitForTimeout(250);
+  assert.equal(await rotOf(), 180);
+  await page.locator('[data-nv-item="calc.shape.rotateLeft"]').click();
+  await page.waitForTimeout(250);
+  assert.equal(await rotOf(), 90);
+  // deshacer devuelve al paso anterior
+  await ev(() => window.__novaCalc.doc.undo());
+  assert.equal(await rotOf(), 180);
+  // redimensionar girada: el ancho sigue los ejes de la forma
+  await ev(() => window.__novaCalc.doc.x.updateShape(window.__novaCalc.doc.sheet.shapes.find((x) => x.rotation === 180).id, { rotation: 90 }));
+  await page.waitForTimeout(250);
+  const before = (await shapes()).find((x) => x.id === id);
+  const se = await page.locator(`[data-shape-id="${id}"] .calc-chart__handle--e`).boundingBox();
+  await page.mouse.move(se.x + se.width / 2, se.y + se.height / 2);
+  await page.mouse.down();
+  // girada 90°, el lado «este» de la forma está abajo en pantalla: arrastrar hacia abajo la ensancha
+  await page.mouse.move(se.x + se.width / 2, se.y + se.height / 2 + 40, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const after = (await shapes()).find((x) => x.id === id);
+  assert.ok(after.width > before.width + 30, `ancho ${before.width} -> ${after.width}`);
+  assert.equal(after.height, before.height);
+  // cuadro de formato: campo Rotación
+  await page.locator('[data-nv-item="calc.shape.format"]').click();
+  await page.getByLabel('Rotación (grados)').fill('45');
+  await page.getByRole('button', { name: 'Aceptar' }).click();
+  await page.waitForTimeout(400);
+  assert.equal(await rotOf(), 45);
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors.filter((e) => !/Keyborg/.test(e)), []);
 });

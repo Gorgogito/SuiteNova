@@ -402,6 +402,7 @@ export function contextualTabs(ui: CalcUI, f: ContextFlags): RibbonTab[] {
     contextual: { label: 'Herramientas de dibujo', color: '#0f766e', visible: f.shape },
     groups: [
       { id: 'shapeFormat', label: 'Estilos de forma', icon: 'settings', items: [{ kind: 'button', command: 'calc.shape.format', size: 'large', keytip: 'FO' }] },
+      { id: 'shapeArrange', label: 'Organizar', icon: 'shapes', items: [{ kind: 'button', command: 'calc.shape.rotateRight', size: 'small', keytip: 'GD' }, { kind: 'button', command: 'calc.shape.rotateLeft', size: 'small', keytip: 'GI' }] },
       { id: 'shapeActions', label: 'Acciones', icon: 'trash', items: [{ kind: 'button', command: 'calc.shape.delete', size: 'large', keytip: 'EF' }] },
     ],
   };

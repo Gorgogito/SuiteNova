@@ -92,6 +92,12 @@ export function objectCommands(ui: CalcUI): CommandDef[] {
   for (const [kind, label] of shapeKinds) add({ id: `calc.shape.${kind}`, label, icon: kind === 'line' ? 'ruler' : 'shapes', enabled: () => !editing(), run: () => void x.insertShape(kind) });
   add({ id: 'calc.textbox', label: 'Cuadro de texto', icon: 'textbox', description: 'Inserta un cuadro para escribir texto sobre la hoja. Doble clic para editar el texto.', enabled: () => !editing(), run: () => void x.insertShape('textBox') });
   add({ id: 'calc.shape.format', label: 'Formato de forma…', icon: 'settings', enabled: () => !!x.selectedShape, run: () => ui.openDialog('shapeFormat') });
+  const turnShape = (by: number) => {
+    const s = x.selectedShape ? d.sheet.shapes.find((o) => o.id === x.selectedShape) : undefined;
+    if (s) x.updateShape(s.id, { rotation: ((((s.rotation ?? 0) + by) % 360) + 360) % 360 || undefined }, 'Girar forma');
+  };
+  add({ id: 'calc.shape.rotateRight', label: 'Girar a la derecha', icon: 'redo', description: 'Gira la forma 90° en el sentido de las agujas del reloj.', enabled: () => !!x.selectedShape, run: () => turnShape(90) });
+  add({ id: 'calc.shape.rotateLeft', label: 'Girar a la izquierda', icon: 'undo', description: 'Gira la forma 90° en sentido contrario a las agujas del reloj.', enabled: () => !!x.selectedShape, run: () => turnShape(-90) });
   add({ id: 'calc.shape.delete', label: 'Eliminar forma', icon: 'trash', hint: 'Supr', enabled: () => !!x.selectedShape, run: () => x.selectedShape && x.deleteShape(x.selectedShape) });
 
   // ---- pictures

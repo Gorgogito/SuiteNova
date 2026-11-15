@@ -25,7 +25,7 @@ function textXml(s: SheetShape): string {
 /** Cuerpo de un ancla de dibujo para una forma; `w` y `h` son el tamaño en píxeles. */
 export function shapeBodyXml(s: SheetShape, id: number): string {
   const name = escapeXml(s.name ?? `Forma ${id - 1}`);
-  const xfrm = `<a:xfrm${s.flip ? ' flipH="1"' : ''}><a:off x="0" y="0"/><a:ext cx="${Math.round(s.width * EMU)}" cy="${Math.round(s.height * EMU)}"/></a:xfrm>`;
+  const xfrm = `<a:xfrm${s.rotation ? ` rot="${Math.round(s.rotation * 60000)}"` : ''}${s.flip ? ' flipH="1"' : ''}><a:off x="0" y="0"/><a:ext cx="${Math.round(s.width * EMU)}" cy="${Math.round(s.height * EMU)}"/></a:xfrm>`;
   const geom = `<a:prstGeom prst="${presetOf(s.kind)}">${avLstXml(s.adj)}</a:prstGeom>`;
   if (isLineKind(s.kind)) {
     return `<xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="${id}" name="${name}"${s.alt ? ` descr="${escapeXml(s.alt)}"` : ''}/><xdr:cNvCxnSpPr/></xdr:nvCxnSpPr><xdr:spPr>${xfrm}${geom}${lineXml(s.line === undefined ? { color: SHAPE_LINE, width: 2 } : s.line)}</xdr:spPr></xdr:cxnSp>`;
@@ -76,6 +76,8 @@ export function parseShape(a: XNode, theme: string[]): { shape: Omit<SheetShape,
     out.line = { ...(c ? { color: c } : {}), ...(w > 0 ? { width: Math.round(w * 4) / 4 } : {}) };
   }
   if (attr(spPr?.xfrm, 'flipH') === '1' && isLineKind(kind)) out.flip = true;
+  const rot = (((num(attr(spPr?.xfrm, 'rot')) / 60000) % 360) + 360) % 360;
+  if (rot > 0.05) out.rotation = Math.round(rot * 10) / 10;
   const adj: Record<string, number> = {};
   for (const g of asArray(spPr?.prstGeom?.avLst?.gd)) {
     const p = parseGuide(attr(g, 'name'), attr(g, 'fmla'));

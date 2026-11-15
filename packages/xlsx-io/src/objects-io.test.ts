@@ -400,6 +400,16 @@ describe('shapes and text boxes', () => {
     expect(r.warnings.join(' ')).not.toMatch(/geometría/);
   });
 
+  it('writes and reads the rotation of a shape', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.editObjects(id, (sh) => void sh.shapes.push({ id: 'a', kind: 'rect', x: 10, y: 10, width: 100, height: 60, rotation: 45 } as never, { id: 'b', kind: 'rect', x: 10, y: 90, width: 100, height: 60 } as never));
+    const r = await readXlsx(await writeXlsx(w));
+    const [a, b] = r.workbook.sheets[0]!.shapes;
+    expect(a!.rotation).toBe(45);
+    expect(b!.rotation).toBeUndefined();
+  });
+
   it('writes and reads the adjust values of a shape (the yellow handles)', async () => {
     const w = new Workbook();
     const id = w.sheets[0]!.id;

@@ -27,7 +27,7 @@ Objetivo: tener un catálogo de formas único (como las Formas de Office) compar
 
 ### Siguiente (orden fijado por el usuario)
 1. [x] Puntos de ajuste (amarillos) en Calc y Writer — HECHO: `shapes-core/src/adjust.ts` (adjustHandles, dragAdjust, cleanAdjust, avLstXml, parseGuide) + pruebas; Calc: `SheetShape.adj`, XLSX avLst, tiradores en `ObjectLayer.tsx`, e2e en e2e-calc-shapes; Writer: atributo `adj`, DOCX avLst, tiradores en `ShapeView` (con forma girada), e2e en e2e-writer-shapes. Tests: shapes-core 11, writer-core 145, xlsx-io 64.
-2. [ ] Rotación en Calc.
+2. [x] Rotación en Calc — HECHO: `SheetShape.rotation`, XLSX `rot`, asa de giro y redimensionado en ejes girados (`ObjectLayer.tsx`), campo en `dlg-shape.tsx`, comandos `calc.shape.rotateRight/Left` en el grupo Organizar, impresión girada. Tests: xlsx-io 65; e2e-calc-shapes (asa, comandos, deshacer, redimensionar, diálogo). Lección: en los e2e de Calc los botones de la cinta se localizan con `[data-nv-item="..."]` (getByRole no los halla).
 3. [ ] Agrupar formas en Calc y Writer.
 
 ## Cómo retomar

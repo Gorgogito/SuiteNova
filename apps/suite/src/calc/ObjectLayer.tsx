@@ -31,7 +31,8 @@ function mediaUrl(doc: CalcDoc, key: string): string | undefined {
 /** Drag/resize behaviour shared by pictures and slicers. */
 function useBox(doc: CalcDoc, zoom: number, min: { w: number; h: number }, commit: (id: string, r: Rect4, label: string) => void, select: (id: string) => void) {
   const [preview, setPreview] = useState<{ id: string; r: Rect4 } | null>(null);
-  const begin = (id: string, orig: Rect4, e: React.PointerEvent, mode: Handle | 'move', keepRatio = false) => {
+  const begin = (id: string, orig: Rect4, e: React.PointerEvent, mode: Handle | 'move', keepRatio = false, rotation = 0) => {
+    const rad = (rotation * Math.PI) / 180;
     if (e.button !== 0) return;
     e.stopPropagation();
     doc.commitIfEditing();
@@ -40,8 +41,12 @@ function useBox(doc: CalcDoc, zoom: number, min: { w: number; h: number }, commi
     let latest = orig;
     let moved = false;
     const move = (ev: PointerEvent) => {
-      const dx = (ev.clientX - start.x) / zoom;
-      const dy = (ev.clientY - start.y) / zoom;
+      const sx = (ev.clientX - start.x) / zoom;
+      const sy = (ev.clientY - start.y) / zoom;
+      // al cambiar el tamaño de una forma girada, el gesto se lee en los ejes de la forma
+      const turn = mode !== 'move' && rotation !== 0;
+      const dx = turn ? sx * Math.cos(rad) + sy * Math.sin(rad) : sx;
+      const dy = turn ? -sx * Math.sin(rad) + sy * Math.cos(rad) : sy;
       if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
       moved = true;
       let { x, y, width, height } = orig;
@@ -64,6 +69,15 @@ function useBox(doc: CalcDoc, zoom: number, min: { w: number; h: number }, commi
           height = width / ratio;
           if (mode.includes('n')) y = orig.y + orig.height - height;
         }
+      }
+      if (turn) {
+        // el lado opuesto al asa se queda donde está en la pantalla: el centro se mueve girado
+        const cdx = x + width / 2 - (orig.x + orig.width / 2);
+        const cdy = y + height / 2 - (orig.y + orig.height / 2);
+        const cx = orig.x + orig.width / 2 + cdx * Math.cos(rad) - cdy * Math.sin(rad);
+        const cy = orig.y + orig.height / 2 + cdx * Math.sin(rad) + cdy * Math.cos(rad);
+        x = cx - width / 2;
+        y = cy - height / 2;
       }
       latest = { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) };
       setPreview({ id, r: latest });
@@ -136,12 +150,39 @@ function SlicerView({ doc, sl, rect, selected, onDown }: { doc: CalcDoc; sl: Sli
   );
 }
 
-function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit, onAdjust }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void; onAdjust: (adj: Record<string, number> | undefined) => void }) {
+function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit, onAdjust, onRotate }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void; onAdjust: (adj: Record<string, number> | undefined) => void; onRotate: (deg: number) => void }) {
   const look = shapeLook(s);
   const box = useRef<HTMLDivElement>(null);
   const [adjDraft, setAdjDraft] = useState<Record<string, number> | null>(null);
   const adj = adjDraft ?? s.adj ?? {};
   const adjHandles = selected && !editing && !isLineKind(s.kind) ? adjustHandles(s.kind, Math.max(rect.w, 1), Math.max(rect.h, 1), adj) : [];
+  const [rotDraft, setRotDraft] = useState<number | null>(null);
+  const rotation = rotDraft ?? s.rotation ?? 0;
+  const startRotate = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const el = box.current;
+    if (!el) return;
+    let latest = s.rotation ?? 0;
+    const move = (ev: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      const dx = ev.clientX - (r.left + r.width / 2);
+      const dy = ev.clientY - (r.top + r.height / 2);
+      let a = (Math.atan2(dx, -dy) * 180) / Math.PI;
+      if (ev.shiftKey) a = Math.round(a / 15) * 15;
+      latest = Math.round((((a % 360) + 360) % 360) * 10) / 10;
+      setRotDraft(latest);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setRotDraft(null);
+      if (latest !== (s.rotation ?? 0)) onRotate(latest);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const startAdjust = (e: React.PointerEvent, index: number) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -178,7 +219,7 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
     <div
       ref={box}
       className={`calc-shape ${selected ? 'is-selected' : ''}`}
-      style={{ left: rect.x, top: rect.y, width: w, height: isLineKind(s.kind) ? Math.max(h, 6) : h }}
+      style={{ left: rect.x, top: rect.y, width: w, height: isLineKind(s.kind) ? Math.max(h, 6) : h, ...(rotation ? { transform: `rotate(${rotation}deg)` } : {}) }}
       data-shape-id={s.id}
       role="img"
       aria-label={s.alt ?? s.name ?? s.text ?? t('Forma')}
@@ -211,6 +252,7 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
         )
       )}
       {selected && !editing && <Handles onDown={onDown} />}
+      {selected && !editing && <span className="calc-shape__rot" data-rotate-handle title={t('Girar')} onPointerDown={startRotate} />}
       {adjHandles.map((p, i) => (
         <span key={i} className="calc-shape__adj" data-adj-handle={i} title={t('Ajustar la forma')} style={{ left: p.x, top: p.y }} onPointerDown={(e) => startAdjust(e, i)} />
       ))}
@@ -280,12 +322,13 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
             zoom={zoom}
             selected={doc.x.selectedShape === s.id}
             editing={editingShape === s.id}
-            onDown={(e, m) => shBox.begin(s.id, orig, e, m)}
+            onDown={(e, m) => shBox.begin(s.id, orig, e, m, false, s.rotation ?? 0)}
             onEdit={() => {
               doc.x.selectObject('shape', s.id);
               setEditingShape(s.id);
             }}
             onAdjust={(adj) => doc.x.updateShape(s.id, { adj }, 'Ajustar forma')}
+            onRotate={(deg) => doc.x.updateShape(s.id, { rotation: deg || undefined }, 'Girar forma')}
             onCommit={(text) => {
               setEditingShape(null);
               if (text !== null && text !== (s.text ?? '')) doc.x.updateShape(s.id, { text: text || undefined }, 'Texto de la forma');
