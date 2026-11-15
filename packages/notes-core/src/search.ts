@@ -49,7 +49,7 @@ export function searchSources(nb: Notebook, p: Page): Source[] {
   }
   for (const c of p.containers) {
     if (c.kind === 'image') out.push({ where: 'image', text: `${c.alt}\n${nb.assets[c.asset]?.name ?? ''}\n${nb.ocr[c.asset]?.text ?? ''}` });
-    else if (c.kind === 'media') out.push({ where: 'media', text: c.name });
+    else if (c.kind === 'media' || c.kind === 'file') out.push({ where: 'media', text: c.name });
   }
   return out;
 }

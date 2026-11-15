@@ -45,7 +45,7 @@ const dist2 = (px: number, py: number, ax: number, ay: number, bx: number, by: n
 };
 
 /** Los segmentos que forman un trazo o una forma (para saber si algo lo toca). */
-function segments(s: Stroke): [number, number, number, number][] {
+export function segments(s: Stroke): [number, number, number, number][] {
   const p = s.pts;
   if (s.tool === 'rect') {
     const [x1, y1, x2, y2] = p as [number, number, number, number];

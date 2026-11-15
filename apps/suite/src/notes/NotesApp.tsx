@@ -13,6 +13,11 @@ import { backstageEntries, fileCommands } from '../options';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { Canvas, LockedPanel } from './Canvas';
 import { notesCommands, type NotesDialog, type NotesUI } from './commands';
+import { notesCommands2 } from './commands2';
+import { AccessibilityDialog, CountDialog, FindDialog, MergeSectionDialog, MovePageDialog, RecentDialog } from './dlg2';
+import { InkToTextDialog, NotesSpellDialog, NotesTableLookDialog, NotesTableSortDialog, ReadDialog, ScreenClipDialog, SymbolDialog, captureScreen } from './dlg3';
+import { ReplayBar } from './ReplayBar';
+import './messages-notes3';
 import { NotesCtl } from './ctl';
 import { EmailDialog, EquationDialog, ImageDialog, LinkDialog, Modal, PageStyleDialog, ProtectDialog, ShareDialog, TableDialog, TagsDialog, TemplatesDialog, TrashDialog, VersionsDialog } from './Dialogs';
 import { pageToDocx, pageToEml, pageToHtml } from './export';
@@ -148,6 +153,12 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const mediaRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
+  const attachRef = useRef<HTMLInputElement>(null);
+  const [clip, setClip] = useState<HTMLCanvasElement | null>(null);
+  const [docked, setDocked] = useState(false);
+  const dockedRef = useRef(docked);
+  dockedRef.current = docked;
+  const dockBefore = useRef<{ w: number; h: number; x: number; y: number } | null>(null);
   const lastDisk = useRef('');
   useLocale();
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
@@ -238,19 +249,16 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
       for (const f of files) {
         try {
           const kind = f.type.startsWith('image/') ? 'image' : f.type.startsWith('audio/') ? 'audio' : f.type.startsWith('video/') ? 'video' : null;
-          if (!kind) {
-            ctl.say(t('«{name}» no es una imagen, un audio ni un vídeo.', { name: f.name }));
-            continue;
-          }
           if (f.size > MAX_MEDIA_BYTES) {
             ctl.say(t('«{name}» pesa demasiado ({mb} MB); el límite es {max} MB porque todo se guarda dentro del archivo de la libreta.', { name: f.name, mb: Math.round(f.size / 1048576), max: MAX_MEDIA_BYTES / 1048576 }));
             continue;
           }
           const data = await blobToBase64(f);
-          const asset = ctl.addAsset({ mime: f.type, data, name: f.name, size: f.size });
+          const asset = ctl.addAsset({ mime: f.type || 'application/octet-stream', data, name: f.name, size: f.size });
           const where = at ? { x: at.x + offset, y: at.y + offset } : undefined;
           offset += 24;
-          if (kind === 'image') {
+          if (!kind) ctl.addFileAttachment(asset, where);
+          else if (kind === 'image') {
             const { w, h } = await imageSize(ctl.dataUrl(asset.id));
             ctl.addImage(asset, w, h, where);
           } else ctl.addMedia(asset, kind, f.name.replace(/\.[^.]+$/, ''), await mediaDuration(ctl.assetUrl(asset.id), kind));
@@ -406,6 +414,59 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
       },
       insertImage: () => fileRef.current?.click(),
       insertMediaFile: () => mediaRef.current?.click(),
+      insertFile: () => attachRef.current?.click(),
+      screenClip: async () => {
+        try {
+          setClip(await captureScreen());
+        } catch (e) {
+          const err = e as Error;
+          // cancelar el selector de pantalla no es un error
+          if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') window.alert(err.message);
+        }
+      },
+      print: () => {
+        document.body.classList.add('nn-printing');
+        const done = () => {
+          document.body.classList.remove('nn-printing');
+          window.removeEventListener('afterprint', done);
+        };
+        window.addEventListener('afterprint', done);
+        setTimeout(() => window.print(), 50);
+      },
+      docked: () => dockedRef.current,
+      dock: async () => {
+        if (!isTauri()) {
+          ctl.say('Acoplar al escritorio solo funciona en la aplicación de escritorio.');
+          return;
+        }
+        try {
+          const { getCurrentWindow, currentMonitor, PhysicalSize, PhysicalPosition } = await import('@tauri-apps/api/window');
+          const win = getCurrentWindow();
+          if (!dockedRef.current) {
+            const size = await win.outerSize();
+            const pos = await win.outerPosition();
+            dockBefore.current = { w: size.width, h: size.height, x: pos.x, y: pos.y };
+            const mon = await currentMonitor();
+            await win.setAlwaysOnTop(true);
+            if (mon) {
+              const w = Math.min(size.width, Math.round(mon.size.width * 0.3));
+              await win.setSize(new PhysicalSize(w, mon.size.height - 80));
+              await win.setPosition(new PhysicalPosition(mon.position.x + mon.size.width - w, mon.position.y));
+            }
+            setDocked(true);
+          } else {
+            await win.setAlwaysOnTop(false);
+            const b = dockBefore.current;
+            if (b) {
+              await win.setSize(new PhysicalSize(b.w, b.h));
+              await win.setPosition(new PhysicalPosition(b.x, b.y));
+            }
+            setDocked(false);
+          }
+        } catch (e) {
+          window.alert(String((e as Error).message ?? e));
+        }
+      },
       toggleRecording,
       recording: () => recRef.current?.kind ?? null,
       runOcr,
@@ -445,6 +506,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
       registry.registerAll(coreCommands),
       registry.registerAll(zoomCommands(() => zoomRef.current, (z) => setZoom(clampZoom(z)), clampZoom).map((c) => ({ ...c, shortcut: c.id === 'zoom.reset' ? undefined : c.shortcut }))),
       registry.registerAll(notesCommands(ui)),
+      registry.registerAll(notesCommands2(ui)),
     ];
     fileCommands(registry);
     const unsub = ctl.subscribe(() => registry.invalidate());
@@ -453,7 +515,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
       unsub();
     };
   }, [registry, ui, ctl]);
-  useEffect(() => registry.invalidate(), [registry, zoom, recording, ocrLang]);
+  useEffect(() => registry.invalidate(), [registry, zoom, recording, ocrLang, docked]);
 
   useEffect(() => {
     const path = new URLSearchParams(location.search).get('open');
@@ -550,6 +612,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
     >
       <div className="nn-app">
         <style>{STYLE_CSS + tagCss(ctl.nb.tagDefs)}</style>
+        {!ctl.fullPage && (
         <div className="nn-top">
           <div className="nn-secs" role="tablist" aria-label={t('Secciones')}>
             {ctl.groupId && (
@@ -610,6 +673,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
             )}
           </div>
         </div>
+        )}
         {recording && (
           <div className="nn-recbar" role="status" aria-live="polite">
             <span className="nn-recdot" aria-hidden="true" />
@@ -637,7 +701,8 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
               <LockedPanel ctl={ctl} what={lockedWhat} />
             ) : (
               <>
-                <div className="nn-pagehead">
+                {ctl.replay !== null && <ReplayBar ctl={ctl} />}
+                <div className="nn-pagehead" hidden={ctl.hideTitle}>
                   <input
                     className="nn-title"
                     aria-label={t('Título de la página')}
@@ -661,6 +726,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
               </>
             )}
           </div>
+          {!ctl.fullPage && (
           <nav className="nn-pages" aria-label={t('Páginas')}>
             <button type="button" className="nn-newpage" onClick={() => ctl.addPage()}>
               + {t('Página nueva')}
@@ -674,7 +740,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
                 ) : (
                   <span className="nn-twisty" aria-hidden="true" />
                 )}
-                <button type="button" className={`nn-pageitem${p.id === ctl.pageId ? ' is-current' : ''}${depth ? ' is-sub' : ''}`} aria-current={p.id === ctl.pageId} onClick={() => ctl.goToPage(p.id)}>
+                <button type="button" className={`nn-pageitem${p.id === ctl.pageId ? ' is-current' : ''}${depth ? ' is-sub' : ''}${ctl.isUnread(p) ? ' is-unread' : ''}`} aria-current={p.id === ctl.pageId} onClick={() => ctl.goToPage(p.id)}>
                   <strong>
                     {p.protect ? (p.vault ? '🔒 ' : '🔓 ') : ''}
                     {t(displayTitle(p))}
@@ -684,6 +750,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
               </div>
             ))}
           </nav>
+          )}
         </div>
         <input
           ref={fileRef}
@@ -694,6 +761,20 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
           aria-hidden="true"
           tabIndex={-1}
           data-testid="nn-image-input"
+          onChange={(e) => {
+            const fs = [...(e.target.files ?? [])];
+            e.target.value = '';
+            if (fs.length) void addFiles(fs);
+          }}
+        />
+        <input
+          ref={attachRef}
+          type="file"
+          multiple
+          hidden
+          aria-hidden="true"
+          tabIndex={-1}
+          data-testid="nn-attach-input"
           onChange={(e) => {
             const fs = [...(e.target.files ?? [])];
             e.target.value = '';
@@ -715,6 +796,33 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
           }}
         />
         {dlg === 'link' && <LinkDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'movePage' && <MovePageDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'mergeSection' && <MergeSectionDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'recent' && <RecentDialog ctl={ctl} mode="recent" onClose={closeDialog} />}
+        {dlg === 'unread' && <RecentDialog ctl={ctl} mode="unread" onClose={closeDialog} />}
+        {dlg === 'find' && <FindDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'count' && <CountDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'a11y' && <AccessibilityDialog ctl={ctl} onClose={closeDialog} openImage={(id) => setDialog({ kind: 'image', arg: id })} />}
+        {dlg === 'spell' && <NotesSpellDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'read' && <ReadDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'symbol' && <SymbolDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'inkText' && <InkToTextDialog ctl={ctl} lang={ocrLang} onClose={closeDialog} />}
+        {dlg === 'tableSort' && <NotesTableSortDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'tableLook' && <NotesTableLookDialog ctl={ctl} onClose={closeDialog} />}
+        {clip && (
+          <ScreenClipDialog
+            canvas={clip}
+            onClose={() => setClip(null)}
+            onInsert={(png, w, h) => {
+              setClip(null);
+              void (async () => {
+                const asset = ctl.addAsset({ mime: 'image/png', data: await blobToBase64(png), name: `${t('Recorte de pantalla')} ${new Date().toLocaleString().replace(/[\\/:*?"<>|]+/g, '-')}.png`, size: png.size });
+                const scale = Math.min(1, 640 / w);
+                ctl.addImage(asset, Math.round(w * scale), Math.round(h * scale));
+              })();
+            }}
+          />
+        )}
         {dlg === 'table' && <TableDialog ctl={ctl} onClose={closeDialog} />}
         {dlg === 'tags' && <TagsDialog ctl={ctl} onClose={closeDialog} />}
         {dlg === 'templates' && <TemplatesDialog ctl={ctl} onClose={closeDialog} />}

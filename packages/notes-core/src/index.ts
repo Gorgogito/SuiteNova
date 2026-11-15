@@ -10,3 +10,5 @@ export * from './merge';
 export * from './canvas';
 export * from './ink';
 export * from './templates';
+export * from './organize';
+export * from './ink2';

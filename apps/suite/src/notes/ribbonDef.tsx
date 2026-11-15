@@ -305,10 +305,30 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
           { kind: 'button', command: 'notes.paste', size: 'large', keytip: 'V' },
           { kind: 'button', command: 'notes.cut', keytip: 'X' },
           { kind: 'button', command: 'notes.copy', keytip: 'C' },
+          L('notes.formatPainter', 'small', 'FP'),
         ],
       },
       { id: 'font', label: 'Texto básico', icon: 'bold', items: [{ kind: 'custom', id: 'fontGroup', label: 'Texto básico', keytip: 'FN', render: () => <FontGroup ui={ui} /> }] },
       { id: 'paragraph', label: 'Párrafo', icon: 'alignLeft', items: [{ kind: 'custom', id: 'paraGroup', label: 'Párrafo', keytip: 'P', render: () => <ParagraphGroup /> }] },
+      {
+        id: 'editing',
+        label: 'Edición',
+        icon: 'moveUp',
+        items: [
+          L('notes.para.up', 'small', 'HU'),
+          L('notes.para.down', 'small', 'HD'),
+          {
+            kind: 'dropdown',
+            id: 'caseMenu',
+            label: 'Mayúsculas',
+            icon: 'nnCase',
+            size: 'small',
+            keytip: 'HC',
+            entries: ['sentence', 'lower', 'upper', 'title', 'toggle'].map((m) => ({ kind: 'command' as const, command: `notes.case.${m}` })),
+          },
+          L('notes.find', 'small', 'HF'),
+        ],
+      },
       {
         id: 'tags',
         label: 'Etiquetas',
@@ -323,12 +343,12 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
     label: 'Insertar',
     keytip: 'N',
     groups: [
-      { id: 'pages', label: 'Páginas', icon: 'pageNew', items: [L('notes.page.new', 'large', 'PG'), L('notes.section.new', 'large', 'SC')] },
+      { id: 'pages', label: 'Páginas', icon: 'pageNew', items: [L('notes.page.new', 'large', 'PG'), L('notes.section.new', 'large', 'SC'), L('notes.quickNote', 'small', 'QN'), L('notes.space', 'small', 'ES')] },
       { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [L('notes.table', 'large', 'TB')] },
-      { id: 'boxes', label: 'Cuadros', icon: 'document', items: [L('notes.textbox', 'large', 'CT'), L('notes.image', 'large', 'IM')] },
+      { id: 'boxes', label: 'Cuadros', icon: 'document', items: [L('notes.textbox', 'large', 'CT'), L('notes.image', 'large', 'IM'), L('notes.file.attach', 'small', 'FA'), L('notes.screenClip', 'small', 'SK')] },
       { id: 'media', label: 'Audio y vídeo', icon: 'mic', items: [L('notes.audio', 'large', 'AU'), L('notes.video', 'large', 'VI'), L('notes.media.file', 'large', 'MF')] },
-      { id: 'symbols', label: 'Símbolos', icon: 'sigma', items: [L('notes.equation', 'large', 'EQ')] },
-      { id: 'links', label: 'Vínculos', icon: 'link', items: [L('notes.link', 'large', 'K')] },
+      { id: 'symbols', label: 'Símbolos', icon: 'sigma', items: [L('notes.equation', 'large', 'EQ'), L('notes.symbol', 'small', 'SY')] },
+      { id: 'links', label: 'Vínculos', icon: 'link', items: [L('notes.link', 'large', 'K'), L('notes.page.copyLink', 'small', 'LC'), L('notes.link.paste', 'small', 'LP')] },
       { id: 'time', label: 'Hora y fecha', icon: 'calendar', items: [L('notes.date', 'small', 'FD'), L('notes.time', 'small', 'FH'), L('notes.datetime', 'small', 'FT')] },
       { id: 'templates', label: 'Plantillas', icon: 'layout', items: [L('notes.page.template', 'large', 'PL')] },
     ],
@@ -345,12 +365,25 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
         icon: 'pen',
         items: [L('notes.tool.select', 'large', 'DS'), L('notes.tool.pen', 'large', 'DP'), L('notes.tool.highlighter', 'large', 'DM'), L('notes.tool.eraser', 'large', 'DB'), L('notes.tool.lasso', 'large', 'DL')],
       },
+      { id: 'eraser', label: 'Borrador', icon: 'eraser', items: [L('notes.eraser.stroke', 'small', 'DQ', true), L('notes.eraser.point', 'small', 'DU', true)] },
       { id: 'pen', label: 'Lápiz', icon: 'pen', items: [{ kind: 'custom', id: 'penSettings', label: 'Lápiz', keytip: 'DC', render: () => <PenSettings ui={ui} /> }] },
       {
         id: 'shapes',
         label: 'Formas',
         icon: 'shapes',
         items: [L('notes.tool.line', 'small', 'DN'), L('notes.tool.arrow', 'small', 'DF'), L('notes.tool.rect', 'small', 'DR'), L('notes.tool.ellipse', 'small', 'DE'), L('notes.ink.toShape', 'large', 'DT')],
+      },
+      {
+        id: 'inksel',
+        label: 'Selección de tinta',
+        icon: 'lasso',
+        items: [L('notes.ink.duplicate', 'small', 'DD', true), L('notes.ink.bigger', 'small', 'DG', true), L('notes.ink.smaller', 'small', 'DH', true), L('notes.ink.applyPen', 'small', 'DA', true), L('notes.ink.deleteSel', 'small', 'DV', true)],
+      },
+      {
+        id: 'aids',
+        label: 'Ayudas',
+        icon: 'ruler',
+        items: [L('notes.ruler', 'large', 'DI'), L('notes.space', 'small', 'DZ'), L('notes.ink.replay', 'small', 'DJ'), L('notes.ink.toText', 'small', 'TX'), L('notes.touch', 'small', 'DO')],
       },
       { id: 'arrange', label: 'Organizar', icon: 'moveUp', items: [L('notes.box.front', 'small', 'DW'), L('notes.box.back', 'small', 'DK'), L('notes.box.delete', 'small', 'DX'), L('notes.ink.clear', 'small', 'DY')] },
     ],
@@ -365,14 +398,22 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
         id: 'pageops',
         label: 'Página',
         icon: 'pageNew',
-        items: [L('notes.page.duplicate', 'small', 'PD', true), L('notes.page.up', 'small', 'PU', true), L('notes.page.down', 'small', 'PW', true), L('notes.page.indent', 'small', 'PI', true), L('notes.page.outdent', 'small', 'PO', true), L('notes.page.delete', 'large', 'PX')],
+        items: [L('notes.page.duplicate', 'small', 'PD', true), L('notes.page.up', 'small', 'PU', true), L('notes.page.down', 'small', 'PW', true), L('notes.page.indent', 'small', 'PI', true), L('notes.page.outdent', 'small', 'PO', true), L('notes.page.delete', 'large', 'PX'), L('notes.page.move', 'small', 'PM'), {
+            kind: 'dropdown',
+            id: 'sortMenu',
+            label: 'Ordenar páginas',
+            icon: 'nnSort',
+            size: 'small',
+            keytip: 'PT',
+            entries: ['title', 'created', 'created-desc', 'modified', 'modified-desc'].map((m) => ({ kind: 'command' as const, command: `notes.page.sort.${m}` })),
+          }],
       },
       { id: 'pagelook', label: 'Aspecto', icon: 'gridlines', items: [L('notes.page.style', 'large', 'PS'), L('notes.page.versions', 'large', 'PH')] },
       {
         id: 'sectionops',
         label: 'Sección',
         icon: 'list',
-        items: [L('notes.section.left', 'small', 'SL', true), L('notes.section.right', 'small', 'SR', true), L('notes.section.delete', 'large', 'SX')],
+        items: [L('notes.section.left', 'small', 'SL', true), L('notes.section.right', 'small', 'SR', true), L('notes.section.delete', 'large', 'SX'), L('notes.section.copy', 'small', 'SY'), L('notes.section.merge', 'small', 'SM')],
       },
       {
         id: 'groups',
@@ -422,12 +463,12 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
     label: 'Buscar',
     keytip: 'B',
     groups: [
-      { id: 'search', label: 'Buscar', icon: 'search', items: [L('notes.search', 'large', 'BU'), L('notes.tag.summary', 'large', 'ET')] },
+      { id: 'search', label: 'Buscar', icon: 'search', items: [L('notes.search', 'large', 'BU'), L('notes.find', 'large', 'BF'), L('notes.tag.summary', 'large', 'ET')] },
       {
         id: 'ocr',
         label: 'Texto en imágenes',
         icon: 'scanText',
-        items: [L('notes.ocr.run', 'large', 'OC'), L('notes.ocr.stop', 'small', 'OS'), L('notes.image.props', 'small', 'OP'), { kind: 'custom', id: 'ocrLang', label: 'Idioma del reconocimiento', keytip: 'OL', render: () => <OcrGroup ui={ui} /> }],
+        items: [L('notes.ocr.run', 'large', 'OC'), L('notes.ocr.stop', 'small', 'OS'), L('notes.image.props', 'small', 'OP'), L('notes.image.copyText', 'small', 'OT'), { kind: 'custom', id: 'ocrLang', label: 'Idioma del reconocimiento', keytip: 'OL', render: () => <OcrGroup ui={ui} /> }],
       },
     ],
   };
@@ -445,9 +486,33 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
         items: [L('notes.table.rowBefore', 'small', 'RA'), L('notes.table.rowAfter', 'small', 'RB'), L('notes.table.deleteRow', 'small', 'RD'), L('notes.table.colBefore', 'small', 'CL'), L('notes.table.colAfter', 'small', 'CR'), L('notes.table.deleteCol', 'small', 'CD')],
       },
       { id: 'merge', label: 'Combinar', icon: 'mergeCells', items: [L('notes.table.merge', 'large', 'MC'), L('notes.table.split', 'large', 'SP')] },
+      { id: 'tablelook', label: 'Aspecto', icon: 'tableGrid', items: [L('notes.table.look', 'large', 'TL'), L('notes.table.sort', 'large', 'TS')] },
       { id: 'tabledel', label: 'Tabla', icon: 'trash', items: [L('notes.table.delete', 'large', 'TD')] },
     ],
   };
 
-  return [home, insert, draw, organize, share, find, viewTab(), table, helpTab()];
+  const history: RibbonTab = {
+    id: 'history',
+    label: 'Historial',
+    keytip: 'H',
+    groups: [
+      { id: 'recent', label: 'Cambios', icon: 'history', items: [L('notes.history.recent', 'large', 'HR'), L('notes.history.unread', 'large', 'HN'), L('notes.history.markRead', 'small', 'HM')] },
+      { id: 'versions', label: 'Versiones', icon: 'history', items: [L('notes.page.versions', 'large', 'HV'), L('notes.trash', 'large', 'HP')] },
+    ],
+  };
+
+  const review: RibbonTab = {
+    id: 'review',
+    label: 'Revisar',
+    keytip: 'E',
+    groups: [
+      { id: 'proofing', label: 'Revisión', icon: 'nnSpell', items: [L('notes.spell', 'large', 'SP'), L('notes.count', 'large', 'WC'), L('notes.a11y', 'large', 'AC')] },
+      { id: 'reading', label: 'Lectura', icon: 'nnSpeaker', items: [L('notes.read', 'large', 'RD')] },
+    ],
+  };
+
+  const view = viewTab();
+  view.groups.push({ id: 'pageview', label: 'Página', icon: 'nnMax', items: [L('notes.view.fullPage', 'large', 'VF'), L('notes.view.hideTitle', 'large', 'VT'), L('notes.view.dock', 'large', 'VD'), L('notes.print', 'large', 'VP')] });
+
+  return [home, insert, draw, organize, history, share, find, review, view, table, helpTab()];
 }

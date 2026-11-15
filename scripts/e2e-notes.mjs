@@ -13,7 +13,7 @@ if (shotsDir) fs.mkdirSync(shotsDir, { recursive: true });
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-notes-'));
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
-const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true, permissions: ['microphone', 'camera'] });
+const ctx = await browser.newContext({ viewport: { width: 1900, height: 1000 }, acceptDownloads: true, permissions: ['microphone', 'camera'] });
 const page = await ctx.newPage();
 page.setDefaultTimeout(10000);
 const errors = [];
@@ -319,7 +319,7 @@ await check('ink and drawing: pen, shape recognition, eraser, lasso', async () =
   ]);
   assert.ok((await ctlState()).ink < 6, 'eraser removes strokes it touches');
   const left = (await ctlState()).ink;
-  await btn('Seleccionar tinta (recuadro)');
+  await btn('Seleccionar tinta (lazo o recuadro)');
   await drag([
     [680, 270],
     [1030, 410],

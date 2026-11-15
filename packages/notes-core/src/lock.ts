@@ -69,7 +69,7 @@ type PageSecret = Pick<Page, 'title' | 'containers' | 'ink' | 'versions'> & Part
 export function mediaKeysOf(body: PageBody): string[] {
   const out = new Set<string>();
   for (const c of body.containers) {
-    if (c.kind === 'image' || c.kind === 'media') out.add(c.asset);
+    if (c.kind === 'image' || c.kind === 'media' || c.kind === 'file') out.add(c.asset);
     else if (c.kind === 'text')
       contentNode(c.content).descendants((n) => {
         if (n.type.name === 'image' && typeof n.attrs.src === 'string' && n.attrs.src.startsWith('data:image/')) out.add(imageKey(n.attrs.src));

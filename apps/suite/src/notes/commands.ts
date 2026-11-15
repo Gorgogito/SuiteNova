@@ -6,7 +6,7 @@ import type { NotesCtl } from './ctl';
 import { FONT_SIZES, changeIndent, clearFormatting, listAncestor, markActive, markAttr, selectionParagraph, setAlign, setMark, setStyle, toggleList, toggleMarkByName, selectAll } from './editing';
 import { BUILTIN_TAGS } from '@suitenova/notes-core';
 
-export type NotesDialog = 'link' | 'table' | 'tags' | 'about' | 'shortcuts' | 'templates' | 'style' | 'versions' | 'trash' | 'protectPage' | 'protectSection' | 'share' | 'equation' | 'image' | 'email';
+export type NotesDialog = 'link' | 'table' | 'tags' | 'about' | 'shortcuts' | 'templates' | 'style' | 'versions' | 'trash' | 'protectPage' | 'protectSection' | 'share' | 'equation' | 'image' | 'email' | 'movePage' | 'mergeSection' | 'recent' | 'unread' | 'find' | 'count' | 'a11y' | 'spell' | 'read' | 'symbol' | 'inkText' | 'tableSort' | 'tableLook';
 
 export interface NotesUI {
   ctl: NotesCtl;
@@ -20,6 +20,15 @@ export interface NotesUI {
   exportPage(kind: 'md' | 'html' | 'docx'): Promise<void>;
   insertImage(): void;
   insertMediaFile(): void;
+  /** Adjunta cualquier archivo a la página. */
+  insertFile(): void;
+  /** Captura la pantalla y deja elegir la zona que se inserta como imagen. */
+  screenClip(): Promise<void>;
+  /** Imprime la página (o la guarda como PDF desde el cuadro de impresión). */
+  print(): void;
+  /** Acopla la ventana al escritorio: estrecha y siempre visible. */
+  dock(): Promise<void>;
+  docked(): boolean;
   /** Empieza o termina una grabación de audio o de vídeo. */
   toggleRecording(kind: 'audio' | 'video'): void;
   recording(): 'audio' | 'video' | null;
@@ -208,7 +217,7 @@ export function notesCommands(ui: NotesUI): CommandDef[] {
     ['pen', 'pen', 'Lápiz', 'pen'],
     ['highlighter', 'highlighter', 'Marcador', 'highlighter'],
     ['eraser', 'eraser', 'Borrador', 'eraser'],
-    ['lasso', 'lasso', 'Seleccionar tinta (recuadro)', 'lasso'],
+    ['lasso', 'lasso', 'Seleccionar tinta (lazo o recuadro)', 'lasso'],
     ['line', 'line', 'Línea', 'minus'],
     ['arrow', 'arrow', 'Flecha', 'arrowRight'],
     ['rect', 'rect', 'Rectángulo', 'square'],

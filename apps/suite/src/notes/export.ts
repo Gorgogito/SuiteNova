@@ -87,6 +87,7 @@ export function pageToHtml(nb: Notebook, page: Page): string {
       if (!a) continue;
       const src = `data:${a.mime};base64,${a.data}`;
       if (c.kind === 'image') parts.push(`<img style="${pos};height:${c.h}px" src="${src}" alt="${esc(c.alt)}">`);
+      else if (c.kind === 'file') parts.push(`<a style="${pos}" download="${esc(c.name)}" href="${src}">📎 ${esc(c.name)}</a>`);
       else if (c.media === 'audio') parts.push(`<audio style="${pos}" controls src="${src}"></audio>`);
       else parts.push(`<video style="${pos};height:${c.h}px" controls src="${src}"></video>`);
     }
@@ -108,7 +109,8 @@ export async function pageToDocx(nb: Notebook, page: Page): Promise<{ data: Uint
     } else if (c.kind === 'image') {
       const a = nb.assets[c.asset];
       if (a) blocks.push(writerSchema.nodes.paragraph!.create(null, nodeTypes.image!.create({ src: `data:${a.mime};base64,${a.data}`, alt: c.alt, width: c.w, height: c.h })));
-    } else warnings.push(`El ${c.media === 'audio' ? 'audio' : 'vídeo'} «${c.name}» no se incluye en el documento de Word.`);
+    } else if (c.kind === 'file') warnings.push(`El archivo adjunto «${c.name}» no se incluye en el documento de Word.`);
+    else warnings.push(`El ${c.media === 'audio' ? 'audio' : 'vídeo'} «${c.name}» no se incluye en el documento de Word.`);
   }
   if (page.ink.length) warnings.push('La tinta y los dibujos no se incluyen en el documento de Word.');
   const body = writerSchema.nodes.doc!.create(null, Fragment.fromArray(blocks.length ? blocks : [writerSchema.nodes.paragraph!.create()]));

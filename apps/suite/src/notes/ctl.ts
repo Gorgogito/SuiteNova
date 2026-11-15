@@ -62,7 +62,24 @@ import {
   updateContainer,
   versionDue,
   defaultStyle,
+  DEFAULT_RULER,
+  boundsOf,
+  canTransferPage,
+  copySection,
+  duplicateStrokes,
+  erasePoint,
+  insertSpace,
+  mergeSections,
+  newFileContainer,
+  restyleStrokes,
+  scaleStrokes,
+  sortPages,
+  strokesInLasso,
+  transferPage,
+  unreadPages,
   type Asset,
+  type PageSort,
+  type Ruler,
   type Container,
   type MergeResult,
   type NoteTag,
@@ -73,11 +90,13 @@ import {
   type SearchHit,
   type Section,
   type SectionGroup,
+  type TextContainer,
   type Stroke,
   type StrokeTool,
   type TagDef,
   type ZMove,
 } from '@suitenova/notes-core';
+import { applyFormat, captureFormat, type CopiedFormat } from '../writer/format-tools';
 import type { Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
@@ -85,8 +104,16 @@ import { TextSelection } from 'prosemirror-state';
 
 export { SECTION_COLORS, displayTitle, pageText };
 
-export type Tool = 'select' | 'pen' | 'highlighter' | 'eraser' | 'lasso' | 'line' | 'arrow' | 'rect' | 'ellipse';
+export type Tool = 'select' | 'pen' | 'highlighter' | 'eraser' | 'lasso' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'space';
 export const INK_TOOLS: Tool[] = ['pen', 'highlighter', 'eraser', 'lasso', 'line', 'arrow', 'rect', 'ellipse'];
+
+/** Una libreta sin registro de lo leído (nueva o de una versión anterior) parte con todas sus páginas leídas. */
+function withSeen(nb: Notebook): Notebook {
+  if (nb.seen) return nb;
+  const seen: Record<string, number> = {};
+  for (const s of nb.sections) for (const p of s.pages) seen[p.id] = p.modified;
+  return { ...nb, seen };
+}
 
 /** El cuerpo de la página que se guarda para deshacer lo que no es texto (mover, borrar, tinta…). */
 type Undo = PageBody;
@@ -100,7 +127,7 @@ export interface OcrState {
 }
 
 export class NotesCtl {
-  nb: Notebook = newNotebook();
+  nb: Notebook = withSeen(newNotebook());
   sectionId = this.nb.sections[0]!.id;
   pageId = this.nb.sections[0]!.pages[0]!.id;
   /** El grupo de secciones que se está viendo (null: el nivel superior). */
@@ -212,6 +239,7 @@ export class NotesCtl {
     const next = fn(cur);
     if (next === cur) return;
     this.setNb({ ...this.nb, sections: this.nb.sections.map((s) => (s.id === this.sectionId ? { ...s, pages: s.pages.map((p) => (p.id === cur.id ? { ...next, modified: Date.now() } : p)) } : s)) });
+    this.markSeen();
     if (o.bump) this.pageEpoch++;
     this.touch();
   }
@@ -294,6 +322,7 @@ export class NotesCtl {
     this.groupId = s.group ?? null;
     const target = pageId && s.pages.some((p) => p.id === pageId) ? pageId : (s.pages[0]?.id ?? '');
     this.pageId = target;
+    this.markSeen();
     this.resetView();
     this.touch();
   }
@@ -539,6 +568,7 @@ export class NotesCtl {
       }),
     });
     this.pageId = page.id;
+    this.markSeen();
     this.resetView();
     this.touch();
   }
@@ -706,6 +736,243 @@ export class NotesCtl {
   }
   purgeTrash(id?: string): void {
     this.setNb(purgeTrash(this.nb, id));
+    this.touch();
+  }
+
+  // ------------------------------------------------------------------ más tinta (segunda ronda)
+
+  eraserMode: 'stroke' | 'point' = 'stroke';
+  /** Regla sobre la página (null = oculta). */
+  ruler: Ruler | null = null;
+  /** Reproducción de la tinta: fracción (0 a 1) o null si no se reproduce. */
+  replay: number | null = null;
+  /** Dibujar con el dedo o con un lápiz de pantalla táctil (si no, solo con el ratón y el lápiz). */
+  touchDraw = true;
+
+  setEraserMode(m: 'stroke' | 'point'): void {
+    this.eraserMode = m;
+    this.touch();
+  }
+  /** La goma según el modo: trazo entero o solo el trozo que toca. */
+  erase(x: number, y: number, r: number): void {
+    if (this.eraserMode === 'stroke') return this.eraseStrokes(x, y, r);
+    const ink = erasePoint(this.page.ink, x, y, r);
+    if (ink !== this.page.ink) this.editPage((p) => ({ ...p, ink }));
+  }
+  selectInLasso(poly: number[]): void {
+    this.selectStrokes(strokesInLasso(this.page.ink, poly).map((s) => s.id));
+  }
+  restyleSelected(patch: { color?: string; width?: number }): void {
+    if (!this.selectedStrokes.length) return;
+    const ids = this.selectedStrokes;
+    this.editPage((p) => ({ ...p, ink: restyleStrokes(p.ink, ids, patch) }), { undo: true });
+  }
+  scaleSelected(factor: number): void {
+    const ids = this.selectedStrokes;
+    const b = boundsOf(this.page.ink, ids);
+    if (!b) return;
+    this.editPage((p) => ({ ...p, ink: scaleStrokes(p.ink, ids, factor, factor, b.x1, b.y1) }), { undo: true });
+  }
+  /** Copia la tinta seleccionada un poco desplazada y selecciona la copia. */
+  duplicateSelected(): void {
+    const ids = this.selectedStrokes;
+    if (!ids.length) return;
+    const copies = duplicateStrokes(this.page.ink, ids);
+    this.editPage((p) => ({ ...p, ink: [...p.ink, ...copies] }), { undo: true });
+    this.selectedStrokes = copies.map((s) => s.id);
+    this.touch();
+  }
+  toggleRuler(): void {
+    this.ruler = this.ruler ? null : { ...DEFAULT_RULER };
+    this.touch();
+  }
+  setRuler(r: Ruler | null): void {
+    this.ruler = r;
+    this.touch();
+  }
+  setReplay(f: number | null): void {
+    this.replay = f;
+    this.touch();
+  }
+  /** «Insertar espacio»: empuja hacia abajo lo que hay debajo de `y` (o sube lo de debajo con un valor negativo). */
+  insertSpaceAt(y: number, amount: number): void {
+    const next = insertSpace(this.page, y, amount, this.heights);
+    if (next === this.page) return;
+    this.editPage(() => next as Page, { undo: true });
+  }
+
+  // ------------------------------------------------------------------ mover y copiar páginas y secciones
+
+  /** ¿Se puede llevar la página actual a esa sección? */
+  canTransfer(toId: string, copy: boolean): boolean {
+    return canTransferPage(this.nb, this.sectionId, this.pageId, toId, copy);
+  }
+  /** Mueve o copia la página actual (con sus subpáginas) a otra sección y va a ella. */
+  transferPage(toId: string, copy: boolean): boolean {
+    const r = transferPage(this.nb, this.sectionId, this.pageId, toId, copy);
+    if (!r) return false;
+    const first = r.pageIds[0]!;
+    this.setNb(r.nb);
+    this.goTo(toId, first);
+    this.say(copy ? 'Página copiada a la otra sección.' : 'Página movida a la otra sección.');
+    return true;
+  }
+  copySection(): void {
+    const r = copySection(this.nb, this.sectionId);
+    if (!r) return this.say('Esta sección no se puede copiar mientras esté bloqueada.');
+    this.setNb(r.nb);
+    this.goTo(r.sectionId);
+  }
+  mergeSectionInto(dstId: string): boolean {
+    const r = mergeSections(this.nb, this.sectionId, dstId);
+    if (!r) return false;
+    this.setNb(r);
+    this.goTo(dstId);
+    this.say('Las páginas pasaron a la otra sección.');
+    return true;
+  }
+  sortPages(by: PageSort): void {
+    const nb = sortPages(this.nb, this.sectionId, by);
+    if (nb === this.nb) return this.say('Las páginas ya están en ese orden.');
+    this.setNb(nb);
+    this.touch();
+  }
+  /** Crea una página en la sección «Notas rápidas» (que se crea si no existe) y va a ella. */
+  quickNote(sectionName = 'Notas rápidas'): void {
+    let sec = this.nb.sections.find((s) => s.name === sectionName && !s.vault);
+    const page = newPage();
+    if (!sec) {
+      sec = newSection(sectionName, this.nb.sections.length);
+      sec.pages = [page];
+      this.setNb({ ...this.nb, sections: [...this.nb.sections, sec] });
+    } else {
+      const id = sec.id;
+      this.setNb({ ...this.nb, sections: this.nb.sections.map((s) => (s.id === id ? { ...s, pages: [...s.pages, page] } : s)) });
+    }
+    this.goTo(sec.id, page.id);
+  }
+
+  // ------------------------------------------------------------------ leídas y recientes
+
+  markSeen(): void {
+    const p = this.page;
+    if (p.vault || (this.nb.seen?.[p.id] ?? 0) >= p.modified) return;
+    this.nb = { ...this.nb, seen: { ...(this.nb.seen ?? {}), [p.id]: p.modified } };
+  }
+  markAllSeen(): void {
+    const seen: Record<string, number> = { ...(this.nb.seen ?? {}) };
+    for (const s of this.nb.sections) for (const p of s.pages) seen[p.id] = Math.max(seen[p.id] ?? 0, p.modified);
+    this.setNb({ ...this.nb, seen });
+    this.touch();
+  }
+  isUnread(p: Page): boolean {
+    return !p.vault && (this.nb.seen?.[p.id] ?? 0) < p.modified && p.id !== this.pageId;
+  }
+  get unreadCount(): number {
+    return unreadPages(this.nb, this.nb.seen ?? {}).filter((r) => r.pageId !== this.pageId).length;
+  }
+
+  // ------------------------------------------------------------------ vínculos entre páginas
+
+  /** El vínculo a la página actual, listo para pegarse en otro sitio con «Pegar vínculo». */
+  linkClip: { href: string; title: string } | null = null;
+  copyPageLink(): void {
+    this.linkClip = { href: `#nn:page:${this.page.id}`, title: displayTitle(this.page) };
+    this.say('Vínculo copiado. Colócate donde quieras y usa «Pegar vínculo».');
+  }
+  pasteLink(): boolean {
+    const v = this.view;
+    const l = this.linkClip;
+    if (!v || !l) return false;
+    const mark = v.state.schema.marks.link!.create({ href: l.href });
+    v.dispatch(v.state.tr.replaceSelectionWith(v.state.schema.text(l.title, [mark]), false).scrollIntoView());
+    v.focus();
+    return true;
+  }
+
+  /** Añade un cuadro de texto ya hecho (y quita tinta: «tinta a texto»). */
+  addTextContainer(box: TextContainer, removeInk: string[] = []): void {
+    const ids = new Set(removeInk);
+    this.editPage((p) => ({ ...addContainer(p, box), ink: p.ink.filter((st) => !ids.has(st.id)) }), { undo: true, bump: true });
+    this.selectedStrokes = [];
+    this.touch();
+  }
+
+  // ------------------------------------------------------------------ copiar formato y vista
+
+  painter: CopiedFormat | null = null;
+  painterSel: { from: number; to: number } | null = null;
+  /** Aplica el formato copiado a la selección terminada (si hay una nueva) y desactiva «Copiar formato». */
+  finishPainter(v: EditorView): false {
+    if (!this.painter) return false;
+    setTimeout(() => {
+      const fmt = this.painter;
+      const sel = v.state.selection;
+      const at = this.painterSel;
+      if (!fmt || sel.empty || (at && at.from === sel.from && at.to === sel.to)) return;
+      this.painter = null;
+      this.painterSel = null;
+      applyFormat(fmt, true)(v.state, v.dispatch);
+      this.touch();
+    }, 40);
+    return false;
+  }
+  toggleFormatPainter(): void {
+    const v = this.view;
+    if (this.painter) {
+      this.painter = null;
+      this.painterSel = null;
+    } else if (v) {
+      this.painter = captureFormat(v.state);
+      this.painterSel = { from: v.state.selection.from, to: v.state.selection.to };
+    }
+    this.touch();
+    v?.focus();
+  }
+  /** Vista de página completa (sin lista de páginas ni pestañas de secciones) y título oculto. */
+  fullPage = false;
+  hideTitle = false;
+  toggleFullPage(): void {
+    this.fullPage = !this.fullPage;
+    this.touch();
+  }
+  toggleHideTitle(): void {
+    this.hideTitle = !this.hideTitle;
+    this.touch();
+  }
+
+  /** Sube o baja el párrafo (o el elemento de lista) donde está el cursor, como Alt+Mayús+flecha en OneNote. */
+  moveParagraph(dir: -1 | 1): void {
+    const v = this.view;
+    if (!v) return;
+    const { $from } = v.state.selection;
+    let d = $from.depth;
+    while (d > 0 && $from.node(d).type.name !== 'list_item') d--;
+    if (d === 0) d = $from.depth;
+    if (d < 1) return;
+    const parent = $from.node(d - 1);
+    const idx = $from.index(d - 1);
+    const to = idx + dir;
+    if (to < 0 || to >= parent.childCount) return;
+    const node = $from.node(d);
+    const start = $from.before(d);
+    const sibling = parent.child(to);
+    const tr = v.state.tr.delete(start, start + node.nodeSize);
+    const at = dir < 0 ? start - sibling.nodeSize : start + sibling.nodeSize;
+    tr.insert(at, node);
+    const off = $from.pos - start;
+    tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(tr.doc.content.size, at + off))));
+    v.dispatch(tr.scrollIntoView());
+    v.focus();
+  }
+
+  // ------------------------------------------------------------------ archivos adjuntos
+
+  addFileAttachment(asset: Asset, at?: { x: number; y: number }): void {
+    const spot = at ?? freeSpot(this.page, this.heights);
+    const f = newFileContainer(asset.id, asset.name, asset.size, spot.x, spot.y);
+    this.editPage((p) => addContainer(p, f), { undo: true });
+    this.selected = f.id;
     this.touch();
   }
 
@@ -1001,7 +1268,7 @@ export class NotesCtl {
   // ------------------------------------------------------------------ documentos
 
   load(nb: Notebook, fileName: string | null, filePath: string | null): void {
-    this.nb = expireTrash(nb);
+    this.nb = withSeen(expireTrash(nb));
     this.keys.clear();
     this.sectionId = this.nb.sections.find((s) => !s.vault)?.id ?? this.nb.sections[0]!.id;
     this.groupId = this.section.group ?? null;

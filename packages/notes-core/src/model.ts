@@ -41,7 +41,16 @@ export interface MediaContainer extends Box {
   seconds: number;
 }
 
-export type Container = TextContainer | ImageContainer | MediaContainer;
+/** Un archivo adjunto (cualquier tipo): se guarda dentro de la libreta y se muestra como un icono con su nombre. */
+export interface FileContainer extends Box {
+  kind: 'file';
+  h: number;
+  asset: string;
+  name: string;
+  size: number;
+}
+
+export type Container = TextContainer | ImageContainer | MediaContainer | FileContainer;
 
 export type StrokeTool = 'pen' | 'highlighter' | 'line' | 'rect' | 'ellipse' | 'arrow';
 
@@ -182,6 +191,8 @@ export interface Notebook {
   syncedAt?: number;
   /** La libreta se comparte por una carpeta sincronizada: al guardar y de vez en cuando se combina con los cambios de los demás. */
   shared?: boolean;
+  /** Lo último que se vio de cada página (su fecha de modificación): una página modificada después está «sin leer». */
+  seen?: Record<string, number>;
 }
 
 export const SECTION_COLORS = ['#7719aa', '#0f7b0f', '#c43e1c', '#0063b1', '#b146c2', '#038387', '#ca5010', '#69797e'];
@@ -246,7 +257,7 @@ export function bodyOf(p: PageBody): PageBody {
 export function assetsUsed(b: PageBody): string[] {
   const out = new Set<string>();
   for (const c of b.containers) {
-    if (c.kind === 'image' || c.kind === 'media') out.add(c.asset);
+    if (c.kind === 'image' || c.kind === 'media' || c.kind === 'file') out.add(c.asset);
   }
   return [...out];
 }
@@ -296,7 +307,7 @@ const num = (v: unknown, d: number, lo: number, hi: number): number => {
 };
 const str = (v: unknown, d = '', max = 2000): string => (typeof v === 'string' ? v.slice(0, max) : d);
 const color = (v: unknown, d: string): string => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : d);
-const MIMES = /^(image\/(png|jpeg|gif|bmp|webp|svg\+xml)|audio\/(webm|ogg|mpeg|mp4|wav|x-wav)|video\/(webm|mp4|ogg))(;.*)?$/;
+const MIMES = /^(?!text\/(html|javascript|ecmascript)|application\/(xhtml|x-?javascript|ecmascript|x-msdownload))(image\/(png|jpeg|gif|bmp|webp|svg\+xml)|audio\/(webm|ogg|mpeg|mp4|wav|x-wav)|video\/(webm|mp4|ogg)|(application|text|font|model|audio|video|image)\/[a-z0-9][a-z0-9.+_-]{0,100})(;.*)?$/i;
 
 function readStyle(v: unknown): PageStyle {
   const o = (v ?? {}) as Partial<PageStyle>;
@@ -317,10 +328,11 @@ function readContainer(v: unknown, assets: Record<string, Asset>): Container | n
   const o = v as Partial<Container> & { content?: unknown; asset?: unknown; h?: unknown; media?: unknown } | null;
   if (!o || typeof o !== 'object') return null;
   const base = { id: str(o.id, '', 60) || newId('c'), x: num(o.x, 48, -5000, 60000), y: num(o.y, 24, -5000, 60000), w: num(o.w, 640, 40, 6000), z: num(o.z, 1, 0, 100000) };
-  if (o.kind === 'image' || o.kind === 'media') {
+  if (o.kind === 'image' || o.kind === 'media' || o.kind === 'file') {
     const asset = str(o.asset, '', 80);
     if (!assets[asset]) return null;
     const h = num(o.h, 200, 20, 8000);
+    if (o.kind === 'file') return { kind: 'file', ...base, h, asset, name: str((o as FileContainer).name, 'Archivo', 260), size: num((o as FileContainer).size, 0, 0, 1e10) };
     if (o.kind === 'image') return { kind: 'image', ...base, h, asset, alt: str((o as ImageContainer).alt, '', 500) };
     return { kind: 'media', ...base, h, asset, media: o.media === 'video' ? 'video' : 'audio', name: str((o as MediaContainer).name, 'Grabación', 200), seconds: num((o as MediaContainer).seconds, 0, 0, 86400 * 2) };
   }
@@ -414,6 +426,13 @@ function readTagDefs(v: unknown): TagDef[] {
     .map((t: TagDef) => ({ id: t.id, label: t.label.slice(0, 60), symbol: Array.from(str(t.symbol, '●', 8)).slice(0, 2).join('') || '●', color: color(t.color, '#0f6cbd'), checkbox: t.checkbox === true, custom: true }));
 }
 
+function readSeen(v: unknown): Record<string, number> | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const out: Record<string, number> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>).slice(0, 20000)) if (typeof val === 'number' && Number.isFinite(val)) out[k.slice(0, 60)] = val;
+  return Object.keys(out).length ? out : undefined;
+}
+
 /** Read a notebook file (any version), checking its structure so that a damaged or foreign file fails with a clear message. */
 export function parseNotebook(text: string): Notebook {
   let raw: unknown;
@@ -475,5 +494,6 @@ export function parseNotebook(text: string): Notebook {
     deviceId: str(o.deviceId, '', 60) || newId('d'),
     syncedAt: typeof o.syncedAt === 'number' ? o.syncedAt : undefined,
     shared: o.shared === true,
+    seen: readSeen(o.seen),
   };
 }

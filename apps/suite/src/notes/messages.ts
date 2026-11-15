@@ -1,6 +1,7 @@
 import { registerMessages } from '@suitenova/core-ui';
 import '../writer/messages';
 import './messages-notes2';
+import './messages-notes3';
 
 // Spanish literals are the source text; English is provided here. Missing entries fall back to Spanish.
 registerMessages('en', {

@@ -1,5 +1,5 @@
 import { registerIcon } from '@suitenova/core-ui';
-import { ArrowDown, ArrowRight, ArrowUp, Circle, Clock, FilePlus, Folder, History, Lasso, LayoutTemplate, Lock, Merge, Mic, MousePointer2, Pen, ScanText, Share2, Shapes, Sigma, Square, Star, SquareCheck, Video } from 'lucide-react';
+import { Accessibility, ArrowUpDown, CaseSensitive, Eye, Hash, Maximize, MoveVertical, Omega, Paperclip, Pin, Play, Scissors, SpellCheck, Volume2, ArrowDown, ArrowRight, ArrowUp, Circle, Clock, FilePlus, Folder, History, Lasso, LayoutTemplate, Lock, Merge, Mic, MousePointer2, Pen, ScanText, Share2, Shapes, Sigma, Square, Star, SquareCheck, Video } from 'lucide-react';
 import '../writer/icons';
 
 const icons = {
@@ -26,5 +26,19 @@ const icons = {
   share: Share2,
   shapes: Shapes,
   sigma: Sigma,
+  nnSort: ArrowUpDown,
+  nnAttach: Paperclip,
+  nnScissors: Scissors,
+  nnOmega: Omega,
+  nnCase: CaseSensitive,
+  nnPlay: Play,
+  nnSpell: SpellCheck,
+  nnCount: Hash,
+  nnA11y: Accessibility,
+  nnSpeaker: Volume2,
+  nnMax: Maximize,
+  nnEye: Eye,
+  nnPin: Pin,
+  nnSpace: MoveVertical,
 };
 for (const [name, comp] of Object.entries(icons)) registerIcon(name, comp);

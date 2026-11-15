@@ -37,6 +37,11 @@ function tagClickPlugin(ctl: NotesCtl): Plugin {
   });
 }
 
+/** «Copiar formato»: al terminar de seleccionar, aplica el formato copiado. */
+function painterPlugin(ctl: NotesCtl): Plugin {
+  return new Plugin({ props: { handleDOMEvents: { mouseup: (view) => ctl.finishPainter(view), keyup: (view) => ctl.finishPainter(view) } } });
+}
+
 /** A link to another page of the notebook (`#nn:page:<id>`) opens that page. */
 function pageLinkPlugin(ctl: NotesCtl): Plugin {
   return new Plugin({
@@ -121,6 +126,7 @@ export function textPlugins(ctl: NotesCtl): Plugin[] {
     trailingParagraph(),
     tagClickPlugin(ctl),
     pageLinkPlugin(ctl),
+    painterPlugin(ctl),
     formulaPlugin(),
   ];
 }

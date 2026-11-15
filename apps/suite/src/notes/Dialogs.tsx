@@ -3,7 +3,7 @@ import { t } from '@suitenova/core-ui';
 import { RULINGS, TEMPLATES, TRASH_DAYS, bodyOf, diffLines, displayTitle, findTag, pageText, tagDefs, tagItems, trashTitle, versionText, type Container, type Ruling } from '@suitenova/notes-core';
 import { isSafeHref, markTypes, parseMath, toMathML, nodeTypes } from '@suitenova/writer-core';
 import { NodeSelection } from 'prosemirror-state';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { NotesCtl } from './ctl';
 import { createTable, insertBlockAfterCursor, markAttr, setLink } from './editing';
 
@@ -635,11 +635,79 @@ export function ShareDialog({ ctl, onClose, onMerge }: { ctl: NotesCtl; onClose:
 
 const SAMPLES = ['x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}', '\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}', '\\int_0^1 x^2 \\, dx = \\frac{1}{3}', 'E = mc^2', '\\frac{a}{b} + \\frac{c}{d}', '\\sqrt{x^2 + y^2}', '\\alpha + \\beta = \\gamma'];
 
+/** La paleta de la ecuación: [lo que se ve, LaTeX que se inserta, nombre]. `▮` marca dónde queda el cursor. */
+const EQ_PALETTE: { name: string; items: [string, string, string][] }[] = [
+  {
+    name: 'Estructuras',
+    items: [
+      ['a/b', '\\frac{▮}{}', 'Fracción'],
+      ['√x', '\\sqrt{▮}', 'Raíz cuadrada'],
+      ['ⁿ√x', '\\sqrt[n]{▮}', 'Raíz n-ésima'],
+      ['xⁿ', '^{▮}', 'Exponente'],
+      ['xₙ', '_{▮}', 'Subíndice'],
+      ['Σ', '\\sum_{i=1}^{n} ▮', 'Sumatoria'],
+      ['∏', '\\prod_{i=1}^{n} ▮', 'Producto'],
+      ['∫', '\\int_{a}^{b} ▮ \\,dx', 'Integral'],
+      ['lím', '\\lim_{x \\to \\infty} ▮', 'Límite'],
+      ['( )', '\\left( ▮ \\right)', 'Paréntesis grandes'],
+      ['[ ]', '\\left[ ▮ \\right]', 'Corchetes grandes'],
+      ['| |', '\\left| ▮ \\right|', 'Valor absoluto'],
+      ['▦', '\\begin{pmatrix} ▮ & \\\\ & \\end{pmatrix}', 'Matriz 2×2'],
+      ['{ ', '\\begin{cases} ▮ & \\text{si } \\\\ & \\text{si no} \\end{cases}', 'Casos'],
+    ],
+  },
+  {
+    name: 'Operadores',
+    items: [
+      ['±', '\\pm ', 'Más menos'],
+      ['×', '\\times ', 'Multiplicación'],
+      ['÷', '\\div ', 'División'],
+      ['≠', '\\neq ', 'Distinto'],
+      ['≈', '\\approx ', 'Aproximado'],
+      ['≤', '\\leq ', 'Menor o igual'],
+      ['≥', '\\geq ', 'Mayor o igual'],
+      ['∞', '\\infty ', 'Infinito'],
+      ['→', '\\to ', 'Flecha'],
+      ['∈', '\\in ', 'Pertenece'],
+      ['∂', '\\partial ', 'Derivada parcial'],
+      ['∇', '\\nabla ', 'Nabla'],
+    ],
+  },
+  {
+    name: 'Letras griegas',
+    items: ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'theta', 'lambda', 'mu', 'pi', 'rho', 'sigma', 'phi', 'omega', 'Delta', 'Sigma', 'Omega'].map((n) => [
+      String.fromCodePoint(
+        { alpha: 0x3b1, beta: 0x3b2, gamma: 0x3b3, delta: 0x3b4, epsilon: 0x3b5, theta: 0x3b8, lambda: 0x3bb, mu: 0x3bc, pi: 0x3c0, rho: 0x3c1, sigma: 0x3c3, phi: 0x3c6, omega: 0x3c9, Delta: 0x394, Sigma: 0x3a3, Omega: 0x3a9 }[n]!,
+      ),
+      `\\${n} `,
+      n,
+    ]),
+  },
+];
+
 export function EquationDialog({ ctl, pos, onClose }: { ctl: NotesCtl; pos?: number; onClose: () => void }) {
   const v = ctl.view;
   const node = pos !== undefined && v ? v.state.doc.nodeAt(pos) : null;
   const [tex, setTex] = useState<string>((node?.attrs.tex as string) ?? '');
   const [display, setDisplay] = useState(!!node?.attrs.display);
+  const area = useRef<HTMLTextAreaElement>(null);
+  const [group, setGroup] = useState(0);
+  /** Inserta un trozo de LaTeX donde está el cursor (o sustituye lo seleccionado) y deja el cursor en la marca. */
+  const put = (snippet: string) => {
+    const el = area.current;
+    const a = el?.selectionStart ?? tex.length;
+    const b = el?.selectionEnd ?? tex.length;
+    const mark = snippet.indexOf('▮');
+    const inner = tex.slice(a, b);
+    const text = snippet.replace('▮', inner);
+    const next = tex.slice(0, a) + text + tex.slice(b);
+    setTex(next);
+    const caret = a + (mark >= 0 ? mark + inner.length : text.length);
+    setTimeout(() => {
+      el?.focus();
+      el?.setSelectionRange(caret, caret);
+    }, 0);
+  };
   let ml = '';
   try {
     ml = tex.trim() ? toMathML(parseMath(tex), display) : '';
@@ -675,12 +743,28 @@ export function EquationDialog({ ctl, pos, onClose }: { ctl: NotesCtl; pos?: num
     >
       <div style={field}>
         <label htmlFor="nn-eq">{t('Escribe la ecuación en LaTeX (por ejemplo \\frac{a}{b}, x^2, \\sqrt{x}, \\sum_{i=1}^{n})')}</label>
-        <textarea id="nn-eq" className="nn-eqsrc" rows={3} value={tex} onChange={(e) => setTex(e.target.value)} autoFocus />
+        <textarea id="nn-eq" ref={area} className="nn-eqsrc" rows={3} value={tex} onChange={(e) => setTex(e.target.value)} autoFocus />
       </div>
       <label>
         <input type="checkbox" checked={display} onChange={(e) => setDisplay(e.target.checked)} /> {t('En su propia línea (más grande)')}
       </label>
       <div className="nn-eqprev" aria-label={t('Vista previa')} dangerouslySetInnerHTML={{ __html: ml || `<span style="color:#888">${t('Vista previa')}</span>` }} />
+      <div className="nn-eqpal" role="group" aria-label={t('Paleta de la ecuación')}>
+        <div className="nn-row" role="tablist" aria-label={t('Grupos de símbolos')}>
+          {EQ_PALETTE.map((g, i) => (
+            <button key={g.name} type="button" role="tab" aria-selected={group === i} className={`nn-chip${group === i ? ' is-on' : ''}`} onClick={() => setGroup(i)}>
+              {t(g.name)}
+            </button>
+          ))}
+        </div>
+        <div className="nn-symgrid">
+          {EQ_PALETTE[group]!.items.map(([shown, tex2, name]) => (
+            <button key={name} type="button" title={t(name)} aria-label={t(name)} onClick={() => put(tex2)}>
+              {shown}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="nn-row">
         {SAMPLES.map((s) => (
           <button key={s} type="button" className="nn-chip" onClick={() => setTex(s)}>

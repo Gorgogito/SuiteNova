@@ -2,6 +2,7 @@ import { CommandRegistry, coreCommands, getLocale, setLocale, t, type RibbonItem
 import { describe, expect, it } from 'vitest';
 import { zoomCommands } from '../common';
 import { notesCommands, type NotesUI } from './commands';
+import { notesCommands2 } from './commands2';
 import { NotesCtl } from './ctl';
 import './messages';
 import { notesTabs } from './ribbonDef';
@@ -20,6 +21,11 @@ function setup() {
     exportPage: async () => undefined,
     insertImage: () => undefined,
     insertMediaFile: () => undefined,
+    insertFile: () => undefined,
+    screenClip: async () => undefined,
+    print: () => undefined,
+    dock: async () => undefined,
+    docked: () => false,
     toggleRecording: () => undefined,
     recording: () => null,
     runOcr: () => undefined,
@@ -33,6 +39,7 @@ function setup() {
   registry.registerAll(coreCommands);
   registry.registerAll(zoomCommands(() => 100, () => undefined, (v) => v));
   registry.registerAll(notesCommands(ui));
+  registry.registerAll(notesCommands2(ui));
   registry.register({ id: 'file.close', label: 'Cerrar', run: () => undefined });
   return { ui, registry, ctl };
 }
@@ -204,5 +211,119 @@ describe('Nova Notes controller: new features', () => {
       ctl.search('TOTAL A PAGAR');
       expect(ctl.results[0]?.where).toBe('image');
     });
+  });
+});
+
+describe('Nova Notes controller: segunda ronda', () => {
+  it('mueve y copia páginas entre secciones y combina secciones', () => {
+    const ctl = new NotesCtl();
+    ctl.setTitle('Uno');
+    ctl.addPage();
+    ctl.setTitle('Dos');
+    ctl.addSection();
+    const dest = ctl.sectionId;
+    ctl.goTo(ctl.nb.sections[0]!.id, ctl.nb.sections[0]!.pages[1]!.id);
+    expect(ctl.canTransfer(dest, false)).toBe(true);
+    expect(ctl.transferPage(dest, true)).toBe(true);
+    expect(ctl.section.id).toBe(dest);
+    expect(ctl.nb.sections[0]!.pages).toHaveLength(2);
+    ctl.goTo(ctl.nb.sections[0]!.id, ctl.nb.sections[0]!.pages[1]!.id);
+    expect(ctl.transferPage(dest, false)).toBe(true);
+    expect(ctl.nb.sections[0]!.pages.map((p) => p.title)).toEqual(['Uno']);
+    expect(ctl.nb.sections[1]!.pages.map((p) => p.title)).toEqual(['', 'Dos (copia)', 'Dos']);
+    expect(ctl.mergeSectionInto(ctl.nb.sections[0]!.id)).toBe(true);
+    expect(ctl.nb.sections).toHaveLength(1);
+    expect(ctl.section.pages).toHaveLength(4);
+  });
+
+  it('ordena las páginas y crea la nota rápida en su sección', () => {
+    const ctl = new NotesCtl();
+    ctl.setTitle('Zeta');
+    ctl.addPage();
+    ctl.setTitle('Alfa');
+    ctl.sortPages('title');
+    expect(ctl.section.pages.map((p) => p.title)).toEqual(['Alfa', 'Zeta']);
+    ctl.quickNote();
+    expect(ctl.section.name).toBe('Notas rápidas');
+    expect(ctl.section.pages).toHaveLength(1);
+    ctl.quickNote();
+    expect(ctl.nb.sections.filter((s) => s.name === 'Notas rápidas')).toHaveLength(1);
+    expect(ctl.section.pages).toHaveLength(2);
+  });
+
+  it('marca las páginas como leídas al abrirlas o editarlas y avisa de las que cambian después', () => {
+    const ctl = new NotesCtl();
+    ctl.addPage();
+    const other = ctl.section.pages[0]!;
+    expect(ctl.unreadCount).toBe(0);
+    other.modified = Date.now() + 10_000; // lo que traería otro equipo
+    expect(ctl.isUnread(other)).toBe(true);
+    expect(ctl.unreadCount).toBe(1);
+    ctl.goToPage(other.id);
+    expect(ctl.unreadCount).toBe(0);
+    other.modified += 5_000;
+    ctl.addPage();
+    expect(ctl.isUnread(other)).toBe(true);
+    ctl.markAllSeen();
+    expect(ctl.unreadCount).toBe(0);
+  });
+
+  it('copia un vínculo a la página y adjunta archivos', () => {
+    const ctl = new NotesCtl();
+    ctl.setTitle('Destino');
+    ctl.copyPageLink();
+    expect(ctl.linkClip).toEqual({ href: `#nn:page:${ctl.page.id}`, title: 'Destino' });
+    const a = ctl.addAsset({ mime: 'application/pdf', data: 'JVBERi0=', name: 'doc.pdf', size: 5 });
+    ctl.addFileAttachment(a);
+    expect(ctl.page.containers.some((c) => c.kind === 'file')).toBe(true);
+    ctl.search('doc.pdf');
+    expect(ctl.results).toHaveLength(1);
+  });
+
+  it('inserta y quita espacio en la página y se deshace', () => {
+    const ctl = new NotesCtl();
+    const id = ctl.addTextAt(100, 400);
+    const y0 = ctl.page.containers.find((c) => c.id === id)!.y;
+    ctl.insertSpaceAt(200, 120);
+    expect(ctl.page.containers.find((c) => c.id === id)!.y).toBe(y0 + 120);
+    ctl.insertSpaceAt(200, -60);
+    expect(ctl.page.containers.find((c) => c.id === id)!.y).toBe(y0 + 60);
+    ctl.undoPage();
+    ctl.undoPage();
+    expect(ctl.page.containers.find((c) => c.id === id)!.y).toBe(y0);
+  });
+
+  it('la goma de punto parte el trazo y la de trazo lo quita; la tinta seleccionada se duplica y se agranda', () => {
+    const ctl = new NotesCtl();
+    ctl.setTool('pen');
+    ctl.addStroke(ctl.newStrokeFrom(Array.from({ length: 21 }, (_, i) => [i * 10, 50]).flat()));
+    ctl.setEraserMode('point');
+    ctl.erase(100, 50, 6);
+    expect(ctl.page.ink).toHaveLength(2);
+    ctl.setEraserMode('stroke');
+    ctl.erase(10, 50, 6);
+    expect(ctl.page.ink).toHaveLength(1);
+    ctl.selectStrokes([ctl.page.ink[0]!.id]);
+    const w = (): number => ctl.page.ink[0]!.pts[ctl.page.ink[0]!.pts.length - 2]! - ctl.page.ink[0]!.pts[0]!;
+    const before = w();
+    ctl.scaleSelected(2);
+    expect(w()).toBeCloseTo(before * 2, 0);
+    ctl.duplicateSelected();
+    expect(ctl.page.ink).toHaveLength(2);
+    expect(ctl.selectedStrokes).toEqual([ctl.page.ink[1]!.id]);
+  });
+
+  it('el lazo elige la tinta que rodea y los trazos de una regla quedan rectos', () => {
+    const ctl = new NotesCtl();
+    ctl.setTool('pen');
+    ctl.addStroke(ctl.newStrokeFrom([100, 100, 120, 110, 140, 100]));
+    ctl.addStroke(ctl.newStrokeFrom([500, 500, 520, 510]));
+    ctl.selectInLasso([50, 50, 200, 60, 180, 160, 60, 150]);
+    expect(ctl.selectedStrokes).toHaveLength(1);
+    expect(ctl.ruler).toBeNull();
+    ctl.toggleRuler();
+    expect(ctl.ruler).not.toBeNull();
+    ctl.toggleRuler();
+    expect(ctl.ruler).toBeNull();
   });
 });

@@ -61,7 +61,7 @@ const en: Record<string, string> = {
   Lápiz: 'Pen',
   Marcador: 'Highlighter',
   Borrador: 'Eraser',
-  'Seleccionar tinta (recuadro)': 'Select ink (marquee)',
+  'Seleccionar tinta (lazo o recuadro)': 'Select ink (lasso or marquee)',
   Línea: 'Line',
   Flecha: 'Arrow',
   Rectángulo: 'Rectangle',

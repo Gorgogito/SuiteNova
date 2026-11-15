@@ -1,6 +1,6 @@
 import { Button, Input } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { contentNode, pageExtent, recognizeShape, simplify, snap, strokeBounds, strokePath, strokesInRect, type Container, type ImageContainer, type MediaContainer, type Page, type Stroke, type TextContainer } from '@suitenova/notes-core';
+import { contentNode, pageExtent, recognizeShape, replayAt, simplify, snap, snapToRuler, strokeBounds, strokePath, strokesInRect, type Container, type FileContainer, type ImageContainer, type MediaContainer, type Page, type Ruler, type Stroke, type TextContainer } from '@suitenova/notes-core';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -76,6 +76,24 @@ function MediaBody({ ctl, c }: { ctl: NotesCtl; c: MediaContainer }) {
   );
 }
 
+function fileSize(n: number): string {
+  return n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+}
+
+function FileBody({ ctl, c }: { ctl: NotesCtl; c: FileContainer }) {
+  const src = ctl.assetUrl(c.asset);
+  if (!src) return <div className="nn-missing">{t('Archivo no disponible')}</div>;
+  return (
+    <a className="nn-file" href={src} download={c.name} title={t('Clic para guardar una copia del archivo')}>
+      <span className="nn-file__icon" aria-hidden="true">
+        📎
+      </span>
+      <span className="nn-file__name">{c.name}</span>
+      <span className="nn-file__size">{fileSize(c.size)}</span>
+    </a>
+  );
+}
+
 // ------------------------------------------------------------------------------------------------ a box on the page
 
 function Box({ ctl, c, scale, openDialog }: { ctl: NotesCtl; c: Container; scale: number; openDialog: (k: string, arg?: unknown) => void }) {
@@ -128,6 +146,7 @@ function Box({ ctl, c, scale, openDialog }: { ctl: NotesCtl; c: Container; scale
       {c.kind === 'text' && <TextBox ctl={ctl} c={c} openDialog={openDialog} />}
       {c.kind === 'image' && <ImageBody ctl={ctl} c={c} />}
       {c.kind === 'media' && <MediaBody ctl={ctl} c={c} />}
+      {c.kind === 'file' && <FileBody ctl={ctl} c={c} />}
       <div className="nn-box__rh" role="separator" aria-label={t('Cambiar el tamaño del cuadro')} onPointerDown={start('resize')} onPointerMove={move} onPointerUp={end} onPointerCancel={end} />
     </div>
   );
@@ -140,23 +159,73 @@ interface Live {
   pts: number[];
 }
 
+/** La regla: se arrastra por el cuerpo, se gira y se alarga por el extremo derecho; un trazo hecho junto a ella queda recto. */
+function RulerShape({ ctl, ruler, scale, svg }: { ctl: NotesCtl; ruler: Ruler; scale: number; svg: React.RefObject<SVGSVGElement | null> }) {
+  const drag = useRef<{ mode: 'move' | 'turn'; px: number; py: number; r: Ruler } | null>(null);
+  const toPage = (e: React.PointerEvent) => {
+    const b = svg.current!.getBoundingClientRect();
+    return { x: (e.clientX - b.left) / scale, y: (e.clientY - b.top) / scale };
+  };
+  const begin = (mode: 'move' | 'turn') => (e: React.PointerEvent<SVGElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
+    const q = toPage(e);
+    drag.current = { mode, px: q.x, py: q.y, r: ruler };
+  };
+  const move = (e: React.PointerEvent<SVGElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const q = toPage(e);
+    if (d.mode === 'move') ctl.setRuler({ ...d.r, x: Math.round(d.r.x + q.x - d.px), y: Math.round(d.r.y + q.y - d.py) });
+    else {
+      const dx = q.x - d.r.x;
+      const dy = q.y - d.r.y;
+      let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+      if (!e.altKey) angle = Math.round(angle / 15) * 15;
+      ctl.setRuler({ ...d.r, angle, len: Math.max(120, Math.min(1600, Math.round(Math.hypot(dx, dy)))) });
+    }
+  };
+  const end = (e: React.PointerEvent<SVGElement>) => {
+    drag.current = null;
+    try {
+      (e.currentTarget as SVGElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // ya se soltó
+    }
+  };
+  const ticks: number[] = [];
+  for (let i = 0; i <= ruler.len; i += 20) ticks.push(i);
+  return (
+    <g className="nn-ruler" data-ruler transform={`translate(${ruler.x} ${ruler.y}) rotate(${ruler.angle})`} style={{ pointerEvents: 'auto' }}>
+      <rect x={0} y={-6} width={ruler.len} height={46} rx={4} fill="rgba(255,230,120,.55)" stroke="#a37f00" onPointerDown={begin('move')} onPointerMove={move} onPointerUp={end} onPointerCancel={end} style={{ cursor: 'move' }} aria-label={t('Regla')} />
+      {ticks.map((x) => (
+        <line key={x} x1={x} x2={x} y1={0} y2={x % 100 === 0 ? 16 : x % 40 === 0 ? 10 : 6} stroke="#6b5600" strokeWidth={1} pointerEvents="none" />
+      ))}
+      <circle data-ruler-handle cx={ruler.len} cy={17} r={9} fill="#a37f00" stroke="#fff" strokeWidth={2} onPointerDown={begin('turn')} onPointerMove={move} onPointerUp={end} onPointerCancel={end} style={{ cursor: 'grab' }} aria-label={t('Girar y alargar la regla')} />
+    </g>
+  );
+}
+
 function InkLayer({ ctl, page, scale, w, h }: { ctl: NotesCtl; page: Page; scale: number; w: number; h: number }) {
   const svg = useRef<SVGSVGElement>(null);
   const [live, setLiveState] = useState<Live | null>(null);
-  const [rect, setRectState] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   // los eventos del puntero pueden llegar más deprisa de lo que React redibuja: el estado «vivo» se guarda también en referencias
   const liveRef = useRef<Live | null>(null);
-  const rectRef = useRef<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const setLive = (v: Live | null) => {
     liveRef.current = v;
     setLiveState(v);
   };
-  const setRect = (v: { x1: number; y1: number; x2: number; y2: number } | null) => {
-    rectRef.current = v;
-    setRectState(v);
-  };
   const [eraser, setEraser] = useState<{ x: number; y: number } | null>(null);
-  const gesture = useRef<{ kind: 'draw' | 'erase' | 'lasso' | 'move'; x: number; y: number } | null>(null);
+  const [poly, setPolyState] = useState<number[] | null>(null);
+  const polyRef = useRef<number[] | null>(null);
+  const setPoly = (v: number[] | null) => {
+    polyRef.current = v;
+    setPolyState(v);
+  };
+  const [space, setSpace] = useState<{ y0: number; y: number } | null>(null);
+  const spaceRef = useRef<{ y0: number; y: number } | null>(null);
+  const gesture = useRef<{ kind: 'draw' | 'erase' | 'lasso' | 'move' | 'space'; x: number; y: number } | null>(null);
   const tool = ctl.tool;
   const active = tool !== 'select';
   const at = (e: React.PointerEvent): { x: number; y: number } => {
@@ -171,14 +240,19 @@ function InkLayer({ ctl, page, scale, w, h }: { ctl: NotesCtl; page: Page; scale
   };
   const down = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!active || e.button !== 0) return;
+    if (e.pointerType === 'touch' && !ctl.touchDraw) return;
     e.preventDefault();
     svg.current!.setPointerCapture(e.pointerId);
     const p = at(e);
     if (tool === 'eraser') {
       ctl.beginInkGesture();
       gesture.current = { kind: 'erase', ...p };
-      ctl.eraseStrokes(p.x, p.y, 10);
+      ctl.erase(p.x, p.y, 10);
       setEraser(p);
+    } else if (tool === 'space') {
+      gesture.current = { kind: 'space', ...p };
+      spaceRef.current = { y0: p.y, y: p.y };
+      setSpace(spaceRef.current);
     } else if (tool === 'lasso') {
       const b = selBounds();
       if (b && p.x >= b.x1 && p.x <= b.x2 && p.y >= b.y1 && p.y <= b.y2) {
@@ -187,7 +261,7 @@ function InkLayer({ ctl, page, scale, w, h }: { ctl: NotesCtl; page: Page; scale
       } else {
         ctl.selectStrokes([]);
         gesture.current = { kind: 'lasso', ...p };
-        setRect({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+        setPoly([p.x, p.y]);
       }
     } else {
       gesture.current = { kind: 'draw', ...p };
@@ -199,8 +273,11 @@ function InkLayer({ ctl, page, scale, w, h }: { ctl: NotesCtl; page: Page; scale
     const p = at(e);
     if (tool === 'eraser') setEraser(p);
     if (!g) return;
-    if (g.kind === 'erase') ctl.eraseStrokes(p.x, p.y, 10);
-    else if (g.kind === 'lasso') setRect(rectRef.current ? { ...rectRef.current, x2: p.x, y2: p.y } : null);
+    if (g.kind === 'erase') ctl.erase(p.x, p.y, 10);
+    else if (g.kind === 'space') {
+      spaceRef.current = { y0: g.y, y: p.y };
+      setSpace(spaceRef.current);
+    } else if (g.kind === 'lasso') setPoly(polyRef.current ? [...polyRef.current, p.x, p.y] : null);
     else if (g.kind === 'move') {
       ctl.moveSelectedStrokes(p.x - g.x, p.y - g.y);
       gesture.current = { kind: 'move', ...p };
@@ -234,20 +311,36 @@ function InkLayer({ ctl, page, scale, w, h }: { ctl: NotesCtl; page: Page; scale
       // ya se soltó
     }
     if (!g) return;
-    const rect = rectRef.current;
     const live = liveRef.current;
-    if (g.kind === 'lasso' && rect) {
-      ctl.selectStrokes(strokesInRect(page.ink, rect).map((s) => s.id));
-      setRect(null);
+    if (g.kind === 'lasso') {
+      const pl = polyRef.current;
+      if (pl && pl.length >= 4) {
+        // un arrastre casi recto es un recuadro entre sus dos puntas; un trazo cerrado o curvo es un lazo libre
+        let len = 0;
+        for (let i = 2; i < pl.length; i += 2) len += Math.hypot(pl[i]! - pl[i - 2]!, pl[i + 1]! - pl[i - 1]!);
+        const chord = Math.hypot(pl[pl.length - 2]! - pl[0]!, pl[pl.length - 1]! - pl[1]!);
+        if (len <= chord * 1.25) ctl.selectStrokes(strokesInRect(page.ink, { x1: pl[0]!, y1: pl[1]!, x2: pl[pl.length - 2]!, y2: pl[pl.length - 1]! }).map((st) => st.id));
+        else ctl.selectInLasso(pl);
+      }
+      setPoly(null);
+    }
+    if (g.kind === 'space') {
+      const sp = spaceRef.current;
+      spaceRef.current = null;
+      setSpace(null);
+      if (sp && Math.abs(sp.y - sp.y0) >= 4) ctl.insertSpaceAt(sp.y0, Math.round(sp.y - sp.y0));
     }
     if (g.kind === 'draw' && live) {
       let pts = live.pts;
       const shape = live.tool === 'line' || live.tool === 'arrow' || live.tool === 'rect' || live.tool === 'ellipse';
       if (!shape) pts = simplify(pts);
+      const rl = ctl.ruler;
+      const along = !shape && rl ? snapToRuler(rl, pts) : null;
+      if (along) pts = along;
       const tiny = shape ? Math.hypot(pts[2]! - pts[0]!, pts[3]! - pts[1]!) < 3 : false;
       if (!tiny) {
         let s = ctl.newStrokeFrom(pts.length === 2 ? [pts[0]!, pts[1]!, pts[0]! + 0.1, pts[1]! + 0.1] : pts);
-        if (!shape && ctl.inkToShape && live.tool === 'pen') s = recognizeShape(s) ?? s;
+        if (!shape && !along && ctl.inkToShape && live.tool === 'pen') s = recognizeShape(s) ?? s;
         ctl.addStroke(s);
       }
       setLive(null);
@@ -262,10 +355,17 @@ function InkLayer({ ctl, page, scale, w, h }: { ctl: NotesCtl; page: Page; scale
   );
   return (
     <svg ref={svg} className={`nn-ink${active ? ' is-active' : ''} nn-ink--${tool}`} width={w} height={h} aria-label={t('Tinta y dibujo')} onPointerDown={down} onPointerMove={moveEv} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => setEraser(null)}>
-      {page.ink.map(draw)}
+      {(ctl.replay === null ? page.ink : replayAt(page.ink, ctl.replay)).map(draw)}
       {liveStroke && draw(liveStroke)}
+      {ctl.ruler && <RulerShape ctl={ctl} ruler={ctl.ruler} scale={scale} svg={svg} />}
+      {space && (
+        <g pointerEvents="none">
+          <line x1={0} x2={w} y1={space.y0} y2={space.y0} stroke="#0f6cbd" strokeDasharray="6 4" />
+          <rect x={0} y={Math.min(space.y0, space.y)} width={w} height={Math.abs(space.y - space.y0)} fill={space.y >= space.y0 ? 'rgba(15,108,189,.12)' : 'rgba(197,15,31,.12)'} />
+        </g>
+      )}
+      {poly && <polyline points={poly.join(' ')} fill="rgba(15,108,189,.08)" stroke="#0f6cbd" strokeDasharray="4 3" />}
       {sel && <rect x={sel.x1 - 3} y={sel.y1 - 3} width={sel.x2 - sel.x1 + 6} height={sel.y2 - sel.y1 + 6} fill="rgba(15,108,189,.06)" stroke="#0f6cbd" strokeDasharray="4 3" />}
-      {rect && <rect x={Math.min(rect.x1, rect.x2)} y={Math.min(rect.y1, rect.y2)} width={Math.abs(rect.x2 - rect.x1)} height={Math.abs(rect.y2 - rect.y1)} fill="rgba(15,108,189,.08)" stroke="#0f6cbd" strokeDasharray="4 3" />}
       {eraser && tool === 'eraser' && <circle cx={eraser.x} cy={eraser.y} r={10} fill="rgba(255,255,255,.5)" stroke="#555" />}
     </svg>
   );
