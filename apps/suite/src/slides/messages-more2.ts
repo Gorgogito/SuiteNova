@@ -307,6 +307,7 @@ registerMessages('en', {
   'Formas básicas': 'Basic shapes',
   'Flechas de bloque': 'Block arrows',
   'Formas de ecuación': 'Equation shapes',
+  'Ajustar la forma': 'Adjust shape',
   'Diagrama de flujo': 'Flowchart',
   'Estrellas y cintas': 'Stars and banners',
   'Llamadas': 'Callouts',

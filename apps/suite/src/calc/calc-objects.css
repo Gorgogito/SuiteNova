@@ -411,3 +411,15 @@
   border: 1px solid var(--colorNeutralStroke2);
   font: 12px/16px Consolas, 'Courier New', monospace;
 }
+.calc-shape__adj {
+  box-sizing: border-box;
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: #ffc000;
+  border: 1px solid #7f6000;
+  transform: rotate(45deg);
+  cursor: grab;
+  z-index: 3;
+}

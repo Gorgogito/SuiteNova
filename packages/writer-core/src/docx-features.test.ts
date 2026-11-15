@@ -167,6 +167,17 @@ describe('DOCX: ecuaciones, formas y controles de contenido', () => {
     expect(shapes[1]!.attrs).toMatchObject({ kind: 'star5', fill: '#ffcc00', stroke: '#cc0000', wrap: 'front', x: 30, y: 12, rotation: 15 });
   });
 
+  it('los valores de ajuste de una forma (tiradores amarillos) sobreviven al .docx', async () => {
+    const base = { width: 100, height: 60, fill: '#ffffff', stroke: '#000000', strokeWidth: 1 };
+    const a = nodeTypes.shape!.create({ ...base, kind: 'roundRect', adj: { adj: 40000 } }, []);
+    const b = nodeTypes.shape!.create({ ...base, kind: 'roundRect' }, []);
+    const { blocks } = await rt(wd([p([t('x'), a, b])]));
+    const shapes: PMNode[] = [];
+    blocks[0]!.forEach((c) => c.type.name === 'shape' && shapes.push(c));
+    expect(shapes[0]!.attrs.adj).toEqual({ adj: 40000 });
+    expect(shapes[1]!.attrs.adj).toBeNull();
+  });
+
   it('controles de contenido: texto, lista, fecha y casilla', async () => {
     const cc = (type: string, attrs: Record<string, unknown>, text: string) => nodeTypes.content_control!.create({ type, id: '', ...attrs }, [t(text)]);
     const body = [

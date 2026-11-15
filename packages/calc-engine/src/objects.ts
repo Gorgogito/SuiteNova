@@ -304,6 +304,8 @@ export interface SheetShape {
   line?: { color?: string; width?: number } | null;
   /** A line (not a box) goes from the top-right to the bottom-left corner instead of top-left to bottom-right. */
   flip?: boolean;
+  /** Valores de ajuste de la forma (los tiradores amarillos), como en `a:avLst` de DrawingML; ausente = los de la forma por omisión. */
+  adj?: Record<string, number>;
   text?: string;
   textColor?: string;
   fontSize?: number;

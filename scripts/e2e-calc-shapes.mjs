@@ -124,6 +124,37 @@ await check('Formato de forma: relleno, contorno y texto; Supr elimina', async (
   assert.equal((await shapes()).length, 2);
 });
 
+await check('puntos de ajuste: el tirador amarillo cambia la esquina, se deshace y no aparece en las líneas', async () => {
+  const id = await ev(() => {
+    const d = window.__novaCalc.doc;
+    const i = d.x.insertShape('roundRect');
+    d.x.selectObject('shape', i);
+    return i;
+  });
+  await page.waitForTimeout(300);
+  const h = page.locator(`[data-shape-id="${id}"] .calc-shape__adj`);
+  assert.equal(await h.count(), 1);
+  const b = await h.boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 + 25, b.y + b.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const adj = (await shapes()).find((x) => x.id === id).adj;
+  assert.ok(adj && adj.adj > 16667, 'adj ' + JSON.stringify(adj));
+  await shot('ajuste');
+  await ev(() => window.__novaCalc.doc.undo());
+  assert.equal((await shapes()).find((x) => x.id === id).adj, undefined);
+  const line = await ev(() => {
+    const d = window.__novaCalc.doc;
+    const i = d.x.insertShape('line');
+    d.x.selectObject('shape', i);
+    return i;
+  });
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator(`[data-shape-id="${line}"] .calc-shape__adj`).count(), 0);
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors.filter((e) => !/Keyborg/.test(e)), []);
 });

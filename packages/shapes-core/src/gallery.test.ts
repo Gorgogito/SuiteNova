@@ -35,3 +35,29 @@ describe('galería común de formas', () => {
     expect(e.l).toBeGreaterThan(10);
   });
 });
+
+describe('puntos de ajuste', () => {
+  it('las formas con tiradores los colocan dentro de la forma y se pueden arrastrar', async () => {
+    const { adjustHandles, dragAdjust, avLstXml, parseGuide, cleanAdjust } = await import('./adjust');
+    const h = adjustHandles('roundRect', 200, 100);
+    expect(h.length).toBe(1);
+    expect(h[0]!.x).toBeGreaterThan(0);
+    expect(h[0]!.x).toBeLessThan(100);
+    const adj = dragAdjust('roundRect', 200, 100, {}, 0, 40, 0);
+    expect(adj?.adj).toBeGreaterThan(16667);
+    // el tirador queda donde se soltó
+    expect(adjustHandles('roundRect', 200, 100, adj ?? {})[0]!.x).toBeCloseTo(40, 0);
+    // una forma sin tiradores no tiene ninguno
+    expect(adjustHandles('rect', 100, 100)).toEqual([]);
+    expect(adjustHandles('line', 100, 100)).toEqual([]);
+    // volver al valor por omisión lo borra
+    expect(cleanAdjust('roundRect', { adj: 16667 })).toBeUndefined();
+    expect(avLstXml(undefined)).toBe('<a:avLst/>');
+    expect(avLstXml({ adj: 30000 })).toBe('<a:avLst><a:gd name="adj" fmla="val 30000"/></a:avLst>');
+    expect(parseGuide('adj', 'val 30000')).toEqual(['adj', 30000]);
+    expect(parseGuide('adj', '*/ w 1 2')).toBeNull();
+  });
+  it('el dibujo cambia con el ajuste', () => {
+    expect(shapeSvg('roundRect', 100, 100, { fill: '#fff', adj: { adj: 40000 } })).not.toBe(shapeSvg('roundRect', 100, 100, { fill: '#fff' }));
+  });
+});

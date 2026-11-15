@@ -359,6 +359,8 @@ const nodes: Record<string, NodeSpec> = {
       stroke: { default: '#000000' },
       strokeWidth: { default: 1 },
       rotation: { default: 0 },
+      /** Valores de ajuste (los tiradores amarillos) como en `a:avLst`; null = los de la forma por omisión. */
+      adj: { default: null },
       /** inline | left | right | front | behind | topBottom */
       wrap: { default: 'inline' },
       /** Offset (px) from the paragraph's top-left for front/behind shapes. */

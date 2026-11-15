@@ -6,7 +6,7 @@ import { EMU_PER_PX, emptyWriterDoc, makeSection, twipsToPt, type CommentData, t
 import { defaultSection, newSectionId, noRefs, oneColumn, type Columns, type HFRefs, type SectionProps } from '../sections';
 import { fromOMML, toTex } from '../math';
 import { noteBodyOf } from '../notes';
-import { hasPreset } from '@suitenova/shapes-core';
+import { cleanAdjust, hasPreset, parseGuide } from '@suitenova/shapes-core';
 import { parseFieldInstr } from './shared';
 import { attrOf, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOfNode, toggle, type XNode } from './xml';
 
@@ -876,6 +876,14 @@ class Converter {
       const v = c && attrOf(c, 'val');
       return v && /^[0-9a-f]{6}$/i.test(v) ? '#' + v.toLowerCase() : null;
     };
+    const adj: Record<string, number> = {};
+    const av = geom && findKid(geom, 'avLst');
+    if (av) for (const g of kidsOf(av)) {
+      if (tagOf(g) !== 'gd') continue;
+      const p = parseGuide(attrOf(g, 'name'), attrOf(g, 'fmla'));
+      if (p) adj[p[0]] = p[1];
+    }
+    const adjust = hasPreset(prst) ? (cleanAdjust(kind, adj) ?? null) : null;
     const noFill = !!(spPr && findKid(spPr, 'noFill'));
     const fill = noFill ? '#ffffff' : (colorOf(spPr) ?? '#ffffff');
     const ln = spPr && findKid(spPr, 'ln');
@@ -907,7 +915,7 @@ class Converter {
     const pr = findDeep(d, 'docPr');
     cur().push(
       nodeTypes.shape!.create(
-        { kind, width: w, height: h, fill, stroke, strokeWidth, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, wrap, x, y, alt: (pr && attrOf(pr, 'descr')) || '' },
+        { kind, width: w, height: h, fill, stroke, strokeWidth, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, adj: adjust, wrap, x, y, alt: (pr && attrOf(pr, 'descr')) || '' },
         paras,
       ),
     );

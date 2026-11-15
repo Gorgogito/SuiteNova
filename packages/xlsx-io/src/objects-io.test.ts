@@ -399,6 +399,17 @@ describe('shapes and text boxes', () => {
     expect(r.workbook.sheets[0]!.shapes.map((x) => x.kind)).toEqual(['star5', 'wedgeRectCallout', 'bentConnector3']);
     expect(r.warnings.join(' ')).not.toMatch(/geometría/);
   });
+
+  it('writes and reads the adjust values of a shape (the yellow handles)', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.editObjects(id, (sh) => void sh.shapes.push({ id: 'a', kind: 'roundRect', x: 10, y: 10, width: 100, height: 60, adj: { adj: 40000 } } as never, { id: 'b', kind: 'roundRect', x: 10, y: 90, width: 100, height: 60 } as never));
+    const bytes = await writeXlsx(w);
+    const r = await readXlsx(bytes);
+    const [a, b] = r.workbook.sheets[0]!.shapes;
+    expect(a!.adj).toEqual({ adj: 40000 });
+    expect(b!.adj).toBeUndefined();
+  });
 });
 
 describe('charts', () => {

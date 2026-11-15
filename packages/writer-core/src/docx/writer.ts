@@ -7,7 +7,7 @@ import { EMU_PER_PX, ptToTwips, sectionPropsOf, type CommentData, type WriteResu
 import { columnWidths, noRefs, type SectionProps } from '../sections';
 import { resolvePart } from '../layout';
 import { parseMath, toOMML } from '../math';
-import { presetOf, resolveKind } from '@suitenova/shapes-core';
+import { avLstXml, presetOf, resolveKind } from '@suitenova/shapes-core';
 import { REL, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml } from './shared';
 import { commentsExtendedXml, commentsXml, customXmlParts, footnotesXml, settingsXml, watermarkParagraph, type NoteOut } from './writer-parts';
 
@@ -238,7 +238,7 @@ function shapeXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string 
   const rot = a.rotation ? ` rot="${Math.round(a.rotation * 60000)}"` : '';
   const sp =
     `<a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvSpPr${isText ? ' txBox="1"' : ''}/><wps:spPr><a:xfrm${rot}><a:off x="0" y="0"/><a:ext cx="${w}" cy="${h}"/></a:xfrm>` +
-    `<a:prstGeom prst="${prst}"><a:avLst/></a:prstGeom>${fill}${line}</wps:spPr>${content ? `<wps:txbx><w:txbxContent>${content}</w:txbxContent></wps:txbx>` : ''}<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="t" anchorCtr="0"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic>`;
+    `<a:prstGeom prst="${prst}">${avLstXml(a.adj)}</a:prstGeom>${fill}${line}</wps:spPr>${content ? `<wps:txbx><w:txbxContent>${content}</w:txbxContent></wps:txbx>` : ''}<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="t" anchorCtr="0"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic>`;
   const docPr = `<wp:docPr id="${id}" name="${isText ? 'Cuadro de texto' : 'Forma'} ${id}" descr="${esc(a.alt ?? '')}"/>`;
   let drawing: string;
   if (a.wrap === 'inline') {

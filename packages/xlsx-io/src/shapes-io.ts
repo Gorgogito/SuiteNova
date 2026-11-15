@@ -1,6 +1,6 @@
 /** Formas y cuadros de texto de la hoja (`xdr:sp` y `xdr:cxnSp` del dibujo de SpreadsheetML). */
 import { SHAPE_FILL, SHAPE_LINE, type SheetShape, type ShapeKind } from '@suitenova/calc-engine';
-import { hasPreset, isLineKind, presetOf } from '@suitenova/shapes-core';
+import { avLstXml, cleanAdjust, hasPreset, isLineKind, parseGuide, presetOf } from '@suitenova/shapes-core';
 import { resolveColor } from './colors';
 import { asArray, attr, escapeXml, textOf, type XNode } from './xml';
 
@@ -26,7 +26,7 @@ function textXml(s: SheetShape): string {
 export function shapeBodyXml(s: SheetShape, id: number): string {
   const name = escapeXml(s.name ?? `Forma ${id - 1}`);
   const xfrm = `<a:xfrm${s.flip ? ' flipH="1"' : ''}><a:off x="0" y="0"/><a:ext cx="${Math.round(s.width * EMU)}" cy="${Math.round(s.height * EMU)}"/></a:xfrm>`;
-  const geom = `<a:prstGeom prst="${presetOf(s.kind)}"><a:avLst/></a:prstGeom>`;
+  const geom = `<a:prstGeom prst="${presetOf(s.kind)}">${avLstXml(s.adj)}</a:prstGeom>`;
   if (isLineKind(s.kind)) {
     return `<xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="${id}" name="${name}"${s.alt ? ` descr="${escapeXml(s.alt)}"` : ''}/><xdr:cNvCxnSpPr/></xdr:nvCxnSpPr><xdr:spPr>${xfrm}${geom}${lineXml(s.line === undefined ? { color: SHAPE_LINE, width: 2 } : s.line)}</xdr:spPr></xdr:cxnSp>`;
   }
@@ -76,6 +76,13 @@ export function parseShape(a: XNode, theme: string[]): { shape: Omit<SheetShape,
     out.line = { ...(c ? { color: c } : {}), ...(w > 0 ? { width: Math.round(w * 4) / 4 } : {}) };
   }
   if (attr(spPr?.xfrm, 'flipH') === '1' && isLineKind(kind)) out.flip = true;
+  const adj: Record<string, number> = {};
+  for (const g of asArray(spPr?.prstGeom?.avLst?.gd)) {
+    const p = parseGuide(attr(g, 'name'), attr(g, 'fmla'));
+    if (p) adj[p[0]] = p[1];
+  }
+  const clean = known ? cleanAdjust(kind, adj) : undefined;
+  if (clean) out.adj = clean;
   const nv = (sp.nvSpPr ?? sp.nvCxnSpPr)?.cNvPr;
   const name = attr(nv, 'name');
   if (name) out.name = name;

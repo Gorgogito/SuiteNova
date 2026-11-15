@@ -1,8 +1,8 @@
-import { isLineKind, shapeSvg } from '@suitenova/shapes-core';
+import { adjustHandles, dragAdjust, isLineKind, shapeSvg } from '@suitenova/shapes-core';
 import { listChoices, shapeLook, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { Check, FilterX, ListChecks } from 'lucide-react';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CalcDoc } from './doc';
 import { colX, screenX, screenY, type Layout, type Viewport } from './render';
 
@@ -136,8 +136,35 @@ function SlicerView({ doc, sl, rect, selected, onDown }: { doc: CalcDoc; sl: Sli
   );
 }
 
-function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void }) {
+function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit, onAdjust }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void; onAdjust: (adj: Record<string, number> | undefined) => void }) {
   const look = shapeLook(s);
+  const box = useRef<HTMLDivElement>(null);
+  const [adjDraft, setAdjDraft] = useState<Record<string, number> | null>(null);
+  const adj = adjDraft ?? s.adj ?? {};
+  const adjHandles = selected && !editing && !isLineKind(s.kind) ? adjustHandles(s.kind, Math.max(rect.w, 1), Math.max(rect.h, 1), adj) : [];
+  const startAdjust = (e: React.PointerEvent, index: number) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const el = box.current;
+    if (!el) return;
+    let latest: Record<string, number> | undefined = s.adj;
+    const move = (ev: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      const x = ((ev.clientX - r.left) * w) / (r.width || 1);
+      const y = ((ev.clientY - r.top) * h) / (r.height || 1);
+      latest = dragAdjust(s.kind, w, h, s.adj ?? {}, index, x, y);
+      setAdjDraft(latest ?? {});
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setAdjDraft(null);
+      if (JSON.stringify(latest ?? null) !== JSON.stringify(s.adj ?? null)) onAdjust(latest);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const w = Math.max(rect.w, 1);
   const h = Math.max(rect.h, 1);
   const [draft, setDraft] = useState(s.text ?? '');
@@ -149,6 +176,7 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit 
   const font: React.CSSProperties = { color: s.textColor ?? '#000000', fontSize: (s.fontSize ?? 11) * zoom, fontWeight: s.bold ? 700 : 400, fontStyle: s.italic ? 'italic' : 'normal', textAlign: align, fontFamily: 'Calibri, Carlito, "Segoe UI", sans-serif' };
   return (
     <div
+      ref={box}
       className={`calc-shape ${selected ? 'is-selected' : ''}`}
       style={{ left: rect.x, top: rect.y, width: w, height: isLineKind(s.kind) ? Math.max(h, 6) : h }}
       data-shape-id={s.id}
@@ -158,7 +186,7 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit 
       onDoubleClick={() => !isLineKind(s.kind) && onEdit()}
     >
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
-        <g dangerouslySetInnerHTML={{ __html: shapeSvg(s.kind, w, h, { fill: look.fill, stroke: look.line?.color ?? null, strokeWidth: (look.line?.width ?? 1) * zoom, flip: s.flip }) }} />
+        <g dangerouslySetInnerHTML={{ __html: shapeSvg(s.kind, w, h, { fill: look.fill, stroke: look.line?.color ?? null, strokeWidth: (look.line?.width ?? 1) * zoom, flip: s.flip, adj }) }} />
       </svg>
       {editing ? (
         <textarea
@@ -183,6 +211,9 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit 
         )
       )}
       {selected && !editing && <Handles onDown={onDown} />}
+      {adjHandles.map((p, i) => (
+        <span key={i} className="calc-shape__adj" data-adj-handle={i} title={t('Ajustar la forma')} style={{ left: p.x, top: p.y }} onPointerDown={(e) => startAdjust(e, i)} />
+      ))}
     </div>
   );
 }
@@ -254,6 +285,7 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
               doc.x.selectObject('shape', s.id);
               setEditingShape(s.id);
             }}
+            onAdjust={(adj) => doc.x.updateShape(s.id, { adj }, 'Ajustar forma')}
             onCommit={(text) => {
               setEditingShape(null);
               if (text !== null && text !== (s.text ?? '')) doc.x.updateShape(s.id, { text: text || undefined }, 'Texto de la forma');

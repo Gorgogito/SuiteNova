@@ -111,6 +111,70 @@ await check('todo sobrevive a guardar y volver a leer el .docx', async () => {
   assert.deepEqual(back, ['ellipse', 'star5', 'rightArrow', 'line', 'actionButtonHome', 'textbox']);
 });
 
+await check('puntos de ajuste: el tirador amarillo redondea la forma, también girada, y sobrevive al .docx', async () => {
+  const adjOf = () =>
+    page.evaluate(() => {
+      let a = null;
+      window.__novaWriter.ctl.mainView.state.doc.descendants((n) => {
+        if (n.type.name === 'shape' && n.attrs.kind === 'roundRect') a = n.attrs.adj;
+      });
+      return a;
+    });
+  await editor.click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.press('Delete');
+  await page.waitForTimeout(200);
+  assert.equal((await shapes()).length, 0, 'documento limpio');
+  await pick('roundRect');
+  // la forma recién insertada queda seleccionada por el clic en su dibujo
+  await page.locator('.ProseMirror [data-kind="roundRect"]').click({ position: { x: 3, y: 40 } });
+  await page.waitForTimeout(300);
+  const h = page.locator('.ProseMirror [data-kind="roundRect"] .nw-adj');
+  assert.equal(await h.count(), 1);
+  const drag = async (dx) => {
+    const b = await page.locator('.ProseMirror [data-kind="roundRect"] .nw-adj').boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + dx, b.y + b.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+  };
+  await drag(30);
+  const a1 = await adjOf();
+  assert.ok(a1 && a1.adj > 16667, 'adj ' + JSON.stringify(a1));
+  await shot('ajuste');
+  const back = await page.evaluate(async () => {
+    const w = window.__novaWriter;
+    const { data } = await w.docx.writeDocx(w.ctl.toWriterDoc());
+    const d = (await w.docx.readDocx(data)).doc;
+    let a = null;
+    d.body.descendants((n) => {
+      if (n.type.name === 'shape' && n.attrs.kind === 'roundRect') a = n.attrs.adj;
+    });
+    return a;
+  });
+  assert.deepEqual(back, a1);
+  // girada 90°: el mismo gesto sigue el borde de la forma, no el de la pantalla
+  await page.evaluate(() => {
+    const v = window.__novaWriter.ctl.mainView;
+    v.state.doc.descendants((n, p) => {
+      if (n.type.name === 'shape' && n.attrs.kind === 'roundRect') v.dispatch(v.state.tr.setNodeMarkup(p, undefined, { ...n.attrs, rotation: 90, adj: null }));
+    });
+  });
+  await page.waitForTimeout(300);
+  await page.locator('.ProseMirror [data-kind="roundRect"]').click({ position: { x: 3, y: 40 } });
+  await page.waitForTimeout(300);
+  assert.equal(await adjOf(), null, 'girada y sin tocar: sin ajuste');
+  const b = await page.locator('.ProseMirror [data-kind="roundRect"] .nw-adj').boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2 + 30, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const a2 = await adjOf();
+  assert.ok(a2 && a2.adj > 16667, 'girada: adj ' + JSON.stringify(a2));
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors, []);
 });

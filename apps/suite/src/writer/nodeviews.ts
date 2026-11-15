@@ -1,4 +1,4 @@
-import { resolveKind, shapeSvg } from '@suitenova/shapes-core';
+import { adjustHandles, dragAdjust, isLineKind, resolveKind, shapeSvg } from '@suitenova/shapes-core';
 import { parseMath, toMathML } from '@suitenova/writer-core';
 import type { Node as PMNode } from 'prosemirror-model';
 import { NodeSelection, TextSelection } from 'prosemirror-state';
@@ -76,6 +76,8 @@ export class ShapeView implements NodeView {
   private svg: SVGSVGElement;
   private paths: SVGGElement;
   private handles: HTMLElement[] = [];
+  private adjEls: HTMLElement[] = [];
+  private selected = false;
   private grip: HTMLElement;
   constructor(private node: PMNode, private view: EditorView, private getPos: () => number | undefined, private host: NodeViewHost) {
     this.dom = document.createElement('span');
@@ -117,11 +119,57 @@ export class ShapeView implements NodeView {
     // the drawing comes from the common shape catalog, in pixels (the view box is the size of the shape)
     this.svg.setAttribute('viewBox', `0 0 ${a.width} ${a.height}`);
     const invisible = resolveKind(a.kind) === 'textbox' && a.strokeWidth === 0 && a.fill === '#ffffff';
-    this.paths.innerHTML = shapeSvg(a.kind, a.width, a.height, { fill: invisible ? null : a.fill, stroke: a.strokeWidth > 0 ? a.stroke : null, strokeWidth: a.strokeWidth });
+    this.paths.innerHTML = shapeSvg(a.kind, a.width, a.height, { fill: invisible ? null : a.fill, stroke: a.strokeWidth > 0 ? a.stroke : null, strokeWidth: a.strokeWidth, adj: a.adj ?? undefined });
     this.dom.title = a.alt || '';
+    this.renderAdjust();
+  }
+  /** The yellow adjust handles of the selected shape (only the shapes of the catalog that have them). */
+  private renderAdjust() {
+    for (const e of this.adjEls) e.remove();
+    this.adjEls = [];
+    const a = this.node.attrs;
+    if (!this.selected || isLineKind(a.kind)) return;
+    adjustHandles(a.kind, a.width, a.height, a.adj ?? {}).forEach((p, i) => {
+      const e = document.createElement('span');
+      e.className = 'nw-handle nw-adj';
+      e.contentEditable = 'false';
+      e.dataset.adj = String(i);
+      e.title = 'Ajustar la forma';
+      e.style.cssText = `left:${p.x - 5}px;top:${p.y - 5}px;cursor:grab`;
+      e.addEventListener('pointerdown', (ev) => this.dragAdjust(ev, i));
+      this.dom.appendChild(e);
+      this.adjEls.push(e);
+    });
+  }
+  private dragAdjust(e: PointerEvent, index: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    const a0 = this.node.attrs;
+    const rot = ((a0.rotation || 0) * Math.PI) / 180;
+    const move = (ev: PointerEvent) => {
+      const p = this.getPos();
+      if (p === undefined) return;
+      // pointer relative to the centre of the shape, undoing its rotation and the zoom
+      const r = this.dom.getBoundingClientRect();
+      const scale = this.dom.offsetWidth ? r.width / (Math.abs(Math.cos(rot)) * this.dom.offsetWidth + Math.abs(Math.sin(rot)) * this.dom.offsetHeight) : 1;
+      const dx = (ev.clientX - (r.left + r.width / 2)) / scale;
+      const dy = (ev.clientY - (r.top + r.height / 2)) / scale;
+      const x = dx * Math.cos(rot) + dy * Math.sin(rot) + a0.width / 2;
+      const y = -dx * Math.sin(rot) + dy * Math.cos(rot) + a0.height / 2;
+      const adj = dragAdjust(a0.kind, a0.width, a0.height, a0.adj ?? {}, index, x, y) ?? null;
+      this.view.dispatch(this.view.state.tr.setNodeMarkup(p, undefined, { ...this.node.attrs, adj }).setMeta('nw-no-track', true));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
   }
   private setSelected(on: boolean) {
     this.dom.classList.toggle('is-selected', on);
+    this.selected = on;
+    this.renderAdjust();
     const movable = this.node.attrs.wrap === 'front' || this.node.attrs.wrap === 'behind';
     for (const h of this.handles) h.style.display = on ? 'block' : 'none';
     this.grip.style.display = on && movable ? 'block' : 'none';
@@ -130,7 +178,7 @@ export class ShapeView implements NodeView {
     // a click on the frame (not on the text) selects the shape; clicking its text puts the caret inside
     this.dom.addEventListener('mousedown', (e) => {
       const t = e.target as HTMLElement;
-      if (t.dataset?.handle || t.classList?.contains('nw-grip')) return;
+      if (t.dataset?.handle || t.dataset?.adj !== undefined || t.classList?.contains('nw-grip')) return;
       const pos = this.getPos();
       if (pos === undefined) return;
       if (t === this.dom || t === this.contentDOM || t.closest('svg')) {
@@ -197,7 +245,7 @@ export class ShapeView implements NodeView {
   stopEvent(e: Event): boolean {
     const t = e.target as HTMLElement | null;
     if (!t) return false;
-    if (t.dataset?.handle || t.classList?.contains('nw-grip')) return true;
+    if (t.dataset?.handle || t.dataset?.adj !== undefined || t.classList?.contains('nw-grip')) return true;
     if (e.type === 'dblclick' && (t === this.dom || t.closest('svg'))) return true;
     return false;
   }

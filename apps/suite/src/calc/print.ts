@@ -374,7 +374,7 @@ function pageHtml(o: HtmlOptions, p: PrintPage, total: number): string {
       ? `<div style="position:absolute;inset:4px;display:flex;flex-direction:column;justify-content:${justify};text-align:${align};white-space:pre-wrap;overflow:hidden;color:${sh.textColor ?? '#000'};font-size:${sh.fontSize ?? 11}px;${sh.bold ? 'font-weight:700;' : ''}${sh.italic ? 'font-style:italic;' : ''}">${esc(sh.text)}</div>`
       : '';
     parts.push(
-      `<div class="o" style="left:${headW + offX + sh.x - originX}px;top:${headH + offY + sh.y - originY}px;width:${sh.width}px;height:${sh.height}px"><svg width="${sh.width}" height="${sh.height}" viewBox="0 0 ${sh.width} ${sh.height}" style="position:absolute;left:0;top:0;overflow:visible">${shapeSvg(sh.kind, sh.width, sh.height, { fill: look.fill, stroke: look.line?.color ?? null, strokeWidth: look.line?.width ?? 1, flip: sh.flip })}</svg>${txt}</div>`,
+      `<div class="o" style="left:${headW + offX + sh.x - originX}px;top:${headH + offY + sh.y - originY}px;width:${sh.width}px;height:${sh.height}px"><svg width="${sh.width}" height="${sh.height}" viewBox="0 0 ${sh.width} ${sh.height}" style="position:absolute;left:0;top:0;overflow:visible">${shapeSvg(sh.kind, sh.width, sh.height, { fill: look.fill, stroke: look.line?.color ?? null, strokeWidth: look.line?.width ?? 1, flip: sh.flip, adj: sh.adj })}</svg>${txt}</div>`,
     );
   }
   for (const sl of sheet.slicers) {
