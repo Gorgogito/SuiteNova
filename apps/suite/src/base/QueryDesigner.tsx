@@ -1,6 +1,7 @@
-import { QUERY_KINDS, TOTAL_OPS, type DesignField, type QueryDesign, type QueryKind, type TotalOp } from '@suitenova/base-core';
+import { QUERY_KINDS, TOTAL_OPS, type DesignField, type QueryDesign, type QueryKind, type TotalOp, JOIN_OPS, type JoinOp } from '@suitenova/base-core';
 import { t } from '@suitenova/core-ui';
 import type { BaseCtl, QueryState } from './ctl';
+import { ExprBuilderButton } from './ExprBuilder';
 
 const KIND_LABEL: Record<QueryKind, string> = {
   select: 'Selección',
@@ -18,6 +19,8 @@ const TOTAL_LABEL: Record<TotalOp, string> = {
   count: 'Cuenta',
   min: 'Mín',
   max: 'Máx',
+  first: 'Primero',
+  last: 'Último',
   where: 'Donde',
   expr: 'Expresión',
 };
@@ -30,7 +33,7 @@ const setAt = <T,>(arr: T[], i: number, v: T): T[] => {
 };
 
 /** The design grid of a query: tables, joins, fields with sort, totals, criteria rows and the options of each kind of query. */
-export function QueryDesigner({ ctl, q, update }: { ctl: BaseCtl; q: QueryState; update: (patch: Partial<QueryState>) => void }) {
+export function QueryDesigner({ ctl, q, update, selfName }: { ctl: BaseCtl; q: QueryState; update: (patch: Partial<QueryState>) => void; selfName?: string }) {
   const db = ctl.db!;
   const d = q.design;
   const kind: QueryKind = d.kind ?? 'select';
@@ -40,17 +43,40 @@ export function QueryDesigner({ ctl, q, update }: { ctl: BaseCtl; q: QueryState;
   const totalsOn = d.fields.some((f) => f.total);
   const usesTables = kind !== 'union';
   const extraRows = Math.max(0, ...d.fields.map((f) => f.more?.length ?? 0));
-  const colOptions = d.tables.flatMap((tb) => db.columns(tb).map((c) => `"${tb}"."${c.name}"`));
+  /** The table a name of the query stands for (a table used twice has an alias). */
+  const real = (n: string) => d.tableAlias?.[n] ?? n;
+  /** The columns of a table of the query, or of the saved query used as a table. */
+  const colsOf = (tb: string): string[] => (d.querySources?.includes(tb) ? ctl.queryColumns(tb) : db.columns(real(tb)).map((c) => c.name));
+  const colOptions = d.tables.flatMap((tb) => colsOf(tb).map((c) => `"${tb}"."${c}"`));
+  const aliases = d.tables.filter((n) => d.tableAlias?.[n]);
+  const addCopy = (tb: string) => {
+    let i = 1;
+    while (d.tables.includes(`${tb}_${i}`) || allTables.includes(`${tb}_${i}`)) i++;
+    const alias = `${tb}_${i}`;
+    setDesign({ tables: [...d.tables, alias], tableAlias: { ...d.tableAlias, [alias]: tb }, fields: [...d.fields, ...db.columns(tb).map((c) => ({ table: alias, name: c.name, show: false, sort: null, criteria: '' }) as DesignField)] });
+  };
+  const removeCopy = (alias: string) => {
+    const { [alias]: _gone, ...rest } = d.tableAlias ?? {};
+    void _gone;
+    setDesign({
+      tables: d.tables.filter((x) => x !== alias),
+      tableAlias: Object.keys(rest).length ? rest : undefined,
+      fields: d.fields.filter((f) => f.table !== alias),
+      joins: (d.joins ?? []).filter((j) => !j.left.startsWith(`"${alias}".`) && !j.right.startsWith(`"${alias}".`)),
+    });
+  };
   const joins = d.joins ?? [];
 
-  const toggleTable = (tb: string, on: boolean) => {
+  const toggleTable = (tb: string, on: boolean, isQuery = false) => {
     const tables = on ? [...d.tables, tb] : d.tables.filter((x) => x !== tb);
     let fields = d.fields;
     let newJoins = tables.length > 1 ? [...joins] : [];
+    const sources = isQuery ? (on ? [...(d.querySources ?? []), tb] : (d.querySources ?? []).filter((x) => x !== tb)) : d.querySources;
     if (on) {
-      fields = [...fields, ...db.columns(tb).map((c) => ({ table: tb, name: c.name, show: true, sort: null, criteria: '' }) as DesignField)];
+      const cols = isQuery ? ctl.queryColumns(tb) : db.columns(tb).map((c) => c.name);
+      fields = [...fields, ...cols.map((c) => ({ table: tb, name: c, show: true, sort: null, criteria: '' }) as DesignField)];
       // the relationships already defined between the tables become joins
-      for (const r of db.relations()) {
+      for (const r of isQuery ? [] : db.relations()) {
         if (r.childCols.length !== 1) continue;
         const touchesNew = r.child === tb || r.parent === tb;
         if (touchesNew && tables.includes(r.child) && tables.includes(r.parent) && r.child !== r.parent) {
@@ -63,7 +89,7 @@ export function QueryDesigner({ ctl, q, update }: { ctl: BaseCtl; q: QueryState;
       fields = fields.filter((f) => f.table !== tb);
       newJoins = newJoins.filter((j) => !j.left.startsWith(`"${tb}".`) && !j.right.startsWith(`"${tb}".`));
     }
-    setDesign({ tables, fields, joins: newJoins });
+    setDesign({ tables, fields, joins: newJoins, querySources: sources?.length ? sources : undefined });
   };
 
   const addField = (value: string) => {
@@ -161,6 +187,33 @@ export function QueryDesigner({ ctl, q, update }: { ctl: BaseCtl; q: QueryState;
               <input type="checkbox" checked={d.tables.includes(tb)} onChange={(e) => toggleTable(tb, e.target.checked)} /> {tb}
             </label>
           ))}
+          {savedQueries.filter((n) => n !== selfName).map((n) => (
+            <label key={`q:${n}`}>
+              <input type="checkbox" aria-label={`${t('Consulta como origen')} ${n}`} checked={!!d.querySources?.includes(n)} disabled={allTables.includes(n)} onChange={(e) => toggleTable(n, e.target.checked, true)} /> {n} <small>({t('consulta')})</small>
+            </label>
+          ))}
+          {aliases.map((a) => (
+            <label key={a}>
+              <input type="checkbox" checked onChange={() => removeCopy(a)} aria-label={`${t('Copia de tabla')} ${a}`} /> {a} <small>({t('copia de {tb}', { tb: real(a) })})</small>
+            </label>
+          ))}
+          {d.tables.some((n) => !d.tableAlias?.[n]) && (
+            <label>
+              {t('Usar otra vez la tabla')}
+              <select
+                aria-label={t('Tabla que se usa otra vez')}
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) addCopy(e.target.value);
+                }}
+              >
+                <option value="" />
+                {d.tables.filter((n) => !d.tableAlias?.[n]).map((n) => (
+                  <option key={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+          )}
           {(kind === 'select' || kind === 'append' || kind === 'maketable') && (
             <label>
               <input type="checkbox" checked={!!d.distinct} onChange={(e) => setDesign({ distinct: e.target.checked })} /> {t('Valores únicos')}
@@ -169,7 +222,12 @@ export function QueryDesigner({ ctl, q, update }: { ctl: BaseCtl; q: QueryState;
           {kind === 'select' && (
             <label>
               {t('Límite')}
-              <input type="number" min={0} aria-label={t('Límite de registros')} value={d.limit ?? ''} onChange={(e) => setDesign({ limit: e.target.value ? Number(e.target.value) : null })} />
+              <input type="number" min={0} step={d.limitPercent ? 'any' : 1} aria-label={t('Límite de registros')} value={d.limit ?? ''} onChange={(e) => setDesign({ limit: e.target.value ? Number(e.target.value) : null })} />
+            </label>
+          )}
+          {kind === 'select' && (
+            <label>
+              <input type="checkbox" aria-label={t('Límite en porcentaje')} checked={!!d.limitPercent} disabled={!d.limit} onChange={(e) => setDesign({ limitPercent: e.target.checked || undefined })} /> {t('Por ciento')}
             </label>
           )}
           {kind === 'select' && (
@@ -191,12 +249,23 @@ export function QueryDesigner({ ctl, q, update }: { ctl: BaseCtl; q: QueryState;
                   <option key={c}>{c}</option>
                 ))}
               </select>
-              =
+              <select aria-label={t('Operador de combinación {n}', { n: i + 1 })} value={j.op ?? '='} onChange={(e) => setDesign({ joins: setAt(joins, i, { ...j, op: e.target.value === '=' ? undefined : (e.target.value as JoinOp) }) })}>
+                {JOIN_OPS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
               <select aria-label={t('Combinar {n} derecha', { n: i + 1 })} value={j.right} onChange={(e) => setDesign({ joins: setAt(joins, i, { ...j, right: e.target.value }) })}>
                 <option value="" />
                 {colOptions.map((c) => (
                   <option key={c}>{c}</option>
                 ))}
+              </select>
+              <select aria-label={t('Tipo de combinación {n}', { n: i + 1 })} value={j.type ?? 'inner'} onChange={(e) => setDesign({ joins: setAt(joins, i, { ...j, type: e.target.value as 'inner' | 'left' | 'right' }) })}>
+                <option value="inner">{t('Solo los que coinciden')}</option>
+                <option value="left">{t('Todos los de la izquierda')}</option>
+                <option value="right">{t('Todos los de la derecha')}</option>
               </select>
             </div>
           ))}
@@ -209,7 +278,7 @@ export function QueryDesigner({ ctl, q, update }: { ctl: BaseCtl; q: QueryState;
             {t('Agregar campo')}
             <select aria-label={t('Agregar campo')} value="" onChange={(e) => addField(e.target.value)}>
               <option value="" />
-              {d.tables.flatMap((tb) => db.columns(tb).map((c) => <option key={`${tb}.${c.name}`} value={`${tb}\u0000${c.name}`}>{`${tb}.${c.name}`}</option>))}
+              {d.tables.flatMap((tb) => colsOf(tb).map((c) => <option key={`${tb}.${c}`} value={`${tb}\u0000${c}`}>{`${tb}.${c}`}</option>))}
             </select>
           </label>
           <button type="button" className="bs-btn" onClick={addCalc}>
@@ -258,6 +327,7 @@ export function QueryDesigner({ ctl, q, update }: { ctl: BaseCtl; q: QueryState;
                       <>
                         <input aria-label={t('Nombre del campo calculado {n}', { n: i + 1 })} value={f.name} onChange={(e) => setField(i, { name: e.target.value })} />
                         <input aria-label={t('Expresión de {f}', { f: f.name })} value={f.expr ?? ''} placeholder="Precio * [IVA]" onChange={(e) => setField(i, { expr: e.target.value })} />
+                        <ExprBuilderButton dialect="sql" fieldText={(x) => x.split('.').map((y) => `"${y}"`).join('.')} fields={d.tables.flatMap((tb) => colsOf(tb).map((c) => `${tb}.${c}`))} value={f.expr ?? ''} onApply={(v) => setField(i, { expr: v })} label={t('Generador de expresiones de {f}', { f: f.name })} />
                       </>
                     )}
                   </td>

@@ -1,7 +1,7 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle } from '@fluentui/react-components';
 import { AppFrame, CommandRegistry, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
 import { Workbook, formatValue, isDateFormat, type Scalar } from '@suitenova/calc-engine';
-import { parseCsv, toCsv } from '@suitenova/base-core';
+import { decryptDb, isEncrypted, parseCsv, toCsv } from '@suitenova/base-core';
 import { readXlsx } from '@suitenova/xlsx-io';
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -15,6 +15,12 @@ import { BaseCtl, type ObjKind } from './ctl';
 import { MacroEditor } from './MacroEditor';
 import { ModuleEditor } from './ModuleEditor';
 import { TableDatasheet } from './Datasheet';
+import { useRestorePage } from './dlg-sheet';
+import { FilesDialog } from './dlg-files';
+import { CompactDialog, PasswordDialog } from './dlg-tools';
+import { FormWizardDialog } from './dlg-fwiz';
+import { QueryWizardDialog } from './dlg-qwiz';
+import { CopyTableDialog, DocumenterDialog, ExportDialog, ImportDialog } from './dlg-exchange';
 import { baseTabs } from './ribbonDef';
 import { TableDesign } from './TableDesign';
 import { QueryView } from './QueryView';
@@ -30,6 +36,7 @@ const clean = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Datos';
 type NavKind = ObjKind;
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useRestorePage();
   return (
     <Dialog open modalType="modal" onOpenChange={(_e, d) => !d.open && onClose()}>
       <DialogSurface style={{ maxWidth: 520, width: '92vw' }}>
@@ -61,21 +68,47 @@ const SHORTCUTS: [string, string][] = [
   ['Alt', 'Atajos de la cinta (KeyTips)'],
 ];
 
-function NavPane({ ctl, selected, setSelected, renaming, setRenaming }: { ctl: BaseCtl; selected: { kind: NavKind; name: string } | null; setSelected: (s: { kind: NavKind; name: string } | null) => void; renaming: boolean; setRenaming: (b: boolean) => void }) {
+function NavPane({ ctl, selected, setSelected, renaming, setRenaming, run }: { run: (id: string) => void; ctl: BaseCtl; selected: { kind: NavKind; name: string } | null; setSelected: (s: { kind: NavKind; name: string } | null) => void; renaming: boolean; setRenaming: (b: boolean) => void }) {
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
   const db = ctl.db;
   const [text, setText] = useState('');
-  const groups: { kind: NavKind; label: string; names: string[] }[] = db
-    ? [
-        { kind: 'table', label: 'Tablas', names: db.tableNames() },
-        { kind: 'query', label: 'Consultas', names: db.objects('query') },
-        { kind: 'form', label: 'Formularios', names: db.objects('form') },
-        { kind: 'report', label: 'Informes', names: db.objects('report') },
-        { kind: 'macro', label: 'Macros', names: db.objects('macro') },
-        { kind: 'module', label: 'Módulos', names: db.objects('module') },
-      ]
+  const [menu, setMenu] = useState<{ x: number; y: number; kind: NavKind; name: string; group?: string } | null>(null);
+  const [newGroup, setNewGroup] = useState('');
+  const [groupError, setGroupError] = useState('');
+  type Section = { key: string; label: string; custom?: boolean; items: { kind: NavKind; name: string }[] };
+  const byType: Section[] = db
+    ? (
+        [
+          ['table', 'Tablas', db.tableNames()],
+          ['query', 'Consultas', db.objects('query')],
+          ['form', 'Formularios', db.objects('form')],
+          ['report', 'Informes', db.objects('report')],
+          ['macro', 'Macros', db.objects('macro')],
+          ['module', 'Módulos', db.objects('module')],
+        ] as [NavKind, string, string[]][]
+      ).map(([kind, label, names]) => ({ key: kind, label, items: names.map((name) => ({ kind, name })) }))
     : [];
+  const everything = byType.flatMap((g) => g.items);
+  const exists = (x: { kind: NavKind; name: string }) => everything.some((y) => y.kind === x.kind && y.name === x.name);
+  const custom = db ? ctl.navGroups() : [];
+  const inAny = new Set(custom.flatMap((g) => g.items.filter(exists).map((x) => `${x.kind}:${x.name}`)));
+  const groups: Section[] =
+    ctl.navView === 'groups' && db
+      ? [
+          ...custom.map((g) => ({ key: `g:${g.name}`, label: g.name, custom: true, items: g.items.filter(exists) })),
+          { key: 'rest', label: 'Objetos sin agrupar', items: everything.filter((x) => !inAny.has(`${x.kind}:${x.name}`)) },
+        ]
+      : byType;
   const f = ctl.navFilter.trim().toLowerCase();
+  const addGroup = () => {
+    try {
+      ctl.addNavGroup(newGroup);
+      setNewGroup('');
+      setGroupError('');
+    } catch (e) {
+      setGroupError((e as Error).message);
+    }
+  };
   const open = (k: NavKind, n: string) => (k === 'table' ? ctl.openTable(n) : k === 'query' ? ctl.openQuery(n) : k === 'form' ? ctl.openForm(n) : k === 'macro' ? ctl.openMacro(n) : k === 'module' ? ctl.openModule(n) : ctl.openReport(n));
   const commit = () => {
     if (selected && text.trim() && text.trim() !== selected.name) {
@@ -91,18 +124,41 @@ function NavPane({ ctl, selected, setSelected, renaming, setRenaming }: { ctl: B
   return (
     <nav className="bs-nav-pane" aria-label={t('Todos los objetos')}>
       <input type="search" aria-label={t('Buscar objetos')} placeholder={t('Buscar…')} value={ctl.navFilter} onChange={(e) => { ctl.navFilter = e.target.value; ctl.touch(); }} />
+      <select aria-label={t('Ver los objetos por')} value={ctl.navView} onChange={(e) => ((ctl.navView = e.target.value === 'groups' ? 'groups' : 'type'), ctl.touch())}>
+        <option value="type">{t('Tipo de objeto')}</option>
+        <option value="groups">{t('Mis grupos')}</option>
+      </select>
+      {ctl.navView === 'groups' && (
+        <div className="bs-newgroup">
+          <input aria-label={t('Nombre del grupo nuevo')} placeholder={t('Grupo nuevo…')} value={newGroup} onChange={(e) => (setNewGroup(e.target.value), setGroupError(''))} onKeyDown={(e) => e.key === 'Enter' && addGroup()} />
+          <button type="button" className="bs-btn" aria-label={t('Agregar grupo')} disabled={!newGroup.trim()} onClick={addGroup}>
+            +
+          </button>
+          {groupError && (
+            <span role="alert" className="bs-error">
+              {groupError}
+            </span>
+          )}
+        </div>
+      )}
       {groups.map((g) => (
-        <section key={g.kind} aria-label={t(g.label)}>
+        <section key={g.key} aria-label={g.custom ? g.label : t(g.label)}>
           <h3>
-            {t(g.label)} <span>{g.names.length}</span>
+            {g.custom ? g.label : t(g.label)} <span>{g.items.length}</span>
+            {g.custom && (
+              <button type="button" className="bs-btn bs-grpdel" aria-label={t('Eliminar el grupo {g}', { g: g.label })} title={t('Eliminar el grupo (los objetos no se eliminan)')} onClick={() => ctl.removeNavGroup(g.label)}>
+                ×
+              </button>
+            )}
           </h3>
           <ul>
-            {g.names
-              .filter((n) => !f || n.toLowerCase().includes(f))
-              .map((n) => {
-                const sel = selected?.kind === g.kind && selected.name === n;
+            {g.items
+              .filter((it) => !f || it.name.toLowerCase().includes(f))
+              .map((it) => {
+                const n = it.name;
+                const sel = selected?.kind === it.kind && selected.name === n;
                 return (
-                  <li key={n}>
+                  <li key={`${it.kind}:${n}`}>
                     {sel && renaming ? (
                       <input
                         autoFocus
@@ -121,12 +177,17 @@ function NavPane({ ctl, selected, setSelected, renaming, setRenaming }: { ctl: B
                         type="button"
                         className={sel ? 'is-selected' : ''}
                         aria-pressed={sel}
-                        onClick={() => setSelected({ kind: g.kind, name: n })}
-                        onDoubleClick={() => open(g.kind, n)}
+                        onClick={() => setSelected({ kind: it.kind, name: n })}
+                        onDoubleClick={() => open(it.kind, n)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setSelected({ kind: it.kind, name: n });
+                          setMenu({ x: Math.min(e.clientX, window.innerWidth - 220), y: Math.min(e.clientY, window.innerHeight - 300), kind: it.kind, name: n, ...(g.custom ? { group: g.label } : {}) });
+                        }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') open(g.kind, n);
+                          if (e.key === 'Enter') open(it.kind, n);
                           else if (e.key === 'F2') {
-                            setSelected({ kind: g.kind, name: n });
+                            setSelected({ kind: it.kind, name: n });
                             setText(n);
                             setRenaming(true);
                           }
@@ -141,7 +202,67 @@ function NavPane({ ctl, selected, setSelected, renaming, setRenaming }: { ctl: B
           </ul>
         </section>
       ))}
+      {menu && (
+        <NavMenu
+          ctl={ctl}
+          menu={menu}
+          onClose={() => setMenu(null)}
+          onRename={() => {
+            setText(menu.name);
+            setRenaming(true);
+          }}
+          run={run}
+        />
+      )}
     </nav>
+  );
+}
+
+/** Menu of an object of the navigation pane (right click). The commands act on the selected object. */
+function NavMenu({ menu, ctl, onClose, onRename, run }: { menu: { x: number; y: number; kind: NavKind; name: string; group?: string }; ctl: BaseCtl; onClose: () => void; onRename: () => void; run: (id: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const down = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('mousedown', down, true);
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('mousedown', down, true);
+      document.removeEventListener('keydown', key);
+    };
+  }, [onClose]);
+  const item = (label: string, fn: () => void) => (
+    <button type="button" role="menuitem" className="bs-mi" onClick={() => (onClose(), setTimeout(fn, 0))}>
+      {t(label)}
+    </button>
+  );
+  const isTable = menu.kind === 'table';
+  return (
+    <div ref={ref} role="menu" aria-label={`${t('Menú de')} ${menu.name}`} className="bs-colmenu" style={{ left: menu.x, top: menu.y }}>
+      {item('Abrir', () => run('base.object.open'))}
+      {menu.kind !== 'macro' && menu.kind !== 'module' && item(isTable ? 'Vista Diseño' : 'Diseño del objeto', () => run('base.object.design'))}
+      {item('Cambiar nombre', onRename)}
+      {isTable && <hr />}
+      {isTable && item('Copiar tabla…', () => run('base.copyTable'))}
+      {isTable && item('Exportar…', () => run('base.export.dialog'))}
+      {ctl
+        .navGroups()
+        .filter((g) => !g.items.some((x) => x.kind === menu.kind && x.name === menu.name))
+        .map((g) => (
+          <button key={g.name} type="button" role="menuitem" className="bs-mi" onClick={() => (onClose(), ctl.addToNavGroup(g.name, { kind: menu.kind, name: menu.name }))}>
+            {t('Agregar al grupo')} «{g.name}»
+          </button>
+        ))}
+      {menu.group && (
+        <button type="button" role="menuitem" className="bs-mi" onClick={() => (onClose(), ctl.removeFromNavGroup(menu.group!, { kind: menu.kind, name: menu.name }))}>
+          {t('Quitar del grupo')} «{menu.group}»
+        </button>
+      )}
+      <hr />
+      {item('Eliminar objeto', () => run('base.object.delete'))}
+    </div>
   );
 }
 
@@ -191,7 +312,7 @@ export function BaseApp({ module }: { module: ModuleInfo }) {
       try {
         const base = (ctl.fileName ?? 'Base de datos1').replace(/\.[^.]+$/, '');
         const keep = !saveAs && ctl.filePath && /\.(sqlite3?|db)$/i.test(ctl.filePath) ? ctl.filePath : null;
-        const saved = await saveBytes(`${clean(base)}.sqlite`, ctl.db.export(), DB_FILTERS, keep);
+        const saved = await saveBytes(`${clean(base)}.sqlite`, await ctl.exportFile(), DB_FILTERS, keep);
         if (saved) {
           ctl.markSaved(saved.name, saved.path);
           if (!silent) addRecent({ path: saved.path, name: saved.name, app: 'base' });
@@ -211,9 +332,11 @@ export function BaseApp({ module }: { module: ModuleInfo }) {
     return () => clearTimeout(id);
   });
 
+  const [locked, setLocked] = useState<{ name: string; path: string | null; data: Uint8Array } | null>(null);
   const loadFile = useCallback(
     async (file: { name: string; path: string | null; data: Uint8Array }) => {
       try {
+        if (isEncrypted(file.data)) return void setLocked(file);
         ctl.openBytes(file.data, file.name, file.path);
         addRecent({ path: file.path, name: file.name, app: 'base' });
       } catch (e) {
@@ -427,7 +550,7 @@ export function BaseApp({ module }: { module: ModuleInfo }) {
       contentFill
     >
       <div className="bs-app">
-        <NavPane ctl={ctl} selected={selected} setSelected={setSelected} renaming={renaming} setRenaming={setRenaming} />
+        <NavPane run={(id) => registry.run(id)} ctl={ctl} selected={selected} setSelected={setSelected} renaming={renaming} setRenaming={setRenaming} />
         <div className="bs-main">
           <div className="bs-tabs" role="tablist" aria-label={t('Objetos abiertos')}>
             {ctl.tabs.map((x) => (
@@ -449,6 +572,45 @@ export function BaseApp({ module }: { module: ModuleInfo }) {
           )}
           <div className="bs-content">{content()}</div>
         </div>
+        {ctl.xDialog?.kind === 'import' && <ImportDialog ctl={ctl} start={ctl.xDialog.arg?.start} />}
+        {ctl.xDialog?.kind === 'export' && <ExportDialog ctl={ctl} format={ctl.xDialog.arg?.format} />}
+        {ctl.xDialog?.kind === 'copyTable' && ctl.xDialog.arg?.table && <CopyTableDialog ctl={ctl} table={ctl.xDialog.arg.table} />}
+        {ctl.xDialog?.kind === 'document' && <DocumenterDialog ctl={ctl} />}
+        {ctl.xDialog?.kind === 'wizForm' && <FormWizardDialog ctl={ctl} />}
+        {ctl.xDialog?.kind === 'compact' && ctl.xDialog.arg?.report && <CompactDialog ctl={ctl} report={ctl.xDialog.arg.report} />}
+        {ctl.xDialog?.kind === 'password' && (
+          <PasswordDialog
+            mode="set"
+            onCancel={() => ((ctl.xDialog = null), ctl.touch())}
+            onOk={(pw) => {
+              ctl.setPassword(pw);
+              ctl.xDialog = null;
+              ctl.touch();
+              return null;
+            }}
+          />
+        )}
+        {locked && (
+          <PasswordDialog
+            mode="open"
+            name={locked.name}
+            onCancel={() => setLocked(null)}
+            onOk={async (pw) => {
+              try {
+                const plain = await decryptDb(locked.data, pw);
+                ctl.openBytes(plain, locked.name, locked.path);
+                ctl.password = pw;
+                addRecent({ path: locked.path, name: locked.name, app: 'base' });
+                setLocked(null);
+                return null;
+              } catch (e) {
+                return (e as Error).message;
+              }
+            }}
+          />
+        )}
+        {ctl.xDialog?.kind === 'files' && <FilesDialog ctl={ctl} />}
+        {(ctl.xDialog?.kind === 'wizDups' || ctl.xDialog?.kind === 'wizUnmatched') && <QueryWizardDialog ctl={ctl} kind={ctl.xDialog.kind === 'wizDups' ? 'dups' : 'unmatched'} />}
         {dialog === 'about' && (
           <Modal title={t('Acerca de Nova Base')} onClose={() => setDialog(null)}>
             <p>Nova Base 0.0.2</p>

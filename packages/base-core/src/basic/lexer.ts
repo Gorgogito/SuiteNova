@@ -95,6 +95,10 @@ export function tokenize(src: string): Token[] {
       }
       push({ kind: 'str', text: s }, i);
       i = j + 1;
+    } else if (ch === '#' && /^#\s*(\d+|[\p{L}_][\p{L}\p{N}_]*)\s*(?=[,;)\n]|$)/u.test(text.slice(i, i + 80))) {
+      // `Open f For Input As #1`, `Print #n, x`: the number of a file, not a date
+      push({ kind: 'op', text: '#' }, i);
+      i++;
     } else if (ch === '#') {
       const end = text.indexOf('#', i + 1);
       const nl = text.indexOf('\n', i);
@@ -146,7 +150,7 @@ export function tokenize(src: string): Token[] {
       } else if (ch === ':') {
         push({ kind: 'eol', text: ':' }, i);
         i++;
-      } else if ('+-*/\\^&=<>(),.!;?'.includes(ch)) {
+      } else if ('+-*/\\^&=<>(),.!;?#'.includes(ch)) {
         push({ kind: 'op', text: ch }, i);
         i++;
       } else throw new BasicSyntaxError(`Carácter no válido: "${ch}".`, line, i - lineStart + 1);

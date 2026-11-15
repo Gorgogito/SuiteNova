@@ -1,5 +1,7 @@
 import type { CommandDef } from '@suitenova/core-ui';
 import type { BaseCtl, ObjKind } from './ctl';
+import { sheetCommands } from './commands-sheet';
+import { exchangeCommands } from './commands-exchange';
 
 export type BaseDialog = 'about' | 'shortcuts';
 
@@ -20,6 +22,11 @@ export interface BaseUI {
 }
 
 export function baseCommands(ui: BaseUI): CommandDef[] {
+  const sel = () => (ui.selected()?.kind === 'table' ? ui.selected()!.name : null);
+  return [...baseCommands0(ui), ...sheetCommands(ui.ctl), ...exchangeCommands(ui.ctl, sel)];
+}
+
+function baseCommands0(ui: BaseUI): CommandDef[] {
   const c = ui.ctl;
   const defs: CommandDef[] = [];
   const add = (d: CommandDef) => defs.push(d);
@@ -158,15 +165,36 @@ export function baseCommands(ui: BaseUI): CommandDef[] {
     id: 'base.compact',
     label: 'Compactar y reparar',
     icon: 'reset',
+    description: 'Comprueba el archivo, reconstruye los índices si hace falta y lo reescribe sin el espacio libre. Muestra qué encontró y cuánto espacio recuperó.',
     enabled: ready,
     run: () => {
       try {
-        c.db!.execute('VACUUM');
+        const report = c.db!.compact();
+        c.xDialog = { kind: 'compact', arg: { report } };
         c.touch();
       } catch (e) {
         window.alert((e as Error).message);
       }
     },
+  });
+  add({
+    id: 'base.password',
+    label: 'Cifrar con contraseña…',
+    icon: 'lock',
+    description: 'El archivo se guarda cifrado (AES-256) y solo se abre con la contraseña. Si la olvida, no hay forma de recuperar los datos.',
+    enabled: ready,
+    run: () => {
+      c.xDialog = { kind: 'password' };
+      c.touch();
+    },
+  });
+  add({
+    id: 'base.password.remove',
+    label: 'Quitar la contraseña',
+    icon: 'unlock',
+    description: 'Guarda el archivo sin cifrar la próxima vez.',
+    enabled: () => ready() && !!c.password,
+    run: () => c.setPassword(null),
   });
   add({ id: 'base.run', label: 'Ejecutar consulta', icon: 'play', hint: 'Ctrl+Intro', enabled: () => tab()?.kind === 'query', run: () => document.querySelector<HTMLButtonElement>('.bs-query .bs-btn--primary')?.click() });
   return defs;

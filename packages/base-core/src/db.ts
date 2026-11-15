@@ -1,4 +1,6 @@
 import type { Database, SqlJsStatic } from 'sql.js';
+import { DATA_MACRO_FUNCTION, MAX_DATA_MACRO_FIELDS, cleanMeta, dataMacroTriggers, validationTriggerPrefix, validationTriggers, type TableMeta } from './tableprops';
+import { aggregateSql, filtersClause, findCondition, matches, orderClause, replaceIn, type AggFn, type ColumnFilter, type FindOptions, type SortKey } from './datasheet';
 import { bindParams, compileDesign, lit, q, sqlParams, type CompileContext, type QueryDesign } from './design';
 
 export type FieldType = 'TEXT' | 'INTEGER' | 'REAL' | 'BOOLEAN' | 'DATE' | 'DATETIME';
@@ -14,6 +16,8 @@ export interface ColumnDef {
   /** SQL text of the default value (e.g. `0`, `'x'`, `CURRENT_TIMESTAMP`), or null. */
   defaultValue: string | null;
   references: { table: string; column: string; onDelete?: RefAction; onUpdate?: RefAction } | null;
+  /** A calculated field: a generated column. `expr` is the SQL of the expression; `stored` keeps the result in the file. */
+  generated?: { expr: string; stored: boolean } | null;
 }
 
 export type RefAction = 'NO ACTION' | 'RESTRICT' | 'CASCADE' | 'SET NULL' | 'SET DEFAULT';
@@ -69,7 +73,7 @@ export interface QueryResult {
   truncated: boolean;
 }
 
-export type ObjectKind = 'query' | 'form' | 'report' | 'macro' | 'module';
+export type ObjectKind = 'query' | 'form' | 'report' | 'macro' | 'module' | 'sheet' | 'tableprops' | 'file' | 'navgroups';
 export const OBJECTS_TABLE = '__nova_objects';
 const HIDDEN = (n: string) => n.startsWith('sqlite_') || n.startsWith('__nova_');
 
@@ -92,6 +96,7 @@ export function createTableSql(name: string, cols: ColumnDef[], extra: string[] 
   const single = pks.length === 1 ? pks[0]! : null;
   const parts = cols.map((c) => {
     let s = `${q(c.name)} ${c.type || 'TEXT'}`;
+    if (c.generated) return `${s} GENERATED ALWAYS AS (${c.generated.expr}) ${c.generated.stored ? 'STORED' : 'VIRTUAL'}`;
     if (single === c) {
       s += ' PRIMARY KEY';
       if (c.autoIncrement && c.type.toUpperCase() === 'INTEGER') s += ' AUTOINCREMENT';
@@ -154,6 +159,10 @@ export function coerce(value: unknown, type: string): unknown {
 export interface BrowseOptions {
   orderBy?: string | null;
   desc?: boolean;
+  /** several sort keys (they win over `orderBy`) */
+  sorts?: SortKey[];
+  /** filters of the datasheet, one per column */
+  filters?: ColumnFilter[];
   search?: string;
   /** A SQL condition added to the search. */
   filter?: string;
@@ -171,9 +180,63 @@ export const UNDO_BUDGET_BYTES = 96 * 1024 * 1024;
 const WRITES = /\b(insert|update|delete|replace|create|drop|alter|reindex|attach|detach)\b/i;
 const stripLiterals = (sql: string): string => sql.replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"|--[^\n]*|\/\*[\s\S]*?\*\//g, ' ');
 
+export interface CompactReport {
+  sizeBefore: number;
+  sizeAfter: number;
+  /** What `PRAGMA integrity_check` answered: `['ok']`, or the problems that are still there. */
+  integrity: string[];
+  /** There was a problem and rebuilding the indexes fixed it. */
+  repaired: boolean;
+  /** Records without correspondence in a related table. */
+  foreignKeyProblems: number;
+}
+
 export class BaseDb {
   private constructor(private db: Database, readonly SQL: SqlJsStatic) {
     this.db.run('PRAGMA foreign_keys = ON');
+    this.registerFunctions(this.db);
+  }
+  /**
+   * Called by the triggers of the data macros of a table. `row` holds the new values (the old ones for a delete) and `old` the values
+   * before the change (null for an insert). Throwing refuses the statement that changed the record.
+   */
+  dataMacroHook: ((table: string, event: string, rowid: number, row: Record<string, unknown>, old: Record<string, unknown> | null) => void) | null = null;
+  private dmDepth = 0;
+  /** > 0 while a data macro runs: its changes belong to the statement that fired it, so they take no undo point of their own. */
+  private dmActive = 0;
+  private dmColumns = new Map<string, string[]>();
+  private registerFunctions(db: Database): void {
+    // sql.js registers a function with the number of arguments it declares, so there is one for each table width (3 + 2 per field)
+    const run = (...a: unknown[]) => {
+      const hook = this.dataMacroHook;
+      if (!hook) return null;
+      const table = String(a[0]);
+      const cols = this.dmColumns.get(table) ?? this.columns(table).map((c) => c.name);
+      const k = cols.length;
+      const pick = (from: number): Record<string, unknown> => Object.fromEntries(cols.map((c, i) => [c, a[from + i] === undefined ? null : a[from + i]]));
+      const ev = String(a[1]);
+      const old = ev === 'afterInsert' || ev === 'beforeChange:insert' ? null : pick(3 + k);
+      if (++this.dmDepth > 8) {
+        this.dmDepth--;
+        // sql.js only keeps the message when what is thrown is text
+        throw 'Las macros de datos se llamaron unas a otras más de 8 veces seguidas: ¿hay un bucle?';
+      }
+      this.dmActive++;
+      try {
+        hook(table, ev, Number(a[2]), pick(3), old);
+      } catch (e) {
+        throw e instanceof Error ? e.message : String(e);
+      } finally {
+        this.dmActive--;
+        this.dmDepth--;
+      }
+      return null;
+    };
+    for (let k = 0; k <= MAX_DATA_MACRO_FIELDS; k++) {
+      const f = (...a: unknown[]) => run(...a);
+      Object.defineProperty(f, 'length', { value: 3 + 2 * k });
+      db.create_function(DATA_MACRO_FUNCTION, f);
+    }
   }
   dirty = false;
   private undoStack: Snapshot[] = [];
@@ -197,7 +260,8 @@ export class BaseDb {
   /** The database file (SQLite 3). */
   export(): Uint8Array {
     const data = this.db.export();
-    this.db.run('PRAGMA foreign_keys = ON'); // export resets the connection
+    this.db.run('PRAGMA foreign_keys = ON'); // export resets the connection (and with it the functions of the data macros)
+    this.registerFunctions(this.db);
     return data;
   }
 
@@ -226,6 +290,7 @@ export class BaseDb {
 
   /** Remember the current state before a change so that it can be undone. */
   private checkpoint(label: string): void {
+    if (this.dmActive) return;
     const bytes = this.snapshot();
     if (bytes.length > UNDO_BUDGET_BYTES) {
       this.undoUnavailable = true;
@@ -240,27 +305,31 @@ export class BaseDb {
   }
   /** The change failed: forget the checkpoint taken for it. */
   private discardCheckpoint(): void {
+    if (this.dmActive) return;
     if (!this.undoUnavailable) this.undoStack.pop();
   }
   private snapshot(): Uint8Array {
     const data = this.db.export();
     this.db.run('PRAGMA foreign_keys = ON');
+    this.registerFunctions(this.db);
     return data;
   }
 
   /** Saved queries, forms and reports are not "data": they survive an undo as they are now. */
   private readObjectRows(): unknown[][] {
     const has = this.db.exec(`SELECT 1 FROM sqlite_master WHERE name=${lit(OBJECTS_TABLE)}`).length > 0;
-    return has ? (this.db.exec(`SELECT kind, name, def FROM ${OBJECTS_TABLE}`)[0]?.values ?? []) : [];
+    // the properties of the tables go with the data (their validation triggers do), so they come back with an undo
+    return has ? (this.db.exec(`SELECT kind, name, def FROM ${OBJECTS_TABLE} WHERE kind <> 'tableprops'`)[0]?.values ?? []) : [];
   }
   private restore(snap: Snapshot): void {
     const objects = this.readObjectRows();
     const next = new this.SQL.Database(snap.bytes);
     next.run('PRAGMA foreign_keys = ON');
+    this.registerFunctions(next);
     this.db.close();
     this.db = next;
     this.ensureObjects();
-    this.db.run(`DELETE FROM ${OBJECTS_TABLE}`);
+    this.db.run(`DELETE FROM ${OBJECTS_TABLE} WHERE kind <> 'tableprops'`);
     for (const r of objects) this.db.run(`INSERT INTO ${OBJECTS_TABLE} (kind, name, def) VALUES (?, ?, ?)`, r as never[]);
     this.dirty = true;
   }
@@ -271,6 +340,10 @@ export class BaseDb {
     this.redoStack.push({ bytes: this.snapshot(), label: snap.label });
     this.restore(snap);
     return snap.label;
+  }
+  /** Take the last change back as if it had never happened (it cannot be redone): for a change a form event refused. */
+  cancelLast(): void {
+    if (this.undo() !== null) this.redoStack.pop();
   }
   redo(): string | null {
     const snap = this.redoStack.pop();
@@ -293,7 +366,8 @@ export class BaseDb {
   }
 
   columns(table: string): ColumnDef[] {
-    const info = this.db.exec(`PRAGMA table_info(${q(table)})`)[0]?.values ?? [];
+    // table_xinfo also lists the calculated (generated) columns; hidden = 2 virtual, 3 stored
+    const info = (this.db.exec(`PRAGMA table_xinfo(${q(table)})`)[0]?.values ?? []).filter((r) => Number(r[6]) !== 1);
     const fks = this.db.exec(`PRAGMA foreign_key_list(${q(table)})`)[0]?.values ?? [];
     const idx = this.db.exec(`PRAGMA index_list(${q(table)})`)[0]?.values ?? [];
     const uniqueCols = new Set<string>();
@@ -304,8 +378,10 @@ export class BaseDb {
     }
     const sql = String(this.db.exec(`SELECT sql FROM sqlite_master WHERE name=${lit(table)}`)[0]?.values[0]?.[0] ?? '');
     const auto = /AUTOINCREMENT/i.test(sql);
+    const gen = generatedOf(sql);
     return info.map((r) => {
       const name = String(r[1]);
+      const hidden = Number(r[6]);
       const fk = fks.find((f) => String(f[3]) === name && fks.filter((g) => g[0] === f[0]).length === 1);
       return {
         name,
@@ -316,6 +392,7 @@ export class BaseDb {
         autoIncrement: auto && Number(r[5]) > 0,
         unique: uniqueCols.has(name),
         references: fk ? { table: String(fk[2]), column: String(fk[4] ?? ''), onDelete: asAction(fk[6]), onUpdate: asAction(fk[5]) } : null,
+        ...(hidden >= 2 ? { generated: { expr: gen.get(name.toLowerCase()) ?? '', stored: hidden === 3 } } : {}),
       };
     });
   }
@@ -388,10 +465,10 @@ export class BaseDb {
   alterTable(name: string, cols: (ColumnDef & { orig?: string })[], opts: AlterOptions = {}): AlterReport {
     this.assertColumns(cols);
     const old = this.columns(name);
-    const losses = detectLosses(this.tableSql(name));
+    const losses = detectLosses(this.tableSql(name), old.filter((c) => c.generated).length);
     if (losses.length && !opts.acceptLoss) throw new AlterLossError(losses);
     const composite = (opts.fks ?? this.compositeFks(name)).filter((fk) => fk.childCols.every((c) => cols.some((x) => x.orig === c || (!x.orig && x.name === c))));
-    const mapped = cols.filter((c) => c.orig && old.some((o) => o.name === c.orig));
+    const mapped = cols.filter((c) => c.orig && !c.generated && old.some((o) => o.name === c.orig));
     const renames = mapped.filter((c) => c.orig !== c.name);
     const keptOrig = new Set(mapped.map((c) => c.orig!));
     const seqRow = this.db.exec(`SELECT 1 FROM sqlite_master WHERE name='sqlite_sequence'`).length ? this.db.exec(`SELECT seq FROM sqlite_sequence WHERE name=${lit(name)}`)[0]?.values[0]?.[0] : undefined;
@@ -417,7 +494,9 @@ export class BaseDb {
       for (const o of objs) if (o.type !== 'index') this.db.run(`DROP ${o.type.toUpperCase()} ${q(o.name)}`);
 
       // 3. the new table, with the data
-      this.db.run(createTableSql(tmp, cols.map(({ orig, ...c }) => (void orig, c)), composite.map(fkSql)));
+      // a calculated field that names a renamed field follows the new name
+      const fixExpr = (e: string) => renames.reduce((s, r) => s.split(q(r.orig!)).join(q(r.name)), e);
+      this.db.run(createTableSql(tmp, cols.map(({ orig, ...c }) => (void orig, c.generated ? { ...c, generated: { ...c.generated, expr: fixExpr(c.generated.expr) } } : c)), composite.map(fkSql)));
       if (mapped.length) {
         const sel = mapped.map((c) => castTo(q(source(c)), c.type)).join(', ');
         this.db.run(`INSERT INTO ${q(tmp)} (${mapped.map((c) => q(c.name)).join(', ')}) SELECT ${sel} FROM ${q(name)}`);
@@ -461,6 +540,58 @@ export class BaseDb {
     }
     this.dirty = true;
     return report;
+  }
+
+  /**
+   * Checks the calculated fields of a design before it is saved: SQLite only refuses an expression that changes from one time to the
+   * next (`date('now')`, `random()`) when a record is written, so one record is written to a scratch table. Throws a readable error.
+   */
+  validateCalculated(cols: ColumnDef[]): void {
+    const gen = cols.filter((c) => c.generated);
+    if (!gen.length) return;
+    const probe = cols.map((c) => (c.generated ? c : { ...c, primaryKey: false, autoIncrement: false, notNull: false, unique: false, defaultValue: null, references: null }));
+    const tmp = uniqueName('__nova_calc_probe', this.tableNames());
+    try {
+      this.db.run(createTableSql(tmp, probe).replace(/^CREATE TABLE/, 'CREATE TEMP TABLE'));
+      this.db.run(`INSERT INTO temp.${q(tmp)} DEFAULT VALUES`);
+      this.db.run(`SELECT ${gen.map((c) => q(c.name)).join(', ')} FROM temp.${q(tmp)}`);
+    } catch (e) {
+      const m = (e as Error).message;
+      if (/deterministic/i.test(m)) throw new Error('Un campo calculado solo puede usar funciones que den siempre el mismo resultado para el registro (no Fecha(), Ahora() ni números al azar).');
+      throw new Error(`Un campo calculado no es válido: ${m}`);
+    } finally {
+      try {
+        this.db.run(`DROP TABLE IF EXISTS temp.${q(tmp)}`);
+      } catch {
+        /* nothing to drop */
+      }
+    }
+  }
+
+  /**
+   * Compact and repair: checks the file, rebuilds the indexes when it finds a problem, and rewrites it without the free space.
+   * The undo history is kept (only the layout of the file changes, not the data).
+   */
+  compact(): CompactReport {
+    const sizeBefore = this.export().length;
+    const check = (): string[] => (this.db.exec('PRAGMA integrity_check')[0]?.values ?? []).map((r) => String(r[0]));
+    let integrity = check();
+    let repaired = false;
+    if (!(integrity.length === 1 && integrity[0] === 'ok')) {
+      try {
+        this.db.run('REINDEX');
+      } catch {
+        /* the check below tells whether it helped */
+      }
+      const again = check();
+      repaired = again.length === 1 && again[0] === 'ok';
+      integrity = again.length === 1 && again[0] === 'ok' ? ['ok'] : again;
+    }
+    const foreignKeyProblems = this.db.exec('PRAGMA foreign_key_check')[0]?.values.length ?? 0;
+    this.db.run('VACUUM');
+    const sizeAfter = this.export().length;
+    this.dirty = true;
+    return { sizeBefore, sizeAfter, integrity, repaired, foreignKeyProblems };
   }
 
   /** Number of rows that break a foreign key of the table (checked with foreign keys turned off). */
@@ -569,19 +700,140 @@ export class BaseDb {
 
   browse(table: string, opts: BrowseOptions = {}): QueryResult {
     const cols = this.columns(table);
-    const where = this.searchClause(cols, opts.search, opts.filter);
-    const order = opts.orderBy && cols.some((c) => c.name === opts.orderBy) ? ` ORDER BY ${q(opts.orderBy)} ${opts.desc ? 'DESC' : 'ASC'}` : '';
+    const where = this.searchClause(cols, opts.search, opts.filter, opts.filters);
+    const order = opts.sorts?.length ? orderClause(opts.sorts, new Set(cols.map((c) => c.name))) : opts.orderBy && cols.some((c) => c.name === opts.orderBy) ? ` ORDER BY ${q(opts.orderBy)} ${opts.desc ? 'DESC' : 'ASC'}` : '';
     const sql = `SELECT rowid AS "__rid", * FROM ${q(table)}${where}${order} LIMIT ${Math.max(1, opts.limit ?? 200)} OFFSET ${Math.max(0, opts.offset ?? 0)}`;
     return this.execute(sql);
   }
 
-  count(table: string, search?: string, filter?: string): number {
-    return Number(this.db.exec(`SELECT count(*) FROM ${q(table)}${this.searchClause(this.columns(table), search, filter)}`)[0]?.values[0]?.[0] ?? 0);
+  count(table: string, search?: string, filter?: string, filters?: ColumnFilter[]): number {
+    return Number(this.db.exec(`SELECT count(*) FROM ${q(table)}${this.searchClause(this.columns(table), search, filter, filters)}`)[0]?.values[0]?.[0] ?? 0);
+  }
+
+  /** The values of a column (with how many times each appears), for the value list of a filter. */
+  distinct(table: string, column: string, opts: { search?: string; filters?: ColumnFilter[]; limit?: number } = {}): { value: string | null; n: number }[] {
+    const cols = this.columns(table);
+    if (!cols.some((c) => c.name === column)) return [];
+    // the filter of the column itself is left out, so its list still shows every value
+    const filters = (opts.filters ?? []).filter((f) => f.col !== column);
+    const where = this.searchClause(cols, opts.search, undefined, filters);
+    const r = this.db.exec(`SELECT ${q(column)} AS v, count(*) AS n FROM ${q(table)}${where} GROUP BY ${q(column)} ORDER BY ${q(column)} LIMIT ${Math.max(1, opts.limit ?? 500)}`)[0];
+    return (r?.values ?? []).map((row) => ({ value: row[0] === null || row[0] === '' ? null : String(row[0]), n: Number(row[1]) }));
+  }
+
+  /** A total of one column over the rows that pass the search and the filters. */
+  aggregate(table: string, column: string, fn: AggFn, opts: { search?: string; filters?: ColumnFilter[] } = {}): number | string | null {
+    const cols = this.columns(table);
+    if (!cols.some((c) => c.name === column)) return null;
+    const where = this.searchClause(cols, opts.search, undefined, opts.filters);
+    const v = this.db.exec(`SELECT ${aggregateSql(fn, column)} FROM ${q(table)}${where}`)[0]?.values[0]?.[0];
+    return v === undefined ? null : (v as number | string | null);
+  }
+
+  /** The cells that match, in the order and filter of the datasheet: row position and column. At most `limit`. */
+  findCells(table: string, o: FindOptions, opts: BrowseOptions = {}, limit = 5000): { row: number; rid: number; col: string }[] {
+    const cols = this.columns(table);
+    const names = cols.map((c) => c.name);
+    const targets = (o.cols?.length ? o.cols : names).filter((n) => names.includes(n));
+    if (!o.find || !targets.length) return [];
+    const where = this.searchClause(cols, opts.search, opts.filter, opts.filters);
+    const order = opts.sorts?.length ? orderClause(opts.sorts, new Set(names)) : opts.orderBy && names.includes(opts.orderBy) ? ` ORDER BY ${q(opts.orderBy)} ${opts.desc ? 'DESC' : 'ASC'}` : ' ORDER BY rowid';
+    const sel = targets.map((n, i) => `${findCondition([n], o)} AS m${i}`).join(', ');
+    const r = this.db.exec(`SELECT rn, rid, ${targets.map((_n, i) => `m${i}`).join(', ')} FROM (SELECT ROW_NUMBER() OVER (${order.trim()}) - 1 AS rn, rowid AS rid, ${sel} FROM ${q(table)}${where}) WHERE ${targets.map((_n, i) => `m${i}`).join(' OR ')} ORDER BY rn LIMIT ${Math.max(1, limit)}`)[0];
+    const out: { row: number; rid: number; col: string }[] = [];
+    for (const row of r?.values ?? []) targets.forEach((n, i) => row[2 + i] === 1 && out.push({ row: Number(row[0]), rid: Number(row[1]), col: n }));
+    return out;
+  }
+
+  /**
+   * Edits several cells and adds records in one undo step (pasting, clearing a selection). A value that the column does not take is
+   * skipped and reported; nothing is changed when `inserts` or `edits` fail as a whole.
+   */
+  applyEdits(table: string, edits: { rid: number; col: string; value: unknown }[], inserts: Record<string, unknown>[] = [], label = `Editar ${table}`): { changed: number; added: number; errors: string[] } {
+    const cols = this.columns(table);
+    const errors: string[] = [];
+    let changed = 0;
+    let added = 0;
+    if (!edits.length && !inserts.length) return { changed, added, errors };
+    this.checkpoint(label);
+    try {
+      for (const e of edits) {
+        const def = cols.find((c) => c.name === e.col);
+        if (!def) continue;
+        try {
+          const v = coerce(e.value, def.type);
+          if (v === null && def.notNull && def.defaultValue === null) throw new Error(`El campo "${e.col}" no admite valores vacíos.`);
+          this.db.run(`UPDATE ${q(table)} SET ${q(e.col)} = ? WHERE rowid = ?`, [v as never, e.rid]);
+          changed++;
+        } catch (err) {
+          errors.push((err as Error).message);
+        }
+      }
+      for (const row of inserts) {
+        const names: string[] = [];
+        const vals: unknown[] = [];
+        for (const c of cols) {
+          if (!(c.name in row)) continue;
+          try {
+            names.push(q(c.name));
+            vals.push(coerce(row[c.name], c.type));
+          } catch (err) {
+            names.pop();
+            errors.push((err as Error).message);
+          }
+        }
+        try {
+          if (names.length) this.db.run(`INSERT INTO ${q(table)} (${names.join(', ')}) VALUES (${names.map(() => '?').join(', ')})`, vals as never[]);
+          else this.db.run(`INSERT INTO ${q(table)} DEFAULT VALUES`);
+          added++;
+        } catch (err) {
+          errors.push((err as Error).message);
+        }
+      }
+    } catch (e) {
+      this.discardCheckpoint();
+      throw e;
+    }
+    if (changed || added) this.dirty = true;
+    else this.discardCheckpoint();
+    return { changed, added, errors };
+  }
+
+  /** Replaces text in the cells that match, all in one undo step. Returns how many cells changed and how many could not take the new value. */
+  replaceCells(table: string, o: FindOptions, to: string, cells?: { rid: number; col: string }[], opts: BrowseOptions = {}): { changed: number; failed: number } {
+    const cols = this.columns(table);
+    const list = cells ?? this.findCells(table, o, opts, 100_000);
+    if (!list.length) return { changed: 0, failed: 0 };
+    this.checkpoint(`Reemplazar en ${table}`);
+    let changed = 0;
+    let failed = 0;
+    try {
+      for (const { rid, col } of list) {
+        const def = cols.find((c) => c.name === col);
+        const cur = this.db.exec(`SELECT ${q(col)} FROM ${q(table)} WHERE rowid = ${Math.trunc(rid)}`)[0]?.values[0]?.[0];
+        if (!def || cur === null || cur === undefined || !matches(String(cur), o)) continue;
+        try {
+          const v = coerce(replaceIn(String(cur), o, to), def.type);
+          if (v === null && def.notNull) throw new Error('vacío');
+          this.db.run(`UPDATE ${q(table)} SET ${q(col)} = ? WHERE rowid = ?`, [v as never, rid]);
+          changed++;
+        } catch {
+          failed++;
+        }
+      }
+    } catch (e) {
+      this.discardCheckpoint();
+      throw e;
+    }
+    if (changed) this.dirty = true;
+    else this.discardCheckpoint();
+    return { changed, failed };
   }
 
   /** `search` looks for text in every column; `filter` is a SQL condition (a form opened with a WHERE). */
-  private searchClause(cols: ColumnDef[], search?: string, filter?: string): string {
+  private searchClause(cols: ColumnDef[], search?: string, filter?: string, filters?: ColumnFilter[]): string {
     const parts: string[] = [];
+    if (filters?.length) parts.push(...filtersClause(filters, new Map(cols.map((c) => [c.name, c.type]))));
     const s = search?.trim();
     if (s) {
       const like = lit(`%${s.replace(/[\\%_]/g, (m) => '\\' + m)}%`);
@@ -594,6 +846,7 @@ export class BaseDb {
   updateCell(table: string, rid: number, column: string, value: unknown): void {
     const col = this.columns(table).find((c) => c.name === column);
     if (!col) throw new Error(`No existe el campo "${column}".`);
+    if (col.generated) throw new Error(`El campo "${column}" es calculado: su valor sale de una expresión y no se puede escribir.`);
     let v = coerce(value, col.type);
     if (v === null && col.notNull && col.defaultValue === null) throw new Error(`El campo "${column}" no admite valores vacíos.`);
     if (v === null && col.notNull) v = null;
@@ -612,6 +865,10 @@ export class BaseDb {
     const names: string[] = [];
     const vals: unknown[] = [];
     for (const c of cols) {
+      if (c.generated) {
+        if (c.name in values && values[c.name] !== null && values[c.name] !== undefined && values[c.name] !== '') throw new Error(`El campo "${c.name}" es calculado: no se puede escribir.`);
+        continue;
+      }
       let v = c.name in values ? coerce(values[c.name], c.type) : undefined;
       if (v === undefined && c.notNull && c.defaultValue === null && !(c.primaryKey && c.type.toUpperCase() === 'INTEGER')) v = fillerFor(c.type);
       if (v !== undefined) {
@@ -742,6 +999,205 @@ export class BaseDb {
     this.dirty = true;
   }
 
+  // ---------- copies, dumps and other databases ----------
+
+  /** A table name that is free (the wanted one, or with _1, _2… after it). */
+  freeTableName(wanted: string): string {
+    const taken = new Set(this.db.exec(`SELECT name FROM sqlite_master`)[0]?.values.map((v) => String(v[0]).toLowerCase()) ?? []);
+    if (!taken.has(wanted.toLowerCase())) return wanted;
+    for (let i = 1; ; i++) if (!taken.has(`${wanted}_${i}`.toLowerCase())) return `${wanted}_${i}`;
+  }
+
+  /**
+   * Copies a table: its structure and data, only the structure, or (append) its records into a table that exists. Returns the name of the
+   * table and how many records were copied. Fields are matched by name when appending.
+   */
+  copyTable(from: string, to: string, mode: 'all' | 'structure' | 'append'): { table: string; rows: number } {
+    const cols = this.columns(from);
+    if (mode === 'append') {
+      const dest = this.columns(to).map((c) => c.name.toLowerCase());
+      const common = cols.filter((c) => dest.includes(c.name.toLowerCase()));
+      if (!common.length) throw new Error(`"${to}" no tiene ningún campo con el mismo nombre que los de "${from}".`);
+      const names = common.map((c) => q(this.columns(to).find((d) => d.name.toLowerCase() === c.name.toLowerCase())!.name));
+      this.checkpoint(`Anexar ${from} a ${to}`);
+      try {
+        this.db.run(`INSERT INTO ${q(to)} (${names.join(', ')}) SELECT ${common.map((c) => q(c.name)).join(', ')} FROM ${q(from)}`);
+      } catch (e) {
+        this.discardCheckpoint();
+        throw e;
+      }
+      this.dirty = true;
+      return { table: to, rows: this.db.getRowsModified() };
+    }
+    const name = this.freeTableName(to);
+    this.checkpoint(`Copiar la tabla ${from}`);
+    try {
+      // a copy does not point at the other table's rows by itself: keep the key and the references as they are
+      this.db.run(createTableSql(name, cols));
+      if (mode === 'all') this.db.run(`INSERT INTO ${q(name)} SELECT * FROM ${q(from)}`);
+    } catch (e) {
+      this.discardCheckpoint();
+      throw e;
+    }
+    this.dirty = true;
+    return { table: name, rows: mode === 'all' ? this.rowCount(name) : 0 };
+  }
+
+  /** The tables of a database file (without opening it as the current one), to choose what to import. */
+  static peek(SQL: SqlJsStatic, bytes: Uint8Array): { name: string; rows: number; columns: number }[] {
+    const other = new SQL.Database(bytes);
+    try {
+      const names = (other.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name <> ${lit(OBJECTS_TABLE)} ORDER BY name COLLATE NOCASE`)[0]?.values ?? []).map((v) => String(v[0]));
+      return names.map((name) => ({
+        name,
+        rows: Number(other.exec(`SELECT count(*) FROM ${q(name)}`)[0]?.values[0]?.[0] ?? 0),
+        columns: (other.exec(`PRAGMA table_info(${q(name)})`)[0]?.values ?? []).length,
+      }));
+    } finally {
+      other.close();
+    }
+  }
+
+  /**
+   * Brings tables of another database file into this one: structure, data and (when the name is unchanged) indexes. A table whose name is
+   * taken arrives with a new name. One undo step.
+   */
+  importDatabase(bytes: Uint8Array, names: string[], opts: { data?: boolean } = {}): { tables: string[]; rows: number; renamed: Record<string, string>; notes: string[] } {
+    const other = new this.SQL.Database(bytes);
+    const out = { tables: [] as string[], rows: 0, renamed: {} as Record<string, string>, notes: [] as string[] };
+    this.checkpoint(`Importar tablas de otra base de datos`);
+    try {
+      this.db.run('PRAGMA foreign_keys = OFF');
+      for (const name of names) {
+        const sql = String(other.exec(`SELECT sql FROM sqlite_master WHERE type='table' AND name=${lit(name)}`)[0]?.values[0]?.[0] ?? '');
+        if (!sql) continue;
+        const target = this.freeTableName(name);
+        const create = target === name ? sql : sql.replace(/^(\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)(?:"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[^\s(]+)(\s*\()/i, `$1${q(target)}$2`);
+        this.db.run(create);
+        if (target !== name) out.renamed[name] = target;
+        out.tables.push(target);
+        if (opts.data !== false) {
+          const res = other.exec(`SELECT * FROM ${q(name)}`)[0];
+          if (res) {
+            const stmt = this.db.prepare(`INSERT INTO ${q(target)} VALUES (${res.columns.map(() => '?').join(', ')})`);
+            for (const row of res.values) {
+              stmt.run(row as never[]);
+              out.rows++;
+            }
+            stmt.free();
+          }
+        }
+        const idx = other.exec(`SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=${lit(name)} AND sql IS NOT NULL`)[0]?.values ?? [];
+        for (const [isql] of idx) {
+          if (target !== name) {
+            out.notes.push(`Los índices de «${name}» no se copiaron porque la tabla cambió de nombre.`);
+            break;
+          }
+          try {
+            this.db.run(String(isql));
+          } catch {
+            out.notes.push('Un índice no se pudo crear (su nombre ya existe).');
+          }
+        }
+      }
+    } catch (e) {
+      this.discardCheckpoint();
+      throw e;
+    } finally {
+      this.db.run('PRAGMA foreign_keys = ON');
+      other.close();
+    }
+    this.dirty = true;
+    return out;
+  }
+
+  /** SQL text that recreates the tables (structure, indexes, triggers of those tables and, optionally, the data). */
+  dumpSql(tables: string[], withData = true): string {
+    const out: string[] = ['PRAGMA foreign_keys = OFF;', 'BEGIN TRANSACTION;'];
+    for (const name of tables) {
+      const create = this.db.exec(`SELECT sql FROM sqlite_master WHERE type='table' AND name=${lit(name)}`)[0]?.values[0]?.[0];
+      if (!create) continue;
+      out.push(`${String(create)};`);
+      if (withData) {
+        const res = this.db.exec(`SELECT * FROM ${q(name)}`)[0];
+        for (const row of res?.values ?? [])
+          out.push(`INSERT INTO ${q(name)} (${res!.columns.map(q).join(', ')}) VALUES (${row.map((v) => (v instanceof Uint8Array ? `X'${[...v].map((b) => b.toString(16).padStart(2, '0')).join('')}'` : lit(v))).join(', ')});`);
+      }
+      for (const [sql] of this.db.exec(`SELECT sql FROM sqlite_master WHERE type IN ('index','trigger') AND tbl_name=${lit(name)} AND sql IS NOT NULL`)[0]?.values ?? []) out.push(`${String(sql)};`);
+    }
+    out.push('COMMIT;', 'PRAGMA foreign_keys = ON;');
+    return out.join('\n') + '\n';
+  }
+
+  // ---------- table properties and indexes ----------
+
+  /** Description, captions, formats, masks, rules and lookups of a table (empty when it has none). */
+  getMeta(table: string): TableMeta {
+    return this.getObject<TableMeta>('tableprops', table) ?? { fields: {} };
+  }
+
+  /**
+   * Saves the properties of a table and recreates the triggers that enforce its validation rules. A rule that cannot be read is an error
+   * and nothing changes. `own` = false when a checkpoint was already taken for this change (it is part of a table rebuild).
+   */
+  setMeta(table: string, meta: TableMeta, own = true): void {
+    const clean = cleanMeta(meta);
+    const trg = clean ? [...validationTriggers(table, clean), ...dataMacroTriggers(table, this.columns(table).map((c) => c.name), clean)] : [];
+    if (clean) this.dmColumns.set(table, this.columns(table).map((c) => c.name));
+    if (own) this.checkpoint(`Propiedades de ${table}`);
+    try {
+      // every trigger of ours on this table, whatever name the table had when it was made (after a rename)
+      const prefix = validationTriggerPrefix('').slice(0, -2);
+      const old = this.db.exec(`SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name=${lit(table)} AND substr(name, 1, ${prefix.length}) = ${lit(prefix)}`)[0]?.values ?? [];
+      for (const [n] of old) this.db.run(`DROP TRIGGER ${q(String(n))}`);
+      for (const sql of trg) this.db.run(sql);
+      this.ensureObjects();
+      if (clean) this.db.run(`INSERT OR REPLACE INTO ${OBJECTS_TABLE} (kind, name, def) VALUES ('tableprops', ?, ?)`, [table, JSON.stringify(clean)]);
+      else this.db.run(`DELETE FROM ${OBJECTS_TABLE} WHERE kind='tableprops' AND name=?`, [table]);
+    } catch (e) {
+      if (own) this.discardCheckpoint();
+      throw e;
+    }
+    this.dirty = true;
+  }
+
+  /** The indexes of a table. Those SQLite creates by itself for keys and unique columns are marked `auto`. */
+  indexes(table: string): { name: string; unique: boolean; columns: (string | null)[]; auto: boolean; partial: boolean }[] {
+    const list = this.db.exec(`PRAGMA index_list(${q(table)})`)[0]?.values ?? [];
+    return list.map((r) => {
+      const name = String(r[1]);
+      const cols = (this.db.exec(`PRAGMA index_info(${q(name)})`)[0]?.values ?? []).map((c) => (c[2] === null ? null : String(c[2])));
+      return { name, unique: Number(r[2]) === 1, columns: cols, auto: String(r[3]) !== 'c', partial: Number(r[4]) === 1 };
+    });
+  }
+
+  createIndex(table: string, name: string, columns: string[], unique: boolean): void {
+    const n = name.trim();
+    if (!n) throw new Error('El índice necesita un nombre.');
+    if (!columns.length) throw new Error('Elige al menos un campo para el índice.');
+    const have = this.columns(table).map((c) => c.name);
+    for (const c of columns) if (!have.includes(c)) throw new Error(`No existe el campo "${c}".`);
+    this.checkpoint(`Crear el índice ${n}`);
+    try {
+      this.db.run(`CREATE ${unique ? 'UNIQUE ' : ''}INDEX ${q(n)} ON ${q(table)} (${columns.map(q).join(', ')})`);
+    } catch (e) {
+      this.discardCheckpoint();
+      throw new Error(/UNIQUE constraint failed/i.test((e as Error).message) ? 'Hay valores repetidos: no se puede crear un índice sin duplicados.' : (e as Error).message);
+    }
+    this.dirty = true;
+  }
+
+  dropIndex(name: string): void {
+    this.checkpoint(`Eliminar el índice ${name}`);
+    try {
+      this.db.run(`DROP INDEX ${q(name)}`);
+    } catch (e) {
+      this.discardCheckpoint();
+      throw e;
+    }
+    this.dirty = true;
+  }
+
   // ---------- import ----------
 
   /** Create a table from text rows. The first row is the header when `header` is true. Returns the table name. */
@@ -778,11 +1234,12 @@ export class BaseDb {
 }
 
 /** Table features that Nova Base's table designer cannot reproduce when it rebuilds a table. */
-function detectLosses(sql: string): string[] {
+function detectLosses(sql: string, generatedKnown = 0): string[] {
   const t = stripLiterals(sql);
   const out: string[] = [];
   if (/\bCHECK\s*\(/i.test(t)) out.push('restricciones CHECK');
-  if (/\bGENERATED\b|\bAS\s*\(/i.test(t)) out.push('campos calculados (GENERATED)');
+  // the calculated fields the designer understands are kept; only the ones it could not read would be lost
+  if ((t.match(/\bAS\s*\(/gi) ?? []).length > generatedKnown) out.push('campos calculados (GENERATED)');
   if (/\bCOLLATE\b/i.test(t)) out.push('intercalaciones (COLLATE)');
   if (/WITHOUT\s+ROWID/i.test(t)) out.push('WITHOUT ROWID');
   if (/\bSTRICT\b/i.test(t)) out.push('tabla STRICT');
@@ -794,6 +1251,57 @@ function mentions(sql: string, ident: string): boolean {
   const t = sql.replace(/'(?:[^']|'')*'|--[^\n]*|\/\*[\s\S]*?\*\//g, ' ');
   const esc = ident.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(?:^|[^\\p{L}\\p{N}_])["\`\\[]?${esc}["\`\\]]?(?![\\p{L}\\p{N}_])`, 'iu').test(t);
+}
+
+/** The expression of each calculated column of a `CREATE TABLE`, by lower case column name. */
+function generatedOf(sql: string): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!/\bAS\s*\(/i.test(sql)) return out;
+  const open = sql.indexOf('(');
+  const body = sql.slice(open + 1, sql.lastIndexOf(')'));
+  // split the column definitions on the commas that are not inside parentheses or quotes
+  const parts: string[] = [];
+  let depth = 0;
+  let quote = '';
+  let cur = '';
+  for (const ch of body) {
+    if (quote) {
+      cur += ch;
+      if (ch === quote) quote = '';
+    } else if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch;
+      cur += ch;
+    } else if (ch === '(') {
+      depth++;
+      cur += ch;
+    } else if (ch === ')') {
+      depth--;
+      cur += ch;
+    } else if (ch === ',' && depth === 0) {
+      parts.push(cur);
+      cur = '';
+    } else cur += ch;
+  }
+  parts.push(cur);
+  for (const p of parts) {
+    const m = /^\s*(?:"((?:[^"]|"")+)"|`([^`]+)`|\[([^\]]+)\]|([\p{L}_][\p{L}\p{N}_]*))[\s\S]*?\b(?:GENERATED\s+ALWAYS\s+)?AS\s*\(/iu.exec(p);
+    if (!m) continue;
+    const name = (m[1]?.replace(/""/g, '"') ?? m[2] ?? m[3] ?? m[4])!;
+    const start = m[0].length;
+    let d = 1;
+    let i = start;
+    let qt = '';
+    for (; i < p.length && d > 0; i++) {
+      const ch = p[i]!;
+      if (qt) {
+        if (ch === qt) qt = '';
+      } else if (ch === '"' || ch === "'" || ch === '`') qt = ch;
+      else if (ch === '(') d++;
+      else if (ch === ')') d--;
+    }
+    out.set(name.toLowerCase(), p.slice(start, i - 1).trim());
+  }
+  return out;
 }
 
 const fkSql = (fk: CompositeFk): string =>

@@ -1,6 +1,7 @@
+import type { MacroDef } from './basic/macro';
 import type { BaseDb, ColumnDef } from './db';
 import { q } from './design';
-import { evalSafe, type Row, type Value } from './expr';
+import { evalExpr, evalSafe, parseExpr, type Row, type Value } from './expr';
 
 export interface Box {
   x: number;
@@ -14,43 +15,130 @@ export type ComboSource = { kind: 'values'; values: string[] } | { kind: 'table'
 export type FormAction = 'new' | 'delete' | 'first' | 'previous' | 'next' | 'last' | 'run';
 export const FORM_ACTIONS: FormAction[] = ['new', 'delete', 'first', 'previous', 'next', 'last', 'run'];
 
-/** What runs on an event: a macro, or a procedure (`Sub`) of a module. */
+/** What runs on an event: a saved macro, a procedure (`Sub`) of a module, or a macro that lives inside the form (`embedded`). */
 export interface Handler {
-  kind: 'macro' | 'proc';
+  kind: 'macro' | 'proc' | 'embedded';
   name: string;
+  /** An embedded macro: it travels with the form (copy it, rename it, save it as another file). */
+  macro?: MacroDef;
+}
+
+/** A conditional format: when the expression is true for the record the control takes this look. */
+export interface CondRule {
+  /** an expression over the fields: `[Saldo] < 0`, `[Estado] = "Cerrado"` */
+  expr: string;
+  bg?: string;
+  color?: string;
+  bold?: boolean;
+  /** the control is hidden / cannot be edited while the rule holds */
+  hide?: boolean;
+  disable?: boolean;
+}
+
+/** Events of one control (all optional). */
+export interface ControlEvents {
+  click?: Handler;
+  dblClick?: Handler;
+  gotFocus?: Handler;
+  lostFocus?: Handler;
+  /** Fires on every change of the value, before the control loses the focus. */
+  change?: Handler;
 }
 
 interface Common extends Box {
   id: string;
   /** Unique name of the control (macros and expressions refer to it). */
   name: string;
+  /** Only shown on this page of a tab control (the id of the `tabs` control). */
+  tab?: { id: string; page: number };
+  /** Conditional formats, applied in order (a later true rule wins where they overlap). */
+  cond?: CondRule[];
+  /** Shown while the form is open (default yes). */
+  visible?: boolean;
+  /** Help text shown when the pointer rests on the control. */
+  tip?: string;
+  /** The value can be seen and selected but not changed. */
+  locked?: boolean;
+  /** `false`: the control is dimmed and cannot be used (default yes). */
+  enabled?: boolean;
+  /** `false`: Tab skips the control (default yes). */
+  tabStop?: boolean;
+  /** Bound controls: the value a new record gets. A literal, or an expression that starts with `=` (`=Date()`). */
+  defaultValue?: string;
+  on?: ControlEvents;
 }
 
 export type FormControl = Common &
   (
     | { type: 'label'; text: string; bold?: boolean; size?: number }
     /** A text box: bound to `field`, or a calculated box when `calc` holds an expression (read only). */
-    | { type: 'text'; field: string; calc?: string; readOnly?: boolean; afterUpdate?: Handler }
+    | { type: 'text'; field: string; calc?: string; readOnly?: boolean; afterUpdate?: Handler; multiline?: boolean }
     | { type: 'check'; field: string; caption?: string; afterUpdate?: Handler }
     | { type: 'combo'; field: string; source: ComboSource; limitToList?: boolean; afterUpdate?: Handler }
     /** `run` executes `handler`; the other actions move through the records. */
     | { type: 'button'; caption: string; action: FormAction; handler?: Handler }
     /** The records of another table whose `childField` equals this record's `parentField`. */
-    | { type: 'subform'; table: string; childField: string; parentField: string; columns?: string[] }
+    | {
+        type: 'subform';
+        table: string;
+        childField: string;
+        parentField: string;
+        columns?: string[];
+        /** More pairs of linked fields: all of them must match. */
+        extraLinks?: { child: string; parent: string }[];
+        /** A second level: the records of another table linked to each row of this subform (`parentField` is a field of `table`). */
+        nested?: { table: string; childField: string; parentField: string };
+      }
+    /** An option group: one radio button per option, bound to a field that stores the value of the chosen one. */
+    | { type: 'option'; field: string; caption?: string; options: { label: string; value: string }[]; afterUpdate?: Handler }
+    /** A list box: all the choices are shown, and one is chosen. */
+    | { type: 'list'; field: string; source: ComboSource; afterUpdate?: Handler }
+    /** A picture that is part of the form (stored in it, as a data address). */
+    | { type: 'image'; src: string; mode: 'fit' | 'stretch' | 'clip'; alt?: string }
+    | { type: 'line'; color?: string; thickness?: number }
+    | { type: 'rect'; fill?: string; border?: string }
+    /** A link: the text, and the address (fixed, or the value of a field). */
+    | { type: 'hyperlink'; text: string; url?: string; field?: string }
+    /** A tab control: the pages; other controls say which page they are on. */
+    | { type: 'tabs'; pages: string[] }
+    /** The files kept in an attachment field of the record: a button that shows how many and opens their window. */
+    | { type: 'attachment'; field: string; caption?: string }
   );
 
 export type ControlType = FormControl['type'];
 type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 /** What distinguishes a control from the box every control has. */
 export type ControlBody = DistOmit<FormControl, keyof Common>;
-export const CONTROL_TYPES: ControlType[] = ['label', 'text', 'check', 'combo', 'button', 'subform'];
+export const CONTROL_TYPES: ControlType[] = ['label', 'text', 'check', 'combo', 'list', 'option', 'button', 'subform', 'tabs', 'image', 'attachment', 'hyperlink', 'line', 'rect'];
 
 export interface FormLayout {
   width: number;
   height: number;
   controls: FormControl[];
   /** Events of the form itself: when it opens and whenever the current record changes. */
-  events?: { onOpen?: Handler; onCurrent?: Handler };
+  events?: { onOpen?: Handler; onCurrent?: Handler; beforeUpdate?: Handler; onClose?: Handler; onTimer?: Handler };
+  /** Milliseconds between two `onTimer` events (at least 250). */
+  timerInterval?: number;
+  /** Shortcuts of the form: `F5`, `Ctrl+S`, `Ctrl+Shift+N`… each runs a macro or a procedure. */
+  keys?: { key: string; handler: Handler }[];
+  /** Only the records for which this Access condition holds (`[Saldo] > 0 And [Zona] = "Sur"`). */
+  filter?: string;
+  /** Order of the records. */
+  orderBy?: { field: string; desc?: boolean }[];
+  /**
+   * How the records show: one at a time (default), all of them one under the other, as a datasheet, or one record
+   * with the datasheet under it (`split`).
+   */
+  view?: 'single' | 'continuous' | 'datasheet' | 'split';
+  /** Title of the form in the toolbar. */
+  caption?: string;
+  allowEdits?: boolean;
+  allowAdditions?: boolean;
+  allowDeletions?: boolean;
+  /** The bar to move between records (default yes). */
+  navButtons?: boolean;
+  /** Colour of the background of the form. */
+  background?: string;
 }
 
 export const GRID = 8;
@@ -65,8 +153,16 @@ const DEFAULT_SIZE: Record<ControlType, { w: number; h: number }> = {
   combo: { w: 256, h: 28 },
   button: { w: 120, h: 32 },
   subform: { w: 480, h: 160 },
+  option: { w: 200, h: 96 },
+  list: { w: 256, h: 112 },
+  image: { w: 160, h: 120 },
+  line: { w: 240, h: 8 },
+  rect: { w: 200, h: 80 },
+  hyperlink: { w: 200, h: 24 },
+  tabs: { w: 480, h: 240 },
+  attachment: { w: 200, h: 28 },
 };
-const PREFIX: Record<ControlType, string> = { label: 'Etiqueta', text: 'Texto', check: 'Casilla', combo: 'Lista', button: 'Boton', subform: 'Subformulario' };
+const PREFIX: Record<ControlType, string> = { label: 'Etiqueta', text: 'Texto', check: 'Casilla', combo: 'Lista', button: 'Boton', subform: 'Subformulario', option: 'Grupo', list: 'Cuadro', image: 'Imagen', line: 'Linea', rect: 'Rectangulo', hyperlink: 'Vinculo', tabs: 'Pestanas', attachment: 'Adjuntos' };
 
 /** A free name: Texto1, Texto2… */
 export function freeControlName(layout: FormLayout, type: ControlType): string {
@@ -87,7 +183,7 @@ export function controlForColumn(col: ColumnDef, db?: BaseDb): ControlBody {
     const display = pcols.find((c) => !c.primaryKey && /TEXT|CHAR|CLOB/i.test(c.type))?.name ?? p.column;
     return { type: 'combo', field: col.name, source: { kind: 'table', table: p.table, valueField: p.column || pcols.find((c) => c.primaryKey)?.name || '', displayField: display }, limitToList: true };
   }
-  return { type: 'text', field: col.name, readOnly: col.primaryKey && col.autoIncrement };
+  return { type: 'text', field: col.name, readOnly: (col.primaryKey && col.autoIncrement) || !!col.generated };
 }
 
 /** Labels on the left, one control per column on the right: what Access's "Form" button generates. */
@@ -117,6 +213,14 @@ export function newControl(layout: FormLayout, type: ControlType, init: Record<s
     combo: { field: '', source: { kind: 'values', values: ['Opción 1', 'Opción 2'] }, limitToList: true },
     button: { caption: 'Botón', action: 'next' },
     subform: { table: '', childField: '', parentField: '', columns: undefined },
+    option: { field: '', caption: 'Opciones', options: [{ label: 'Opción 1', value: '1' }, { label: 'Opción 2', value: '2' }] },
+    list: { field: '', source: { kind: 'values', values: ['Opción 1', 'Opción 2', 'Opción 3'] } },
+    image: { src: '', mode: 'fit' },
+    line: { color: '#808080', thickness: 1 },
+    rect: { fill: '', border: '#808080' },
+    hyperlink: { text: 'Vínculo', url: 'https://' },
+    tabs: { pages: ['Página 1', 'Página 2'] },
+    attachment: { field: '', caption: 'Datos adjuntos' },
   };
   return { ...base, type, ...extra[type], ...init } as FormControl;
 }
@@ -169,16 +273,34 @@ export function validateLayout(layout: FormLayout, db: BaseDb, table: string): s
   for (const c of layout.controls) {
     if (names.has(c.name.toLowerCase())) out.push(`El nombre "${c.name}" está repetido.`);
     names.add(c.name.toLowerCase());
-    if ((c.type === 'text' && !c.calc) || c.type === 'check' || c.type === 'combo') {
+    if (c.tab && !layout.controls.some((x) => x.id === c.tab!.id && x.type === 'tabs')) out.push(`${c.name}: la pestaña a la que pertenece ya no existe.`);
+    for (const r of c.cond ?? []) {
+      try {
+        parseExpr(r.expr);
+      } catch (e) {
+        out.push(`${c.name}: la condición «${r.expr}» no es válida (${(e as Error).message}).`);
+      }
+    }
+    if (c.type === 'image' && !c.src) out.push(`${c.name}: no tiene imagen.`);
+    if (c.type === 'option' && !c.options.length) out.push(`${c.name}: no tiene opciones.`);
+    if (c.type === 'hyperlink' && !c.url && !c.field) out.push(`${c.name}: no tiene dirección.`);
+    if ((c.type === 'text' && !c.calc) || c.type === 'check' || c.type === 'combo' || c.type === 'option' || c.type === 'list' || c.type === 'attachment') {
       if (!c.field) out.push(`${c.name}: no tiene campo asignado.`);
       else if (!cols.includes(c.field.toLowerCase())) out.push(`${c.name}: el campo "${c.field}" no existe en "${table}".`);
     }
-    if (c.type === 'combo' && c.source.kind === 'table') {
+    if ((c.type === 'combo' || c.type === 'list') && c.source.kind === 'table') {
       const s = c.source;
       if (!tables.includes(s.table)) out.push(`${c.name}: la tabla "${s.table}" no existe.`);
       else {
         const pc = db.columns(s.table).map((x) => x.name.toLowerCase());
         for (const f of [s.valueField, s.displayField]) if (!pc.includes(f.toLowerCase())) out.push(`${c.name}: el campo "${f}" no existe en "${s.table}".`);
+      }
+    }
+    if (c.defaultValue?.startsWith('=')) {
+      try {
+        parseExpr(c.defaultValue);
+      } catch (e) {
+        out.push(`${c.name}: el valor predeterminado no es válido (${(e as Error).message}).`);
       }
     }
     if (c.type === 'subform') {
@@ -187,6 +309,18 @@ export function validateLayout(layout: FormLayout, db: BaseDb, table: string): s
         const sc = db.columns(c.table).map((x) => x.name.toLowerCase());
         if (!sc.includes(c.childField.toLowerCase())) out.push(`${c.name}: el campo "${c.childField}" no existe en "${c.table}".`);
         if (!cols.includes(c.parentField.toLowerCase())) out.push(`${c.name}: el campo "${c.parentField}" no existe en "${table}".`);
+        for (const l of c.extraLinks ?? []) {
+          if (!sc.includes(l.child.toLowerCase())) out.push(`${c.name}: el campo "${l.child}" no existe en "${c.table}".`);
+          if (!cols.includes(l.parent.toLowerCase())) out.push(`${c.name}: el campo "${l.parent}" no existe en "${table}".`);
+        }
+        const n = c.nested;
+        if (n) {
+          if (!tables.includes(n.table)) out.push(`${c.name}: la tabla del segundo nivel "${n.table}" no existe.`);
+          else {
+            if (!db.columns(n.table).some((x) => x.name.toLowerCase() === n.childField.toLowerCase())) out.push(`${c.name}: el campo "${n.childField}" no existe en "${n.table}".`);
+            if (!sc.includes(n.parentField.toLowerCase())) out.push(`${c.name}: el campo "${n.parentField}" no existe en "${c.table}".`);
+          }
+        }
       }
     }
   }
@@ -226,9 +360,48 @@ export function subformData(db: BaseDb, c: Extract<FormControl, { type: 'subform
   if (!parent || !db.tableNames().includes(c.table)) return { columns: [], rows: [] };
   const all = db.columns(c.table).map((x) => x.name);
   const columns = c.columns?.length ? c.columns.filter((x) => all.includes(x)) : all;
-  const key = Object.keys(parent).find((k) => k.toLowerCase() === c.parentField.toLowerCase());
-  const v = key === undefined ? null : parent[key];
-  if (v === null || v === undefined) return { columns, rows: [] };
-  const r = db.execute(`SELECT rowid, ${columns.map(q).join(', ')} FROM ${q(c.table)} WHERE ${q(c.childField)} = :p ORDER BY rowid LIMIT 500`, 500, { p: v });
+  const links = [{ child: c.childField, parent: c.parentField }, ...(c.extraLinks ?? [])];
+  const params: Record<string, Value> = {};
+  const where: string[] = [];
+  for (const [i, l] of links.entries()) {
+    const key = Object.keys(parent).find((k) => k.toLowerCase() === l.parent.toLowerCase());
+    const v = key === undefined ? null : parent[key];
+    if (v === null || v === undefined) return { columns, rows: [] };
+    params[`p${i}`] = v;
+    where.push(`${q(l.child)} = :p${i}`);
+  }
+  const r = db.execute(`SELECT rowid, ${columns.map(q).join(', ')} FROM ${q(c.table)} WHERE ${where.join(' AND ')} ORDER BY rowid LIMIT 500`, 500, params);
   return { columns, rows: r.rows };
+}
+
+// ------------------------------------------------------------------------------------------------ conditional formats
+
+export interface CondLook {
+  bg?: string;
+  color?: string;
+  bold?: boolean;
+  hide?: boolean;
+  disable?: boolean;
+}
+
+/** The look a control takes for a record: every rule whose condition is true applies, in order. An invalid condition counts as false. */
+export function condLook(c: { cond?: CondRule[] }, record: Row | null): CondLook {
+  const out: CondLook = {};
+  if (!record) return out;
+  for (const r of c.cond ?? []) {
+    let on = false;
+    try {
+      const v = evalExpr(r.expr, { row: record });
+      on = v === true || (typeof v === 'number' && v !== 0) || (typeof v === 'string' && /^(true|verdadero)$/i.test(v));
+    } catch {
+      on = false;
+    }
+    if (!on) continue;
+    if (r.bg) out.bg = r.bg;
+    if (r.color) out.color = r.color;
+    if (r.bold) out.bold = true;
+    if (r.hide) out.hide = true;
+    if (r.disable) out.disable = true;
+  }
+  return out;
 }

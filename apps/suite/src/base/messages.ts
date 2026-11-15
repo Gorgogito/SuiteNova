@@ -1,6 +1,17 @@
 import './messages-code';
 import './messages-designers';
+import './messages-reports';
+import './messages-forms2';
+import './messages-basic';
+import './messages-macros';
+import './messages-tables';
+import './messages-queries';
+import './messages-tools';
 import './messages-design';
+import './messages-sheet';
+import './messages-table';
+import './messages-exchange';
+import './messages-forms';
 import { registerMessages } from '@suitenova/core-ui';
 
 // Spanish literals are the source text; English is provided here. Missing entries fall back to Spanish.

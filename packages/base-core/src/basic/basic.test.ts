@@ -398,7 +398,7 @@ describe('Nova Basic: limits and safety', () => {
   });
 
   it('there is nothing for files, processes or the network', () => {
-    for (const code of ['Shell "calc.exe"', 'Kill "a.txt"', 'Open "a.txt" For Output As #1', 'Dim x\nx = Environ("PATH")', 'Dim x\nx = GetObject("winmgmts:")', 'Application.Quit', 'Dim x\nx = Eval("1+1")']) {
+    for (const code of ['Shell "calc.exe"', 'Kill "a.txt"', 'Open "a.txt" For Output As #1', 'Dim x\nx = Environ("PATH")', 'Dim x\nx = GetObject("winmgmts:")', 'Application.Quit', 'Dim x\nx = Eval("Shell(""calc.exe"")")', 'Eval "Kill ""a.txt"""', 'Eval "Open ""a.txt"" For Output As #1"']) {
       const r = make(`Sub Main()\n${code}\nEnd Sub`);
       if (r.errors.length) continue; // refused when read
       expect(() => r.it.call('Main')).toThrow(BasicError);

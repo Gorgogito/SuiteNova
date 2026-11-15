@@ -1,5 +1,6 @@
 import type { BaseDb } from '../db';
 import { lit, q } from '../design';
+import { evalExpr } from '../expr';
 import { BasicError, ERR, NOTHING, VArray, fromSerial, isObject, toBool, toDate, toNum, toStr, type BObject, type BVal } from './values';
 
 /** An open form, as macros and procedures see it. */
@@ -30,6 +31,14 @@ export interface DbHostApi {
   querySql(name: string): string | null;
   /** Something changed in the database: redraw. */
   refresh(): void;
+  /** Name of the open database file (`CurrentProject.Name`). */
+  projectName?(): string;
+  /** `DoCmd.DeleteObject`, `CopyObject`, `Rename` on saved objects (not tables). */
+  deleteObject?(kind: 'table' | 'query' | 'form' | 'report' | 'macro' | 'module', name: string): void;
+  copyObject?(kind: 'query' | 'form' | 'report' | 'macro' | 'module', from: string, to: string): void;
+  renameObject?(kind: 'table' | 'query' | 'form' | 'report' | 'macro' | 'module', from: string, to: string): void;
+  /** `DoCmd.ApplyFilter` / `ShowAllRecords` on an open form. */
+  applyFilter?(form: string, where: string): void;
 }
 
 const MAX_ROWS = 200_000;
@@ -476,6 +485,48 @@ function formArgOf(api: DbHostApi, name: BVal): FormLike | null {
   return api.me();
 }
 
+const APP_VERSION = '0.0.13';
+function applicationObject(): BObject {
+  return {
+    typeName: 'Application',
+    get(member) {
+      switch (member.toLowerCase()) {
+        case 'name':
+          return 'Nova Base';
+        case 'version':
+          return APP_VERSION;
+        case 'hourglass':
+        case 'echo':
+        case 'quit':
+        case 'refreshtitlebar':
+          return undefined;
+      }
+      return noMember(member);
+    },
+    set(member) {
+      if (!['hourglass', 'echo'].includes(member.toLowerCase())) noMember(member);
+    },
+  };
+}
+function projectObject(api: DbHostApi): BObject {
+  return {
+    typeName: 'CurrentProject',
+    get(member) {
+      switch (member.toLowerCase()) {
+        case 'name':
+          return api.projectName ? api.projectName() : '';
+        case 'path':
+        case 'fullname':
+          return '';
+      }
+      return noMember(member);
+    },
+    set(member) {
+      noMember(member);
+    },
+  };
+}
+
 function doCmd(api: DbHostApi): BObject {
   return {
     typeName: 'DoCmd',
@@ -518,11 +569,62 @@ function doCmd(api: DbHostApi): BObject {
           api.me()?.requery();
           api.refresh();
           return undefined;
+        case 'applyfilter': {
+          const f = a[2] === undefined ? api.me() : api.form(toStr(a[2]));
+          if (!f || !api.applyFilter) throw new BasicError(2046, 'El comando o acción ApplyFilter no está disponible ahora');
+          api.applyFilter(f.name, a[1] === undefined || a[1] === null ? '' : toStr(a[1]));
+          return undefined;
+        }
+        case 'showallrecords': {
+          const f = api.me();
+          if (f && api.applyFilter) api.applyFilter(f.name, '');
+          return undefined;
+        }
+        case 'deleteobject':
+        case 'copyobject':
+        case 'rename': {
+          const kinds: Record<number, 'table' | 'query' | 'form' | 'report' | 'macro' | 'module'> = { 0: 'table', 1: 'query', 2: 'form', 3: 'report', 4: 'macro', 5: 'module' };
+          const m = member.toLowerCase();
+          const typeArg = m === 'deleteobject' ? a[0] : m === 'rename' ? a[1] : a[2];
+          const kind = kinds[Math.trunc(toNum(typeArg))];
+          if (!kind) throw new BasicError(5, `Tipo de objeto no válido en ${member}.`);
+          if (m === 'deleteobject') {
+            if (!api.deleteObject) throw ERR.notSupported(member);
+            api.deleteObject(kind, toStr(a[1]));
+          } else if (m === 'rename') {
+            if (!api.renameObject) throw ERR.notSupported(member);
+            api.renameObject(kind, toStr(a[2]), toStr(a[0]));
+          } else {
+            if (!api.copyObject) throw ERR.notSupported(member);
+            if (kind === 'table') throw new BasicError(5, 'CopyObject solo copia consultas, formularios, informes, macros y módulos.');
+            api.copyObject(kind, toStr(a[3]), toStr(a[1]));
+          }
+          api.refresh();
+          return undefined;
+        }
+        case 'selectobject': {
+          const kinds: Record<number, string> = { 0: 'table', 1: 'query', 2: 'form', 3: 'report' };
+          const k = kinds[Math.trunc(toNum(a[0]))];
+          const n = toStr(a[1]);
+          if (k === 'form') api.openForm(n);
+          else if (k === 'report') api.openReport(n);
+          else if (k === 'table') api.openTable(n);
+          else if (k === 'query') api.openQuery(n);
+          else throw new BasicError(5, 'Tipo de objeto no válido en SelectObject.');
+          return undefined;
+        }
         case 'setwarnings':
         case 'hourglass':
         case 'echo':
         case 'beep':
         case 'quit':
+        case 'maximize':
+        case 'minimize':
+        case 'restore':
+        case 'movesize':
+        case 'save':
+        case 'repaint':
+        case 'doevents':
           return undefined;
       }
       return noMember(member);
@@ -554,6 +656,8 @@ export function createHost(api: DbHostApi, tempVars = new TempVars()): { objects
   return {
     tempVars,
     objects: {
+      application: applicationObject(),
+      currentproject: projectObject(api),
       docmd: doCmd(api),
       forms: new FormsCollection(api),
       tempvars: tempVars,
@@ -566,7 +670,27 @@ export function createHost(api: DbHostApi, tempVars = new TempVars()): { objects
       davg: domain('avg'),
       dmax: domain('max'),
       dmin: domain('min'),
-      // Eval of constant expressions is not provided on purpose: there is no way to run arbitrary text
+      // Eval itself lives in the interpreter (Nova Basic expressions and statements); this is the fallback with the expression language of Nova Base (Sum, IIf…)
+      __campo: (a) => {
+        const rec = api.me()?.record?.() ?? null;
+        const name = toStr(a[0]);
+        const k = rec ? Object.keys(rec).find((x) => x.toLowerCase() === name.toLowerCase()) : undefined;
+        if (k === undefined) throw new BasicError(2465, `No se encuentra el campo [${name}] en el registro actual.`);
+        return rec![k] as BVal;
+      },
+      novaeval: (a) => {
+        const text = toStr(a[0]).trim();
+        if (!text) return null;
+        try {
+          const rec = api.me()?.record?.() ?? null;
+          const v = evalExpr(text.startsWith('=') ? text : `=${text}`, { row: rec as Record<string, string | number | boolean | null> | null });
+          return v === undefined ? null : v;
+        } catch (e) {
+          throw new BasicError(2482, `Eval: ${(e as Error).message}`);
+        }
+      },
+      doevents: () => 0,
+      environ: () => '',
       me: () => {
         const f = api.me();
         return f ? new FormObject(f) : NOTHING;

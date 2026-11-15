@@ -1,9 +1,15 @@
+export * from './crypto';
 export * from './csv';
+export * from './datasheet';
+export * from './exchange';
 export * from './db';
 export * from './design';
+export * from './querywizards';
 export * from './expr';
 export * from './form';
+export * from './form-extra';
 export * from './report-layout';
 export * as basic from './basic';
 export * from './report';
 export * from './sql';
+export * from './tableprops';

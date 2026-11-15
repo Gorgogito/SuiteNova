@@ -12,11 +12,14 @@ export function lit(v: unknown): string {
 export type SortDir = 'asc' | 'desc' | null;
 
 /** What a field does in a totals query (the "Total" row of the Access grid). */
-export type TotalOp = 'group' | 'sum' | 'avg' | 'count' | 'min' | 'max' | 'where' | 'expr';
-export const TOTAL_OPS: TotalOp[] = ['group', 'sum', 'avg', 'count', 'min', 'max', 'where', 'expr'];
+export type TotalOp = 'group' | 'sum' | 'avg' | 'count' | 'min' | 'max' | 'first' | 'last' | 'where' | 'expr';
+export const TOTAL_OPS: TotalOp[] = ['group', 'sum', 'avg', 'count', 'min', 'max', 'first', 'last', 'where', 'expr'];
 
 export type QueryKind = 'select' | 'crosstab' | 'union' | 'append' | 'update' | 'delete' | 'maketable';
 export const QUERY_KINDS: QueryKind[] = ['select', 'crosstab', 'union', 'append', 'update', 'delete', 'maketable'];
+
+export type JoinOp = '=' | '<>' | '<' | '>' | '<=' | '>=';
+export const JOIN_OPS: JoinOp[] = ['=', '<>', '<', '>', '<=', '>='];
 
 export interface DesignField {
   /** Table of the column. Empty for a calculated field. */
@@ -51,8 +54,17 @@ export interface UnionSource {
 export interface QueryDesign {
   tables: string[];
   fields: DesignField[];
-  /** Join conditions between tables when more than one is used, as written (e.g. `"a"."id"`, `"b"."a_id"`): inner joins on equality. */
-  joins?: { left: string; right: string }[];
+  /**
+   * Join conditions between tables when more than one is used, as written (e.g. `"a"."id"`, `"b"."a_id"`), on equality. `type` is inner by
+   * default; `left` keeps all the records of the table on the left side, `right` those of the table on the right side.
+   */
+  joins?: { left: string; right: string; type?: 'inner' | 'left' | 'right'; /** comparison between the two fields (equality by default) */ op?: JoinOp }[];
+  /** Names in `tables` that are saved queries (their SQL is the table: `FROM (…) AS "name"`). */
+  querySources?: string[];
+  /** `limit` is a percentage of the records, not a number of them. */
+  limitPercent?: boolean;
+  /** A table used twice: the name it has in the query (alias) and the table it is. */
+  tableAlias?: Record<string, string>;
   distinct?: boolean;
   limit?: number | null;
   kind?: QueryKind;
@@ -109,6 +121,7 @@ const valueOf = (raw: string, ps: Params): string => {
   if ((m = PARAM.exec(s))) return ps.add(m[1]!);
   if (s.startsWith('=')) return `(${exprSql(s.slice(1), ps)})`;
   if (/^(["']).*\1$/.test(s)) return lit(s.slice(1, -1));
+  if (/^\(\s*select\s/i.test(s) && s.endsWith(')')) return `(${exprSql(s.slice(1, -1), ps)})`;
   if (/^-?\d+(\.\d+)?$/.test(s)) return s;
   if (/^(true|verdadero|sí|si)$/i.test(s)) return '1';
   if (/^(false|falso|no)$/i.test(s)) return '0';
@@ -148,6 +161,7 @@ export function criteriaToSql(col: string, criteria: string, ps: Params = new Pa
   if ((m = /^not\s+like\s+(.+)$/i.exec(c))) return `${col} NOT LIKE ${likeValue(m[1]!, ps)}`;
   if ((m = /^(?:like|como)\s+(.+)$/i.exec(c))) return `${col} LIKE ${likeValue(m[1]!, ps)}`;
   if ((m = /^(?:between|entre)\s+(.+?)\s+(?:and|y)\s+(.+)$/i.exec(c))) return `${col} BETWEEN ${valueOf(m[1]!, ps)} AND ${valueOf(m[2]!, ps)}`;
+  if ((m = /^(not\s+)?in\s*\(\s*(select\s.*)\)$/is.exec(c))) return `${col} ${m[1] ? 'NOT ' : ''}IN (${exprSql(m[2]!, ps)})`;
   if ((m = /^(not\s+)?in\s*\((.*)\)$/i.exec(c))) return `${col} ${m[1] ? 'NOT ' : ''}IN (${splitList(m[2]!).map((v) => valueOf(v, ps)).join(', ')})`;
   if ((m = /^(<=|>=|<>|!=|=|<|>)\s*(.+)$/.exec(c))) return `${col} ${m[1] === '!=' ? '<>' : m[1]} ${valueOf(m[2]!, ps)}`;
   if (PARAM.test(c)) return `${col} = ${valueOf(c, ps)}`;
@@ -185,8 +199,8 @@ function splitList(s: string): string[] {
 
 // ------------------------------------------------------------------------------------------------ compile
 
-const AGG_LABEL: Record<string, string> = { sum: 'Suma', avg: 'Promedio', count: 'Cuenta', min: 'Mín', max: 'Máx' };
-const AGG_SQL: Record<string, string> = { sum: 'SUM', avg: 'AVG', count: 'COUNT', min: 'MIN', max: 'MAX' };
+const AGG_LABEL: Record<string, string> = { sum: 'Suma', avg: 'Promedio', count: 'Cuenta', min: 'Mín', max: 'Máx', first: 'Primero', last: 'Último' };
+const AGG_SQL: Record<string, string> = { sum: 'SUM', avg: 'AVG', count: 'COUNT', min: 'MIN', max: 'MAX', first: 'MIN', last: 'MAX' };
 
 /** Rows of criteria of a field: row 0 is `criteria`, row 1 is `or`, then `more`. */
 const criteriaRows = (f: DesignField): string[] => [f.criteria ?? '', f.or ?? '', ...(f.more ?? [])];
@@ -211,11 +225,57 @@ const isCalc = (f: DesignField) => !f.table;
 const multiTable = (d: QueryDesign) => d.tables.length > 1;
 const colRef = (d: QueryDesign, f: DesignField, ps: Params): string => (isCalc(f) ? `(${exprSql(f.expr ?? 'NULL', ps)})` : multiTable(d) ? `${q(f.table)}.${q(f.name)}` : q(f.name));
 
+/** The context of the design that is being compiled (saved queries are tables of it). */
+let current: CompileContext = {};
+const tableRef = (d: QueryDesign, name: string): string => {
+  if (d.querySources?.includes(name)) {
+    if (!current.resolveQuery) throw new Error('No se pueden resolver las consultas guardadas.');
+    const sql = current.resolveQuery(name).replace(/[;\s]+$/, '');
+    if (sqlParams(sql).length) throw new Error(`La consulta «${name}» pide parámetros: no se puede usar como origen de otra consulta.`);
+    return `(${sql}) AS ${q(name)}`;
+  }
+  return d.tableAlias?.[name] && d.tableAlias[name] !== name ? `${q(d.tableAlias[name]!)} AS ${q(name)}` : q(name);
+};
+const joinCond = (j: { left: string; right: string; op?: JoinOp }): string => `${j.left} ${j.op && JOIN_OPS.includes(j.op) ? j.op : '='} ${j.right}`;
+/** The table a name of the query stands for (the name itself unless it is an alias). */
+export const realTable = (d: QueryDesign, name: string): string => d.tableAlias?.[name] ?? name;
+const hasOuter = (d: QueryDesign) => (d.joins ?? []).some((j) => j.left && j.right && j.type && j.type !== 'inner');
+/** The table a `"table"."column"` text belongs to. */
+const tableOfRef = (ref: string): string => /^"((?:[^"]|"")*)"\./.exec(ref)?.[1]?.replace(/""/g, '"') ?? '';
+
+/**
+ * FROM with the tables. Plain (inner) joins are conditions of the WHERE, as always; when a join keeps all the records of one side the
+ * tables are chained with JOIN … ON so that the unmatched ones stay.
+ */
 function fromClause(d: QueryDesign): string {
-  return `FROM ${d.tables.map(q).join(', ')}`;
+  if (!hasOuter(d)) return `FROM ${d.tables.map((n) => tableRef(d, n)).join(', ')}`;
+  const joins = (d.joins ?? []).filter((j) => j.left && j.right);
+  let sql = `FROM ${tableRef(d, d.tables[0]!)}`;
+  const seen = new Set([d.tables[0]!]);
+  for (const t of d.tables.slice(1)) {
+    const mine = joins.filter((j) => {
+      const l = tableOfRef(j.left);
+      const r = tableOfRef(j.right);
+      return (l === t && seen.has(r)) || (r === t && seen.has(l));
+    });
+    if (!mine.length) sql += `\nCROSS JOIN ${tableRef(d, t)}`;
+    else {
+      // which side keeps all its records decides the direction relative to the table that is being added
+      const outer = mine.find((j) => j.type && j.type !== 'inner');
+      let kind = 'INNER';
+      if (outer) {
+        const keep = tableOfRef(outer.type === 'left' ? outer.left : outer.right);
+        kind = keep === t ? 'RIGHT' : 'LEFT';
+      }
+      sql += `\n${kind} JOIN ${tableRef(d, t)} ON ${mine.map(joinCond).join(' AND ')}`;
+    }
+    seen.add(t);
+  }
+  return sql;
 }
 function joinConds(d: QueryDesign): string[] {
-  return (d.joins ?? []).filter((j) => j.left && j.right).map((j) => `${j.left} = ${j.right}`);
+  if (hasOuter(d)) return [];
+  return (d.joins ?? []).filter((j) => j.left && j.right).map(joinCond);
 }
 
 /** The name a field has in the result. */
@@ -232,6 +292,12 @@ function selectBody(d: QueryDesign, ps: Params): string {
   const shown = fields.filter((f) => f.show && f.total !== 'where');
   const exprOf = (f: DesignField): string => {
     const base = colRef(d, f, ps);
+    if ((f.total === 'first' || f.total === 'last') && !isCalc(f)) {
+      // the value of the first (or last) record of the group, by the order the records were entered
+      // the smallest (or largest) text made of the record number and the value: the value of that record comes back with its type
+      const own = multiTable(d) ? `${q(f.table)}.rowid` : 'rowid';
+      return `json_extract(substr(${f.total === 'first' ? 'MIN' : 'MAX'}(printf('%020d', ${own}) || json_array(${base})), 21), '$[0]')`;
+    }
     return f.total && AGG_SQL[f.total] ? `${AGG_SQL[f.total]}(${base})` : base;
   };
   const sel = (f: DesignField): string => {
@@ -258,7 +324,12 @@ function selectBody(d: QueryDesign, ps: Params): string {
   }
   const allOrder = fields.filter((f) => f.sort).map((f) => `${f.show && f.total !== 'where' ? q(outputName(f)) : exprOf(f)} ${f.sort === 'desc' ? 'DESC' : 'ASC'}`);
   if (allOrder.length) sql += `\nORDER BY ${allOrder.join(', ')}`;
-  if (d.limit) sql += `\nLIMIT ${Math.floor(d.limit)}`;
+  if (d.limit && d.limitPercent) {
+    // the top N percent of the records (rounded up): the count of the same query decides how many
+    const p = Math.min(100, Math.max(0, d.limit));
+    const x = `((SELECT count(*) FROM (${sql})) * ${p} / 100.0)`;
+    sql += `\nLIMIT CAST(${x} AS INTEGER) + (${x} > CAST(${x} AS INTEGER))`;
+  } else if (d.limit) sql += `\nLIMIT ${Math.floor(d.limit)}`;
   return sql;
 }
 
@@ -320,6 +391,7 @@ function actionSql(d: QueryDesign, ps: Params): Compiled {
   const where = criteriaWhere(d.fields, (f) => colRef(d, f, ps), ps);
   const whereAll = [...conds, ...(where ? [`(${where})`] : [])];
   const first = d.tables[0]!;
+  if ((kind === 'update' || kind === 'delete') && d.querySources?.includes(first)) throw new Error('Una consulta de actualización o de eliminación cambia una tabla, no una consulta: ponga la tabla primero.');
   const rowids = () => `SELECT ${q(first)}.rowid\n${fromClause(d)}${whereAll.length ? `\nWHERE ${whereAll.join('\n  AND ')}` : ''}`;
   if (kind === 'delete') return { sql: `DELETE FROM ${q(first)}\nWHERE rowid IN (${rowids()})`, params: ps.list };
   if (kind === 'update') {
@@ -342,14 +414,20 @@ function actionSql(d: QueryDesign, ps: Params): Compiled {
 export const isActionDesign = (d: QueryDesign): boolean => d.kind === 'append' || d.kind === 'update' || d.kind === 'delete' || d.kind === 'maketable';
 
 export function compileDesign(d: QueryDesign, ctx: CompileContext = {}): Compiled {
-  const ps = new Params();
-  const kind = d.kind ?? 'select';
-  if (kind === 'union') return unionSql(d, ctx);
-  if (!d.tables.length) return { sql: '', params: [] };
-  if (kind === 'crosstab') return crosstabSql(d, ctx, ps);
-  if (kind !== 'select') return actionSql(d, ps);
-  const sql = selectBody(d, ps);
-  return { sql, params: ps.list };
+  const prev = current;
+  current = ctx;
+  try {
+    const ps = new Params();
+    const kind = d.kind ?? 'select';
+    if (kind === 'union') return unionSql(d, ctx);
+    if (!d.tables.length) return { sql: '', params: [] };
+    if (kind === 'crosstab') return crosstabSql(d, ctx, ps);
+    if (kind !== 'select') return actionSql(d, ps);
+    const sql = selectBody(d, ps);
+    return { sql, params: ps.list };
+  } finally {
+    current = prev;
+  }
 }
 
 /** The SQL of a design (a crosstab needs `ctx.crosstabValues`; without them the SQL that lists its columns is returned). */

@@ -7,7 +7,9 @@ import {
   addGroup,
   addReportControl,
   bandOf,
+  columnWidth,
   contentWidth,
+  setColumns,
   newReportControl,
   normalizeBox,
   orderedBands,
@@ -19,6 +21,8 @@ import {
   type Band,
   type Format,
   type ReportControl,
+  type PageBandMode,
+  type ReportCondRule,
   type ReportControlType,
   type ReportDef,
   type ReportLayout,
@@ -26,11 +30,38 @@ import {
 import { t } from '@suitenova/core-ui';
 import { useMemo, useState, useSyncExternalStore } from 'react';
 import { DesignCanvas, pushHistory, type CanvasItem } from './DesignCanvas';
+import { ExprBuilderButton } from './ExprBuilder';
 import type { BaseCtl, Tab } from './ctl';
 
-const TYPE_LABEL: Record<ReportControlType, string> = { label: 'Etiqueta', field: 'Campo', calc: 'Campo calculado', line: 'Línea', rect: 'Rectángulo', pageNumber: 'Número de página', chart: 'Gráfico', subreport: 'Subinforme' };
+const TYPE_LABEL: Record<ReportControlType, string> = { label: 'Etiqueta', field: 'Campo', calc: 'Campo calculado', line: 'Línea', rect: 'Rectángulo', pageNumber: 'Número de página', chart: 'Gráfico', subreport: 'Subinforme', image: 'Imagen' };
 const FORMAT_LABEL: Record<Format, string> = { '': 'Automático', int: 'Entero', dec1: '1 decimal', dec2: '2 decimales', dec3: '3 decimales', percent: 'Porcentaje', date: 'Fecha', datetime: 'Fecha y hora' };
 const TEXTUAL = new Set<ReportControlType>(['label', 'field', 'calc', 'pageNumber']);
+
+const MODES: [PageBandMode, string][] = [
+  ['all', 'En todas las páginas'],
+  ['notFirst', 'No con el encabezado del informe'],
+  ['notLast', 'No con el pie del informe'],
+  ['notFirstLast', 'No con el encabezado ni el pie del informe'],
+];
+
+/** A text box plus a button that hands the typed expression over (it must start with `=`). */
+function ExprAdd({ label, placeholder, onAdd }: { label: string; placeholder: string; onAdd: (expr: string) => void }) {
+  const [v, setV] = useState('');
+  const go = () => {
+    const x = v.trim();
+    if (!x) return;
+    onAdd(x.startsWith('=') ? x : `=${x}`);
+    setV('');
+  };
+  return (
+    <div className="bs-grouprow">
+      <input aria-label={label} placeholder={placeholder} value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && go()} />
+      <button type="button" className="bs-btn" aria-label={`${label}: ${'OK'}`} disabled={!v.trim()} onClick={go}>
+        +
+      </button>
+    </div>
+  );
+}
 
 /** Report design view: bands with controls placed freely, groups, page setup, charts, subreports and labels. */
 export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCtl; tab: Tab; def: ReportDef & { layout: ReportLayout }; fields: string[]; onClose: () => void }) {
@@ -38,6 +69,7 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
   const db = ctl.db!;
   const layout = def.layout;
   const [sel, setSel] = useState<string | null>(null);
+  const [note, setNote] = useState('');
   const [activeBand, setActiveBand] = useState<string | null>(null);
   const [past, setPast] = useState<ReportLayout[]>([]);
   const [future, setFuture] = useState<ReportLayout[]>([]);
@@ -103,6 +135,8 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
         return <span>▥ {t('Gráfico')} ({c.kind})</span>;
       case 'subreport':
         return <span className="bs-cv-sub">▦ {c.table || t('(sin tabla)')}</span>;
+      case 'image':
+        return c.src ? <img src={c.src} alt="" style={{ width: '100%', height: '100%', objectFit: c.fit === 'clip' ? 'none' : c.fit === 'stretch' ? 'fill' : 'contain' }} /> : <span>▣ {c.field ? `[${c.field}]` : t('(sin imagen)')}</span>;
       default:
         return null;
     }
@@ -133,6 +167,7 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
   );
 
   const setPage = (p: Partial<ReportLayout>) => commit({ ...layout, ...p });
+  const setRule = (i: number, r: Partial<ReportCondRule>) => control && patch({ cond: (control.cond ?? []).map((x, j) => (j === i ? { ...x, ...r } : x)) });
 
   return (
     <div className="bs-rdesign">
@@ -184,6 +219,10 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
                   <label className="bs-row">
                     <input type="checkbox" checked={!!g.keepTogether} onChange={(e) => setPage({ groups: layout.groups.map((x, j) => (j === i ? { ...x, keepTogether: e.target.checked } : x)) })} /> {t('Mantener unido')}
                   </label>
+                  <label>
+                    {t('Agrupar por los primeros caracteres')}
+                    <input type="number" min={0} max={30} aria-label={t('Caracteres de la agrupación {f}', { f: g.field })} value={g.prefix ?? 0} onChange={(e) => setPage({ groups: layout.groups.map((x, j) => (j === i ? { ...x, prefix: Math.max(0, Math.min(30, Number(e.target.value) || 0)) || undefined } : x)) })} />
+                  </label>
                   <button type="button" className="bs-btn" aria-label={t('Quitar la agrupación por {f}', { f: g.field })} onClick={() => commit(removeGroup(layout, i))}>
                     ×
                   </button>
@@ -195,6 +234,7 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
                   <option key={f}>{f}</option>
                 ))}
               </select>
+              <ExprAdd label={t('Agrupar por expresión')} placeholder="=Left([Nombre], 1)" onAdd={(x) => commit(addGroup(layout, x))} />
             </fieldset>
           )}
         </aside>
@@ -214,11 +254,16 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
                       {t('Alto')}{' '}
                       <input type="number" aria-label={t('Alto de {b}', { b: bandName(b) })} min={0} value={b.height} onChange={(e) => commit(setBandHeight(layout, b.id, Number(e.target.value) || 0))} />
                     </label>
+                    {!layout.labels && (
+                      <label className="bs-chk">
+                        <input type="checkbox" aria-label={t('Reducir {b}', { b: bandName(b) })} checked={!!b.canShrink} onChange={(e) => commit({ ...layout, bands: layout.bands.map((x) => (x.id === b.id ? { ...x, canShrink: e.target.checked } : x)) })} /> {t('Puede reducirse')}
+                      </label>
+                    )}
                   </div>
                   {b.height > 0 && (
                     <DesignCanvas
                       ariaLabel={bandName(b)}
-                      width={layout.labels ? layout.labels.labelW : W}
+                      width={layout.labels ? layout.labels.labelW : b.kind === 'detail' ? columnWidth(layout) : W}
                       height={b.height}
                       items={items}
                       selected={sel}
@@ -305,6 +350,61 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
                         <option key={f}>{f}</option>
                       ))}
                     </select>
+                    <ExprAdd label={t('Ordenar por expresión')} placeholder="=[Precio]*[Cantidad]" onAdd={(x) => setPage({ sort: [...(layout.sort ?? []), { field: x }] })} />
+                  </fieldset>
+                  <fieldset>
+                    <legend>{t('Columnas')}</legend>
+                    <label>
+                      {t('Número de columnas')}
+                      <input type="number" min={1} max={8} aria-label={t('Número de columnas')} value={layout.columns?.n ?? 1} onChange={(e) => commit(setColumns(layout, Number(e.target.value) > 1 ? { n: Math.min(8, Math.floor(Number(e.target.value))), gap: layout.columns?.gap ?? 20, direction: layout.columns?.direction ?? 'down' } : undefined))} />
+                    </label>
+                    {layout.columns && (
+                      <>
+                        <label>
+                          {t('Espacio entre columnas')}
+                          <input type="number" min={0} aria-label={t('Espacio entre columnas')} value={layout.columns.gap} onChange={(e) => commit(setColumns(layout, { ...layout.columns!, gap: Math.max(0, Number(e.target.value) || 0) }))} />
+                        </label>
+                        <label>
+                          {t('Disposición')}
+                          <select aria-label={t('Disposición de columnas')} value={layout.columns.direction} onChange={(e) => setPage({ columns: { ...layout.columns!, direction: e.target.value as 'down' | 'across' } })}>
+                            <option value="down">{t('Hacia abajo y luego a lo ancho')}</option>
+                            <option value="across">{t('A lo ancho y luego hacia abajo')}</option>
+                          </select>
+                        </label>
+                        <p className="bs-hint">{t('El detalle es una columna: sus controles se reescalan al ancho de columna.')}</p>
+                      </>
+                    )}
+                  </fieldset>
+                  <fieldset>
+                    <legend>{t('Datos del informe')}</legend>
+                    <label>
+                      {t('Filtro')}
+                      <input aria-label={t('Filtro del informe')} value={layout.filter ?? ''} placeholder="[Importe]>100" onChange={(e) => setPage({ filter: e.target.value || undefined })} />
+                    </label>
+                    <label>
+                      {t('Texto si no hay registros')}
+                      <input aria-label={t('Texto si no hay registros')} value={layout.noData ?? ''} onChange={(e) => setPage({ noData: e.target.value || undefined })} />
+                    </label>
+                    <label>
+                      {t('Encabezado de página')}
+                      <select aria-label={t('Mostrar el encabezado de página')} value={layout.pageHeaderOn ?? 'all'} onChange={(e) => setPage({ pageHeaderOn: e.target.value as PageBandMode })}>
+                        {MODES.map(([v, n]) => (
+                          <option key={v} value={v}>
+                            {t(n)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      {t('Pie de página')}
+                      <select aria-label={t('Mostrar el pie de página')} value={layout.pageFooterOn ?? 'all'} onChange={(e) => setPage({ pageFooterOn: e.target.value as PageBandMode })}>
+                        {MODES.map(([v, n]) => (
+                          <option key={v} value={v}>
+                            {t(n)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </fieldset>
                 </>
               )}
@@ -347,7 +447,49 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
                 <label>
                   {t('Expresión')}
                   <input aria-label={t('Expresión del control')} value={control.expr} placeholder="=Sum([Importe])  ·  =[Precio]*[Cantidad]" onChange={(e) => patch({ expr: e.target.value })} />
+                  <ExprBuilderButton fields={fields} value={control.expr.replace(/^=/, '')} onApply={(v) => patch({ expr: v ? `=${v}` : '=' })} label={t('Generador de expresiones del control')} />
                 </label>
+              )}
+              {control.type === 'image' && (
+                <>
+                  <label>
+                    {t('Imagen')}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp"
+                      aria-label={t('Elegir imagen')}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!f) return;
+                        if (f.size > 1_500_000) return void setNote(t('La imagen pesa más de 1,5 MB.'));
+                        const r = new FileReader();
+                        r.onload = () => typeof r.result === 'string' && (setNote(''), patch({ src: r.result }));
+                        r.readAsDataURL(f);
+                      }}
+                    />
+                  </label>
+                  {control.src && (
+                    <button type="button" className="bs-btn" onClick={() => patch({ src: '' })}>
+                      {t('Quitar la imagen')}
+                    </button>
+                  )}
+                  <label>
+                    {t('Ajuste')}
+                    <select aria-label={t('Ajuste de la imagen')} value={control.fit ?? 'zoom'} onChange={(e) => patch({ fit: e.target.value })}>
+                      <option value="zoom">{t('Ajustar sin deformar')}</option>
+                      <option value="stretch">{t('Estirar')}</option>
+                      <option value="clip">{t('Tamaño real (recortar)')}</option>
+                    </select>
+                  </label>
+                  {fieldSelect(t('Campo con la imagen'), control.field ?? '', 'field')}
+                  <label>
+                    {t('Texto alternativo')}
+                    <input aria-label={t('Texto alternativo de la imagen')} value={control.alt ?? ''} onChange={(e) => patch({ alt: e.target.value })} />
+                  </label>
+                  {note && <p role="alert" className="bs-hint">{note}</p>}
+                  <p className="bs-hint">{t('Un campo puede traer la imagen como texto «data:image/png;base64,…».')}</p>
+                </>
               )}
               {control.type === 'pageNumber' && (
                 <label>
@@ -442,13 +584,60 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
                   <label className="bs-row">
                     <input type="checkbox" checked={!!control.wrap} onChange={(e) => patch({ wrap: e.target.checked })} /> {t('Ajustar el texto en varias líneas')}
                   </label>
+                  {(control.type === 'label' || control.type === 'field' || control.type === 'calc') && (
+                    <label className="bs-chk">
+                      <input type="checkbox" aria-label={t('Puede crecer')} checked={!!control.canGrow} onChange={(e) => patch({ canGrow: e.target.checked })} /> {t('Puede crecer (según el texto)')}
+                    </label>
+                  )}
+                  {control.type === 'field' && (
+                    <label className="bs-chk">
+                      <input type="checkbox" aria-label={t('Ocultar duplicados')} checked={!!control.hideDup} onChange={(e) => patch({ hideDup: e.target.checked })} /> {t('Ocultar duplicados')}
+                    </label>
+                  )}
+                  {(control.type === 'field' || control.type === 'calc') && (
+                    <label>
+                      {t('Suma acumulada')}
+                      <select aria-label={t('Suma acumulada')} value={control.running ?? ''} onChange={(e) => patch({ running: e.target.value || undefined })}>
+                        <option value="">{t('No')}</option>
+                        <option value="group">{t('Dentro del grupo')}</option>
+                        <option value="all">{t('En todo el informe')}</option>
+                      </select>
+                    </label>
+                  )}
                   <label>
                     {t('Tamaño de letra')}
                     <input type="number" min={6} max={96} aria-label={t('Tamaño de letra')} value={control.size ?? 12} onChange={(e) => patch({ size: Math.max(6, Math.min(96, Number(e.target.value) || 12)) })} />
                   </label>
                 </>
               )}
-              {control.type !== 'chart' && control.type !== 'subreport' && (
+              {(control.type === 'label' || control.type === 'field' || control.type === 'calc' || control.type === 'rect') && (
+                <fieldset className="bs-cond">
+                  <legend>{t('Formato condicional')}</legend>
+                  {(control.cond ?? []).map((r, i) => (
+                    <div key={i} className="bs-condrow">
+                      <input aria-label={t('Condición {n}', { n: i + 1 })} value={r.expr} placeholder="[Importe]>1000" onChange={(e) => setRule(i, { expr: e.target.value })} />
+                      <input type="color" aria-label={t('Color del texto {n}', { n: i + 1 })} value={r.color ?? '#000000'} onChange={(e) => setRule(i, { color: e.target.value })} />
+                      <input type="color" aria-label={t('Fondo {n}', { n: i + 1 })} value={r.background ?? '#ffffff'} onChange={(e) => setRule(i, { background: e.target.value })} />
+                      <label className="bs-chk">
+                        <input type="checkbox" aria-label={t('Negrita {n}', { n: i + 1 })} checked={!!r.bold} onChange={(e) => setRule(i, { bold: e.target.checked })} /> B
+                      </label>
+                      <label className="bs-chk">
+                        <input type="checkbox" aria-label={t('Ocultar {n}', { n: i + 1 })} checked={!!r.hide} onChange={(e) => setRule(i, { hide: e.target.checked })} /> {t('Ocultar')}
+                      </label>
+                      <button type="button" className="bs-btn" aria-label={t('Quitar la condición {n}', { n: i + 1 })} onClick={() => patch({ cond: (control.cond ?? []).filter((_, j) => j !== i) })}>
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {(control.cond ?? []).length < 5 && (
+                    <button type="button" className="bs-btn" onClick={() => patch({ cond: [...(control.cond ?? []), { expr: '', color: '#c00000' }] })}>
+                      {t('Agregar condición')}
+                    </button>
+                  )}
+                  <p className="bs-hint">{t('Se aplica la primera condición que sea verdadera. Use los campos entre corchetes.')}</p>
+                </fieldset>
+              )}
+              {control.type !== 'chart' && control.type !== 'subreport' && control.type !== 'image' && (
                 <label>
                   {t('Color')}
                   <input type="color" aria-label={t('Color')} value={control.color && /^#[0-9a-f]{6}$/i.test(control.color) ? control.color : '#000000'} onChange={(e) => patch({ color: e.target.value })} />

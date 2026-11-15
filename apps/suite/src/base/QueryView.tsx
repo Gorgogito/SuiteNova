@@ -114,7 +114,7 @@ export function QueryView({ ctl, tab }: { ctl: BaseCtl; tab: Tab }) {
         <textarea className="bs-sql" aria-label="SQL" spellCheck={false} value={q.sql} placeholder={'SELECT * FROM "Tabla" WHERE …  (parámetros: :nombre)'} onChange={(e) => update({ sql: e.target.value })} />
       ) : (
         <>
-          <QueryDesigner ctl={ctl} q={q} update={update} />
+          <QueryDesigner ctl={ctl} q={q} update={update} selfName={tab.name} />
           {compiled.error && <p className="bs-hint">{compiled.error}</p>}
           {sql && (
             <pre className="bs-sqlprev" aria-label={t('SQL generado')}>

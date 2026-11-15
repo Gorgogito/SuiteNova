@@ -1,4 +1,4 @@
-import { BaseDb, basic, defaultFormLayout, defaultLabelLayout, defaultReportLayout, loadSql, recordObject, subformData, newColumn, newDesign, type ColumnDef, type DataSet, type FormLayout, type Handler, type ReportControl, type Row, type QueryDesign, type QueryResult, type ReportDef, type Value } from '@suitenova/base-core';
+import { BaseDb, applyFieldKinds, basic, encryptDb, type CompactReport, type AggFn, type ColumnFilter, type SortKey, defaultFormLayout, defaultLabelLayout, defaultReportLayout, loadSql, recordObject, subformData, newColumn, newDesign, type ColumnDef, type DataSet, type FormLayout, type Handler, type ReportControl, type Row, type QueryDesign, type QueryResult, type ReportDef, type Value } from '@suitenova/base-core';
 import { BaseRuntime, type ModuleDef } from './runtime';
 
 type MacroDef = basic.MacroDef;
@@ -47,16 +47,74 @@ export interface FormHandle {
   record?(): Record<string, Value>;
 }
 
+/** Layout, sort and filter of a datasheet. It is saved in the file with the table (as Access does). */
+export interface SheetState {
+  sorts: SortKey[];
+  filters: ColumnFilter[];
+  /** the filters are applied (the filter can be switched off without losing it) */
+  filterOn: boolean;
+  hidden: string[];
+  /** how many columns stay in place while the rest scrolls */
+  frozen: number;
+  widths: Record<string, number>;
+  totals: Record<string, AggFn>;
+  showTotals: boolean;
+  fontSize: number;
+  zebra: boolean;
+  gridlines: boolean;
+  rowHeight: number;
+}
+export const DEFAULT_SHEET: SheetState = { sorts: [], filters: [], filterOn: true, hidden: [], frozen: 0, widths: {}, totals: {}, showTotals: false, fontSize: 13, zebra: false, gridlines: true, rowHeight: 26 };
+
+/** What the open datasheet offers to the ribbon (it lives in the component, which publishes it here). */
+export interface SheetApi {
+  tabId: string;
+  table: string;
+  rowCount: number;
+  /** the column of the active cell */
+  activeCol: string | null;
+  activeRow: number | null;
+  selectedRows: number[];
+  newRecord(): void;
+  deleteSelected(): void;
+  copy(cut?: boolean): Promise<void>;
+  paste(): Promise<void>;
+  goto(where: 'first' | 'previous' | 'next' | 'last' | 'new'): void;
+  /** value of the active cell as text */
+  activeValue(): string | null;
+  refresh(): void;
+}
+
+export interface SheetDialog {
+  kind: 'find' | 'replace' | 'filter' | 'columns' | 'width' | 'rowHeight';
+  col?: string;
+}
+
+/** Dialogs for importing, exporting, copying tables and documenting the database. */
+export interface ExchangeDialog {
+  kind: 'import' | 'export' | 'copyTable' | 'document' | 'wizDups' | 'wizUnmatched' | 'wizForm' | 'files' | 'compact' | 'password';
+  arg?: { start?: 'file' | 'paste'; format?: 'xlsx' | 'csv' | 'tsv' | 'json' | 'xml' | 'html' | 'sql'; table?: string; report?: CompactReport };
+}
+
 export class BaseCtl {
   db: BaseDb | null = null;
+  xDialog: ExchangeDialog | null = null;
   loading = true;
   error: string | null = null;
   fileName: string | null = null;
   filePath: string | null = null;
+  /** The password the file is saved with (null: not encrypted). Kept only while the database is open. */
+  password: string | null = null;
   dirty = false;
+  /** How the navigation pane lists the objects: by type, or in the groups the user made. */
+  navView: 'type' | 'groups' = 'type';
   tabs: Tab[] = [];
   active: string | null = null;
   navFilter = '';
+  /** Layout, sort and filter of each open datasheet, by tab id. */
+  sheets = new Map<string, SheetState>();
+  sheetApi: SheetApi | null = null;
+  sheetDialog: SheetDialog | null = null;
   /** Per-tab state kept while a tab is open. */
   queries = new Map<string, QueryState>();
   /** Last result of each open query tab (for export). */
@@ -113,6 +171,7 @@ export class BaseCtl {
     try {
       const SQL = await loadSql(locateFile);
       this.db = BaseDb.open(SQL);
+      this.runtime.attach();
       this.error = null;
     } catch (e) {
       this.error = `No se pudo iniciar el motor de bases de datos: ${(e as Error).message}`;
@@ -124,8 +183,10 @@ export class BaseCtl {
   private reset(db: BaseDb, name: string | null, path: string | null): void {
     this.db?.close();
     this.db = db;
+    this.runtime.attach();
     this.fileName = name;
     this.filePath = path;
+    this.password = null;
     this.tabs = [];
     this.active = null;
     this.queries.clear();
@@ -157,15 +218,60 @@ export class BaseCtl {
   hasActiveContent(): boolean {
     const db = this.db!;
     if (db.objects('macro').length || db.objects('module').length) return true;
+    // data macros of a table
+    if (db.objects('tableprops').some((t) => Object.keys(db.getMeta(t).dataMacros ?? {}).length)) return true;
+    // anything a form is bound to: events, shortcuts, button handlers, controls events (saved macro, procedure or embedded macro)
     return db.objects('form').some((n) => {
       const l = db.getObject<FormDef>('form', n)?.layout;
-      return !!l && (!!l.events?.onOpen || !!l.events?.onCurrent || l.controls.some((c) => ('handler' in c && !!c.handler) || ('afterUpdate' in c && !!c.afterUpdate)));
+      return !!l && /"kind":"(macro|proc|embedded)"/.test(JSON.stringify(l));
     });
   }
 
   enableContent(): void {
     this.contentEnabled = true;
     this.touch();
+  }
+
+  /** The file to save: the database, encrypted when it has a password. */
+  async exportFile(): Promise<Uint8Array> {
+    const bytes = this.db!.export();
+    return this.password ? encryptDb(bytes, this.password) : bytes;
+  }
+
+  /** Choose (or remove) the password of the file; it is saved with it the next time. */
+  setPassword(password: string | null): void {
+    this.password = password;
+    this.dirty = true;
+    if (this.db) this.db.dirty = true;
+    this.touch();
+  }
+
+  // ---------- groups of the navigation pane ----------
+
+  navGroups(): { name: string; items: { kind: ObjKind; name: string }[] }[] {
+    return this.db?.getObject<{ groups: { name: string; items: { kind: ObjKind; name: string }[] }[] }>('navgroups', 'groups')?.groups ?? [];
+  }
+  private saveNavGroups(groups: { name: string; items: { kind: ObjKind; name: string }[] }[]): void {
+    if (groups.length) this.db!.saveObject('navgroups', 'groups', { groups });
+    else this.db!.deleteObject('navgroups', 'groups');
+    this.touch();
+  }
+  addNavGroup(name: string): void {
+    const n = name.trim();
+    if (!n) throw new Error('El grupo necesita un nombre.');
+    const groups = this.navGroups();
+    if (groups.some((g) => g.name.toLowerCase() === n.toLowerCase())) throw new Error(`Ya existe un grupo llamado "${n}".`);
+    this.saveNavGroups([...groups, { name: n, items: [] }]);
+  }
+  removeNavGroup(name: string): void {
+    this.saveNavGroups(this.navGroups().filter((g) => g.name !== name));
+  }
+  /** Put an object in a group (an object can be in several). */
+  addToNavGroup(group: string, item: { kind: ObjKind; name: string }): void {
+    this.saveNavGroups(this.navGroups().map((g) => (g.name === group && !g.items.some((x) => x.kind === item.kind && x.name === item.name) ? { ...g, items: [...g.items, item] } : g)));
+  }
+  removeFromNavGroup(group: string, item: { kind: ObjKind; name: string }): void {
+    this.saveNavGroups(this.navGroups().map((g) => (g.name === group ? { ...g, items: g.items.filter((x) => !(x.kind === item.kind && x.name === item.name)) } : g)));
   }
 
   markSaved(name: string, path: string | null): void {
@@ -198,6 +304,7 @@ export class BaseCtl {
     if (i < 0) return;
     this.tabs = this.tabs.filter((t) => t.id !== id);
     this.queries.delete(id);
+    this.sheets.delete(id);
     this.results.delete(id);
     this.drafts.delete(id);
     this.forms.delete(id);
@@ -205,6 +312,28 @@ export class BaseCtl {
     this.macros.delete(id);
     this.formFilters.delete(id);
     if (this.active === id) this.active = this.tabs[Math.min(i, this.tabs.length - 1)]?.id ?? null;
+    this.touch();
+  }
+
+  /** The state of the datasheet of a tab (read from the file the first time). */
+  sheetOf(tab: Tab): SheetState {
+    let s = this.sheets.get(tab.id);
+    if (!s) {
+      const saved = tab.kind === 'table' && this.db ? this.db.getObject<Partial<SheetState>>('sheet', tab.name) : null;
+      s = { ...DEFAULT_SHEET, ...(saved ?? {}) };
+      this.sheets.set(tab.id, s);
+    }
+    return s;
+  }
+  /** Changes the datasheet of a tab and saves its layout in the file. */
+  setSheet(tab: Tab, patch: Partial<SheetState>): void {
+    const next = { ...this.sheetOf(tab), ...patch };
+    this.sheets.set(tab.id, next);
+    if (tab.kind === 'table' && this.db) {
+      const same = JSON.stringify(next) === JSON.stringify(DEFAULT_SHEET);
+      if (same) this.db.deleteObject('sheet', tab.name);
+      else this.db.saveObject('sheet', tab.name, next);
+    }
     this.touch();
   }
 
@@ -288,7 +417,16 @@ export class BaseCtl {
 
   newForm(table: string): void {
     const name = this.freeName('Formulario', this.db!.objects('form'));
-    const def: FormDef = { table, fields: null, layout: defaultFormLayout(this.db!.columns(table), this.db!) };
+    const def: FormDef = { table, fields: null, layout: applyFieldKinds(defaultFormLayout(this.db!.columns(table), this.db!), this.db!.getMeta(table).fields) };
+    this.db!.saveObject('form', name, def);
+    this.forms.set(this.id('form', name), def);
+    this.open({ id: this.id('form', name), kind: 'form', name });
+  }
+
+  /** A form built by the wizard (or any ready layout) on a table. */
+  newFormWith(table: string, layout: FormLayout): void {
+    const name = this.freeName('Formulario', this.db!.objects('form'));
+    const def: FormDef = { table, fields: null, layout };
     this.db!.saveObject('form', name, def);
     this.forms.set(this.id('form', name), def);
     this.open({ id: this.id('form', name), kind: 'form', name });
@@ -328,11 +466,21 @@ export class BaseCtl {
   }
 
   /** SQL of a saved query (designer queries are generated), for reports and exports. */
-  sqlOfQuery(name: string): string {
+  sqlOfQuery(name: string, depth = 0): string {
+    if (depth > 12) throw new Error('Las consultas se usan unas a otras en círculo.');
     const def = this.db!.getObject<{ mode: 'sql' | 'design'; sql: string; design: QueryDesign }>('query', name);
     if (!def) throw new Error(`No existe la consulta "${name}".`);
     if (def.mode !== 'design') return def.sql;
-    return this.db!.designSql(def.design, { resolveQuery: (n) => this.sqlOfQuery(n) }).sql;
+    return this.db!.designSql(def.design, { resolveQuery: (n) => this.sqlOfQuery(n, depth + 1) }).sql;
+  }
+
+  /** The columns a saved query returns (so that another query can use it as a table). Empty when it cannot be read or needs parameters. */
+  queryColumns(name: string): string[] {
+    try {
+      return this.db!.execute(`SELECT * FROM (${this.sqlOfQuery(name).replace(/[;\s]+$/, '')}) LIMIT 0`).columns;
+    } catch {
+      return [];
+    }
   }
 
   // ---------- macros and modules ----------
@@ -365,14 +513,18 @@ export class BaseCtl {
     if (!this.db!.objects('module').includes(name)) return;
     this.open({ id: this.id('module', name), kind: 'module', name });
   }
-  newModule(): void {
-    const name = this.freeName('Modulo', this.db!.objects('module'));
-    const def: ModuleDef = { code: 'Option Explicit\n\nSub Principal()\n    MsgBox "Hola desde Nova Base"\nEnd Sub\n' };
+  newModule(kind: 'module' | 'class' = 'module'): void {
+    const name = this.freeName(kind === 'class' ? 'Clase' : 'Modulo', this.db!.objects('module'));
+    const def: ModuleDef =
+      kind === 'class'
+        ? { kind: 'class', code: 'Option Explicit\n\nPrivate mNombre As String\n\nPrivate Sub Class_Initialize()\n    mNombre = "sin nombre"\nEnd Sub\n\nPublic Property Get Nombre() As String\n    Nombre = mNombre\nEnd Property\n\nPublic Property Let Nombre(valor As String)\n    mNombre = valor\nEnd Property\n\nPublic Function Saluda() As String\n    Saluda = "Hola, soy " & mNombre\nEnd Function\n' }
+        : { code: 'Option Explicit\n\nSub Principal()\n    MsgBox "Hola desde Nova Base"\nEnd Sub\n' };
     this.db!.saveObject('module', name, def);
     this.open({ id: this.id('module', name), kind: 'module', name });
   }
   saveModule(name: string, code: string): void {
-    this.db!.saveObject('module', name, { code } satisfies ModuleDef);
+    const old = this.db!.getObject<ModuleDef>('module', name);
+    this.db!.saveObject('module', name, { code, ...(old?.kind ? { kind: old.kind } : {}) } satisfies ModuleDef);
     this.touch();
   }
 
@@ -390,10 +542,10 @@ export class BaseCtl {
   }
 
   /** Run a macro or a procedure: what an event of a form is bound to. */
-  async runHandler(h: Handler, ctx: { form?: string } = {}): Promise<{ error?: string }> {
+  async runHandler(h: Handler, ctx: { form?: string } = {}): Promise<{ error?: string; cancel?: boolean }> {
     if (!this.contentEnabled) return { error: 'El contenido activo (macros, código y eventos) está deshabilitado. Use "Habilitar contenido" en la barra amarilla.' };
     const r = this.runtime.run(h, ctx.form);
-    return r.ok ? {} : { error: r.error };
+    return r.ok ? (r.cancel ? { cancel: true } : {}) : { error: r.error };
   }
 
   setFormFilter(name: string, where: string): void {
@@ -485,15 +637,26 @@ export class BaseCtl {
   rename(kind: ObjKind, from: string, to: string): void {
     const n = to.trim();
     if (!n || n === from) return;
-    if (kind === 'table') this.db!.renameTable(from, n);
-    else this.db!.renameObject(kind, from, n);
+    if (kind === 'table') {
+      const meta = this.db!.objects('tableprops').includes(from) ? this.db!.getMeta(from) : null;
+      this.db!.renameTable(from, n);
+      if (this.db!.objects('sheet').includes(from)) this.db!.renameObject('sheet', from, n);
+      if (meta) {
+        // the validation triggers carry the old name: they are made again for the new one
+        this.db!.deleteObject('tableprops', from);
+        this.db!.setMeta(n, meta, false);
+      }
+    } else this.db!.renameObject(kind, from, n);
+    // the groups of the navigation pane follow the new name
+    const ng = this.navGroups();
+    if (ng.some((g) => g.items.some((x) => x.kind === kind && x.name === from))) this.saveNavGroups(ng.map((g) => ({ ...g, items: g.items.map((x) => (x.kind === kind && x.name === from ? { ...x, name: n } : x)) })));
     const map = (t: Tab): Tab => {
       const sameKind = t.kind === kind || (kind === 'table' && t.kind === 'design');
       return sameKind && t.name === from ? { ...t, id: t.id.replace(`:${from}`, `:${n}`), name: n } : t;
     };
     const old = this.tabs;
     this.tabs = old.map(map);
-    for (const m of [this.queries, this.forms, this.reports, this.drafts, this.macros, this.formFilters] as Map<string, unknown>[]) {
+    for (const m of [this.queries, this.forms, this.reports, this.drafts, this.macros, this.formFilters, this.sheets] as Map<string, unknown>[]) {
       for (const [k, v] of [...m]) {
         if (k.endsWith(`:${from}`)) {
           m.delete(k);
@@ -506,8 +669,11 @@ export class BaseCtl {
   }
 
   remove(kind: ObjKind, name: string): void {
-    if (kind === 'table') this.db!.dropTable(name);
-    else this.db!.deleteObject(kind, name);
+    if (kind === 'table') {
+      this.db!.dropTable(name);
+      this.db!.deleteObject('sheet', name);
+      this.db!.deleteObject('tableprops', name);
+    } else this.db!.deleteObject(kind, name);
     for (const t of [...this.tabs]) if (t.name === name && (t.kind === kind || (kind === 'table' && t.kind === 'design'))) this.close(t.id);
     this.touch();
   }

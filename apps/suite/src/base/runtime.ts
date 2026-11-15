@@ -1,4 +1,4 @@
-import { basic, type Handler } from '@suitenova/base-core';
+import { basic, type DataEvent, type Handler } from '@suitenova/base-core';
 
 type MacroDef = basic.MacroDef;
 import type { BaseCtl, FormHandle } from './ctl';
@@ -7,6 +7,8 @@ type BVal = basic.BVal;
 
 export interface ModuleDef {
   code: string;
+  /** A class module: its procedures belong to the objects made from it with `New`. */
+  kind?: 'class';
 }
 
 export interface RunReport {
@@ -16,6 +18,8 @@ export interface RunReport {
   /** Module and line of a program error (to place the cursor). */
   at?: { module: string; line: number };
   value?: BVal;
+  /** The macro ran `CancelEvent`. */
+  cancel?: boolean;
 }
 
 const MAX_CONSOLE = 2000;
@@ -39,10 +43,56 @@ export class BaseRuntime {
     if (this.console.length > MAX_CONSOLE) this.console.splice(0, this.console.length - MAX_CONSOLE);
     this.ctl.touch();
   };
+  /** Connect the data macros of the open database: every change of a record calls here (see the triggers of `setMeta`). */
+  attach(): void {
+    const db = this.ctl.db;
+    if (db) db.dataMacroHook = (table, event, rowid, row, old) => this.runDataMacro(table, event, rowid, row, old);
+  }
+
+  /** Cells changed by `SetField` of a macro on the row itself must not fire `beforeChange` again. */
+  private fixing = new Set<string>();
+
+  private runDataMacro(table: string, event: string, rowid: number, row: Record<string, unknown>, old: Record<string, unknown> | null): void {
+    const ctl = this.ctl;
+    if (!ctl.contentEnabled) return; // a file that carries macros starts with them off
+    const name = event.startsWith('beforeChange') ? 'beforeChange' : event;
+    const key = `${table}:${rowid}`;
+    if (name === 'beforeChange' && this.fixing.has(key)) return;
+    const def = ctl.db!.getMeta(table).dataMacros?.[name as DataEvent] as MacroDef | undefined;
+    if (!def?.steps.length) return;
+    const ctxData: basic.DataContext = { table, event: name, row: row as basic.DataContext['row'], old: old as basic.DataContext['old'], pending: {} };
+    const host: basic.MacroHost = {
+      ...this.api(),
+      me: () => null,
+      form: () => null,
+      tempVars: this.tempVars,
+      macro: (n) => ctl.db!.getObject<MacroDef>('macro', n),
+      runProc: (n, args) => {
+        const r = this.runProc(n, args as BVal[]);
+        if (!r.ok) throw new Error(r.error);
+      },
+      msgBox: (p, b, t) => msgBox(p, b, t),
+      dataContext: ctxData,
+    };
+    const r = basic.runMacro(def, host, `${table}, ${name}`);
+    if (!r.ok) throw new Error(r.error ?? 'La macro de datos falló.');
+    const cols = Object.keys(ctxData.pending);
+    if (cols.length && name === 'beforeChange') {
+      this.fixing.add(key);
+      try {
+        const sets = cols.map((c, i) => `"${c.replace(/"/g, '""')}" = :v${i}`).join(', ');
+        ctl.db!.execute(`UPDATE "${table.replace(/"/g, '""')}" SET ${sets} WHERE rowid = ${Math.trunc(rowid)}`, 1, Object.fromEntries(cols.map((c, i) => [`v${i}`, ctxData.pending[c]])));
+      } finally {
+        this.fixing.delete(key);
+      }
+    }
+  }
+
   /** A different database was opened: forget everything. */
   reset(): void {
     this.console = [];
     this.tempVars.values.clear();
+    this.interp?.dispose(false); // another database: nothing may run against it
     this.interp = null;
     this.loadedKey = '';
     this.lastErrors = [];
@@ -57,6 +107,10 @@ export class BaseRuntime {
 
   private api(): basic.DbHostApi {
     const ctl = this.ctl;
+    const closeTab = (kind: string, name: string) => {
+      const t = ctl.tabs.find((x) => x.kind === kind && x.name === name);
+      if (t) ctl.close(t.id);
+    };
     const asLike = (h: FormHandle | undefined): basic.FormLike | null => (h ? { ...h, record: h.record } : null);
     return {
       db: ctl.db!,
@@ -83,6 +137,49 @@ export class BaseRuntime {
         }
       },
       refresh: () => ctl.touch(),
+      projectName: () => ctl.fileName ?? 'Base de datos1',
+      applyFilter: (form, where) => {
+        ctl.setFormFilter(form, where ? basic.translateCriteria(where) : '');
+        ctl.touch();
+      },
+      deleteObject: (kind, name) => {
+        if (kind === 'table') ctl.db!.execute(`DROP TABLE "${name.replace(/"/g, '""')}"`);
+        else {
+          closeTab(kind, name);
+          ctl.db!.deleteObject(kind, name);
+        }
+      },
+      renameObject: (kind, from, to) => {
+        if (kind === 'table') ctl.db!.execute(`ALTER TABLE "${from.replace(/"/g, '""')}" RENAME TO "${to.replace(/"/g, '""')}"`);
+        else {
+          closeTab(kind, from);
+          ctl.db!.renameObject(kind, from, to);
+        }
+      },
+      copyObject: (kind, from, to) => {
+        const def = ctl.db!.getObject(kind, from);
+        if (!def) throw new basic.BasicError(2102, `No existe el objeto "${from}".`);
+        if (ctl.db!.objects(kind).includes(to)) throw new basic.BasicError(2501, `Ya existe un objeto llamado "${to}".`);
+        ctl.db!.saveObject(kind, to, def);
+      },
+    };
+  }
+
+  /** The files a program can use: text kept inside the database (never the disk). Names compare without regard to case. */
+  private vfs(): basic.Vfs {
+    const db = this.ctl.db!;
+    const find = (p: string) => db.objects('file').find((n) => n.toLowerCase() === p.toLowerCase());
+    return {
+      read: (p) => {
+        const n = find(p);
+        return n === undefined ? null : (db.getObject<{ text: string }>('file', n)?.text ?? '');
+      },
+      write: (p, text) => db.saveObject('file', find(p) ?? p, { text }),
+      remove: (p) => {
+        const n = find(p);
+        if (n !== undefined) db.deleteObject('file', n);
+      },
+      list: () => db.objects('file'),
     };
   }
 
@@ -94,14 +191,18 @@ export class BaseRuntime {
       inputBox: (prompt, title, def) => (typeof window.prompt === 'function' ? window.prompt(`${title}\n\n${prompt}`, def) : null),
       objects: host.objects,
       functions: host.functions,
+      vfs: this.vfs(),
     };
   }
 
   // ---- modules
 
-  private sources(): { name: string; source: string }[] {
+  private sources(): { name: string; source: string; kind?: 'class' }[] {
     const db = this.ctl.db!;
-    return db.objects('module').map((name) => ({ name, source: db.getObject<ModuleDef>('module', name)?.code ?? '' }));
+    return db.objects('module').map((name) => {
+      const d = db.getObject<ModuleDef>('module', name);
+      return { name, source: d?.code ?? '', ...(d?.kind === 'class' ? { kind: 'class' as const } : {}) };
+    });
   }
 
   /** (Re)load the modules from the database when they changed. Returns the syntax errors. */
@@ -109,6 +210,11 @@ export class BaseRuntime {
     const src = this.sources();
     const key = JSON.stringify(src);
     if (!force && this.interp && key === this.loadedKey) return this.lastErrors;
+    try {
+      this.interp?.dispose(); // objects that are still alive get their Class_Terminate before the code is replaced
+    } catch {
+      /* the old program is gone anyway */
+    }
     this.interp = new basic.Interpreter(this.hooks(), this.limits);
     this.lastErrors = this.interp.load(src).map((e) => ({ module: e.module, line: e.line, message: e.message }));
     this.loadedKey = key;
@@ -195,9 +301,14 @@ export class BaseRuntime {
   // ---- macros
 
   runMacro(name: string, form?: string): RunReport {
-    const db = this.ctl.db!;
-    const def = db.getObject<MacroDef>('macro', name);
+    const def = this.ctl.db!.getObject<MacroDef>('macro', name);
     if (!def) return { ok: false, error: `No existe la macro "${name}".` };
+    return this.runMacroDef(def, name, form);
+  }
+
+  /** Run a macro that is not a saved one (an embedded macro of a form). */
+  runMacroDef(def: MacroDef, name: string, form?: string): RunReport {
+    const db = this.ctl.db!;
     return this.guarded(form, () => {
       const host: basic.MacroHost = {
         ...this.api(),
@@ -210,12 +321,13 @@ export class BaseRuntime {
         msgBox: (p, b, t) => msgBox(p, b, t),
       };
       const r = basic.runMacro(def, host, name);
-      return { ok: r.ok, error: r.error };
+      return { ok: r.ok, error: r.error, ...(r.cancel ? { cancel: true } : {}) };
     });
   }
 
   /** Run what an event is bound to. */
   run(h: Handler, form?: string): RunReport {
+    if (h.kind === 'embedded') return this.runMacroDef(h.macro ?? { steps: [] }, h.name || 'Macro incrustada', form);
     return h.kind === 'macro' ? this.runMacro(h.name, form) : this.runProc(h.name, [], form);
   }
 }

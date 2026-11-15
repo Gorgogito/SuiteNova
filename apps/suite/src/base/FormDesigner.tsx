@@ -8,24 +8,31 @@ import {
   removeControl,
   sendToBack,
   updateControl,
+  validateFormSettings,
   validateLayout,
+  tabOrder,
   type ColumnDef,
+  type CondRule,
   type ControlType,
   type FormAction,
   type FormControl,
   type FormLayout,
   type Handler,
 } from '@suitenova/base-core';
+import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
 import { useMemo, useState, useSyncExternalStore } from 'react';
 import { DesignCanvas, pushHistory, type CanvasItem } from './DesignCanvas';
+import { ExprBuilderButton } from './ExprBuilder';
+import { Dlg } from './dlg-sheet';
+import { MacroStepsEditor } from './MacroStepsEditor';
 import type { BaseCtl, FormDef, Tab } from './ctl';
 
-const TYPE_LABEL: Record<ControlType, string> = { label: 'Etiqueta', text: 'Cuadro de texto', check: 'Casilla', combo: 'Lista desplegable', button: 'Botón', subform: 'Subformulario' };
+const TYPE_LABEL: Record<ControlType, string> = { label: 'Etiqueta', text: 'Cuadro de texto', check: 'Casilla', combo: 'Lista desplegable', list: 'Cuadro de lista', option: 'Grupo de opciones', button: 'Botón', subform: 'Subformulario', tabs: 'Pestañas', image: 'Imagen', hyperlink: 'Hipervínculo', line: 'Línea', rect: 'Rectángulo', attachment: 'Datos adjuntos' };
 const ACTION_LABEL: Record<FormAction, string> = { new: 'Registro nuevo', delete: 'Eliminar registro', first: 'Primer registro', previous: 'Registro anterior', next: 'Registro siguiente', last: 'Último registro', run: 'Ejecutar macro o procedimiento' };
 
-/** Handler as one string for a select: `macro:Name` or `proc:Name`. */
-const hv = (h?: Handler) => (h ? `${h.kind}:${h.name}` : '');
+/** Handler as one string for a select: `macro:Name`, `proc:Name` or `embedded:`. */
+const hv = (h?: Handler) => (h ? `${h.kind}:${h.kind === 'embedded' ? '' : h.name}` : '');
 const parseH = (v: string): Handler | undefined => {
   const i = v.indexOf(':');
   return v ? { kind: v.slice(0, i) as Handler['kind'], name: v.slice(i + 1) } : undefined;
@@ -35,12 +42,14 @@ function HandlerSelect({ ctl, label, value, onChange }: { ctl: BaseCtl; label: s
   const macros = ctl.db!.objects('macro');
   const procs = ctl.procedureNames();
   const cur = hv(value);
-  const known = !value || macros.includes(value.name) || procs.includes(value.name);
+  const known = !value || value.kind === 'embedded' || macros.includes(value.name) || procs.includes(value.name);
+  const [editing, setEditing] = useState(false);
   return (
     <label>
       {label}
-      <select aria-label={label} value={cur} onChange={(e) => onChange(parseH(e.target.value))}>
+      <select aria-label={label} value={cur} onChange={(e) => onChange(e.target.value === 'embedded:' ? (value?.kind === 'embedded' ? value : { kind: 'embedded', name: '', macro: { steps: [] } }) : parseH(e.target.value))}>
         <option value="">{t('(ninguno)')}</option>
+        <option value="embedded:">{t('(macro incrustada)')}</option>
         {!known && <option value={cur}>{`${value!.name} ${t('(no existe)')}`}</option>}
         {macros.length > 0 && (
           <optgroup label={t('Macros')}>
@@ -61,6 +70,18 @@ function HandlerSelect({ ctl, label, value, onChange }: { ctl: BaseCtl; label: s
           </optgroup>
         )}
       </select>
+      {value?.kind === 'embedded' && (
+        <>
+          <button type="button" className="bs-btn" aria-label={t('Editar la macro incrustada de {label}', { label })} onClick={() => setEditing(true)}>
+            {t('Editar la macro incrustada…')} {value.macro?.steps.length ? `(${value.macro.steps.length})` : ''}
+          </button>
+          {editing && (
+            <Dlg title={`${t('Macro incrustada')}: ${label}`} onClose={() => setEditing(false)} actions={<Button appearance="primary" onClick={() => setEditing(false)}>{t('Cerrar')}</Button>}>
+              <MacroStepsEditor ctl={ctl} def={value.macro ?? { steps: [] }} onChange={(m) => onChange({ ...value, macro: m })} />
+            </Dlg>
+          )}
+        </>
+      )}
     </label>
   );
 }
@@ -77,7 +98,14 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
   const cols: ColumnDef[] = exists ? db.columns(def.table) : [];
   const tables = db.tableNames();
   const control = layout.controls.find((c) => c.id === sel) ?? null;
-  const warnings = useMemo(() => validateLayout(layout, db, def.table), [layout, db, def.table, ctl.getVersion()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const warnings = useMemo(() => [...validateLayout(layout, db, def.table), ...validateFormSettings(layout, db, def.table)], [layout, db, def.table, ctl.getVersion()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const swapTab = (id: string, delta: -1 | 1) => {
+    const order = tabOrder(layout);
+    const i = order.findIndex((c) => c.id === id);
+    const other = order[i + delta];
+    if (!other) return;
+    commit({ ...layout, controls: layout.controls.map((c) => (c.id === id ? other : c.id === other.id ? order[i]! : c)) });
+  };
 
   const commit = (next: FormLayout, record = true) => {
     if (next === layout) return;
@@ -140,6 +168,35 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
         return <span className="bs-cv-field">{c.field || t('(sin campo)')} ▾</span>;
       case 'subform':
         return <span className="bs-cv-sub">▦ {c.table || t('(sin tabla)')}</span>;
+      case 'list':
+        return <span className="bs-cv-field">☰ {c.field || t('(sin campo)')}</span>;
+      case 'option':
+        return (
+          <span className="bs-cv-opt">
+            <b>{c.caption}</b>
+            {c.options.slice(0, 4).map((o) => (
+              <span key={o.value}>◯ {o.label}</span>
+            ))}
+          </span>
+        );
+      case 'image':
+        return c.src ? <img src={c.src} alt={c.alt ?? ''} style={{ width: '100%', height: '100%', objectFit: c.mode === 'stretch' ? 'fill' : c.mode === 'clip' ? 'none' : 'contain' }} /> : <span className="bs-cv-field">🖼 {t('(sin imagen)')}</span>;
+      case 'line':
+        return <span style={{ display: 'block', borderTop: `${c.thickness ?? 1}px solid ${c.color || '#808080'}`, marginTop: Math.max(0, c.h / 2 - 1) }} />;
+      case 'rect':
+        return <span style={{ display: 'block', width: '100%', height: '100%', background: c.fill || 'transparent', border: `1px solid ${c.border || '#808080'}`, boxSizing: 'border-box' }} />;
+      case 'hyperlink':
+        return <span className="bs-link">{c.text}</span>;
+      case 'tabs':
+        return (
+          <span className="bs-cv-tabs">
+            {c.pages.map((p, k) => (
+              <i key={k}>{p}</i>
+            ))}
+          </span>
+        );
+      case 'attachment':
+        return <span className="bs-cv-field">📎 {c.caption || t('Datos adjuntos')} [{c.field || t('(sin campo)')}]</span>;
       default:
         return <span className="bs-cv-field">{c.calc ? c.calc : c.field || t('(sin campo)')}</span>;
     }
@@ -243,6 +300,94 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
               <legend>{t('Formulario')}</legend>
               <HandlerSelect ctl={ctl} label={t('Al abrir')} value={layout.events?.onOpen} onChange={(h) => commit({ ...layout, events: { ...layout.events, onOpen: h } })} />
               <HandlerSelect ctl={ctl} label={t('Al cambiar de registro')} value={layout.events?.onCurrent} onChange={(h) => commit({ ...layout, events: { ...layout.events, onCurrent: h } })} />
+              <label>
+                {t('Título')}
+                <input aria-label={t('Título del formulario')} value={layout.caption ?? ''} onChange={(e) => commit({ ...layout, caption: e.target.value || undefined })} />
+              </label>
+              <label>
+                {t('Vista predeterminada')}
+                <select aria-label={t('Vista del formulario')} value={layout.view ?? 'single'} onChange={(e) => commit({ ...layout, view: e.target.value === 'single' ? undefined : (e.target.value as FormLayout['view']) })}>
+                  <option value="single">{t('Un registro')}</option>
+                  <option value="continuous">{t('Formularios continuos')}</option>
+                  <option value="datasheet">{t('Hoja de datos')}</option>
+                  <option value="split">{t('Formulario dividido')}</option>
+                </select>
+              </label>
+              <label>
+                {t('Color de fondo')}
+                <input type="color" aria-label={t('Color de fondo del formulario')} value={layout.background || '#ffffff'} onChange={(e) => commit({ ...layout, background: e.target.value })} />
+              </label>
+              {([['allowEdits', 'Permitir modificaciones'], ['allowAdditions', 'Permitir agregar'], ['allowDeletions', 'Permitir eliminar'], ['navButtons', 'Botones de desplazamiento']] as const).map(([k, label]) => (
+                <label key={k} className="bs-row">
+                  <input type="checkbox" checked={layout[k] !== false} onChange={(e) => commit({ ...layout, [k]: e.target.checked ? undefined : false })} /> {t(label)}
+                </label>
+              ))}
+              <HandlerSelect ctl={ctl} label={t('Antes de actualizar')} value={layout.events?.beforeUpdate} onChange={(h) => commit({ ...layout, events: { ...layout.events, beforeUpdate: h } })} />
+              <HandlerSelect ctl={ctl} label={t('Al cerrar')} value={layout.events?.onClose} onChange={(h) => commit({ ...layout, events: { ...layout.events, onClose: h } })} />
+              <HandlerSelect ctl={ctl} label={t('Al temporizador')} value={layout.events?.onTimer} onChange={(h) => commit({ ...layout, events: { ...layout.events, onTimer: h }, ...(h && !layout.timerInterval ? { timerInterval: 1000 } : {}) })} />
+              {layout.events?.onTimer && (
+                <label>
+                  {t('Intervalo del temporizador (ms)')}
+                  <input type="number" min={250} step={250} aria-label={t('Intervalo del temporizador')} value={layout.timerInterval ?? 1000} onChange={(e) => commit({ ...layout, timerInterval: Math.max(0, Number(e.target.value) || 0) })} />
+                </label>
+              )}
+              <fieldset className="bs-relcfg">
+                <legend>{t('Datos del formulario')}</legend>
+                <label>
+                  {t('Filtro')}
+                  <input aria-label={t('Filtro del formulario')} value={layout.filter ?? ''} placeholder='[Estado] = "Abierto"' onChange={(e) => commit({ ...layout, filter: e.target.value || undefined })} />
+                </label>
+                {(layout.orderBy ?? []).map((o, k) => (
+                  <div key={o.field} className="bs-grouprow">
+                    <strong>{o.field}</strong>
+                    <label className="bs-chk">
+                      <input type="checkbox" aria-label={t('Orden descendente de {f}', { f: o.field })} checked={!!o.desc} onChange={(e) => commit({ ...layout, orderBy: (layout.orderBy ?? []).map((x, j) => (j === k ? { ...x, desc: e.target.checked } : x)) })} /> {t('Descendente')}
+                    </label>
+                    <button type="button" className="bs-btn" aria-label={t('Quitar el orden por {f}', { f: o.field })} onClick={() => commit({ ...layout, orderBy: (layout.orderBy ?? []).filter((_, j) => j !== k) || undefined })}>
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <select aria-label={t('Agregar orden del formulario')} value="" onChange={(e) => e.target.value && commit({ ...layout, orderBy: [...(layout.orderBy ?? []), { field: e.target.value }] })}>
+                  <option value="">{t('Ordenar por…')}</option>
+                  {cols.filter((c) => !(layout.orderBy ?? []).some((o) => o.field === c.name)).map((c) => (
+                    <option key={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </fieldset>
+              <fieldset className="bs-relcfg">
+                <legend>{t('Teclas de acceso')}</legend>
+                {(layout.keys ?? []).map((k, j) => (
+                  <div key={j} className="bs-keyrow" role="group" aria-label={t('Tecla {n}', { n: j + 1 })}>
+                    <input aria-label={t('Atajo {n}', { n: j + 1 })} value={k.key} placeholder="Ctrl+S" onChange={(e) => commit({ ...layout, keys: (layout.keys ?? []).map((x, i) => (i === j ? { ...x, key: e.target.value } : x)) })} />
+                    <HandlerSelect ctl={ctl} label={t('Ejecutar {n}', { n: j + 1 })} value={k.handler.name ? k.handler : undefined} onChange={(h) => commit({ ...layout, keys: (layout.keys ?? []).map((x, i) => (i === j ? { ...x, handler: h ?? { kind: 'macro', name: '' } } : x)) })} />
+                    <button type="button" className="bs-btn" aria-label={t('Quitar la tecla {n}', { n: j + 1 })} onClick={() => commit({ ...layout, keys: (layout.keys ?? []).filter((_, i) => i !== j) })}>
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button type="button" className="bs-btn" onClick={() => commit({ ...layout, keys: [...(layout.keys ?? []), { key: 'F5', handler: { kind: 'macro', name: '' } }] })}>
+                  {t('Agregar tecla')}
+                </button>
+              </fieldset>
+              <fieldset className="bs-relcfg">
+                <legend>{t('Orden de tabulación')}</legend>
+                <ol className="bs-taborder" aria-label={t('Orden de tabulación')}>
+                  {tabOrder(layout).map((c) => (
+                    <li key={c.id}>
+                      <button type="button" className="bs-linkbtn" onClick={() => setSel(c.id)}>
+                        {c.name}
+                      </button>
+                      <button type="button" className="bs-btn" aria-label={t('Subir {n}', { n: c.name })} onClick={() => swapTab(c.id, -1)}>
+                        ↑
+                      </button>
+                      <button type="button" className="bs-btn" aria-label={t('Bajar {n}', { n: c.name })} onClick={() => swapTab(c.id, 1)}>
+                        ↓
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </fieldset>
               <p className="bs-hint">{t('Seleccione un control para ver sus propiedades.')}</p>
             </fieldset>
           )}
@@ -278,11 +423,21 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
                   <label>
                     {t('Expresión calculada')}
                     <input aria-label={t('Expresión calculada')} value={control.calc ?? ''} placeholder="=[Precio] * [Cantidad]" onChange={(e) => patch({ calc: e.target.value || undefined, readOnly: e.target.value ? true : control.readOnly })} />
+                    <ExprBuilderButton fields={cols.map((c) => c.name)} value={(control.calc ?? '').replace(/^=/, '')} onApply={(v) => patch({ calc: v ? `=${v}` : undefined, readOnly: v ? true : control.readOnly })} label={t('Generador del cuadro calculado')} />
                   </label>
                   <label className="bs-row">
                     <input type="checkbox" checked={!!control.readOnly} onChange={(e) => patch({ readOnly: e.target.checked })} /> {t('Solo lectura')}
                   </label>
                   <HandlerSelect ctl={ctl} label={t('Después de actualizar')} value={control.afterUpdate} onChange={(h) => patch({ afterUpdate: h })} />
+                </>
+              )}
+              {control.type === 'attachment' && (
+                <>
+                  {fieldSelect(control)}
+                  <label>
+                    {t('Título')}
+                    <input aria-label={t('Título del botón de adjuntos')} value={control.caption ?? ''} onChange={(e) => patch({ caption: e.target.value })} />
+                  </label>
                 </>
               )}
               {control.type === 'check' && (
@@ -295,7 +450,7 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
                   <HandlerSelect ctl={ctl} label={t('Después de actualizar')} value={control.afterUpdate} onChange={(h) => patch({ afterUpdate: h })} />
                 </>
               )}
-              {control.type === 'combo' && (
+              {(control.type === 'combo' || control.type === 'list') && (
                 <>
                   {fieldSelect(control)}
                   <label>
@@ -343,9 +498,11 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
                       })}
                     </>
                   )}
-                  <label className="bs-row">
-                    <input type="checkbox" checked={!!control.limitToList} onChange={(e) => patch({ limitToList: e.target.checked })} /> {t('Limitar a la lista')}
-                  </label>
+                  {control.type === 'combo' && (
+                    <label className="bs-row">
+                      <input type="checkbox" checked={!!control.limitToList} onChange={(e) => patch({ limitToList: e.target.checked })} /> {t('Limitar a la lista')}
+                    </label>
+                  )}
                   <HandlerSelect ctl={ctl} label={t('Después de actualizar')} value={control.afterUpdate} onChange={(h) => patch({ afterUpdate: h })} />
                 </>
               )}
@@ -367,6 +524,118 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
                   </label>
                   {control.action === 'run' && <HandlerSelect ctl={ctl} label={t('Al hacer clic')} value={control.handler} onChange={(h) => patch({ handler: h })} />}
                 </>
+              )}
+              {control.type === 'option' && (
+                <>
+                  {fieldSelect(control)}
+                  <label>
+                    {t('Título del grupo')}
+                    <input aria-label={t('Título del grupo')} value={control.caption ?? ''} onChange={(e) => patch({ caption: e.target.value })} />
+                  </label>
+                  <label>
+                    {t('Opciones (una por línea: etiqueta=valor)')}
+                    <textarea
+                      aria-label={t('Opciones del grupo')}
+                      rows={4}
+                      value={control.options.map((o) => `${o.label}=${o.value}`).join('\n')}
+                      onChange={(e) =>
+                        patch({
+                          options: e.target.value.split('\n').map((l) => {
+                            const i = l.lastIndexOf('=');
+                            return i < 0 ? { label: l, value: l } : { label: l.slice(0, i), value: l.slice(i + 1) };
+                          }),
+                        })
+                      }
+                    />
+                  </label>
+                  <HandlerSelect ctl={ctl} label={t('Después de actualizar')} value={control.afterUpdate} onChange={(h) => patch({ afterUpdate: h })} />
+                </>
+              )}
+              {control.type === 'image' && (
+                <>
+                  <label>
+                    {t('Imagen')}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                      aria-label={t('Elegir imagen')}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        if (f.size > 1_500_000) return void (ctl.notice = t('La imagen pesa más de 1,5 MB; use una más pequeña.'), ctl.touch());
+                        const rd = new FileReader();
+                        rd.onload = () => patch({ src: String(rd.result), alt: control.alt || f.name.replace(/\.[^.]+$/, '') });
+                        rd.readAsDataURL(f);
+                      }}
+                    />
+                  </label>
+                  <label>
+                    {t('Ajuste')}
+                    <select aria-label={t('Ajuste de la imagen')} value={control.mode} onChange={(e) => patch({ mode: e.target.value })}>
+                      <option value="fit">{t('Ajustar sin deformar')}</option>
+                      <option value="stretch">{t('Estirar')}</option>
+                      <option value="clip">{t('Tamaño real (recortar)')}</option>
+                    </select>
+                  </label>
+                  <label>
+                    {t('Texto alternativo')}
+                    <input aria-label={t('Texto alternativo de la imagen')} value={control.alt ?? ''} onChange={(e) => patch({ alt: e.target.value })} />
+                  </label>
+                </>
+              )}
+              {control.type === 'line' && (
+                <>
+                  <label>
+                    {t('Color')}
+                    <input type="color" aria-label={t('Color de la línea')} value={control.color || '#808080'} onChange={(e) => patch({ color: e.target.value })} />
+                  </label>
+                  <label>
+                    {t('Grosor')}
+                    <input type="number" min={1} max={12} aria-label={t('Grosor de la línea')} value={control.thickness ?? 1} onChange={(e) => patch({ thickness: Math.max(1, Math.min(12, Number(e.target.value) || 1)) })} />
+                  </label>
+                </>
+              )}
+              {control.type === 'rect' && (
+                <>
+                  <label>
+                    {t('Relleno')}
+                    <input type="color" aria-label={t('Relleno del rectángulo')} value={control.fill || '#ffffff'} onChange={(e) => patch({ fill: e.target.value })} />
+                  </label>
+                  <label className="bs-row">
+                    <input type="checkbox" checked={!control.fill} onChange={(e) => patch({ fill: e.target.checked ? '' : '#f3f2f1' })} /> {t('Sin relleno')}
+                  </label>
+                  <label>
+                    {t('Borde')}
+                    <input type="color" aria-label={t('Borde del rectángulo')} value={control.border || '#808080'} onChange={(e) => patch({ border: e.target.value })} />
+                  </label>
+                </>
+              )}
+              {control.type === 'hyperlink' && (
+                <>
+                  <label>
+                    {t('Texto')}
+                    <input aria-label={t('Texto del vínculo')} value={control.text} onChange={(e) => patch({ text: e.target.value })} />
+                  </label>
+                  <label>
+                    {t('Dirección')}
+                    <input aria-label={t('Dirección del vínculo')} value={control.url ?? ''} onChange={(e) => patch({ url: e.target.value || undefined })} />
+                  </label>
+                  <label>
+                    {t('o tomarla del campo')}
+                    <select aria-label={t('Campo con la dirección')} value={control.field ?? ''} onChange={(e) => patch({ field: e.target.value || undefined })}>
+                      <option value="" />
+                      {cols.map((x) => (
+                        <option key={x.name}>{x.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
+              {control.type === 'tabs' && (
+                <label>
+                  {t('Páginas (una por línea)')}
+                  <textarea aria-label={t('Páginas de las pestañas')} rows={4} value={control.pages.join('\n')} onChange={(e) => patch({ pages: e.target.value.split('\n') })} />
+                </label>
               )}
               {control.type === 'subform' && (
                 <>
@@ -397,6 +666,62 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
                       ))}
                     </select>
                   </label>
+                  {(control.extraLinks ?? []).map((l, k) => (
+                    <div key={k} className="bs-keyrow" role="group" aria-label={t('Enlace adicional {n}', { n: k + 1 })}>
+                      <select aria-label={t('Campo secundario del enlace {n}', { n: k + 1 })} value={l.child} onChange={(e) => patch({ extraLinks: (control.extraLinks ?? []).map((x, j) => (j === k ? { ...x, child: e.target.value } : x)) })}>
+                        <option value="" />
+                        {(tables.includes(control.table) ? db.columns(control.table) : []).map((x) => (
+                          <option key={x.name}>{x.name}</option>
+                        ))}
+                      </select>
+                      <select aria-label={t('Campo principal del enlace {n}', { n: k + 1 })} value={l.parent} onChange={(e) => patch({ extraLinks: (control.extraLinks ?? []).map((x, j) => (j === k ? { ...x, parent: e.target.value } : x)) })}>
+                        <option value="" />
+                        {cols.map((x) => (
+                          <option key={x.name}>{x.name}</option>
+                        ))}
+                      </select>
+                      <button type="button" className="bs-btn" aria-label={t('Quitar el enlace {n}', { n: k + 1 })} onClick={() => patch({ extraLinks: (control.extraLinks ?? []).filter((_, j) => j !== k) })}>
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" className="bs-btn" onClick={() => patch({ extraLinks: [...(control.extraLinks ?? []), { child: '', parent: '' }] })}>
+                    {t('Agregar enlace')}
+                  </button>
+                  <fieldset>
+                    <legend>{t('Segundo nivel')}</legend>
+                    <label>
+                      {t('Tabla del segundo nivel')}
+                      <select aria-label={t('Tabla del segundo nivel')} value={control.nested?.table ?? ''} onChange={(e) => patch({ nested: e.target.value ? { table: e.target.value, childField: '', parentField: control.nested?.parentField ?? '' } : undefined })}>
+                        <option value="" />
+                        {tables.map((n) => (
+                          <option key={n}>{n}</option>
+                        ))}
+                      </select>
+                    </label>
+                    {control.nested && (
+                      <>
+                        <label>
+                          {t('Campo vinculado del segundo nivel')}
+                          <select aria-label={t('Campo secundario del segundo nivel')} value={control.nested.childField} onChange={(e) => patch({ nested: { ...control.nested!, childField: e.target.value } })}>
+                            <option value="" />
+                            {(tables.includes(control.nested.table) ? db.columns(control.nested.table) : []).map((x) => (
+                              <option key={x.name}>{x.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          {t('Campo del subformulario que lo enlaza')}
+                          <select aria-label={t('Campo principal del segundo nivel')} value={control.nested.parentField} onChange={(e) => patch({ nested: { ...control.nested!, parentField: e.target.value } })}>
+                            <option value="" />
+                            {(tables.includes(control.table) ? db.columns(control.table) : []).map((x) => (
+                              <option key={x.name}>{x.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </>
+                    )}
+                  </fieldset>
                   <fieldset>
                     <legend>{t('Columnas que se muestran')}</legend>
                     {(tables.includes(control.table) ? db.columns(control.table) : []).map((x) => {
@@ -419,6 +744,100 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
                   </fieldset>
                 </>
               )}
+              <label className="bs-row">
+                <input type="checkbox" checked={control.visible !== false} onChange={(e) => patch({ visible: e.target.checked ? undefined : false })} /> {t('Visible')}
+              </label>
+              <label>
+                {t('Texto de ayuda')}
+                <input aria-label={t('Texto de ayuda del control')} value={control.tip ?? ''} onChange={(e) => patch({ tip: e.target.value || undefined })} />
+              </label>
+              {layout.controls.some((x) => x.type === 'tabs' && x.id !== control.id) && (
+                <label>
+                  {t('Pertenece a la pestaña')}
+                  <select
+                    aria-label={t('Pestaña del control')}
+                    value={control.tab ? `${control.tab.id}:${control.tab.page}` : ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      patch({ tab: v ? { id: v.slice(0, v.lastIndexOf(':')), page: Number(v.slice(v.lastIndexOf(':') + 1)) } : undefined });
+                    }}
+                  >
+                    <option value="">{t('(ninguna)')}</option>
+                    {layout.controls.flatMap((x) => (x.type === 'tabs' && x.id !== control.id ? x.pages.map((p, k) => <option key={`${x.id}:${k}`} value={`${x.id}:${k}`}>{`${x.name} · ${p}`}</option>) : []))}
+                  </select>
+                </label>
+              )}
+              <fieldset className="bs-relcfg">
+                <legend>{t('Comportamiento')}</legend>
+                <label className="bs-chk">
+                  <input type="checkbox" aria-label={t('Bloqueado')} checked={!!control.locked} onChange={(e) => patch({ locked: e.target.checked || undefined })} /> {t('Bloqueado (se ve pero no se cambia)')}
+                </label>
+                <label className="bs-chk">
+                  <input type="checkbox" aria-label={t('Habilitado')} checked={control.enabled !== false} onChange={(e) => patch({ enabled: e.target.checked ? undefined : false })} /> {t('Habilitado')}
+                </label>
+                <label className="bs-chk">
+                  <input type="checkbox" aria-label={t('Punto de tabulación')} checked={control.tabStop !== false} onChange={(e) => patch({ tabStop: e.target.checked ? undefined : false })} /> {t('Punto de tabulación')}
+                </label>
+                {(control.type === 'text' || control.type === 'check' || control.type === 'combo' || control.type === 'list' || control.type === 'option') && !(control.type === 'text' && control.calc) && (
+                  <label>
+                    {t('Valor predeterminado')}
+                    <input aria-label={t('Valor predeterminado')} value={control.defaultValue ?? ''} placeholder="=Date()" onChange={(e) => patch({ defaultValue: e.target.value || undefined })} />
+                  </label>
+                )}
+                {control.type === 'text' && (
+                  <label className="bs-chk">
+                    <input type="checkbox" aria-label={t('Varias líneas')} checked={!!control.multiline} onChange={(e) => patch({ multiline: e.target.checked || undefined })} /> {t('Varias líneas')}
+                  </label>
+                )}
+              </fieldset>
+              <fieldset className="bs-relcfg">
+                <legend>{t('Eventos del control')}</legend>
+                {(
+                  [
+                    ['click', 'Evento clic'],
+                    ['dblClick', 'Evento doble clic'],
+                    ['gotFocus', 'Evento foco recibido'],
+                    ['lostFocus', 'Evento foco perdido'],
+                    ['change', 'Evento cambio'],
+                  ] as const
+                ).map(([k, label]) => (
+                  <HandlerSelect key={k} ctl={ctl} label={t(label)} value={control.on?.[k]} onChange={(h) => patch({ on: { ...control.on, [k]: h } })} />
+                ))}
+              </fieldset>
+              <fieldset className="bs-relcfg">
+                <legend>{t('Formato condicional')}</legend>
+                {(control.cond ?? []).map((r, k) => {
+                  const set = (p: Partial<CondRule>) => patch({ cond: (control.cond ?? []).map((x, j) => (j === k ? { ...x, ...p } : x)) });
+                  return (
+                    <div key={k} className="bs-cond" role="group" aria-label={t('Regla {n}', { n: k + 1 })}>
+                      <input aria-label={t('Condición de la regla {n}', { n: k + 1 })} value={r.expr} placeholder='[Saldo] < 0' onChange={(e) => set({ expr: e.target.value })} />
+                      <label>
+                        {t('Fondo')}
+                        <input type="color" aria-label={t('Fondo de la regla {n}', { n: k + 1 })} value={r.bg || '#ffffff'} onChange={(e) => set({ bg: e.target.value })} />
+                      </label>
+                      <label>
+                        {t('Texto')}
+                        <input type="color" aria-label={t('Color del texto de la regla {n}', { n: k + 1 })} value={r.color || '#000000'} onChange={(e) => set({ color: e.target.value })} />
+                      </label>
+                      <label className="bs-row">
+                        <input type="checkbox" checked={!!r.bold} onChange={(e) => set({ bold: e.target.checked })} /> {t('Negrita')}
+                      </label>
+                      <label className="bs-row">
+                        <input type="checkbox" checked={!!r.disable} onChange={(e) => set({ disable: e.target.checked })} /> {t('Deshabilitar')}
+                      </label>
+                      <label className="bs-row">
+                        <input type="checkbox" checked={!!r.hide} onChange={(e) => set({ hide: e.target.checked })} /> {t('Ocultar')}
+                      </label>
+                      <button type="button" className="bs-btn" aria-label={t('Quitar la regla {n}', { n: k + 1 })} onClick={() => patch({ cond: (control.cond ?? []).filter((_, j) => j !== k) })}>
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+                <button type="button" className="bs-btn" onClick={() => patch({ cond: [...(control.cond ?? []), { expr: '', bg: '#fde7e9' }] })}>
+                  {t('Agregar regla')}
+                </button>
+              </fieldset>
             </fieldset>
           )}
           {warnings.length > 0 && (

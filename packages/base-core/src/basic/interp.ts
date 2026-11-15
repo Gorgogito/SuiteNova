@@ -1,11 +1,21 @@
 import { BUILTIN_NAMES, builtin, createObject, type BuiltinCtx } from './builtins';
 import { BasicSyntaxError } from './lexer';
-import { parseModule, parseStatements, type Arg, type CaseTest, type Decl, type Expr, type ModuleAst, type Param, type Proc, type Stmt } from './parser';
+import { parseExpression, parseModule, parseStatements, type Arg, type CaseTest, type Decl, type EnumDef, type Expr, type ModuleAst, type Param, type Proc, type Stmt, type TypeDef } from './parser';
 import { BasicError, ERR, NOTHING, VArray, binaryOp, coerceTo, compareValues, defaultFor, isNothing, isObject, negate, not, toNum, toStr, truthy, type BObject, type BVal } from './values';
 
 /** What the program can reach in the host application. */
+/** The files a program can use: a flat store of text files that lives inside the database (it never touches the disk). */
+export interface Vfs {
+  read(path: string): string | null;
+  write(path: string, text: string): void;
+  remove(path: string): void;
+  list(): string[];
+}
+
 export interface HostHooks {
   print(text: string): void;
+  /** Files for `Open`, `Print #`, `Kill`, `Dir`… */
+  vfs?: Vfs;
   msgBox(prompt: string, buttons: number, title: string): number;
   inputBox(prompt: string, title: string, def: string): string | null;
   /** Objects by name: CurrentDb, DoCmd, Forms, Me, TempVars… */
@@ -36,11 +46,143 @@ interface Ref {
   v: BVal;
   type?: string;
   isConst?: boolean;
+  /** A `WithEvents` field of a class: the object it holds is wired to the `field_Event` procedures of `owner`. */
+  withEvents?: string;
+  owner?: ClassInstance;
 }
 
 type Signal = undefined | 'exitsub' | 'exitfunction' | 'exitfor' | 'exitdo' | { goto: string } | { resume: 'next' | 'here' | { label: string } };
 
+/** A class module: its fields, and its methods and properties by name. */
+export interface ClassDef {
+  name: string;
+  ast: ModuleAst;
+  methods: Map<string, { call?: Proc; get?: Proc; let?: Proc; set?: Proc }>;
+}
+
+interface OpenFile {
+  path: string;
+  mode: 'input' | 'output' | 'append';
+  text: string;
+  pos: number;
+}
+
+/** A value of a user-defined `Type`: assigning it makes a copy. */
+export class TypeInstance implements BObject {
+  constructor(
+    readonly def: TypeDef,
+    readonly fields: Map<string, Ref>,
+  ) {}
+  get typeName(): string {
+    return this.def.name;
+  }
+  private ref(member: string): Ref {
+    const r = this.fields.get(lc(member));
+    if (!r) throw ERR.notSupported(member);
+    return r;
+  }
+  get(member: string, args: BVal[]): BVal {
+    const r = this.ref(member);
+    if (args.length && r.v instanceof VArray) return r.v.get(args.map((a) => Math.trunc(toNum(a))));
+    return r.v;
+  }
+  set(member: string, args: BVal[], value: BVal): void {
+    const r = this.ref(member);
+    if (args.length && r.v instanceof VArray) {
+      r.v.set(args.map((a) => Math.trunc(toNum(a))), r.type ? coerceTo(r.type, value) : value);
+      return;
+    }
+    r.v = r.type ? coerceTo(r.type, value) : value;
+    escapeValue(r.v);
+    if (r.v instanceof TypeInstance) r.v = r.v.clone();
+  }
+  clone(): TypeInstance {
+    const fields = new Map<string, Ref>();
+    for (const [k, r] of this.fields) {
+      let v = r.v;
+      if (v instanceof TypeInstance) v = v.clone();
+      else if (v instanceof VArray) {
+        const a = new VArray(v.dims);
+        a.data = v.data.map((x) => (x instanceof TypeInstance ? x.clone() : x));
+        v = a;
+      }
+      fields.set(k, { ...r, v });
+    }
+    return new TypeInstance(this.def, fields);
+  }
+}
+
+/** An object made from a class module with `New`. */
+export class ClassInstance implements BObject {
+  readonly fields = new Map<string, Ref>();
+  readonly vis = new Map<string, 'public' | 'private'>();
+  /** Procedures of other objects that listen to the events of this one, by event name (lower case). */
+  readonly handlers = new Map<string, { target: ClassInstance; proc: Proc; field: string }[]>();
+  /** How many variables and fields hold the object (for `Class_Terminate`). */
+  refs = 0;
+  /** Stored where it cannot be followed (a collection, an array…): it is only terminated when the interpreter is discarded. */
+  escaped = false;
+  terminated = false;
+  constructor(
+    readonly interp: Interpreter,
+    readonly cls: ClassDef,
+  ) {}
+  get typeName(): string {
+    return this.cls.name;
+  }
+  ifaceMember(k: string, _what: string): { call?: Proc; get?: Proc; let?: Proc; set?: Proc } | undefined {
+    for (const im of this.cls.ast.implements) {
+      const m = this.cls.methods.get(`${lc(im.name)}_${k}`);
+      if (m) return m;
+    }
+    return undefined;
+  }
+  private named(args: BVal[]): { name?: string; value: BVal }[] {
+    const nm = (args as unknown as { named?: Record<string, BVal> }).named ?? {};
+    return [...args.map((value) => ({ value })), ...Object.entries(nm).map(([name, value]) => ({ name, value }))];
+  }
+  get(member: string, args: BVal[]): BVal {
+    const k = lc(member);
+    const f = this.fields.get(k);
+    if (f && this.vis.get(k) === 'public') return args.length && f.v instanceof VArray ? f.v.get(args.map((a) => Math.trunc(toNum(a)))) : f.v;
+    const m = this.cls.methods.get(k);
+    const p = m?.call ?? m?.get;
+    if (p && p.isPublic) return this.interp.callMethod(p, this.named(args), this);
+    // a member of an interface the class implements: `IForma_Area` answers to `Area`
+    for (const im of this.cls.ast.implements) {
+      const im2 = this.cls.methods.get(`${lc(im.name)}_${k}`);
+      const ip = im2?.call ?? im2?.get;
+      if (ip) return this.interp.callMethod(ip, this.named(args), this);
+    }
+    throw ERR.notSupported(member);
+  }
+  set(member: string, args: BVal[], value: BVal): void {
+    const k = lc(member);
+    const f = this.fields.get(k);
+    if (f && this.vis.get(k) === 'public') {
+      if (args.length && f.v instanceof VArray) {
+        escapeValue(value);
+        f.v.set(args.map((a) => Math.trunc(toNum(a))), value);
+      } else this.interp.storeRef(f, f.type ? coerceTo(f.type, value) : value instanceof TypeInstance ? value.clone() : value);
+      return;
+    }
+    const m = this.cls.methods.get(k) ?? this.ifaceMember(k, 'let');
+    const objectLike = isObject(value) || isNothing(value);
+    const p = objectLike ? (m?.set ?? m?.let) : (m?.let ?? m?.set);
+    if (p && (p.isPublic || p.name.includes('_'))) {
+      this.interp.callMethod(p, [...this.named(args), { value }], this);
+      return;
+    }
+    throw ERR.notSupported(member);
+  }
+}
+
+const escapeValue = (v: BVal): void => {
+  if (v instanceof ClassInstance) v.escaped = true;
+};
+
 interface Frame {
+  self?: ClassInstance;
   proc: Proc | null;
   module: string;
   vars: Map<string, Ref>;
@@ -58,7 +200,7 @@ interface Frame {
 export interface ProcInfo {
   name: string;
   module: string;
-  kind: 'sub' | 'function';
+  kind: Proc['kind'];
   params: Param[];
   isPublic: boolean;
   line: number;
@@ -85,12 +227,23 @@ const own = <T>(o: Record<string, T> | undefined, k: string): T | undefined => (
 const lc = (s: string) => s.toLowerCase().replace(/\$$/, '');
 
 const isLvalue = (e: Expr): boolean => e.k === 'id';
+const FILE_FNS = new Set(['eof', 'lof', 'freefile', 'dir', 'kill', 'filecopy', 'filelen']);
 
 export class Interpreter {
   private modules = new Map<string, ModuleAst>();
   private procs = new Map<string, Proc>();
   private globals = new Map<string, Ref>();
   private explicitModules = new Set<string>();
+  private types = new Map<string, TypeDef>();
+  private classes = new Map<string, ClassDef>();
+  private setters = new Map<string, Proc>();
+  private userConsts = new Map<string, BVal>();
+  private enumObjs = new Map<string, BObject>();
+  private files = new Map<number, OpenFile>();
+  private dirQueue: string[] = [];
+  private live = new Set<ClassInstance>();
+  private pending = new Set<ClassInstance>();
+  private running = 0;
   private limits: Limits;
   private steps = 0;
   private startedAt = 0;
@@ -140,16 +293,34 @@ export class Interpreter {
   // ---------------------------------------------------------------------------------------- loading
 
   /** Parse the modules. Returns the syntax errors found (the modules without errors are loaded). */
-  load(sources: { name: string; source: string }[]): (BasicSyntaxError & { module: string })[] {
+  load(sources: { name: string; source: string; kind?: 'module' | 'class' }[]): (BasicSyntaxError & { module: string })[] {
     this.modules.clear();
     this.procs.clear();
     this.globals.clear();
     this.explicitModules.clear();
+    this.types.clear();
+    this.classes.clear();
+    this.setters.clear();
+    this.userConsts.clear();
+    this.enumObjs.clear();
+    this.files.clear();
+    this.dispose();
     const errors: (BasicSyntaxError & { module: string })[] = [];
+    const all: ModuleAst[] = [];
     for (const s of sources) {
       try {
         const ast = parseModule(s.name, s.source);
-        this.modules.set(s.name, ast);
+        all.push(ast);
+        if (s.kind === 'class') {
+          const cd: ClassDef = { name: s.name, ast, methods: new Map() };
+          for (const p of ast.procs) {
+            const m = cd.methods.get(lc(p.name)) ?? {};
+            if (p.kind === 'sub' || p.kind === 'function') m.call = p;
+            else m[p.kind] = p;
+            cd.methods.set(lc(p.name), m);
+          }
+          this.classes.set(lc(s.name), cd);
+        } else this.modules.set(s.name, ast);
       } catch (e) {
         if (e instanceof BasicSyntaxError) errors.push(Object.assign(e, { module: s.name }));
         else throw e;
@@ -159,12 +330,62 @@ export class Interpreter {
       if (m.explicit) this.explicitModules.add(m.name);
       for (const p of m.procs) {
         const key = lc(p.name);
+        if (p.kind === 'let' || p.kind === 'set') {
+          this.setters.set(key, p);
+          continue;
+        }
         const prev = this.procs.get(key);
         if (prev) {
           errors.push(Object.assign(new BasicSyntaxError(`El procedimiento "${p.name}" ya está definido en ${prev.module}.`, p.line), { module: m.name }));
           continue;
         }
         this.procs.set(key, p);
+      }
+    }
+    // a class that implements an interface has to answer for every public member of it
+    for (const cd of this.classes.values()) {
+      for (const im of cd.ast.implements) {
+        const iface = this.classes.get(lc(im.name));
+        if (!iface) {
+          errors.push(Object.assign(new BasicSyntaxError(`Implements: no existe la clase "${im.name}".`, im.line), { module: cd.name }));
+          continue;
+        }
+        for (const pr of iface.ast.procs) {
+          if (!pr.isPublic || /^class_(initialize|terminate)$/i.test(pr.name)) continue;
+          const slot = pr.kind === 'sub' || pr.kind === 'function' ? 'call' : pr.kind;
+          const mine = cd.methods.get(`${lc(im.name)}_${lc(pr.name)}`);
+          if (!mine || !mine[slot === 'call' ? 'call' : slot]) errors.push(Object.assign(new BasicSyntaxError(`La clase ${cd.name} implementa ${iface.name} pero le falta ${im.name}_${pr.name}.`, im.line), { module: cd.name }));
+        }
+      }
+    }
+    // types and enumerations (they can be used from every module)
+    for (const ast of all) for (const t of ast.types) this.types.set(lc(t.name), t);
+    const frame0 = this.newFrame(null, '');
+    for (const ast of all) {
+      for (const e of ast.enums as EnumDef[]) {
+        let nextVal = 0;
+        const members = new Map<string, BVal>();
+        try {
+          for (const m of e.members) {
+            const v = m.value ? Math.trunc(toNum(this.evalIn(m.value, frame0))) : nextVal;
+            nextVal = v + 1;
+            this.userConsts.set(lc(m.name), v);
+            members.set(lc(m.name), v);
+          }
+        } catch (err) {
+          errors.push(Object.assign(new BasicSyntaxError(`Enum ${e.name}: ${(err as Error).message}`, e.line), { module: ast.name }));
+        }
+        this.enumObjs.set(lc(e.name), {
+          typeName: e.name,
+          get: (member) => {
+            const v = members.get(lc(member));
+            if (v === undefined) throw ERR.notSupported(member);
+            return v;
+          },
+          set: (member) => {
+            throw ERR.notSupported(member);
+          },
+        });
       }
     }
     // module-level variables and constants
@@ -183,6 +404,139 @@ export class Interpreter {
   hasProcedure(name: string): boolean {
     return this.procs.has(lc(name));
   }
+  classNames(): string[] {
+    return [...this.classes.values()].map((c) => c.name);
+  }
+
+  /** Call a method or property of a class instance (used by the instance itself). */
+  callMethod(p: Proc, args: { name?: string; value: BVal }[], self: ClassInstance): BVal {
+    return this.callProc(p, args, null, self);
+  }
+
+  /** A new object of a class module: fields set up, then `Class_Initialize`. */
+  private instantiate(cd: ClassDef): ClassInstance {
+    const inst = new ClassInstance(this, cd);
+    this.live.add(inst);
+    this.pending.add(inst);
+    const frame = this.newFrame(null, cd.name);
+    frame.self = inst;
+    for (const d of cd.ast.decls) {
+      if (d.k !== 'dim') continue;
+      this.declare(d.decls, d.isConst, frame, inst.fields);
+      for (const x of d.decls) {
+        inst.vis.set(lc(x.name), d.vis === 'public' ? 'public' : 'private');
+        const ref = inst.fields.get(lc(x.name));
+        if (ref && d.withEvents) {
+          ref.withEvents = x.type ?? '';
+          ref.owner = inst;
+        }
+      }
+    }
+    const init = cd.methods.get('class_initialize')?.call;
+    if (init) this.callProc(init, [], null, inst);
+    return inst;
+  }
+
+  // ---------------------------------------------------------------------------------------- object lifetime
+
+  /** A variable or field now holds the value. */
+  retain(v: BVal): void {
+    if (v instanceof ClassInstance) v.refs++;
+  }
+  /** A variable or field stopped holding the value: at zero the object is terminated at the next statement. */
+  release(v: BVal): void {
+    if (v instanceof ClassInstance && --v.refs <= 0) this.pending.add(v);
+  }
+  /** Put a value in a variable or field, keeping the counts. */
+  storeRef(r: Ref, value: BVal): void {
+    const old = r.v;
+    this.retain(value);
+    r.v = value;
+    this.release(old);
+    if (r.withEvents && r.owner) this.rewire(r, old, value);
+  }
+  private rewire(r: Ref, old: BVal, now: BVal): void {
+    const field = [...r.owner!.fields].find(([, x]) => x === r)?.[0];
+    if (!field) return;
+    if (old instanceof ClassInstance) for (const [ev, hs] of old.handlers) old.handlers.set(ev, hs.filter((h) => !(h.target === r.owner && h.field === field)));
+    if (!(now instanceof ClassInstance)) return;
+    for (const ev of now.cls.ast.events) {
+      const proc = r.owner!.cls.methods.get(`${field}_${lc(ev.name)}`)?.call;
+      if (!proc) continue;
+      const list = now.handlers.get(lc(ev.name)) ?? [];
+      list.push({ target: r.owner!, proc, field });
+      now.handlers.set(lc(ev.name), list);
+    }
+  }
+  private flushPending(): void {
+    while (this.pending.size) {
+      const next = this.pending.values().next().value as ClassInstance;
+      this.pending.delete(next);
+      if (next.refs <= 0 && !next.escaped && !next.terminated) this.terminate(next);
+    }
+  }
+  private terminate(inst: ClassInstance): void {
+    if (inst.terminated) return;
+    inst.terminated = true;
+    this.live.delete(inst);
+    const t = inst.cls.methods.get('class_terminate')?.call;
+    try {
+      if (t) this.callProc(t, [], null, inst);
+    } finally {
+      for (const r of inst.fields.values()) this.release(r.v);
+    }
+  }
+  /** Terminate every object that is still alive (the interpreter is being discarded). Errors of `Class_Terminate` are ignored. */
+  dispose(runHandlers = true): void {
+    if (!runHandlers) {
+      this.live.clear();
+      this.pending.clear();
+      return;
+    }
+    this.running++;
+    try {
+      this.flushPendingSafe();
+      for (const inst of [...this.live]) {
+        try {
+          this.terminate(inst);
+        } catch {
+          /* ignored: the program is over */
+        }
+      }
+    } finally {
+      this.running--;
+      this.live.clear();
+      this.pending.clear();
+    }
+  }
+  private flushPendingSafe(): void {
+    try {
+      this.flushPending();
+    } catch {
+      /* ignored */
+    }
+  }
+
+  private defaultOf(type?: string): BVal {
+    if (type) {
+      const k = lc(type);
+      const td = this.types.get(k);
+      if (td) return this.newType(td);
+      if (this.classes.has(k)) return NOTHING;
+      if (this.enumObjs.has(k)) return 0;
+    }
+    return defaultFor(type);
+  }
+  private newType(td: TypeDef): TypeInstance {
+    const fields = new Map<string, Ref>();
+    this.declare(td.fields, false, this.newFrame(null, ''), fields);
+    return new TypeInstance(td, fields);
+  }
+  private newArray(dims: { lo: number; hi: number }[], type?: string): VArray {
+    const a = new VArray(dims, defaultFor(type));
+    if (type && this.types.has(lc(type))) for (let i = 0; i < a.data.length; i++) a.data[i] = this.defaultOf(type);
+    return a;
+  }
 
   // ---------------------------------------------------------------------------------------- running
 
@@ -197,10 +551,18 @@ export class Interpreter {
     const p = this.procs.get(lc(name));
     if (!p) throw ERR.undefinedName(name);
     this.begin();
+    this.running++;
     try {
-      return this.callProc(p, args.map((v) => ({ value: v })), null);
+      const v = this.callProc(p, args.map((v) => ({ value: v })), null);
+      this.flushPending();
+      return v;
     } catch (e) {
       throw this.finish(e);
+    } finally {
+      if (--this.running === 0) {
+        this.closeAllFiles();
+        this.flushPendingSafe();
+      }
     }
   }
 
@@ -209,10 +571,17 @@ export class Interpreter {
     const body = parseStatements(src);
     this.begin();
     const frame = this.newFrame(null, 'Inmediato');
+    this.running++;
     try {
       this.execList(body, frame, true);
+      this.flushPending();
     } catch (e) {
       throw this.finish(e);
+    } finally {
+      if (--this.running === 0) {
+        this.closeAllFiles();
+        this.flushPendingSafe();
+      }
     }
   }
 
@@ -231,6 +600,7 @@ export class Interpreter {
     this.lastLine = line;
     this.lastModule = frame.module;
     this.lastProc = frame.proc?.name ?? '';
+    if (this.pending.size) this.flushPending();
     if (++this.steps > this.limits.maxSteps) throw new AbortRun(`Se superó el límite de ${this.limits.maxSteps.toLocaleString('es-ES')} instrucciones: ¿hay un bucle sin fin?`);
     if ((this.steps & 4095) === 0 && Date.now() - this.startedAt > this.limits.maxMillis) throw new AbortRun(`El programa tardó más de ${Math.round(this.limits.maxMillis / 1000)} segundos y se detuvo: ¿hay un bucle sin fin?`);
   }
@@ -239,10 +609,15 @@ export class Interpreter {
     return { proc, module, vars: new Map(), withs: [], handler: { mode: 'none' }, inHandler: false, top: 0, errTop: 0, line: 0 };
   }
 
-  private callProc(p: Proc, args: { name?: string; value?: BVal; ref?: Ref }[], caller: Frame | null): BVal {
+  private callProc(p: Proc, args: { name?: string; value?: BVal; ref?: Ref }[], caller: Frame | null, self?: ClassInstance): BVal {
     if (++this.depth > this.limits.maxDepth) throw new BasicError(28, 'Espacio de pila agotado');
+    let live: Frame | undefined;
+    const aliased = new Set<Ref>();
+    if (self) this.retain(self);
     try {
       const frame = this.newFrame(p, p.module);
+      live = frame;
+      if (self) frame.self = self;
       // bind the arguments
       const named = new Map<string, (typeof args)[number]>();
       const positional: (typeof args)[number][] = [];
@@ -253,24 +628,30 @@ export class Interpreter {
       p.params.forEach((prm, i) => {
         const key = lc(prm.name);
         if (prm.paramArray) {
-          frame.vars.set(key, { v: VArray.of(positional.slice(i).map((a) => a.ref?.v ?? a.value)) });
+          const rest = positional.slice(i).map((a) => a.ref?.v ?? a.value);
+          rest.forEach(escapeValue);
+          frame.vars.set(key, { v: VArray.of(rest) });
           return;
         }
         const given = named.get(key) ?? positional[i];
         const supplied = given !== undefined && !(given.value === undefined && given.ref === undefined && (given as { omitted?: boolean }).omitted);
         if (!supplied) {
           if (!prm.optional) throw new BasicError(449, `El argumento no es opcional: ${prm.name}`);
-          frame.vars.set(key, { v: prm.def ? this.evalIn(prm.def, frame) : defaultFor(prm.type), type: prm.type });
+          frame.vars.set(key, { v: prm.def ? this.evalIn(prm.def, frame) : this.defaultOf(prm.type), type: prm.type });
         } else if (given!.ref && prm.byRef) {
           frame.vars.set(key, given!.ref); // an alias of the caller's variable
+          aliased.add(given!.ref);
         } else {
-          const raw = given!.ref ? given!.ref.v : given!.value;
-          frame.vars.set(key, { v: prm.isArray ? raw : coerceTo(prm.type, raw), type: prm.type });
+          let raw = given!.ref ? given!.ref.v : given!.value;
+          if (raw instanceof TypeInstance) raw = raw.clone();
+          const bound = prm.isArray ? raw : coerceTo(prm.type, raw);
+          this.retain(bound);
+          frame.vars.set(key, { v: bound, type: prm.type });
         }
       });
       if (positional.length > p.params.length && !p.params.some((x) => x.paramArray)) throw new BasicError(450, 'Número de argumentos incorrecto o asignación de propiedad no válida');
-      if (p.kind === 'function') {
-        frame.retRef = { v: defaultFor(p.returns), type: p.returns };
+      if (p.kind === 'function' || p.kind === 'get') {
+        frame.retRef = { v: this.defaultOf(p.returns), type: p.returns };
         frame.vars.set(lc(p.name), frame.retRef);
       }
       // execute, with the error handler of the procedure
@@ -301,9 +682,12 @@ export class Interpreter {
         }
       }
       void caller;
-      return p.kind === 'function' ? frame.retRef!.v : undefined;
+      return p.kind === 'function' || p.kind === 'get' ? frame.retRef!.v : undefined;
     } finally {
       this.depth--;
+      // what the variables of this call held is released (the ones that alias a variable of the caller are not theirs)
+      if (live) for (const r of live.vars.values()) if (!aliased.has(r)) this.release(r.v);
+      if (self) this.release(self);
     }
   }
 
@@ -455,10 +839,12 @@ export class Interpreter {
       case 'with': {
         const o = this.evalIn(s.obj, f);
         f.withs.push(o);
+        this.retain(o);
         try {
           return this.execList(s.body, f);
         } finally {
           f.withs.pop();
+          this.release(o);
         }
       }
       case 'exit':
@@ -473,7 +859,189 @@ export class Interpreter {
         return undefined;
       case 'resume':
         return { resume: s.mode === 'label' ? { label: s.label! } : s.mode };
+      case 'raiseevent': {
+        const self = f.self;
+        if (!self) throw new BasicError(5, 'RaiseEvent solo puede usarse dentro de un módulo de clase.');
+        const ev = self.cls.ast.events.find((x) => lc(x.name) === lc(s.name));
+        if (!ev) throw new BasicError(5, `El evento "${s.name}" no está declarado en la clase ${self.cls.name}.`);
+        const vals = this.argValues(s.args, f).positional;
+        for (const h of [...(self.handlers.get(lc(ev.name)) ?? [])]) {
+          if (h.target.terminated) continue;
+          this.callProc(h.proc, vals.map((value) => ({ value })), f, h.target);
+        }
+        return undefined;
+      }
+      case 'fopen': {
+        const n = Math.trunc(toNum(this.evalIn(s.num, f)));
+        if (this.files.has(n)) throw new BasicError(55, 'El archivo ya está abierto');
+        const path = toStr(this.evalIn(s.path, f));
+        const vfs = this.vfs();
+        if (s.mode === 'input') {
+          const text = vfs.read(path);
+          if (text === null) throw new BasicError(53, `No se encuentra el archivo: ${path}`);
+          this.files.set(n, { path, mode: 'input', text, pos: 0 });
+        } else this.files.set(n, { path, mode: s.mode, text: s.mode === 'append' ? (vfs.read(path) ?? '') : '', pos: 0 });
+        if (s.mode !== 'input') vfs.write(path, this.files.get(n)!.text);
+        return undefined;
+      }
+      case 'fclose': {
+        if (!s.nums.length) this.closeAllFiles();
+        else for (const e of s.nums) this.closeFile(Math.trunc(toNum(this.evalIn(e, f))));
+        return undefined;
+      }
+      case 'fprint': {
+        const file = this.outFile(Math.trunc(toNum(this.evalIn(s.num, f))));
+        let out = '';
+        s.items.forEach((a, i) => {
+          out += toStr(this.evalIn(a.value, f));
+          if (i < s.seps.length && s.seps[i] === ',') out += '\t';
+        });
+        file.text += out + (s.seps.length >= s.items.length && s.items.length > 0 ? '' : '\n');
+        return undefined;
+      }
+      case 'fwrite': {
+        const file = this.outFile(Math.trunc(toNum(this.evalIn(s.num, f))));
+        file.text += s.items.map((a) => this.writeField(this.evalIn(a.value, f))).join(',') + '\n';
+        return undefined;
+      }
+      case 'finput': {
+        const file = this.inFile(Math.trunc(toNum(this.evalIn(s.num, f))));
+        for (const t of s.targets) this.assign(t, this.readField(file), f);
+        return undefined;
+      }
+      case 'flineinput': {
+        const file = this.inFile(Math.trunc(toNum(this.evalIn(s.num, f))));
+        if (file.pos >= file.text.length) throw new BasicError(62, 'Entrada después del final del archivo');
+        let end = file.text.indexOf('\n', file.pos);
+        if (end < 0) end = file.text.length;
+        const line = file.text.slice(file.pos, end).replace(/\r$/, '');
+        file.pos = Math.min(file.text.length, end + 1);
+        this.assign(s.target, line, f);
+        return undefined;
+      }
     }
+  }
+
+  // ---------------------------------------------------------------------------------------- files
+
+  private vfs(): Vfs {
+    if (!this.host.vfs) throw new BasicError(75, 'Este entorno no tiene archivos disponibles.');
+    return this.host.vfs;
+  }
+  private outFile(n: number): OpenFile {
+    const f = this.files.get(n);
+    if (!f) throw new BasicError(52, 'Nombre o número de archivo incorrecto');
+    if (f.mode === 'input') throw new BasicError(54, 'Modo de archivo incorrecto: está abierto para lectura');
+    return f;
+  }
+  private inFile(n: number): OpenFile {
+    const f = this.files.get(n);
+    if (!f) throw new BasicError(52, 'Nombre o número de archivo incorrecto');
+    if (f.mode !== 'input') throw new BasicError(54, 'Modo de archivo incorrecto: está abierto para escritura');
+    return f;
+  }
+  private closeFile(n: number): void {
+    const f = this.files.get(n);
+    if (!f) return;
+    this.files.delete(n);
+    if (f.mode !== 'input' && this.host.vfs) this.host.vfs.write(f.path, f.text);
+  }
+  private closeAllFiles(): void {
+    for (const n of [...this.files.keys()]) this.closeFile(n);
+  }
+  private writeField(v: BVal): string {
+    if (v === null) return '#NULL#';
+    if (typeof v === 'boolean') return v ? '#TRUE#' : '#FALSE#';
+    if (typeof v === 'number') return toStr(v);
+    if (v instanceof Date) return `#${toStr(v)}#`;
+    return `"${toStr(v).replace(/"/g, '""')}"`;
+  }
+  /** The next field of `Input #`: separated by a comma or a line end; text may be quoted. */
+  private readField(f: OpenFile): BVal {
+    const t = f.text;
+    while (f.pos < t.length && (t[f.pos] === ' ' || t[f.pos] === '\t' || t[f.pos] === '\r' || t[f.pos] === '\n')) f.pos++;
+    if (f.pos >= t.length) throw new BasicError(62, 'Entrada después del final del archivo');
+    if (t[f.pos] === '"') {
+      let out = '';
+      f.pos++;
+      while (f.pos < t.length) {
+        if (t[f.pos] === '"') {
+          if (t[f.pos + 1] === '"') {
+            out += '"';
+            f.pos += 2;
+            continue;
+          }
+          f.pos++;
+          break;
+        }
+        out += t[f.pos++];
+      }
+      while (f.pos < t.length && t[f.pos] === ' ') f.pos++;
+      if (t[f.pos] === ',') f.pos++;
+      return out;
+    }
+    let end = f.pos;
+    while (end < t.length && t[end] !== ',' && t[end] !== '\n') end++;
+    const raw = t.slice(f.pos, end).replace(/\r$/, '').trim();
+    f.pos = Math.min(t.length, end + 1);
+    if (raw === '#NULL#') return null;
+    if (raw === '#TRUE#') return true;
+    if (raw === '#FALSE#') return false;
+    if (raw !== '' && Number.isFinite(Number(raw))) return Number(raw);
+    return raw;
+  }
+  private normPath(p: string): string {
+    return p.replace(/\\/g, '/').replace(/^[a-z]:/i, '').replace(/^\/+/, '');
+  }
+  private glob(pattern: string): RegExp {
+    const re = this.normPath(pattern).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
+    return new RegExp(`^${re}$`, 'i');
+  }
+  /** `EOF`, `LOF`, `FreeFile`, `Dir`, `Kill`, `FileCopy`, `FileLen`: the file functions (they need the state of the run). */
+  private fileFn(key: string, a: BVal[]): { v: BVal } | null {
+    switch (key) {
+      case 'eof': {
+        const f = this.files.get(Math.trunc(toNum(a[0])));
+        if (!f) throw new BasicError(52, 'Nombre o número de archivo incorrecto');
+        return { v: f.mode !== 'input' || f.pos >= f.text.length };
+      }
+      case 'lof': {
+        const f = this.files.get(Math.trunc(toNum(a[0])));
+        if (!f) throw new BasicError(52, 'Nombre o número de archivo incorrecto');
+        return { v: f.text.length };
+      }
+      case 'freefile': {
+        let n = 1;
+        while (this.files.has(n)) n++;
+        return { v: n };
+      }
+      case 'dir': {
+        if (a.length && a[0] !== undefined) {
+          const re = this.glob(toStr(a[0]));
+          this.dirQueue = this.vfs().list().filter((x) => re.test(this.normPath(x)));
+        }
+        return { v: this.dirQueue.shift() ?? '' };
+      }
+      case 'kill': {
+        const re = this.glob(toStr(a[0]));
+        const hits = this.vfs().list().filter((x) => re.test(this.normPath(x)));
+        if (!hits.length) throw new BasicError(53, `No se encuentra el archivo: ${toStr(a[0])}`);
+        for (const h of hits) this.vfs().remove(h);
+        return { v: undefined };
+      }
+      case 'filecopy': {
+        const src = this.vfs().read(toStr(a[0]));
+        if (src === null) throw new BasicError(53, `No se encuentra el archivo: ${toStr(a[0])}`);
+        this.vfs().write(toStr(a[1]), src);
+        return { v: undefined };
+      }
+      case 'filelen': {
+        const src = this.vfs().read(toStr(a[0]));
+        if (src === null) throw new BasicError(53, `No se encuentra el archivo: ${toStr(a[0])}`);
+        return { v: src.length };
+      }
+    }
+    return null;
   }
 
   private caseMatches(t: CaseTest, v: BVal, f: Frame): boolean {
@@ -490,7 +1058,7 @@ export class Interpreter {
 
   private findRef(name: string, f: Frame): Ref | undefined {
     const k = lc(name);
-    return f.vars.get(k) ?? this.globals.get(k);
+    return f.vars.get(k) ?? f.self?.fields.get(k) ?? this.globals.get(k);
   }
 
   private declare(decls: Decl[], isConst: boolean, f: Frame, into: Map<string, Ref>): void {
@@ -499,12 +1067,18 @@ export class Interpreter {
       if (into.has(key) && !isConst && into === f.vars) throw new BasicError(10, `Esta variable ya está declarada: ${d.name}`);
       if (d.dims) {
         const dims = d.dims.length ? d.dims.map((x) => ({ lo: x.lo ? Math.trunc(toNum(this.evalIn(x.lo, f))) : 0, hi: Math.trunc(toNum(this.evalIn(x.hi!, f))) })) : [{ lo: 0, hi: -1 }];
-        into.set(key, { v: new VArray(dims, defaultFor(d.type)), type: d.type });
+        into.set(key, { v: this.newArray(dims, d.type), type: d.type });
       } else if (isConst) {
         into.set(key, { v: this.evalIn(d.init!, f), type: d.type, isConst: true });
       } else {
-        const obj = d.isNew && d.type ? createObject(d.type) : null;
-        into.set(key, { v: obj ?? defaultFor(d.type), type: d.type });
+        const cls = d.isNew && d.type ? this.classes.get(lc(d.type)) : undefined;
+        const prior = into.get(key);
+        const obj = cls ? this.instantiate(cls) : d.isNew && d.type ? createObject(d.type) : null;
+        if (d.isNew && d.type && !obj) throw new BasicError(429, `No se puede crear el objeto: ${d.type}. Solo se admiten módulos de clase, Collection y Scripting.Dictionary.`);
+        const made: Ref = { v: obj ?? this.defaultOf(d.type), type: d.type };
+        into.set(key, made);
+        this.retain(made.v);
+        if (prior) this.release(prior.v);
       }
     }
   }
@@ -512,7 +1086,7 @@ export class Interpreter {
   private redim(d: Decl, preserve: boolean, f: Frame): void {
     const ref = this.findRef(d.name, f);
     const dims = (d.dims ?? []).map((x) => ({ lo: x.lo ? Math.trunc(toNum(this.evalIn(x.lo, f))) : 0, hi: Math.trunc(toNum(this.evalIn(x.hi!, f))) }));
-    const fresh = new VArray(dims, defaultFor(d.type ?? ref?.type));
+    const fresh = this.newArray(dims, d.type ?? ref?.type);
     if (preserve && ref?.v instanceof VArray && ref.v.dims.length === 1 && dims.length === 1) {
       const old = ref.v;
       for (let i = Math.max(old.dims[0]!.lo, dims[0]!.lo); i <= Math.min(old.dims[0]!.hi, dims[0]!.hi); i++) fresh.set([i], old.get([i]));
@@ -528,11 +1102,20 @@ export class Interpreter {
         if (ref) {
           if (ref.isConst) throw new BasicError(5, `No se puede asignar a una constante: ${target.name}`);
           if (ref.v instanceof VArray && !(value instanceof VArray)) throw new BasicError(10, 'Esta matriz está fija o bloqueada temporalmente');
-          ref.v = ref.type ? coerceTo(ref.type, value) : value;
+          let nv = ref.type ? coerceTo(ref.type, value) : value;
+          if (nv instanceof TypeInstance) nv = nv.clone();
+          this.storeRef(ref, nv);
+          return;
+        }
+        const own = f.self?.cls.methods.get(lc(target.name));
+        const setter = own ? (isObject(value) || isNothing(value) ? (own.set ?? own.let) : (own.let ?? own.set)) : this.setters.get(lc(target.name));
+        if (setter) {
+          this.callProc(setter, [{ value }], f, own ? f.self : undefined);
           return;
         }
         if (this.explicitModules.has(f.module)) throw new BasicError(35, `Variable no definida: ${target.name}`);
         f.vars.set(lc(target.name), { v: value });
+        this.retain(value);
         return;
       }
       case 'call': {
@@ -540,9 +1123,11 @@ export class Interpreter {
         if (target.fn.k === 'id') {
           const ref = this.findRef(target.fn.name, f);
           if (ref?.v instanceof VArray) {
+            escapeValue(value);
             ref.v.set(args.map((a) => Math.trunc(toNum(a))), ref.type ? coerceTo(ref.type, value) : value);
             return;
           }
+          escapeValue(value);
           if (ref && isObject(ref.v) && ref.v.setIndex) return ref.v.setIndex(args, value);
           const g = this.objects[lc(target.fn.name)];
           if (isObject(g) && g.setIndex) return g.setIndex(args, value);
@@ -550,22 +1135,26 @@ export class Interpreter {
         }
         if (target.fn.k === 'member') {
           const obj = this.evalObject(target.fn.obj, f, target.fn.name);
+          if (!(obj instanceof ClassInstance)) escapeValue(value);
           obj.set(target.fn.name, args, value);
           return;
         }
         const base = this.evalIn(target.fn, f);
+        escapeValue(value);
         if (base instanceof VArray) return base.set(args.map((a) => Math.trunc(toNum(a))), value);
         if (isObject(base) && base.setIndex) return base.setIndex(args, value);
         throw ERR.objectRequired();
       }
       case 'member': {
         const obj = this.evalObject(target.obj, f, target.name);
+        if (!(obj instanceof ClassInstance)) escapeValue(value);
         obj.set(target.name, [], value);
         return;
       }
       case 'bang': {
         const obj = this.evalObject(target.obj, f, target.name);
         if (!obj.setIndex) throw ERR.notSupported(target.name);
+        escapeValue(value);
         obj.setIndex([target.name], value);
         return;
       }
@@ -627,7 +1216,7 @@ export class Interpreter {
   private callNamed(name: string, args: (Arg | null)[], f: Frame): BVal {
     const key = lc(name);
     // inside a function, its own name is the return value: with arguments it is a (recursive) call
-    const local = f.vars.get(key) ?? this.globals.get(key);
+    const local = f.vars.get(key) ?? f.self?.fields.get(key) ?? this.globals.get(key);
     if (local && local !== f.retRef) {
       const v = local.v;
       const a = this.argValues(args, f);
@@ -635,16 +1224,26 @@ export class Interpreter {
       if (isObject(v) && v.index) return v.index(a.positional);
       throw ERR.typeMismatch(`"${name}" no es un procedimiento ni una matriz`);
     }
+    const sm = f.self?.cls.methods.get(key);
+    if (sm && (sm.call || sm.get)) return this.callProc((sm.call ?? sm.get)!, this.argValues(args, f).list, f, f.self);
     const proc = this.procs.get(key);
     if (proc) {
       const a = this.argValues(args, f);
       return this.callProc(proc, a.list, f);
+    }
+    if (key === 'eval') return this.evalText(toStr(this.argValues(args, f).positional[0]), f);
+    if (key === 'run') {
+      const a = this.argValues(args, f).positional;
+      const target = this.procs.get(lc(toStr(a[0])));
+      if (!target) throw ERR.undefinedName(toStr(a[0]));
+      return this.callProc(target, a.slice(1).map((value) => ({ value })), f);
     }
     const hostFn = own(this.host.functions, key);
     if (hostFn) {
       const a = this.argValues(args, f);
       return hostFn(a.positional, a.named);
     }
+    if (FILE_FNS.has(key)) return this.fileFn(key, this.argValues(args, f).positional)!.v;
     const fn = builtin(key);
     if (fn) {
       const a = this.argValues(args, f);
@@ -657,6 +1256,49 @@ export class Interpreter {
     if (isObject(obj) && obj.index) return obj.index(this.argValues(args, f).positional);
     if (CONSTANTS.has(key)) throw ERR.typeMismatch(`"${name}" es una constante`);
     throw ERR.undefinedName(name);
+  }
+
+  /**
+   * `Eval("texto")`: an expression of Nova Basic (its functions, the procedures of the modules, the variables of the caller) or, when
+   * it is not one, one or more statements (`x = x + 1: Debug.Print x`). Fields of the current record are written `[Campo]`. What
+   * Nova Basic does not know (`Sum([x])`…) is tried with the expression language of Nova Base.
+   */
+  private evalText(text: string, f: Frame): BVal {
+    const src = text.replace(/"(?:[^"]|"")*"|\[([^\]]+)\]/g, (m, field?: string) => (field === undefined ? m : `__campo("${field.replace(/"/g, '""')}")`)).trim();
+    if (!src) return null;
+    let expression: Expr | null = null;
+    try {
+      expression = parseExpression(src);
+    } catch (e) {
+      if (!(e instanceof BasicSyntaxError)) throw e;
+    }
+    const fallback = (original: unknown): BVal => {
+      const nova = own(this.host.functions, 'novaeval');
+      if (!nova) throw original;
+      try {
+        return nova([text], {});
+      } catch {
+        throw original;
+      }
+    };
+    if (expression) {
+      try {
+        return this.evalIn(expression, f);
+      } catch (e) {
+        const b = this.asBasic(e);
+        if (b instanceof BasicError && b.number === 35) return fallback(b);
+        throw b;
+      }
+    }
+    let body: Stmt[];
+    try {
+      body = parseStatements(src);
+    } catch (e) {
+      if (!(e instanceof BasicSyntaxError)) throw e;
+      return fallback(new BasicError(2482, `Eval: ${e.message}`));
+    }
+    this.execList(body, f);
+    return undefined;
   }
 
   private placeNamed(fn: string, pos: BVal[], named: Record<string, BVal>): BVal[] {
@@ -681,6 +1323,7 @@ export class Interpreter {
   private evalMemberCall(obj: BVal, name: string, args: BVal[]): BVal {
     if (isNothing(obj) || obj === undefined || obj === null) throw ERR.noObject();
     if (!isObject(obj)) throw ERR.notSupported(name);
+    if (!(obj instanceof ClassInstance) && !(obj instanceof TypeInstance)) args.forEach(escapeValue);
     return obj.get(name, args);
   }
 
@@ -737,9 +1380,18 @@ export class Interpreter {
         }
         return binaryOp(e.op, this.evalIn(e.a, f), this.evalIn(e.b, f));
       }
+      case 'typeof': {
+        const v = this.evalIn(e.obj, f);
+        if (!isObject(v)) return false;
+        const n = lc(e.cls);
+        if (lc(v.typeName) === n) return true;
+        return v instanceof ClassInstance && v.cls.ast.implements.some((i) => lc(i.name) === n);
+      }
       case 'new': {
+        const cd = this.classes.get(lc(e.cls));
+        if (cd) return this.instantiate(cd);
         const o = createObject(e.cls);
-        if (!o) throw new BasicError(429, `No se puede crear el objeto: ${e.cls}. Solo se admiten Collection y Scripting.Dictionary.`);
+        if (!o) throw new BasicError(429, `No se puede crear el objeto: ${e.cls}. Solo se admiten módulos de clase, Collection y Scripting.Dictionary.`);
         return o;
       }
     }
@@ -747,11 +1399,18 @@ export class Interpreter {
 
   private evalId(name: string, f: Frame, asStatement: boolean): BVal {
     const key = lc(name);
-    const ref = f.vars.get(key) ?? this.globals.get(key);
+    if (key === 'me' && f.self) return f.self;
+    const ref = f.vars.get(key) ?? f.self?.fields.get(key) ?? this.globals.get(key);
     if (ref) return ref.v;
+    const sm = f.self?.cls.methods.get(key);
+    if (sm && (sm.call || sm.get)) return this.callProc((sm.call ?? sm.get)!, [], f, f.self);
     const proc = this.procs.get(key);
     if (proc) return this.callProc(proc, [], f);
     if (CONSTANTS.has(key)) return CONSTANTS.get(key);
+    if (this.userConsts.has(key)) return this.userConsts.get(key);
+    const eo = this.enumObjs.get(key);
+    if (eo) return eo;
+    if (FILE_FNS.has(key) && !own(this.host.functions, key)) return this.fileFn(key, [])!.v;
     const o = this.objects[key];
     if (o !== undefined) return o;
     const hostFn = own(this.host.functions, key);

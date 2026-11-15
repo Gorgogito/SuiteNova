@@ -19,7 +19,9 @@ export type Expr =
   | { k: 'call'; fn: Expr; args: (Arg | null)[]; line: number; /** `,` or `;` after each argument of a call without parentheses (Debug.Print). */ seps?: string[] }
   | { k: 'un'; op: 'neg' | 'not'; a: Expr; line: number }
   | { k: 'bin'; op: string; a: Expr; b: Expr; line: number }
-  | { k: 'new'; cls: string; line: number };
+  | { k: 'new'; cls: string; line: number }
+  /** `TypeOf obj Is ClassName` */
+  | { k: 'typeof'; obj: Expr; cls: string; line: number };
 
 export interface Arg {
   name?: string;
@@ -43,7 +45,8 @@ export interface Decl {
 export type CaseTest = { kind: 'value'; v: Expr } | { kind: 'range'; lo: Expr; hi: Expr } | { kind: 'is'; op: string; v: Expr };
 
 export type Stmt = { line: number } & (
-  | { k: 'dim'; decls: Decl[]; isConst: boolean }
+  | { k: 'dim'; decls: Decl[]; isConst: boolean; vis?: 'public' | 'private'; withEvents?: boolean }
+  | { k: 'raiseevent'; name: string; args: (Arg | null)[] }
   | { k: 'redim'; preserve: boolean; decls: Decl[] }
   | { k: 'assign'; target: Expr; value: Expr }
   | { k: 'call'; expr: Expr }
@@ -59,6 +62,13 @@ export type Stmt = { line: number } & (
   | { k: 'label'; name: string }
   | { k: 'with'; obj: Expr; body: Stmt[] }
   | { k: 'erase'; names: string[] }
+  | { k: 'fopen'; path: Expr; mode: 'input' | 'output' | 'append'; num: Expr }
+  | { k: 'fclose'; nums: Expr[] }
+  /** `Print #n, a; b` (`items` separated by `seps`; a trailing separator keeps the line open) */
+  | { k: 'fprint'; num: Expr; items: Arg[]; seps: string[] }
+  | { k: 'fwrite'; num: Expr; items: Arg[] }
+  | { k: 'finput'; num: Expr; targets: Expr[] }
+  | { k: 'flineinput'; num: Expr; target: Expr }
 );
 
 export interface Param {
@@ -71,8 +81,28 @@ export interface Param {
   def?: Expr;
 }
 
+/** `Type Persona … End Type` */
+export interface TypeDef {
+  name: string;
+  fields: Decl[];
+  line: number;
+}
+/** `Event Cambio(ByVal v As Long)` in a class module */
+export interface EventDef {
+  name: string;
+  params: Param[];
+  line: number;
+}
+/** `Enum Color … End Enum` */
+export interface EnumDef {
+  name: string;
+  members: { name: string; value?: Expr }[];
+  line: number;
+}
+
 export interface Proc {
-  kind: 'sub' | 'function';
+  /** `get`, `let` and `set` are the Property procedures. */
+  kind: 'sub' | 'function' | 'get' | 'let' | 'set';
   name: string;
   params: Param[];
   returns?: string;
@@ -88,6 +118,11 @@ export interface ModuleAst {
   /** Declarations at the top of the module (variables and constants). */
   decls: Stmt[];
   procs: Proc[];
+  types: TypeDef[];
+  enums: EnumDef[];
+  events: EventDef[];
+  /** `Implements IForma` */
+  implements: { name: string; line: number }[];
 }
 
 // ------------------------------------------------------------------------------------------------ parser
@@ -97,7 +132,7 @@ const END_OF_BLOCK = new Set(['end', 'else', 'elseif', 'case', 'loop', 'next', '
 export function parseModule(modName: string, src: string, opts: { labels?: boolean } = {}): ModuleAst {
   const toks = tokenize(src);
   let p = 0;
-  const ast: ModuleAst = { name: modName, explicit: false, decls: [], procs: [] };
+  const ast: ModuleAst = { name: modName, explicit: false, decls: [], procs: [], types: [], enums: [], events: [], implements: [] };
 
   const peek = (o = 0): Token => toks[Math.min(p + o, toks.length - 1)]!;
   const next = (): Token => toks[p++]!;
@@ -174,6 +209,12 @@ export function parseModule(modName: string, src: string, opts: { labels?: boole
     return a;
   };
   const not = (): Expr => {
+    if (isId('typeof') && peek(1).kind !== 'op') {
+      const l = next().line;
+      const obj = concat();
+      expectKw('is');
+      return { k: 'typeof', obj, cls: name().text, line: l };
+    }
     if (isKw('not')) {
       const l = next().line;
       return { k: 'un', op: 'not', a: not(), line: l };
@@ -580,7 +621,12 @@ export function parseModule(modName: string, src: string, opts: { labels?: boole
             next();
             isConst = true;
           }
-          return done({ k: 'dim', line, decls: declList(isConst), isConst });
+          let withEvents = false;
+          if (isId('withevents')) {
+            next();
+            withEvents = true;
+          }
+          return done({ k: 'dim', line, decls: declList(isConst), isConst, vis: t.text === 'public' ? 'public' : 'private', ...(withEvents ? { withEvents } : {}) });
         }
         case 'redim': {
           next();
@@ -709,6 +755,90 @@ export function parseModule(modName: string, src: string, opts: { labels?: boole
       next();
       return { k: 'label', line, name: t.text };
     }
+    if (t.kind === 'id' && t.text.toLowerCase() === 'raiseevent' && peek(1).kind === 'id') {
+      next();
+      const nm = name().text;
+      let list: (Arg | null)[] = [];
+      if (isOp('(')) {
+        next();
+        list = args();
+        expectOp(')');
+      }
+      return done({ k: 'raiseevent', line, name: nm, args: list });
+    }
+    if (t.kind === 'id' && !inline) {
+      const low = t.text.toLowerCase();
+      const n1 = peek(1);
+      const plain = !(n1.kind === 'op' && ['=', '.', '(', '!'].includes(n1.text)) && n1.kind !== 'eof';
+      const hash = n1.kind === 'op' && n1.text === '#';
+      if (low === 'open' && plain && n1.kind !== 'eol') {
+        next();
+        const path = expr();
+        expectKw('for');
+        const m = next();
+        const mode = m.text.toLowerCase();
+        if (mode !== 'input' && mode !== 'output' && mode !== 'append') fail('Solo se admite abrir un archivo For Input, For Output o For Append.', m);
+        expectKw('as');
+        if (isOp('#')) next();
+        return done({ k: 'fopen', line, path, mode: mode as 'input' | 'output' | 'append', num: expr() });
+      }
+      if (low === 'close' && plain) {
+        next();
+        const nums: Expr[] = [];
+        while (!atEol()) {
+          if (isOp('#')) next();
+          nums.push(expr());
+          if (isOp(',')) next();
+          else break;
+        }
+        return done({ k: 'fclose', line, nums });
+      }
+      if (low === 'print' && hash) {
+        next();
+        next();
+        const num = expr();
+        expectOp(',');
+        const items: Arg[] = [];
+        const seps: string[] = [];
+        while (!atEol()) {
+          items.push({ value: expr() });
+          if (isOp(',') || isOp(';')) seps.push(next().text);
+          else break;
+        }
+        return done({ k: 'fprint', line, num, items, seps });
+      }
+      if (low === 'write' && hash) {
+        next();
+        next();
+        const num = expr();
+        const items: Arg[] = [];
+        while (isOp(',')) {
+          next();
+          if (atEol()) break;
+          items.push({ value: expr() });
+        }
+        return done({ k: 'fwrite', line, num, items });
+      }
+      if (low === 'input' && hash) {
+        next();
+        next();
+        const num = expr();
+        const targets: Expr[] = [];
+        while (isOp(',')) {
+          next();
+          targets.push(postfix());
+        }
+        return done({ k: 'finput', line, num, targets });
+      }
+      if (low === 'line' && n1.kind === 'id' && n1.text.toLowerCase() === 'input' && peek(2).kind === 'op' && peek(2).text === '#') {
+        next();
+        next();
+        next();
+        const num = expr();
+        expectOp(',');
+        return done({ k: 'flineinput', line, num, target: postfix() });
+      }
+    }
     if (t.kind === 'id' || (t.kind === 'op' && (t.text === '.' || t.text === '!'))) {
       const target = postfix();
       if (isOp('=')) {
@@ -800,7 +930,73 @@ export function parseModule(modName: string, src: string, opts: { labels?: boole
       q++;
     }
     const head = peek(q);
-    if (head.kind === 'kw' && (head.text === 'sub' || head.text === 'function')) {
+    const headId = head.kind === 'id' ? head.text.toLowerCase() : '';
+    if (headId === 'type' && peek(q + 1).kind === 'id') {
+      p += q + 1;
+      const nm = name().text;
+      endOfStatement();
+      const fields: Decl[] = [];
+      skipEols();
+      while (!(isKw('end') && peek(1).kind === 'id' && peek(1).text.toLowerCase() === 'type')) {
+        if (peek().kind === 'eof') fail('Falta "End Type".');
+        fields.push(...declList(false));
+        endOfStatement();
+        skipEols();
+      }
+      next();
+      next();
+      endOfStatement();
+      ast.types.push({ name: nm, fields, line: head.line });
+    } else if (headId === 'event' && peek(q + 1).kind === 'id') {
+      p += q + 1;
+      const nm = name().text;
+      const params = isOp('(') ? paramList() : [];
+      endOfStatement();
+      ast.events.push({ name: nm, params, line: head.line });
+    } else if (headId === 'implements' && peek(q + 1).kind === 'id') {
+      p += q + 1;
+      ast.implements.push({ name: name().text, line: head.line });
+      endOfStatement();
+    } else if (headId === 'enum' && peek(q + 1).kind === 'id') {
+      p += q + 1;
+      const nm = name().text;
+      endOfStatement();
+      const members: EnumDef['members'] = [];
+      skipEols();
+      while (!(isKw('end') && peek(1).kind === 'id' && peek(1).text.toLowerCase() === 'enum')) {
+        if (peek().kind === 'eof') fail('Falta "End Enum".');
+        const mn = name().text;
+        let value: Expr | undefined;
+        if (isOp('=')) {
+          next();
+          value = expr();
+        }
+        members.push({ name: mn, value });
+        endOfStatement();
+        skipEols();
+      }
+      next();
+      next();
+      endOfStatement();
+      ast.enums.push({ name: nm, members, line: head.line });
+    } else if (headId === 'property' && (peek(q + 1).kind === 'kw' ? ['let', 'set'].includes(peek(q + 1).text) : peek(q + 1).kind === 'id' && peek(q + 1).text.toLowerCase() === 'get')) {
+      p += q + 1;
+      const kind = next().text.toLowerCase() as 'get' | 'let' | 'set';
+      const nm = name().text;
+      const params = isOp('(') ? paramList() : [];
+      let returns: string | undefined;
+      if (isKw('as')) {
+        next();
+        returns = typeName();
+      }
+      endOfStatement();
+      const body = block('end');
+      expectKw('end');
+      if (!isId('property')) fail('Se esperaba "End Property".');
+      next();
+      ast.procs.push({ kind, name: nm, params, returns, isPublic, body, line: head.line, module: modName });
+      endOfStatement();
+    } else if (head.kind === 'kw' && (head.text === 'sub' || head.text === 'function')) {
       p += q + 1;
       const kind = head.text as 'sub' | 'function';
       const nm = name().text;
@@ -825,11 +1021,21 @@ export function parseModule(modName: string, src: string, opts: { labels?: boole
     } else if (t.kind === 'kw' && (t.text === 'dim' || t.text === 'const' || t.text === 'private' || t.text === 'public' || t.text === 'static')) {
       ast.decls.push(statement());
     } else {
-      fail('Fuera de un procedimiento solo puede haber declaraciones (Dim, Const) y procedimientos (Sub, Function).');
+      fail('Fuera de un procedimiento solo puede haber declaraciones (Dim, Const, Type, Enum) y procedimientos (Sub, Function, Property).');
     }
     skipEols();
   }
   return ast;
+}
+
+/** An expression typed as text (for `Eval`): one expression, nothing else. */
+export function parseExpression(src: string): Expr {
+  if (/[\r\n]/.test(src)) throw new BasicSyntaxError('Una expresión no puede ocupar varias líneas.', 1);
+  const ast = parseModule('Eval', `Function __eval()\n__eval = ${src}\nEnd Function`, { labels: false });
+  const body = ast.procs[0]?.body ?? [];
+  const st = body[0];
+  if (ast.procs.length !== 1 || body.length !== 1 || !st || st.k !== 'assign') throw new BasicSyntaxError('No es una expresión.', 1);
+  return st.value;
 }
 
 /** Parse the statements of one line typed in the immediate window. */
