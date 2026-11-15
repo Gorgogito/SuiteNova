@@ -1,4 +1,4 @@
-import type { CustPath, Geometry } from '../types';
+import type { CustPath, Geometry } from './types';
 import { arcSegments, presetGeometry, type PresetGeometry, type PresetPath } from './preset';
 
 const f = (n: number) => (Math.round(n * 1000) / 1000).toString();

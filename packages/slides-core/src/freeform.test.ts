@@ -4,7 +4,7 @@ import { addElements } from './ops';
 import { addNodeAt, boundsOfPaths, curveThrough, deleteNode, geometryToPaths, localToSlide, moveHandle, moveNode, newFreeform, normalizePaths, pathsToCust, segmentCount, setNodeKind, setSegmentKind, simplify, slideToLocal, svgToPaths, toggleClosed } from './freeform';
 import { readPptx } from './pptx/read';
 import { writePptx } from './pptx/write';
-import { geometryOf } from './geometry/custom';
+import { geometryOf } from '@suitenova/shapes-core';
 import type { ShapeEl } from './types';
 
 const near = (a: number, b: number, e = 0.01) => expect(Math.abs(a - b)).toBeLessThan(e);

@@ -1,6 +1,6 @@
 import { shapeIdMap } from './anim';
 import { localToSlide } from './freeform';
-import { geometryOf } from './geometry/custom';
+import { geometryOf } from '@suitenova/shapes-core';
 import type { ConnEl, Deck, Slide, SlideElement, Xfrm } from './types';
 
 /*

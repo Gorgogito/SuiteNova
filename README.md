@@ -67,6 +67,7 @@ packages/xlsx-io     Lectura/escritura de .xlsx (JSZip + fast-xml-parser)
 packages/writer-core Esquema del documento (ProseMirror), estilos, página y lectura/escritura de .docx
 packages/slides-core Modelo de presentación y lectura/escritura de .pptx
 packages/base-core   Motor de bases de datos (SQLite), diseñador de consultas, informes, CSV
+packages/shapes-core Catálogo común de formas (187 geometrías de DrawingML, geometría personalizada, SVG, sitios de conexión y tiradores); lo usa Slides y lo usarán los demás
 packages/notes-core  Modelo de libretas (lienzo, tinta, versiones, cifrado, combinación), búsqueda, fórmulas, Markdown
 apps/suite/public/ocr Motor de OCR (Tesseract, Apache-2.0) y datos de español e inglés que usa Nova Notes (ver NOTICE.txt)
 packages/mail-core   Mensajes MIME, mbox, iCalendar, vCard, almacén de datos de correo

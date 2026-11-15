@@ -1,6 +1,6 @@
 import { newId } from './defaults';
 import { SHAPE_STYLE } from './factory';
-import { geometryOf } from './geometry/custom';
+import { geometryOf } from '@suitenova/shapes-core';
 import type { CustPath, Geometry, ShapeEl, Xfrm } from './types';
 
 /*

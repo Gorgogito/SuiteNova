@@ -1,5 +1,5 @@
 // Compiles the ECMA-376 preset shape definitions (data/presetShapeDefinitions.xml, as published by ECMA and shipped with
-// LibreOffice under MPL-2.0) into a compact JSON used by src/geometry. Run: node scripts/build-presets.mjs
+// LibreOffice under MPL-2.0) into a compact JSON used by src/preset.ts. Run: node scripts/build-presets.mjs
 import { XMLParser } from 'fast-xml-parser';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -58,7 +58,7 @@ for (const shape of top) {
   }
   out[name] = def;
 }
-const target = path.join(here, '../src/geometry/presets.json');
+const target = path.join(here, '../src/presets.json');
 fs.mkdirSync(path.dirname(target), { recursive: true });
 fs.writeFileSync(target, JSON.stringify(out));
 console.log(Object.keys(out).length, 'presets,', (fs.statSync(target).size / 1024).toFixed(0), 'KB');
