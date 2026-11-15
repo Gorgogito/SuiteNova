@@ -966,6 +966,24 @@ export class NotesCtl {
     v.focus();
   }
 
+  /** Añade las páginas de un PDF como imágenes una debajo de otra; el texto del PDF queda como texto leído (se busca igual que el OCR). */
+  addPdfPages(items: { asset: Asset; w: number; h: number; text: string }[]): void {
+    const width = 620;
+    let y = freeSpot(this.page, this.heights).y;
+    const x = 48;
+    const boxes = items.map((it) => {
+      const h = Math.round((it.h / it.w) * width);
+      const box = newImageContainer(it.asset.id, width, h, it.asset.name.replace(/.[^.]+$/, ''), x, snap(y));
+      y += h + 24;
+      return box;
+    });
+    const ocr = { ...this.nb.ocr };
+    for (const it of items) ocr[it.asset.id] = { text: it.text, lang: 'pdf', at: Date.now() };
+    this.nb = { ...this.nb, ocr };
+    this.editPage((p) => boxes.reduce((acc, b) => addContainer(acc, b), p), { undo: true });
+    this.touch();
+  }
+
   // ------------------------------------------------------------------ archivos adjuntos
 
   addFileAttachment(asset: Asset, at?: { x: number; y: number }): void {

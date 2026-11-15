@@ -34,6 +34,7 @@ export function notesCommands2(ui: NotesUI): CommandDef[] {
 
   // ---- insertar
   add({ id: 'notes.file.attach', label: 'Archivo adjunto…', icon: 'nnAttach', enabled: () => open, run: () => ui.insertFile() });
+  add({ id: 'notes.pdf.print', label: 'Impresión de PDF…', icon: 'nnAttach', description: 'Inserta las páginas de un PDF como imágenes en la página, con su texto para poder buscarlo.', enabled: () => open, run: () => ui.insertPdf() });
   add({ id: 'notes.space', label: 'Insertar espacio', icon: 'nnSpace', checked: () => c.tool === 'space', description: 'Arrastra hacia abajo desde una línea para hacer sitio entre dos partes de la página; hacia arriba quita el espacio.', enabled: () => open, run: () => c.setTool(c.tool === 'space' ? 'select' : 'space') });
   add({ id: 'notes.screenClip', label: 'Recorte de pantalla…', icon: 'nnScissors', enabled: () => open, run: () => void ui.screenClip() });
   add({ id: 'notes.symbol', label: 'Símbolo…', icon: 'nnOmega', enabled: () => open, run: () => ui.openDialog('symbol') });

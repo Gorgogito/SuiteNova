@@ -22,6 +22,7 @@ function setup() {
     insertImage: () => undefined,
     insertMediaFile: () => undefined,
     insertFile: () => undefined,
+    insertPdf: () => undefined,
     screenClip: async () => undefined,
     print: () => undefined,
     dock: async () => undefined,

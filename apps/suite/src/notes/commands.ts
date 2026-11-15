@@ -22,6 +22,8 @@ export interface NotesUI {
   insertMediaFile(): void;
   /** Adjunta cualquier archivo a la página. */
   insertFile(): void;
+  /** Inserta las páginas de un PDF como imágenes con su texto. */
+  insertPdf(): void;
   /** Captura la pantalla y deja elegir la zona que se inserta como imagen. */
   screenClip(): Promise<void>;
   /** Imprime la página (o la guarda como PDF desde el cuadro de impresión). */

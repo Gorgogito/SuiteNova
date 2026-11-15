@@ -154,6 +154,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
   const mediaRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
   const attachRef = useRef<HTMLInputElement>(null);
+  const pdfRef = useRef<HTMLInputElement>(null);
   const [clip, setClip] = useState<HTMLCanvasElement | null>(null);
   const [docked, setDocked] = useState(false);
   const dockedRef = useRef(docked);
@@ -265,6 +266,28 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         } catch (e) {
           ctl.say(t('No se pudo añadir «{name}»: {error}', { name: f.name, error: (e as Error).message }));
         }
+      }
+    },
+    [ctl],
+  );
+
+  const addPdf = useCallback(
+    async (f: File) => {
+      if (f.size > MAX_MEDIA_BYTES) return ctl.say(t('«{name}» pesa demasiado ({mb} MB); el límite es {max} MB porque todo se guarda dentro del archivo de la libreta.', { name: f.name, mb: Math.round(f.size / 1048576), max: MAX_MEDIA_BYTES / 1048576 }));
+      try {
+        ctl.say(t('Leyendo el PDF…'));
+        const { renderPdf } = await import('./pdfprint');
+        const { pages, total } = await renderPdf(new Uint8Array(await f.arrayBuffer()), (d, n) => ctl.say(t('Dibujando la página {d} de {n}…', { d, n })));
+        const base = f.name.replace(/.[^.]+$/, '');
+        const items = [];
+        for (const [i, p] of pages.entries()) {
+          const asset = ctl.addAsset({ mime: 'image/png', data: await blobToBase64(p.png), name: `${base} - ${i + 1}.png`, size: p.png.size });
+          items.push({ asset, w: p.width, h: p.height, text: p.text });
+        }
+        ctl.addPdfPages(items);
+        ctl.say(total > pages.length ? t('Se insertaron las primeras {n} páginas de {total}.', { n: pages.length, total }) : t('Se insertaron {n} páginas del PDF.', { n: pages.length }));
+      } catch (e) {
+        ctl.say(t('No se pudo abrir el PDF: {error}', { error: (e as Error).message }));
       }
     },
     [ctl],
@@ -415,6 +438,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
       insertImage: () => fileRef.current?.click(),
       insertMediaFile: () => mediaRef.current?.click(),
       insertFile: () => attachRef.current?.click(),
+      insertPdf: () => pdfRef.current?.click(),
       screenClip: async () => {
         try {
           setClip(await captureScreen());
@@ -765,6 +789,20 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
             const fs = [...(e.target.files ?? [])];
             e.target.value = '';
             if (fs.length) void addFiles(fs);
+          }}
+        />
+        <input
+          ref={pdfRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          hidden
+          aria-hidden="true"
+          tabIndex={-1}
+          data-testid="nn-pdf-input"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            if (f) void addPdf(f);
           }}
         />
         <input

@@ -606,6 +606,42 @@ await check('ecuación: la paleta inserta estructuras donde está el cursor y se
   assert.ok(await page.locator('.nn-box--text math, .nn-box--text .nw-math').count());
 });
 
+await check('impresión de PDF: cada página entra como imagen y su texto se encuentra con la búsqueda', async () => {
+  // un PDF mínimo de dos páginas, escrito a mano
+  const objs = [];
+  const add = (s) => objs.push(s);
+  add('<< /Type /Catalog /Pages 2 0 R >>');
+  add('<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>');
+  const content = (t) => `BT /F1 36 Tf 60 400 Td (${t}) Tj ET`;
+  const stream = (t) => `<< /Length ${content(t).length} >>\nstream\n${content(t)}\nendstream`;
+  add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>');
+  add(stream('Zanahoria primera'));
+  add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>');
+  add(stream('Berenjena segunda'));
+  add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  let pdf = '%PDF-1.4\n';
+  const offs = [];
+  objs.forEach((o, i) => {
+    offs.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map((o) => String(o).padStart(10, '0') + ' 00000 n \n').join('');
+  pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  await ctl((c) => c.addPage());
+  const before = await ctl((c) => c.page.containers.filter((x) => x.kind === 'image').length);
+  await tab('Insertar');
+  await page.locator('[data-testid=nn-pdf-input]').setInputFiles({ name: 'menu.pdf', mimeType: 'application/pdf', buffer: Buffer.from(pdf) });
+  await page.waitForFunction((n) => window.__novaNotes.ctl.page.containers.filter((x) => x.kind === 'image').length === n + 2, before, { timeout: 30000 });
+  await settle(500);
+  await shot('pdf');
+  const found = await ctl((c) => { c.search('berenjena'); return c.results.map((r) => r.where); });
+  assert.deepEqual(found, ['image']);
+  const sizes = await ctl((c) => c.page.containers.filter((x) => x.kind === 'image').map((x) => x.h / x.w));
+  assert.ok(sizes.every((r) => Math.abs(r - 1.25) < 0.02), sizes.join());
+  await ctl((c) => c.search(''));
+});
+
 await check('sin errores en la consola', async () => {
   assert.deepEqual(errors, []);
 });

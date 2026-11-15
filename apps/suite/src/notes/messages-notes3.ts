@@ -220,6 +220,13 @@ registerMessages('en', {
   Posición: 'Position',
   'Velocidad de reproducción': 'Playback speed',
   Cerrar: 'Close',
+  'Impresión de PDF…': 'PDF printout…',
+  'Inserta las páginas de un PDF como imágenes en la página, con su texto para poder buscarlo.': 'Inserts the pages of a PDF as pictures on the page, with their text so it can be searched.',
+  'Leyendo el PDF…': 'Reading the PDF…',
+  'Dibujando la página {d} de {n}…': 'Drawing page {d} of {n}…',
+  'Se insertaron las primeras {n} páginas de {total}.': 'The first {n} of {total} pages were inserted.',
+  'Se insertaron {n} páginas del PDF.': '{n} PDF pages were inserted.',
+  'No se pudo abrir el PDF: {error}': 'The PDF could not be opened: {error}',
   // paleta de ecuaciones
   'Paleta de la ecuación': 'Equation palette',
   'Grupos de símbolos': 'Symbol groups',
