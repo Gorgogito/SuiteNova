@@ -70,6 +70,17 @@ export function outerGroupPos(state: EditorState, pos: number): number | null {
   return null;
 }
 
+/**
+ * ¿Está el grupo en `top` elegido, o una de sus hijas elegida sola? Es lo que decide qué hace un clic sobre una hija: con el grupo
+ * ya activo la elige a ella (segundo clic); si no, elige el grupo.
+ */
+export function groupIsActive(state: EditorState, top: number): boolean {
+  const s = state.selection;
+  if (!(s instanceof NodeSelection)) return false;
+  const g = state.doc.nodeAt(top);
+  return !!g && s.from >= top && s.from < top + g.nodeSize;
+}
+
 /** Ctrl/Mayús+clic: añade o quita una forma de la selección. */
 export function toggleShapeSelection(view: EditorView, pos: number): void {
   const cur = selectedShapePositions(view.state);

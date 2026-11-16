@@ -3,7 +3,7 @@ import { parseMath, scaleGroupContent, toMathML } from '@suitenova/writer-core';
 import type { Node as PMNode } from 'prosemirror-model';
 import { NodeSelection, TextSelection, type Transaction } from 'prosemirror-state';
 import type { Decoration, EditorView, NodeView } from 'prosemirror-view';
-import { outerGroupPos, placeCaretFromClick, selectShapeOnly, toggleShapeSelection } from './shape-selection';
+import { groupIsActive, outerGroupPos, placeCaretFromClick, selectShapeOnly, toggleShapeSelection } from './shape-selection';
 import { dragWarpAdjust, warpAdjustHandles, type WordArtFx } from '@suitenova/wordart-core';
 import { renderWordArt, type WordArtSpec } from '../wordart/engine';
 
@@ -271,11 +271,12 @@ export class ShapeView implements NodeView {
     return p === undefined ? null : outerGroupPos(this.view.state, p);
   }
   private setSelected(on0: boolean) {
-    // a shape inside a group has no frame of its own: the group is what gets selected
-    const on = on0 && this.groupPos() === null;
-    this.dom.classList.toggle('is-selected', on);
-    this.selected = on;
+    // a shape inside a group can be picked alone (second click) to restyle it, but it has no frame handles: the group owns its size
+    const inGroup = this.groupPos() !== null;
+    this.dom.classList.toggle('is-selected', on0);
+    this.selected = on0;
     this.renderAdjust();
+    const on = on0 && !inGroup;
     const movable = this.node.attrs.wrap === 'front' || this.node.attrs.wrap === 'behind';
     for (const h of this.handles) h.style.display = on ? 'block' : 'none';
     this.grip.style.display = on && movable ? 'block' : 'none';
@@ -302,7 +303,8 @@ export class ShapeView implements NodeView {
         if (onEdge || t.closest('svg')) {
           e.preventDefault();
           if (target !== pos) e.stopPropagation();
-          selectShapeOnly(this.view, target);
+          // con el grupo ya elegido (o una hija suya), el clic elige a esta hija sola; si no, elige el grupo
+          selectShapeOnly(this.view, target !== pos && groupIsActive(this.view.state, target) ? pos : target);
         }
       }
     });
@@ -321,7 +323,7 @@ export class ShapeView implements NodeView {
       const t = e.target as HTMLElement;
       if (t.dataset?.handle) return;
       const pos = this.getPos();
-      if (pos !== undefined && this.groupPos() === null && (e.target === this.dom || (e.target as HTMLElement).closest('svg')) && !this.host.readOnly()) this.host.openDialog('shape', { pos });
+      if (pos !== undefined && (e.target === this.dom || (e.target as HTMLElement).closest('svg')) && !this.host.readOnly()) this.host.openDialog('shape', { pos });
     });
     const drag = (e: PointerEvent, mode: string) => {
       e.preventDefault();

@@ -2,7 +2,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { NodeSelection, Plugin } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { measure, originOf } from './shape-group-ops';
-import { isFloatingImage, outerGroupPos, selectShapeOnly, toggleShapeSelection } from './shape-selection';
+import { groupIsActive, isFloatingImage, outerGroupPos, selectShapeOnly, toggleShapeSelection } from './shape-selection';
 
 /*
  * Imágenes libres (delante o detrás del texto) y dentro de grupos. Una imagen es un nodo normal de ProseMirror sin vista propia, así
@@ -80,7 +80,7 @@ export function imageObjectsPlugin(): Plugin {
             // dentro de un grupo: el grupo es el objeto
             e.preventDefault();
             if (multi) toggleShapeSelection(view, top);
-            else selectShapeOnly(view, top);
+            else selectShapeOnly(view, groupIsActive(view.state, top) ? hit.pos : top); // segundo clic: la imagen sola
             return true;
           }
           if (!isFloatingImage(hit.node)) return false;

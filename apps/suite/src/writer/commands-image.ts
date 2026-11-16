@@ -57,6 +57,8 @@ export function imageCommands(ui: WriterUI): CommandDef[] {
     ['front', 'Delante del texto', 'front', 'alignJustify'],
     ['behind', 'Detrás del texto', 'behind', 'alignJustify'],
   ];
-  for (const [id, label, wrap, icon] of wraps) defs.push({ id: `writer.image.wrap.${id}`, label, icon, enabled: ready, checked: () => (at().wrap ?? null) === wrap, run: () => { const v = c.mainView; const s = sel(); if (v && s) patchImage(ui, wrapPatch(v, s.pos, wrap)); } });
+  // dentro de un grupo la imagen siempre es libre: su ajuste es el del grupo
+  const inGroup = () => { const s = sel(); const st = c.mainState; return !!s && !!st && st.doc.resolve(s.pos).parent.type.name === 'shape_group'; };
+  for (const [id, label, wrap, icon] of wraps) defs.push({ id: `writer.image.wrap.${id}`, label, icon, enabled: () => ready() && !inGroup(), checked: () => (at().wrap ?? null) === wrap, run: () => { const v = c.mainView; const s = sel(); if (v && s) patchImage(ui, wrapPatch(v, s.pos, wrap)); } });
   return defs;
 }

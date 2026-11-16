@@ -56,6 +56,12 @@ const pick = async (kind) => {
 await editor.click();
 await page.keyboard.type('Texto con formas.');
 
+/** Quita la selección de objetos (cursor al principio del texto): el siguiente clic en una hija elige el grupo, no a la hija. */
+const deselect = async () => {
+  await page.evaluate(() => { const v = window.__novaWriter.ctl.mainView; v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.near(v.state.doc.resolve(1)))); });
+  await page.waitForTimeout(150);
+};
+
 await check('la galería ofrece las 9 categorías del catálogo común', async () => {
   await page.getByRole('tab', { name: 'Insertar', exact: true }).click();
   await page.getByRole('button', { name: 'Formas', exact: true }).click();
@@ -241,7 +247,8 @@ await check('grupos: Ctrl+clic, agrupar sin mover nada, mover/redimensionar/gira
   assert.ok(near(await centres(), before), `agrupar no mueve las formas: ${JSON.stringify(before)} -> ${JSON.stringify(await centres())}`);
   await shot('agrupado');
 
-  // clic en el dibujo de una hija = elegir el grupo; el texto de la caja sigue editable
+  // primer clic en el dibujo de una hija (con otra cosa elegida) = elegir el grupo; el texto de la caja sigue editable
+  await deselect();
   await page.locator('.ProseMirror .nw-shape-group [data-kind="rect"]').click({ position: { x: 3, y: 20 } });
   assert.ok(await page.locator('.ProseMirror .nw-shape-group.is-selected').count(), 'el grupo queda seleccionado');
   await page.locator('.ProseMirror .nw-shape-group [data-kind="textbox"] .nw-shape-text').click();
@@ -322,6 +329,7 @@ await check('grupos: Ctrl+clic, agrupar sin mover nada, mover/redimensionar/gira
 await check('el cuadro Formato de forma de un grupo cambia giro y tamaño, y no ofrece relleno ni contorno', async () => {
   // el grupo de la prueba anterior volvió con el último «deshacer»
   assert.equal(await page.locator('.ProseMirror .nw-shape-group').count(), 1);
+  await deselect();
   await page.locator('.ProseMirror .nw-shape-group [data-kind="rect"]').click({ position: { x: 3, y: 20 } });
   await page.waitForTimeout(200);
   if ((await page.locator('[data-nv-item="writer.shape.format"]').count()) === 0 || !(await page.locator('[data-nv-item="writer.shape.format"]').first().isVisible())) await page.locator('[role=tab]').filter({ hasText: 'Formato de forma' }).click();

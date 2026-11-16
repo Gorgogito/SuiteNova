@@ -91,7 +91,22 @@ export class DocObjects {
   }
 
   // ------------------------------------------------------------------------------------------------ selection of objects
+  /** Una forma de un grupo elegida sola, con el grupo intacto (segundo clic sobre un miembro de un grupo elegido). */
+  childMode = false;
+
+  /** Elige una sola forma de un grupo sin deshacer el grupo: se puede dar formato, mover, girar o cambiar de tamaño solo a ella. */
+  selectChild(id: string): void {
+    this.selectedImage = null;
+    this.selectedSlicer = null;
+    this.selectedShape = id;
+    this.multiShapes = [];
+    this.childMode = true;
+    this.d.selectedChart = null;
+    this.d.touch();
+  }
+
   selectObject(kind: ObjectKind | null, id: string | null): void {
+    this.childMode = false;
     this.selectedImage = kind === 'image' ? id : null;
     this.selectedShape = kind === 'shape' ? id : null;
     // un grupo se selecciona entero
@@ -119,6 +134,7 @@ export class DocObjects {
 
   /** Elige varias formas a la vez (con sus grupos); `add` las suma a las ya elegidas. Una lista vacía sin `add` deselecciona. */
   selectShapes(ids: string[], add = false): void {
+    this.childMode = false;
     const wanted = withGroupMates(this.sheet.shapes, ids);
     const next = add ? [...this.selectedShapes, ...wanted.filter((i) => !this.selectedShapes.includes(i))] : wanted;
     this.selectedImage = null;
@@ -131,6 +147,7 @@ export class DocObjects {
 
   /** Ctrl/Mayús+clic: añade o quita una forma (con su grupo) de la selección. */
   toggleShapeSelection(id: string): void {
+    this.childMode = false;
     const current = this.selectedShapes;
     const target = withGroupMates(this.sheet.shapes, [id]);
     const allIn = target.every((t) => current.includes(t));

@@ -35,6 +35,7 @@ export function ImageFormatDialog({ ui, onClose }: { ui: WriterUI; onClose: () =
   const [border, setBorder] = useState<{ color: string; width: number } | null>(a.border ?? null);
   const [wrap, setWrap] = useState<string>(a.wrap ?? 'inline');
   if (!sel) return null;
+  const inGroup = ui.ctl.mainState?.doc.resolve(sel.pos).parent.type.name === 'shape_group';
 
   const ratio = w0 / h0;
   const setSize = (which: 'w' | 'h', v: string) => {
@@ -86,7 +87,7 @@ export function ImageFormatDialog({ ui, onClose }: { ui: WriterUI; onClose: () =
       flipV,
       border: border ? { color: border.color, width: Math.min(20, Math.max(0.25, border.width)) } : null,
       // solo el ajuste y la posición: el tamaño es el que se acaba de elegir en el cuadro
-      ...(({ wrap: wr, x, y }) => ({ wrap: wr, x, y }))(wrapPatch(ui.ctl.mainView!, sel.pos, wrap === 'inline' ? null : (wrap as 'left' | 'right' | 'top' | 'front' | 'behind')) as { wrap: unknown; x: unknown; y: unknown }),
+      ...(inGroup ? {} : (({ wrap: wr, x, y }) => ({ wrap: wr, x, y }))(wrapPatch(ui.ctl.mainView!, sel.pos, wrap === 'inline' ? null : (wrap as 'left' | 'right' | 'top' | 'front' | 'behind')) as { wrap: unknown; x: unknown; y: unknown })),
     });
     onClose();
     focusDocSoon(ui);
@@ -150,7 +151,7 @@ export function ImageFormatDialog({ ui, onClose }: { ui: WriterUI; onClose: () =
         </div>
         <div style={field}>
           <label htmlFor="img-wrap">{t('Ajuste del texto')}</label>
-          <Select id="img-wrap" value={wrap} onChange={(_e, v) => setWrap(v.value)}>
+          <Select id="img-wrap" value={wrap} disabled={inGroup} onChange={(_e, v) => setWrap(v.value)}>
             <option value="inline">{t('En línea con el texto')}</option>
             <option value="left">{t('A la izquierda, texto alrededor')}</option>
             <option value="right">{t('A la derecha, texto alrededor')}</option>

@@ -90,6 +90,7 @@ const cmd = async (name) => {
   await page.locator(`[data-nv-item="${name}"]`).click();
   await page.waitForTimeout(350);
 };
+const selectGroup = () => page.evaluate(() => { const v = window.__novaWriter.ctl.mainView; let p = null; v.state.doc.descendants((n, pos) => { if (n.type.name === 'shape_group' && p === null) p = pos; }); const NS = v.state.selection.constructor; v.dispatch(v.state.tr.setSelection(NS.create(v.state.doc, p))); });
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b}`);
 
 await check('Delante del texto: la imagen en línea pasa a libre sin moverse en pantalla, y se arrastra', async () => {
@@ -145,7 +146,9 @@ await check('Agrupar una imagen libre con una forma: el grupo la contiene y nada
   near(rectAfter.l, rectBefore.l, 3, 'la forma no se movió (x)');
   near(rectAfter.t, rectBefore.t, 3, 'la forma no se movió (y)');
   await shot('agrupado');
-  // un clic en la imagen del grupo elige el grupo
+  // con otra cosa elegida, un clic en la imagen del grupo elige el grupo entero
+  await page.evaluate(() => { const v = window.__novaWriter.ctl.mainView; v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.near(v.state.doc.resolve(2)))); });
+  await page.waitForTimeout(150);
   const now = await imgRect();
   await page.mouse.click(now.ox + now.l + now.w / 2, now.oy + now.t + now.h / 2);
   await page.waitForTimeout(250);
@@ -154,6 +157,8 @@ await check('Agrupar una imagen libre con una forma: el grupo la contiene y nada
 });
 
 await check('el grupo con imagen cambia de tamaño y gira: la imagen sigue; sobrevive al .docx; desagrupar la devuelve libre', async () => {
+  await selectGroup();
+  await page.waitForTimeout(200);
   const g0 = (await tree())[0];
   const i0 = (await imgInfo())[0];
   // asa sureste del grupo: el doble de ancho
@@ -193,6 +198,63 @@ await check('el grupo con imagen cambia de tamaño y gira: la imagen sigue; sobr
   const imgAfter = await imgRect();
   near(imgAfter.l, imgBefore.l, 3, 'la imagen no se movió al desagrupar (x)');
   near(imgAfter.t, imgBefore.t, 3, 'la imagen no se movió al desagrupar (y)');
+});
+
+await check('editar una hija sin desagrupar: segundo clic la elige sola, el formato solo la toca a ella y el grupo sigue', async () => {
+  await reset(false);
+  await page.locator('.ProseMirror img.nw-image').click();
+  await page.locator('.ProseMirror .nw-shape').click({ position: { x: 30, y: 20 }, modifiers: ['Control'] });
+  await cmd('writer.shape.group');
+  assert.equal((await tree()).length, 1);
+  const selNode = () => page.evaluate(() => { const s = window.__novaWriter.ctl.mainView.state.selection; return s.node ? s.node.type.name : null; });
+  const selInGroup = () => page.evaluate(() => { const v = window.__novaWriter.ctl.mainView; const s = v.state.selection; return !!s.node && v.state.doc.resolve(s.from).parent.type.name === 'shape_group'; });
+  // tras agrupar el grupo está elegido: un clic en la forma hija la elige a ella sola
+  await page.locator('.ProseMirror .nw-shape-group .nw-shape').click({ position: { x: 3, y: 20 } });
+  await page.waitForTimeout(250);
+  assert.equal(await selNode(), 'shape');
+  assert.equal(await selInGroup(), true, 'la hija sigue dentro del grupo');
+  assert.equal(await page.locator('.ProseMirror .nw-shape-group .nw-shape.is-selected [data-handle]:visible').count(), 0, 'sin asas de tamaño: el grupo manda');
+  await shot('hija-elegida');
+  // formato de la hija: no ofrece tamaño, giro ni ajuste; cambia solo su relleno
+  await cmd('writer.shape.format');
+  const dlg = page.getByRole('dialog');
+  await dlg.waitFor();
+  assert.equal(await dlg.getByLabel('Ancho (px)').count(), 0, 'sin ancho');
+  assert.equal(await dlg.getByLabel('Rotación (grados)').count(), 0, 'sin giro');
+  await dlg.getByLabel('Relleno', { exact: true }).fill('#ff0000');
+  await dlg.getByRole('button', { name: 'Aceptar' }).click();
+  await page.waitForTimeout(300);
+  const info = await page.evaluate(() => {
+    const out = { kids: [], groups: 0 };
+    window.__novaWriter.ctl.mainView.state.doc.descendants((n) => {
+      if (n.type.name === 'shape_group') {
+        out.groups++;
+        n.forEach((c) => out.kids.push({ type: c.type.name, fill: c.attrs.fill }));
+      }
+    });
+    return out;
+  });
+  assert.equal(info.groups, 1, 'el grupo sigue');
+  assert.equal(info.kids.find((k) => k.type === 'shape').fill, '#ff0000');
+  assert.equal(info.kids.length, 2);
+  // un clic en la imagen del grupo (grupo activo) elige la imagen sola
+  const ir = await imgRect();
+  await page.mouse.click(ir.ox + ir.l + ir.w / 2, ir.oy + ir.t + ir.h / 2);
+  await page.waitForTimeout(250);
+  assert.equal(await selNode(), 'image');
+  assert.equal(await selInGroup(), true);
+  // «Ajuste del texto» no se ofrece dentro de un grupo
+  await page.locator('[role=tab]').filter({ hasText: 'Formato de imagen' }).click();
+  await page.getByRole('button', { name: 'Ajuste del texto', exact: true }).click();
+  assert.equal(await page.getByRole('menuitem', { name: 'Delante del texto' }).isDisabled(), true);
+  await page.keyboard.press('Escape');
+  // con otra cosa elegida, un clic en la imagen elige el grupo entero (primer clic)
+  await page.evaluate(() => { const v = window.__novaWriter.ctl.mainView; v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.near(v.state.doc.resolve(2)))); });
+  await page.waitForTimeout(150);
+  const ir2 = await imgRect();
+  await page.mouse.click(ir2.ox + ir2.l + ir2.w / 2, ir2.oy + ir2.t + ir2.h / 2);
+  await page.waitForTimeout(250);
+  assert.equal(await selNode(), 'shape_group');
 });
 
 await check('Seleccionar objetos: el recuadro elige también las imágenes libres', async () => {

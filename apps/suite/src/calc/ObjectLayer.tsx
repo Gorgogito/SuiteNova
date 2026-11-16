@@ -399,7 +399,7 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
     zoom,
     { w: 8, h: 8 },
     (id, r, label) => doc.x.updateShape(id, r, label === 'Mover' ? 'Mover forma' : 'Cambiar tamaño de la forma'),
-    (id) => doc.x.selectObject('shape', id),
+    (id) => (doc.x.childMode && doc.sheet.shapes.find((x) => x.id === id)?.group ? doc.x.selectChild(id) : doc.x.selectObject('shape', id)),
   );
   const [gPrev, setGPrev] = useState<ShapePatch[] | null>(null);
   const sel = doc.x.selectedShapes;
@@ -414,7 +414,7 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
     return n;
   };
   /** Mover, cambiar de tamaño o girar como un bloque las formas seleccionadas (un grupo o una selección múltiple). */
-  const startGroup = (e: React.PointerEvent, mode: Handle | 'move' | 'rotate') => {
+  const startGroup = (e: React.PointerEvent, mode: Handle | 'move' | 'rotate', onClick?: () => void) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     doc.commitIfEditing();
@@ -459,6 +459,7 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
       window.removeEventListener('pointerup', up);
       setGPrev(null);
       if (moved) doc.x.updateShapes(latest, mode === 'move' ? 'Mover formas' : mode === 'rotate' ? 'Girar formas' : 'Cambiar tamaño de las formas');
+      else onClick?.();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -500,8 +501,17 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
                 doc.x.toggleShapeSelection(s.id);
                 return;
               }
-              if (m === 'move' && (s.group || (multi && sel.includes(s.id)))) {
+              const here = s.group ? shapes.find((x) => x.id === doc.x.selectedShape)?.group : undefined;
+              // con una hija elegida sola, un clic en otra del mismo grupo elige a esa
+              if (doc.x.childMode && s.group && here === s.group && doc.x.selectedShape !== s.id) doc.x.selectChild(s.id);
+              if (m === 'move' && s.group && !(doc.x.childMode && doc.x.selectedShape === s.id) && !(doc.x.childMode && here === s.group)) {
+                // el grupo ya elegido entero: un clic sin arrastrar elige solo a la hija que se pulsó
+                const wholeGroup = sel.length > 1 && sel.includes(s.id) && sel.every((i) => shapes.find((x) => x.id === i)?.group === s.group);
                 if (!sel.includes(s.id)) doc.x.selectObject('shape', s.id);
+                startGroup(e, 'move', wholeGroup ? () => doc.x.selectChild(s.id) : undefined);
+                return;
+              }
+              if (m === 'move' && !s.group && multi && sel.includes(s.id)) {
                 startGroup(e, 'move');
                 return;
               }

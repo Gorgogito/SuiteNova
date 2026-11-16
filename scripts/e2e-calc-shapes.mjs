@@ -293,11 +293,74 @@ await check('grupos: Ctrl+clic, agrupar, mover/redimensionar/girar como bloque, 
   await page.locator(`[data-shape-id="${b}"]`).click({ position: { x: 40, y: 40 }, modifiers: ['Control'] });
   await cmd('calc.shape.group');
   const n0 = (await shapes()).length;
+  // el grupo acaba de elegirse: se vacía la selección para que el clic elija el grupo y no a la hija (segundo clic)
+  await ev(() => window.__novaCalc.doc.x.selectObject(null, null));
   await page.locator(`[data-shape-id="${a}"]`).click({ position: { x: 20, y: 20 } });
   assert.equal(await sel(), 2, 'el grupo se selecciona entero');
   await page.keyboard.press('Delete');
   await page.waitForTimeout(300);
   assert.equal((await shapes()).length, n0 - 2);
+});
+
+await check('editar una hija sin desagrupar: segundo clic la elige sola; formato, mover y borrar la tocan solo a ella', async () => {
+  const [a, b] = await ev(() => {
+    const d = window.__novaCalc.doc;
+    d.wb.editObjects(d.activeSheetId, (sh) => void (sh.shapes = []));
+    const ids = [d.x.insertShape('rect'), d.x.insertShape('ellipse')];
+    d.x.updateShape(ids[0], { x: 600, y: 300, width: 100, height: 60 });
+    d.x.updateShape(ids[1], { x: 780, y: 380, width: 80, height: 80 });
+    d.x.selectShapes(ids);
+    d.x.groupSelectedShapes();
+    d.x.selectObject(null, null);
+    return ids;
+  });
+  await page.waitForTimeout(300);
+  const get = async () => {
+    const all = await shapes();
+    return [all.find((x) => x.id === a), all.find((x) => x.id === b)];
+  };
+  const state = () => ev(() => ({ n: window.__novaCalc.doc.x.selectedShapes.length, child: window.__novaCalc.doc.x.childMode }));
+  const click = (id) => page.locator(`[data-shape-id="${id}"]`).click({ position: { x: 20, y: 20 } });
+  await click(a);
+  assert.deepEqual(await state(), { n: 2, child: false }, 'el primer clic elige el grupo');
+  await click(a);
+  assert.deepEqual(await state(), { n: 1, child: true }, 'el segundo clic elige solo la hija');
+  let [A, B] = await get();
+  assert.ok(A.group && A.group === B.group, 'el grupo sigue intacto');
+  await shot('hija-elegida');
+  // formato: relleno solo de la hija
+  await page.locator('[data-nv-item="calc.shape.format"]').click();
+  await page.getByLabel('Color de relleno').fill('#ff0000');
+  await page.getByRole('button', { name: 'Aceptar' }).click();
+  await page.waitForTimeout(300);
+  [A, B] = await get();
+  assert.equal(A.fill, '#ff0000');
+  assert.notEqual(B.fill, '#ff0000', 'la otra no cambia');
+  assert.ok(A.group && A.group === B.group, 'el grupo sigue intacto tras el formato');
+  // mover solo la hija
+  const bb = await page.locator(`[data-shape-id="${a}"]`).boundingBox();
+  await page.mouse.move(bb.x + 20, bb.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(bb.x + 40, bb.y + 30, { steps: 4 });
+  await page.mouse.move(bb.x + 60, bb.y + 40, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const [A2, B2] = await get();
+  assert.equal(A2.x - A.x, 40);
+  assert.equal(A2.y - A.y, 20);
+  assert.equal(B2.x, B.x, 'la otra no se movió');
+  assert.deepEqual(await state(), { n: 1, child: true });
+  // un clic en la otra hija la elige a ella (sigue en este modo)
+  await click(b);
+  assert.deepEqual(await state(), { n: 1, child: true });
+  assert.equal(await ev(() => window.__novaCalc.doc.x.selectedShape), b);
+  // Supr borra solo esa hija
+  await page.keyboard.press('Delete');
+  await page.waitForTimeout(300);
+  assert.equal((await shapes()).length, 1);
+  // un clic en el vacío y un clic en la que queda vuelven a elegirla normalmente
+  await ev(() => window.__novaCalc.doc.x.selectObject(null, null));
+  assert.deepEqual(await state(), { n: 0, child: false });
 });
 
 await check('Seleccionar objetos: recuadro elige las formas que quedan dentro, Ctrl suma, un clic vacío deselecciona, Esc sale', async () => {

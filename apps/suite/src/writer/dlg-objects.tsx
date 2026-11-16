@@ -2,6 +2,7 @@ import { Button, Checkbox, Input, Select } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
 import { nodeTypes, parseMath, scaleGroupContent, toMathML } from '@suitenova/writer-core';
 import { NodeSelection } from 'prosemirror-state';
+import { outerGroupPos } from './shape-selection';
 import { useMemo, useRef, useState } from 'react';
 import type { WriterUI } from './commands';
 import { Modal, field, focusDocSoon } from './dialogs';
@@ -155,6 +156,8 @@ export function ShapeDialog({ ui, pos, onClose }: { ui: WriterUI; pos: number; o
   const ctl = ui.ctl;
   const node = ctl.mainView?.state.doc.nodeAt(pos);
   const isGroup = node?.type.name === 'shape_group';
+  // una hija de un grupo solo cambia de aspecto: su sitio, tamaño y giro son los del grupo
+  const inGroup = !!node && !!ctl.mainView && outerGroupPos(ctl.mainView.state, pos) !== null;
   const a = node?.type.name === 'shape' || isGroup ? node!.attrs : null;
   const [fill, setFill] = useState<string>(a?.fill ?? '#ffffff');
   const [noFill, setNoFill] = useState(a?.kind === 'textbox' && a.fill === '#ffffff');
@@ -185,6 +188,9 @@ export function ShapeDialog({ ui, pos, onClose }: { ui: WriterUI; pos: number; o
                 const tr = v.state.tr.replaceWith(pos, pos + node.nodeSize, next);
                 tr.setSelection(NodeSelection.create(tr.doc, pos)).setMeta('nw-no-track', true);
                 v.dispatch(tr);
+              } else if (v && inGroup) {
+                const tr = v.state.tr.setNodeMarkup(pos, undefined, { ...a, fill: noFill ? '#ffffff' : fill, stroke, strokeWidth: sw, alt }).setMeta('nw-no-track', true);
+                v.dispatch(tr.setSelection(NodeSelection.create(tr.doc, pos)));
               } else if (v) v.dispatch(v.state.tr.setNodeMarkup(pos, undefined, { ...a, fill: noFill ? '#ffffff' : fill, stroke, strokeWidth: sw, width: w, height: h, rotation: rot, wrap, alt }).setMeta('nw-no-track', true));
               onClose();
               focusDocSoon(ui);
@@ -215,10 +221,14 @@ export function ShapeDialog({ ui, pos, onClose }: { ui: WriterUI; pos: number; o
           <Input id="nw-sh-sw" type="number" min={0} max={20} value={String(sw)} onChange={(_e, d) => setSw(Math.max(0, Number(d.value) || 0))} />
         </div>
         )}
+        {!inGroup && (
         <div style={field}>
           <label htmlFor="nw-sh-rot">{t('Rotación (grados)')}</label>
           <Input id="nw-sh-rot" type="number" value={String(rot)} onChange={(_e, d) => setRot(Number(d.value) || 0)} />
         </div>
+        )}
+        {!inGroup && (
+        <>
         <div style={field}>
           <label htmlFor="nw-sh-w">{t('Ancho (px)')}</label>
           <Input id="nw-sh-w" type="number" min={8} value={String(w)} onChange={(_e, d) => setW(Number(d.value) || 8)} />
@@ -227,7 +237,10 @@ export function ShapeDialog({ ui, pos, onClose }: { ui: WriterUI; pos: number; o
           <label htmlFor="nw-sh-h">{t('Alto (px)')}</label>
           <Input id="nw-sh-h" type="number" min={8} value={String(h)} onChange={(_e, d) => setH(Number(d.value) || 8)} />
         </div>
+        </>
+        )}
       </div>
+      {!inGroup && (
       <div style={field}>
         <label htmlFor="nw-sh-wrap">{t('Ajuste del texto')}</label>
         <Select id="nw-sh-wrap" value={wrap} onChange={(_e, d) => setWrap(d.value)}>
@@ -239,6 +252,7 @@ export function ShapeDialog({ ui, pos, onClose }: { ui: WriterUI; pos: number; o
           <option value="behind">{t('Detrás del texto')}</option>
         </Select>
       </div>
+      )}
       <div style={field}>
         <label htmlFor="nw-sh-alt">{t('Texto alternativo')}</label>
         <Input id="nw-sh-alt" value={alt} onChange={(_e, d) => setAlt(d.value)} />
