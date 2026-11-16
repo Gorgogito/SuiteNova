@@ -529,6 +529,9 @@ importers:
       '@suitenova/shapes-core':
         specifier: workspace:*
         version: link:../shapes-core
+      '@suitenova/wordart-core':
+        specifier: workspace:*
+        version: link:../wordart-core
       fast-xml-parser:
         specifier: ^5.2.0
         version: 5.11.2

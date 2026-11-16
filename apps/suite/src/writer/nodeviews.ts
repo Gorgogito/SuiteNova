@@ -4,6 +4,10 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { NodeSelection, TextSelection, type Transaction } from 'prosemirror-state';
 import type { Decoration, EditorView, NodeView } from 'prosemirror-view';
 import { outerGroupPos, placeCaretFromClick, selectShapeOnly, toggleShapeSelection } from './shape-selection';
+import type { WordArtFx } from '@suitenova/wordart-core';
+import { renderWordArt, type WordArtSpec } from '../wordart/engine';
+
+let waCounter = 0;
 
 /** `setNodeMarkup` turns a node selection into a text selection; the gestures that change a shape in several steps keep it selected. */
 function keepNodeSelected(tr: Transaction, pos: number): Transaction {
@@ -81,6 +85,10 @@ export class ShapeView implements NodeView {
   contentDOM: HTMLElement;
   private svg: SVGSVGElement;
   private paths: SVGGElement;
+  private warpSvg: SVGSVGElement;
+  private waKey = '';
+  private waToken = 0;
+  private waSeq = 0;
   private handles: HTMLElement[] = [];
   private adjEls: HTMLElement[] = [];
   private selected = false;
@@ -94,6 +102,11 @@ export class ShapeView implements NodeView {
     this.paths = document.createElementNS(SVG_NS, 'g');
     this.svg.appendChild(this.paths);
     this.dom.appendChild(this.svg);
+    this.warpSvg = document.createElementNS(SVG_NS, 'svg');
+    this.warpSvg.setAttribute('class', 'nw-wordart');
+    this.warpSvg.setAttribute('contenteditable', 'false');
+    this.warpSvg.setAttribute('aria-hidden', 'true');
+    this.dom.appendChild(this.warpSvg);
     this.contentDOM = document.createElement('div');
     this.contentDOM.className = 'nw-shape-text';
     this.dom.appendChild(this.contentDOM);
@@ -127,7 +140,62 @@ export class ShapeView implements NodeView {
     const invisible = resolveKind(a.kind) === 'textbox' && a.strokeWidth === 0 && a.fill === '#ffffff';
     this.paths.innerHTML = shapeSvg(a.kind, a.width, a.height, { fill: invisible ? null : a.fill, stroke: a.strokeWidth > 0 ? a.stroke : null, strokeWidth: a.strokeWidth, adj: a.adj ?? undefined });
     this.dom.title = a.alt || '';
+    this.updateWordArt();
     this.renderAdjust();
+  }
+  /** The WordArt of the shape: its text drawn with the style and the transform, over the (hidden) plain text. */
+  private updateWordArt() {
+    const a = this.node.attrs;
+    const wa = a.wordart as { fx: WordArtFx; warp: { prst: string; adj?: Record<string, number> } | null } | null;
+    const off = () => {
+      this.dom.removeAttribute('data-wordart');
+      this.warpSvg.innerHTML = '';
+      this.waKey = '';
+    };
+    if (!wa) return off();
+    const lines: string[] = [];
+    const first: { family?: string; size?: number; bold: boolean; italic: boolean; set: boolean } = { bold: false, italic: false, set: false };
+    let align: 'left' | 'center' | 'right' = 'center';
+    this.node.forEach((par, _o, i) => {
+      lines.push(par.textContent);
+      if (i === 0 && (par.attrs.align === 'left' || par.attrs.align === 'right' || par.attrs.align === 'center')) align = par.attrs.align;
+      if (!first.set) {
+        par.forEach((c) => {
+          if (first.set || !c.isText) return;
+          for (const m of c.marks) {
+            if (m.type.name === 'fontFamily') first.family = String(m.attrs.value);
+            else if (m.type.name === 'fontSize') first.size = Number(m.attrs.value);
+            else if (m.type.name === 'strong') first.bold = true;
+            else if (m.type.name === 'em') first.italic = true;
+          }
+          first.set = true;
+        });
+      }
+    });
+    const spec: WordArtSpec = {
+      text: lines.join('\n'),
+      family: first.family ?? 'Calibri',
+      bold: first.bold,
+      italic: first.italic,
+      sizePx: ((first.size ?? 36) * 96) / 72,
+      align,
+      fx: wa.fx,
+      warp: wa.warp,
+      width: a.width,
+      height: a.height,
+      id: `nwa${(this.waSeq = this.waSeq || ++waCounter)}`,
+    };
+    const key = JSON.stringify(spec);
+    if (key === this.waKey) return;
+    this.waKey = key;
+    const token = ++this.waToken;
+    void renderWordArt(spec).then((svg) => {
+      if (token !== this.waToken) return;
+      if (svg === null) return off();
+      this.warpSvg.setAttribute('viewBox', `0 0 ${spec.width} ${spec.height}`);
+      this.warpSvg.innerHTML = svg;
+      this.dom.setAttribute('data-wordart', '1');
+    });
   }
   /** The yellow adjust handles of the selected shape (only the shapes of the catalog that have them). */
   private renderAdjust() {

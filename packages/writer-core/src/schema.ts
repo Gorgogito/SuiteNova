@@ -361,6 +361,8 @@ const nodes: Record<string, NodeSpec> = {
       rotation: { default: 0 },
       /** Valores de ajuste (los tiradores amarillos) como en `a:avLst`; null = los de la forma por omisión. */
       adj: { default: null },
+      /** WordArt: estilo del texto (`fx`, modelo de `wordart-core`) y transformación (`warp`: `prst` y ajustes); null = texto normal. */
+      wordart: { default: null },
       /** inline | left | right | front | behind | topBottom */
       wrap: { default: 'inline' },
       /** Offset (px) from the paragraph's top-left for front/behind shapes. */

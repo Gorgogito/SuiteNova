@@ -240,6 +240,61 @@ describe('DOCX: ecuaciones, formas y controles de contenido', () => {
     expect(n).toBe(1);
   });
 
+  it('WordArt: la transformación y el estilo del texto (w14) sobreviven al .docx', async () => {
+    const fx = {
+      fill: { type: 'gradient', angle: 90, stops: [{ pos: 0, color: '#9dc3e6', alpha: 1 }, { pos: 1, color: '#2f5597', alpha: 1 }] },
+      outline: { color: '#203864', alpha: 1, width: 1.25 },
+      shadow: { color: '#000000', alpha: 0.4, blur: 4, dx: 3, dy: 3 },
+      glow: { color: '#4472c4', alpha: 0.6, radius: 9 },
+      reflection: { alpha: 0.5, size: 0.35, gap: 0 },
+    };
+    const art = nodeTypes.shape!.create(
+      { kind: 'textbox', width: 400, height: 140, fill: '#ffffff', stroke: '#000000', strokeWidth: 0, wrap: 'front', x: 10, y: 20, wordart: { fx, warp: { prst: 'textArchUp', adj: { adj: 9000000 } } } },
+      [p([t('Hola WordArt', [mk('fontSize', { value: 54 }), mk('strong')])])],
+    );
+    const plain = nodeTypes.shape!.create({ kind: 'textbox', width: 100, height: 40, fill: '#ffffff', stroke: '#000000', strokeWidth: 1, wrap: 'front', x: 0, y: 0 }, [p('normal')]);
+    const { blocks, zip } = await rt(wd([p([t('a'), art, plain])]));
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('<a:prstTxWarp prst="textArchUp"><a:avLst><a:gd name="adj" fmla="val 9000000"/></a:avLst></a:prstTxWarp>');
+    // el estilo va al final del rPr de la letra, en el orden del esquema
+    const rpr = /<w:rPr>(?:(?!<\/w:rPr>).)*<w14:textFill>(?:(?!<\/w:rPr>).)*<\/w:rPr>/.exec(xml)![0];
+    expect(rpr.indexOf('<w:sz')).toBeGreaterThanOrEqual(0);
+    expect(rpr.indexOf('<w:sz')).toBeLessThan(rpr.indexOf('<w14:glow'));
+    for (const [a, b] of [['<w14:glow', '<w14:shadow'], ['<w14:shadow', '<w14:reflection'], ['<w14:reflection', '<w14:textOutline'], ['<w14:textOutline', '<w14:textFill']]) expect(rpr.indexOf(a!)).toBeLessThan(rpr.indexOf(b!));
+    // un cuadro normal no lleva nada de eso
+    expect((xml.match(/<a:prstTxWarp/g) ?? []).length).toBe(1);
+    const shapes: PMNode[] = [];
+    blocks[0]!.forEach((c) => c.type.name === 'shape' && shapes.push(c));
+    const w = shapes[0]!.attrs.wordart;
+    expect(w.warp).toEqual({ prst: 'textArchUp', adj: { adj: 9000000 } });
+    expect(w.fx.fill.type).toBe('gradient');
+    expect(w.fx.fill.stops.map((s: { color: string }) => s.color)).toEqual(['#9dc3e6', '#2f5597']);
+    expect(w.fx.fill.angle).toBe(90);
+    expect(w.fx.outline.color).toBe('#203864');
+    expect(w.fx.outline.width).toBeCloseTo(1.25, 3);
+    expect(w.fx.shadow).toMatchObject({ color: '#000000', blur: 4 });
+    expect(w.fx.shadow.alpha).toBeCloseTo(0.4, 5);
+    expect(w.fx.shadow.dx).toBeCloseTo(3, 1);
+    expect(w.fx.shadow.dy).toBeCloseTo(3, 1);
+    expect(w.fx.glow).toMatchObject({ color: '#4472c4', radius: 9 });
+    expect(w.fx.reflection.size).toBeCloseTo(0.35, 5);
+    expect(shapes[0]!.textContent).toBe('Hola WordArt');
+    expect(shapes[1]!.attrs.wordart).toBeNull();
+  });
+
+  it('WordArt sin transformación (solo estilo) y relleno liso', async () => {
+    const art = nodeTypes.shape!.create({ kind: 'textbox', width: 300, height: 80, fill: '#ffffff', stroke: '#000000', strokeWidth: 0, wrap: 'front', wordart: { fx: { fill: { type: 'solid', color: '#c00000', alpha: 1 } }, warp: null } }, [p('Rojo')]);
+    const { blocks, zip } = await rt(wd([p([t('a'), art])]));
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).not.toContain('prstTxWarp');
+    expect(xml).toContain('<w14:textFill><w14:solidFill><w14:srgbClr w14:val="C00000"/></w14:solidFill></w14:textFill>');
+    let got: PMNode | null = null;
+    blocks[0]!.forEach((c) => c.type.name === 'shape' && (got = c));
+    const w = (got as unknown as PMNode).attrs.wordart;
+    expect(w.warp).toBeNull();
+    expect(w.fx.fill).toMatchObject({ type: 'solid', color: '#c00000' });
+  });
+
   it('los valores de ajuste de una forma (tiradores amarillos) sobreviven al .docx', async () => {
     const base = { width: 100, height: 60, fill: '#ffffff', stroke: '#000000', strokeWidth: 1 };
     const a = nodeTypes.shape!.create({ ...base, kind: 'roundRect', adj: { adj: 40000 } }, []);

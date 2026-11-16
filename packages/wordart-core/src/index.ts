@@ -6,3 +6,4 @@ export * from './warp';
 export * from './fonts';
 export * from './render';
 export * from './catalog';
+export * from './docx';

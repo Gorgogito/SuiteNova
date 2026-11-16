@@ -9,6 +9,8 @@ import type { Command } from 'prosemirror-state';
 import { isInTable, setCellAttr } from 'prosemirror-tables';
 import { helpTab, viewTab } from '../common';
 import { ShapeGallery } from '../shapes/ShapeGallery';
+import { WarpGallery, WordArtStyleGallery } from '../wordart/WordArtUi';
+import { applyWordArtStyle, applyWordArtWarp, insertWordArt, wordArtTarget } from './commands-wordart';
 import { insertShapeKind } from './commands-objects';
 import { FONT_NAMES, FONT_SIZES, type WriterUI } from './commands';
 import { markAttr, selectionParagraph, setMark, setStyle } from './editing';
@@ -461,6 +463,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         label: 'Texto',
         icon: 'hash',
         items: [
+          { kind: 'custom', id: 'wordartGallery', label: 'WordArt', keytip: 'WA', render: () => <WordArtStyleGallery label="WordArt" size="small" onPick={(id) => insertWordArt(ui, id)} /> },
           { kind: 'button', command: 'writer.symbol', size: 'small', keytip: 'SY' },
           { kind: 'button', command: 'writer.field.page', size: 'small', keytip: 'FP' },
           { kind: 'button', command: 'writer.field.pages', size: 'small', keytip: 'FT' },
@@ -900,6 +903,17 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     contextual: { label: 'Herramientas de dibujo', color: '#0f766e', visible: flags.shape },
     groups: [
       { id: 'shapeFormat', label: 'Estilos de forma', icon: 'settings', items: [{ kind: 'button', command: 'writer.shape.format', size: 'large', keytip: 'FO' }] },
+      {
+        id: 'wordartStyles',
+        label: 'Estilos de WordArt',
+        icon: 'wordart',
+        items: [
+          { kind: 'custom', id: 'wordartStyleGallery', label: 'Estilos', keytip: 'EW', render: () => <WordArtStyleGallery label="Estilos" onPick={(id) => applyWordArtStyle(ui, id)} /> },
+          { kind: 'custom', id: 'wordartWarpGallery', label: 'Transformar', keytip: 'TF', render: () => <WarpGallery label="Transformar" current={(wordArtTarget(ui.ctl.mainState)?.node.attrs.wordart as { warp?: { prst: string } | null } | null)?.warp?.prst ?? null} onPick={(prst) => applyWordArtWarp(ui, prst)} /> },
+          { kind: 'button', command: 'writer.wordart.format', size: 'small', keytip: 'WF' },
+          { kind: 'button', command: 'writer.wordart.clear', size: 'small', keytip: 'WQ' },
+        ],
+      },
       { id: 'shapeArrange', label: 'Organizar', icon: 'shapes', items: [{ kind: 'button', command: 'writer.shape.group', size: 'small', keytip: 'AG' }, { kind: 'button', command: 'writer.shape.ungroup', size: 'small', keytip: 'DG' }] },
     ],
   };

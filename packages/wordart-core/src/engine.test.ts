@@ -98,3 +98,51 @@ describe.skipIf(!fs.existsSync(CALIBRI))('fuente real (Calibri Negrita)', () => 
     }
   });
 });
+
+import { emuToPx, parseCssColor, placeText, prstTxWarpXml, w14Fx } from './index';
+
+describe('colocar texto sin deformar', () => {
+  it('centra en vertical y alinea en horizontal', () => {
+    const b = layoutText('ab', box, { size: 100 });
+    const c = boundsOf(placeText(b, 400, 300, 'center'));
+    const l = boundsOf(placeText(b, 400, 300, 'left'));
+    const r = boundsOf(placeText(b, 400, 300, 'right'));
+    expect(l.x).toBeLessThan(c.x);
+    expect(c.x).toBeLessThan(r.x);
+    expect(r.x + r.width).toBeLessThanOrEqual(400);
+    expect(c.y + c.height / 2).toBeGreaterThan(100);
+    expect(c.y + c.height / 2).toBeLessThan(200);
+  });
+});
+
+describe('marcado de Word (w14)', () => {
+  it('lee colores css con opacidad', () => {
+    expect(parseCssColor('#4472c4')).toEqual({ hex: '4472C4', alpha: 1 });
+    expect(parseCssColor('#f0a')).toEqual({ hex: 'FF00AA', alpha: 1 });
+    expect(parseCssColor('rgba(255, 0, 0, 0.5)')).toEqual({ hex: 'FF0000', alpha: 0.5 });
+    expect(parseCssColor('rgb(0 128 255)').hex).toBe('0080FF');
+  });
+  it('escribe relleno, contorno, sombra, resplandor y reflejo en el orden del esquema', () => {
+    const x = w14Fx({
+      fill: { type: 'gradient', angle: 90, stops: [{ pos: 0, color: '#ffffff' }, { pos: 1, color: '#4472c4' }] },
+      outline: { color: '#203864', width: 1 },
+      shadow: { color: '#000000', alpha: 0.4, blur: 4, dx: 3, dy: 3 },
+      glow: { color: '#4472c4', alpha: 0.6, radius: 9 },
+      reflection: { alpha: 0.5, size: 0.35, gap: 0 },
+    });
+    const order = ['<w14:glow', '<w14:shadow', '<w14:reflection', '<w14:textOutline', '<w14:textFill'].map((t) => x.indexOf(t));
+    expect(order.every((n) => n >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(x).toContain('w14:w="9525"');
+    expect(x).toContain('<w14:lin w14:ang="5400000"');
+    expect(x).toContain('w14:dir="2700000"');
+    expect(x).toContain('<w14:alpha w14:val="40000"/>');
+    expect(w14Fx({ fill: { type: 'solid', color: '#ff0000' } })).toBe('<w14:textFill><w14:solidFill><w14:srgbClr w14:val="FF0000"/></w14:solidFill></w14:textFill>');
+    expect(w14Fx({ fill: { type: 'none' } })).toContain('<w14:noFill/>');
+  });
+  it('la transformación se escribe como prstTxWarp con sus ajustes', () => {
+    expect(prstTxWarpXml('textWave1')).toBe('<a:prstTxWarp prst="textWave1"><a:avLst/></a:prstTxWarp>');
+    expect(prstTxWarpXml('textWave1', { adj1: 30000 })).toContain('<a:gd name="adj1" fmla="val 30000"/>');
+    expect(emuToPx(9525)).toBe(1);
+  });
+});

@@ -8,6 +8,7 @@ import { columnWidths, noRefs, type SectionProps } from '../sections';
 import { resolvePart } from '../layout';
 import { parseMath, toOMML } from '../math';
 import { avLstXml, presetOf, resolveKind } from '@suitenova/shapes-core';
+import { prstTxWarpXml, w14Fx, type WordArtFx } from '@suitenova/wordart-core';
 import { REL, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml } from './shared';
 import { commentsExtendedXml, commentsXml, customXmlParts, footnotesXml, settingsXml, watermarkParagraph, type NoteOut } from './writer-parts';
 
@@ -25,6 +26,8 @@ export class Ctx {
   media: { name: string; data: Uint8Array; ext: string }[] = [];
   mediaByKey = new Map<string, string>();
   docPrId = 1;
+  /** Elementos `w14:*` (estilo de WordArt) que van al final del `w:rPr` de cada letra mientras se escribe el texto de una forma. */
+  fxTail = '';
   nums: { numId: number; abstractId: number; kind: 'bullet' | ListFormat; start: number }[] = [];
   abstracts = new Map<string, number>(); // kind → abstractNumId
   revId = 1;
@@ -92,7 +95,7 @@ export class RelSink {
 
 const UNDERLINE_TO_FILE: Record<string, string> = { single: 'single', double: 'double', thick: 'thick', dotted: 'dotted', dash: 'dash', dotDash: 'dotDash', wavy: 'wave' };
 
-function rPr(marks: readonly Mark[], extra = ''): string {
+function rPr(marks: readonly Mark[], extra = '', tail = ''): string {
   let dstrike = '', spacing = '';
   let fonts = '', b = '', i = '', strike = '', color = '', sz = '', u = '', shd = '', va = '', style = '', caps = '', lang = '';
   for (const m of marks) {
@@ -115,7 +118,7 @@ function rPr(marks: readonly Mark[], extra = ''): string {
     }
   }
   // schema order of w:rPr: rStyle, rFonts, b, i, caps/smallCaps, strike, color, sz, highlight/shd, u, vertAlign, lang
-  const inner = extra + style + fonts + b + i + caps + strike + dstrike + color + spacing + sz + u + shd + va + lang;
+  const inner = extra + style + fonts + b + i + caps + strike + dstrike + color + spacing + sz + u + shd + va + lang + tail;
   return inner ? `<w:rPr>${inner}</w:rPr>` : '';
 }
 
@@ -232,15 +235,19 @@ function wspXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, child?: { 
   const fill = isText && a.fill === '#ffffff' ? '<a:noFill/>' : `<a:solidFill><a:srgbClr val="${hex(a.fill)}"/></a:solidFill>`;
   const line = isText && a.stroke === '#000000' && a.strokeWidth === 0 ? '<a:ln><a:noFill/></a:ln>' : `<a:ln w="${Math.round(a.strokeWidth * 9525)}"><a:solidFill><a:srgbClr val="${hex(a.stroke)}"/></a:solidFill></a:ln>`;
   let content = '';
+  const wa = a.wordart as { fx: WordArtFx; warp: { prst: string; adj?: Record<string, number> } | null } | null;
+  const prevTail = ctx.fxTail;
+  ctx.fxTail = wa ? w14Fx(wa.fx) : '';
   node.forEach((p) => {
     content += paragraphXml(p, ctx, part, rels);
   });
+  ctx.fxTail = prevTail;
   const rot = a.rotation ? ` rot="${Math.round(a.rotation * 60000)}"` : '';
   const off = child ? `<a:off x="${Math.round(child.x * EMU_PER_PX)}" y="${Math.round(child.y * EMU_PER_PX)}"/>` : '<a:off x="0" y="0"/>';
   const nv = child ? `<wps:cNvPr id="${ctx.docPrId++}" name="${isText ? 'Cuadro de texto' : 'Forma'}" descr="${esc(a.alt ?? '')}"/>` : '';
   return (
     `<wps:wsp>${nv}<wps:cNvSpPr${isText ? ' txBox="1"' : ''}/><wps:spPr><a:xfrm${rot}>${off}<a:ext cx="${w}" cy="${h}"/></a:xfrm>` +
-    `<a:prstGeom prst="${prst}">${avLstXml(a.adj)}</a:prstGeom>${fill}${line}</wps:spPr>${content ? `<wps:txbx><w:txbxContent>${content}</w:txbxContent></wps:txbx>` : ''}<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="t" anchorCtr="0"><a:noAutofit/></wps:bodyPr></wps:wsp>`
+    `<a:prstGeom prst="${prst}">${avLstXml(a.adj)}</a:prstGeom>${fill}${line}</wps:spPr>${content ? `<wps:txbx><w:txbxContent>${content}</w:txbxContent></wps:txbx>` : ''}<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="t" anchorCtr="0">${wa?.warp ? prstTxWarpXml(wa.warp.prst, wa.warp.adj) : ''}<a:noAutofit/></wps:bodyPr></wps:wsp>`
   );
 }
 
@@ -351,7 +358,7 @@ function inlineXml(parent: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): stri
     const link = child.marks.find((m) => m.type.name === 'link');
     const rev = revOf(child.marks);
     const deleted = !!rev.del;
-    const props = rPr(child.marks.filter((m) => m.type.name !== 'link' || false));
+    const props = rPr(child.marks.filter((m) => m.type.name !== 'link' || false), '', ctx.fxTail);
     const ids = commentIdsOf(child.marks, ctx);
     let before = '';
     let after = '';
@@ -366,7 +373,7 @@ function inlineXml(parent: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): stri
     }
     let xml = '';
     const tn = child.type.name;
-    if (child.isText) xml = wrapRev(textRuns(child.text!, rPr(child.marks), deleted), rev, ctx);
+    if (child.isText) xml = wrapRev(textRuns(child.text!, rPr(child.marks, '', ctx.fxTail), deleted), rev, ctx);
     else if (tn === 'hard_break') xml = wrapRev(`<w:r>${props}<w:br/></w:r>`, rev, ctx);
     else if (tn === 'image') xml = wrapRev(imageXml(child, ctx, part, rels, props), rev, ctx);
     else if (tn === 'field') xml = wrapRev(fieldXml(child, child.marks, deleted), rev, ctx);

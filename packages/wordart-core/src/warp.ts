@@ -68,3 +68,13 @@ export function warpText(block: TextBlock, prst: string, w: number, h: number, a
     }),
   );
 }
+
+/**
+ * Coloca el texto compuesto en una forma de `w` x `h` px **sin deformarlo**: centrado en vertical y, en horizontal, según la
+ * alineación (el bloque ya trae cada línea alineada dentro de su ancho).
+ */
+export function placeText(block: TextBlock, w: number, h: number, align: 'left' | 'center' | 'right' = 'center'): Contour[] {
+  const dx = align === 'left' ? 0 : align === 'right' ? w - block.width : (w - block.width) / 2;
+  const dy = (h - block.height) / 2;
+  return block.contours.map((c) => c.map((p): Pt => ({ x: p.x + dx, y: p.y + dy })));
+}

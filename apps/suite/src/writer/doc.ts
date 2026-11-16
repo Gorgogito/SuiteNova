@@ -65,6 +65,7 @@ import { loadSpeller, misspellingAt, setSpell, spellPlugin, type SpellLang } fro
 import { getLocale } from '@suitenova/core-ui';
 import { ControlView, FieldView, GroupView, MathView, ShapeView, type NodeViewHost } from './nodeviews';
 import { shapeSelectionPlugin } from './shape-selection';
+import { wordArtEditingPlugin } from './wordart-editing';
 import { commentRanges, getUser, protectionPlugin, trackTransaction } from './review';
 import { outlinePlugin, setOutlineActive } from './outline';
 import { joinSectionBackward, joinSectionForward } from './sections-edit';
@@ -408,6 +409,7 @@ export class WriterCtl {
       tabsPlugin(),
       formsPlugin(),
       shapeSelectionPlugin(),
+      wordArtEditingPlugin(),
       spellPlugin(),
       outlinePlugin(),
       protectionPlugin(() => this.protection?.mode ?? null),

@@ -7,6 +7,7 @@ import { ColumnsDialog, WatermarkDialog } from './dlg-layout';
 import { ProtectDialog, UnprotectDialog, UserDialog } from './dlg-review';
 import { BookmarkDialog, CaptionDialog, CiteDialog, IndexMarkDialog, NoteOptionsDialog, SourcesDialog, TocDialog, XRefDialog } from './dlg-refs';
 import { ControlDialog, EquationDialog, ShapeDialog } from './dlg-objects';
+import { WordArtDialog } from './dlg-wordart';
 import { FontDialog, ParagraphDialog, SymbolDialog } from './dlg-format';
 import { AutoCorrectDialog } from './dlg-autocorrect';
 import { LineNumbersDialog, PageBordersDialog } from './dlg-page';
@@ -308,6 +309,8 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
       return <EquationDialog ui={ui} pos={(arg as { pos?: number } | undefined)?.pos} onClose={onClose} />;
     case 'shape':
       return <ShapeDialog ui={ui} pos={(arg as { pos: number }).pos} onClose={onClose} />;
+    case 'wordart':
+      return <WordArtDialog ui={ui} pos={(arg as { pos: number }).pos} onClose={onClose} />;
     case 'control':
       return <ControlDialog ui={ui} pos={(arg as { pos: number }).pos} onClose={onClose} />;
     case 'macros':

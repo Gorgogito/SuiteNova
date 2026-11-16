@@ -1,6 +1,6 @@
 # Diseño: WordArt compartido (Slides, Writer y Calc)
 
-Estado: **aprobado por el usuario (2026-11-15); fase 1 (motor + Slides) HECHA, fases 2 (Writer) y 3 (Calc) pendientes** (2026-11-15). El dato que faltaba (sección 7) **ya está en el repositorio y validado**. No hay código escrito.
+Estado: **aprobado por el usuario (2026-11-15); fases 1 (motor + Slides) y 2 (Writer) HECHAS, fase 3 (Calc) pendiente** (2026-11-15). El dato que faltaba (sección 7) **ya está en el repositorio y validado**. No hay código escrito.
 Decisiones del usuario (2026-11-15): **motor compartido**, **deformación real de las letras**, orden **motor → Writer → Calc**.
 
 ## 1. Qué es WordArt en Office
@@ -107,3 +107,14 @@ Aprobado por el usuario: el diseño tal cual y la dependencia **opentype.js 2.0.
   usan solo el primer grupo para todo el texto (Office reparte las líneas entre grupos); sin ligaduras ni escrituras complejas; sin relieve 3D;
   sin asas de ajuste todavía (los valores de `adj` sí se respetan).
 - **No verificado:** el permiso de fuentes locales en la app de escritorio (WebView2 en Tauri); plan B en la sección 3.
+
+## 12. Registro de la fase 2 (hecha, 2026-11-15): Writer
+- **Modelo:** atributo `wordart` en el nodo `shape` (`{ fx, warp }`: el estilo neutral de `wordart-core` y la transformación con sus ajustes; `null` = texto normal). Un WordArt es un cuadro de texto, así que se mueve, redimensiona, gira, agrupa y se anota igual que cualquier forma.
+- **Motor (`wordart-core`):** `placeText` (colocar sin deformar, para «solo estilo»), `docx.ts` (`w14Fx`, `prstTxWarpXml`, `parseCssColor`, `emuToPx`). 24 pruebas.
+- **DOCX (`writer-core`, 2 pruebas nuevas, 156 en total):** al escribir, `a:prstTxWarp` dentro de `wps:bodyPr` y el estilo como extensiones `w14:*` al **final** de `w:rPr` de cada letra del cuadro (orden del esquema: glow, shadow, reflection, textOutline, textFill; `Ctx.fxTail`). Al leer, se toma la transformación del `bodyPr` y el estilo de la primera letra que tenga `w14:*` (el ancho del contorno vuelve con el redondeo a EMU, 1,25 → 1,24997 px).
+- **App** (`apps/suite/src/wordart/` compartido con Calc): `engine.ts` (`renderWordArt`, fuentes del sistema una vez por página, caché), `WordArtUi.tsx` (`WordArtPreview`, `WordArtStyleGallery`, `WarpGallery`, `WordArtForm`), `wordart.css`.
+- **Writer:** `ShapeView` dibuja el WordArt en un SVG encima del texto (que queda transparente pero clicable); el plugin `wordart-editing.ts` pone `data-editing` mientras el cursor está dentro del cuadro: se ve el texto normal para editarlo y se redibuja al salir. Insertar › Texto › **WordArt** (galería de 22 estilos), pestaña contextual de forma › grupo **Estilos de WordArt** (Estilos, Transformar con las 40 + «Sin transformación», Formato de WordArt…, Quitar WordArt). Cuadro «Formato de WordArt» con relleno liso/degradado, contorno, sombra, resplandor, reflejo y transformación, con vista previa. Textos en inglés registrados.
+- **Sin fuente o sin permiso:** no se marca `data-wordart`, así que el texto normal queda visible y el modelo conserva el WordArt (se guarda igual en .docx).
+- **e2e** `scripts/e2e-writer-wordart.mjs` (6 comprobaciones, con y sin permiso de fuentes) y capturas revisadas. Verificado: typecheck limpio; todo `pnpm test`; e2e de Writer (19 + shapes + image + page + tables + styles + review + autocorrect + format), Slides y Calc en verde.
+- **Un defecto encontrado por el camino:** un componente intermedio como disparador de `PopoverTrigger` no recibe sus propiedades y el menú no se abre; hay que pasar un `<button>` directo.
+- **Límites:** la transformación no tiene asas de ajuste (sí se respetan los valores `adj` leídos de un archivo); el estilo se guarda con los efectos de Word 2010 (`w14`), no con los de PowerPoint; con varias letras de estilos distintos solo se usa el de la primera; la fuente, el tamaño y la alineación salen del texto del cuadro. **No se ha abierto en Word real.**

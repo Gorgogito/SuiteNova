@@ -1,0 +1,41 @@
+.wa-gallery {
+  padding: 4px;
+  max-height: 70vh;
+  overflow: auto;
+}
+.wa-title {
+  font-size: 12px;
+  color: var(--nv-text-muted, #555);
+  margin: 2px 4px 6px;
+}
+.wa-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 76px);
+  gap: 4px;
+}
+.wa-grid--warp {
+  grid-template-columns: repeat(6, 88px);
+}
+.wa-grid button,
+.wa-none {
+  padding: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  color: inherit;
+}
+.wa-grid button:hover,
+.wa-none:hover {
+  border-color: var(--nv-accent, #2b6cb0);
+  background: rgba(43, 108, 176, 0.08);
+}
+.wa-grid button[aria-pressed='true'] {
+  border-color: var(--nv-accent, #2b6cb0);
+}
+.wa-none {
+  display: block;
+  margin: 0 0 6px 2px;
+  font-size: 12px;
+  text-align: left;
+}

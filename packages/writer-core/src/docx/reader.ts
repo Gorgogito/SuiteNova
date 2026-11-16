@@ -7,6 +7,7 @@ import { defaultSection, newSectionId, noRefs, oneColumn, type Columns, type HFR
 import { fromOMML, toTex } from '../math';
 import { noteBodyOf } from '../notes';
 import { cleanAdjust, hasPreset, parseGuide } from '@suitenova/shapes-core';
+import { emuToPx, type FxColor, type FxFill, type WordArtFx } from '@suitenova/wordart-core';
 import { parseFieldInstr } from './shared';
 import { attrOf, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOfNode, toggle, type XNode } from './xml';
 
@@ -889,6 +890,70 @@ class Converter {
     cur().push(this.shapeNode(wsp, w, h, this.anchorOf(d), (pr && attrOf(pr, 'descr')) || ''));
   }
 
+  /**
+   * WordArt de un `wps:wsp`: la transformación (`a:prstTxWarp` de su `bodyPr`) y el estilo del texto, que Word guarda en extensiones
+   * `w14:*` del `w:rPr` de las letras (se toma la primera que las tenga). `null` si no hay ni una ni otro.
+   */
+  private wordArtOf(wsp: XNode): { fx: WordArtFx; warp: { prst: string; adj?: Record<string, number> } | null } | null {
+    const body = findKid(wsp, 'bodyPr');
+    const tw = body && findKid(body, 'prstTxWarp');
+    const prst = tw && attrOf(tw, 'prst');
+    let warp: { prst: string; adj?: Record<string, number> } | null = null;
+    if (prst && prst !== 'textNoShape') {
+      const adj: Record<string, number> = {};
+      const av = findKid(tw!, 'avLst');
+      if (av) for (const g of kidsOf(av)) {
+        if (tagOf(g) !== 'gd') continue;
+        const p = parseGuide(attrOf(g, 'name'), attrOf(g, 'fmla'));
+        if (p) adj[p[0]] = p[1];
+      }
+      warp = { prst, ...(Object.keys(adj).length ? { adj } : {}) };
+    }
+    const color = (n: XNode | undefined | null): FxColor | null => {
+      const c = n && findKid(n, 'srgbClr');
+      const v = c && attrOf(c, 'val');
+      if (!c || !v || !/^[0-9a-f]{6}$/i.test(v)) return null;
+      const al = findKid(c, 'alpha');
+      return { color: '#' + v.toLowerCase(), alpha: al ? (num(attrOf(al, 'val')) ?? 100000) / 100000 : 1 };
+    };
+    const tf = findDeep(wsp, 'textFill');
+    const to = findDeep(wsp, 'textOutline');
+    const gl = findDeep(wsp, 'glow');
+    const sh = findDeep(wsp, 'shadow');
+    const rf = findDeep(wsp, 'reflection');
+    if (!warp && !tf && !to && !gl && !sh && !rf) return null;
+    let fill: FxFill = { type: 'solid', color: '#000000' };
+    if (tf) {
+      const sf = findKid(tf, 'solidFill');
+      const gf = findKid(tf, 'gradFill');
+      if (findKid(tf, 'noFill')) fill = { type: 'none' };
+      else if (sf) fill = { type: 'solid', ...(color(sf) ?? { color: '#000000' }) };
+      else if (gf) {
+        const stops: ({ pos: number } & FxColor)[] = [];
+        const lst = findKid(gf, 'gsLst');
+        if (lst) for (const g of kidsOf(lst)) {
+          const c = color(g);
+          if (tagOf(g) === 'gs' && c) stops.push({ pos: (num(attrOf(g, 'pos')) ?? 0) / 100000, ...c });
+        }
+        const lin = findKid(gf, 'lin');
+        if (stops.length >= 2) fill = { type: 'gradient', angle: (num(lin && attrOf(lin, 'ang')) ?? 5400000) / 60000, stops };
+      }
+    }
+    const fx: WordArtFx = { fill };
+    const oc = to && color(findKid(to, 'solidFill'));
+    if (to && oc) fx.outline = { ...oc, width: emuToPx(num(attrOf(to, 'w')) ?? 9525) };
+    const gc = gl && color(gl);
+    if (gl && gc) fx.glow = { ...gc, radius: emuToPx(num(attrOf(gl, 'rad')) ?? 0) };
+    const sc = sh && color(sh);
+    if (sh && sc) {
+      const dist = emuToPx(num(attrOf(sh, 'dist')) ?? 0);
+      const dir = ((num(attrOf(sh, 'dir')) ?? 0) / 60000) * (Math.PI / 180);
+      fx.shadow = { ...sc, blur: emuToPx(num(attrOf(sh, 'blurRad')) ?? 0), dx: Math.round(dist * Math.cos(dir) * 100) / 100, dy: Math.round(dist * Math.sin(dir) * 100) / 100 };
+    }
+    if (rf) fx.reflection = { alpha: (num(attrOf(rf, 'stA')) ?? 50000) / 100000, size: (num(attrOf(rf, 'endPos')) ?? 35000) / 100000, gap: emuToPx(num(attrOf(rf, 'dist')) ?? 0) };
+    return { fx, warp };
+  }
+
   /** The shape node of a `wps:wsp`, `w` x `h` pixels, placed as `at` says (inside a group: x and y from the group's corner). */
   private shapeNode(wsp: XNode, w: number, h: number, at: { wrap: string; x: number; y: number }, alt: string): PMNode {
     const spPr = findKid(wsp, 'spPr');
@@ -925,7 +990,7 @@ class Converter {
     const paras: PMNode[] = [];
     if (tx) for (const b of this.blocks(kidsOf(tx))) if (b.type.name === 'paragraph') paras.push(b);
     return nodeTypes.shape!.create(
-      { kind, width: w, height: h, fill, stroke, strokeWidth, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, adj: adjust, wrap: at.wrap, x: at.x, y: at.y, alt },
+      { kind, width: w, height: h, fill, stroke, strokeWidth, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, adj: adjust, wordart: this.wordArtOf(wsp), wrap: at.wrap, x: at.x, y: at.y, alt },
       paras,
     );
   }
