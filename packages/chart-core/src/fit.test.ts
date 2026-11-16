@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { errorAmounts, fitTrend, fmtCoeff, trendName, trendPath } from './chart-fit';
+import { errorAmounts, fitTrend, fmtCoeff, trendName, trendPath } from './fit';
 
 const pts = (xs: number[], f: (x: number) => number) => xs.map((x) => ({ x, y: f(x) }));
 const near = (a: number, b: number, d = 1e-9) => expect(Math.abs(a - b)).toBeLessThan(d);

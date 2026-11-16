@@ -1,4 +1,4 @@
-import type { Chart3D, ChartType } from '@suitenova/calc-engine';
+import type { Chart3D, ChartType } from './model';
 
 export interface Series3D {
   name: string;

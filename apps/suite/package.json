@@ -17,6 +17,7 @@
     "@kenjiuno/msgreader": "1.29.0",
     "@suitenova/base-core": "workspace:*",
     "@suitenova/calc-engine": "workspace:*",
+    "@suitenova/chart-core": "workspace:*",
     "@suitenova/core-ui": "workspace:*",
     "@suitenova/diagram-core": "workspace:*",
     "@suitenova/forms-core": "workspace:*",

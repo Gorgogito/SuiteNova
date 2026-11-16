@@ -83,7 +83,7 @@ export { PIVOT_LABELS_EN, PIVOT_LABELS_ES, computePivot, pivotCovers, sourceHead
 export { captureObjects, applyObjects, type ObjectsSnap } from './workbook';
 export type { TableArea } from './ast';
 export { DEFAULT_ALLOW, PROTECT_ACTIONS, PROTECT_SPIN, checkPassword, hasPassword, legacyHash, makePasswordHash, type PasswordHash, type ProtectAction, type SheetProtection, type WorkbookProtection } from './protect';
-export { ERROR_KINDS, TREND_TYPES, errorAmounts, fitTrend, fmtCoeff, trendName, trendPath, type ErrorBars, type ErrorKind, type Fit, type TrendType, type Trendline } from './chart-fit';
+export { ERROR_KINDS, TREND_TYPES, errorAmounts, fitTrend, fmtCoeff, trendName, trendPath, type ErrorBars, type ErrorKind, type Fit, type TrendType, type Trendline } from '@suitenova/chart-core';
 export { REL_PERIODS, inPeriod, periodRange, type RelPeriod } from './reldate';
-export { boxStats, histogramBins, scottWidth, waterfallSteps, type BoxStats, type HistogramBin, type HistogramOptions, type WaterfallStep } from './chart-stat';
+export { boxStats, histogramBins, scottWidth, waterfallSteps, type BoxStats, type HistogramBin, type HistogramOptions, type WaterfallStep } from '@suitenova/chart-core';
 export * from './shape-group';

@@ -1,6 +1,6 @@
 import { parseA1, type Rect, type Scalar } from '@suitenova/calc-engine';
 import { describe, expect, it } from 'vitest';
-import { chart3dSvg } from './chart3d';
+import { chart3dSvg } from '@suitenova/chart-core';
 import { CHART_PRESETS } from './chartPresets';
 import { CalcDoc } from './doc';
 import { headerFooterParts, layoutPrint, printHtml } from './print';

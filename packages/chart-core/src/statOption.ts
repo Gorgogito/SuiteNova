@@ -1,17 +1,19 @@
 /** Opciones de ECharts para los gráficos de Excel 2016: cascada, embudo, histograma y cajas y bigotes. */
-import { boxStats, formatValue, histogramBins, waterfallSteps, type ChartDef, type FormulaLocale } from '@suitenova/calc-engine';
-import type { ChartPalette, ChartSeriesData } from './chartOption';
+import { formatChartNumber } from './format';
+import { boxStats, histogramBins, waterfallSteps } from './stat';
+import type { ChartSpec } from './model';
+import type { ChartLocale, ChartPalette, ChartSeriesData } from './data';
 
 type Option = Record<string, unknown>;
 
-const fmt = (v: number): string => formatValue(v, undefined, 'en').text;
+const fmt = (v: number): string => formatChartNumber(v);
 const TEXT = { es: { inc: 'Aumento', dec: 'Disminución', total: 'Total', count: 'Frecuencia', mean: 'Media' }, en: { inc: 'Increase', dec: 'Decrease', total: 'Total', count: 'Count', mean: 'Mean' } };
 
 const axis = (p: ChartPalette) => ({ axisLine: { lineStyle: { color: p.grid } }, axisLabel: { color: p.text }, nameTextStyle: { color: p.text } });
 const valueAxis = (p: ChartPalette, extra: Option = {}): Option => ({ type: 'value', ...axis(p), axisLine: { show: false }, splitLine: { lineStyle: { color: p.grid } }, ...extra });
 
 /** Gráfico en cascada: barras flotantes con conectores y rótulos de valor. */
-function waterfall(def: ChartDef, categories: string[], series: ChartSeriesData[], base: Option, p: ChartPalette, loc: FormulaLocale): Option {
+function waterfall(def: ChartSpec, categories: string[], series: ChartSeriesData[], base: Option, p: ChartPalette, loc: ChartLocale): Option {
   const tx = TEXT[loc];
   const s = series[0];
   const steps = waterfallSteps(s?.values ?? [], def.waterfall?.totals ?? []);
@@ -61,7 +63,7 @@ function waterfall(def: ChartDef, categories: string[], series: ChartSeriesData[
 }
 
 /** Embudo: barras horizontales centradas, de mayor a menor en el orden de los datos. */
-function funnel(def: ChartDef, categories: string[], series: ChartSeriesData[], base: Option, p: ChartPalette): Option {
+function funnel(def: ChartSpec, categories: string[], series: ChartSeriesData[], base: Option, p: ChartPalette): Option {
   const s = series[0];
   const values = (s?.values ?? []).map((v) => (v === null || v < 0 ? 0 : v));
   const max = Math.max(1, ...values);
@@ -82,7 +84,7 @@ function funnel(def: ChartDef, categories: string[], series: ChartSeriesData[], 
 }
 
 /** Histograma: recuento de valores por clase. */
-function histogram(def: ChartDef, series: ChartSeriesData[], base: Option, p: ChartPalette, loc: FormulaLocale): Option {
+function histogram(def: ChartSpec, series: ChartSeriesData[], base: Option, p: ChartPalette, loc: ChartLocale): Option {
   const s = series[0];
   const values = (s?.values ?? []).filter((v): v is number => v !== null);
   const bins = histogramBins(values, def.histogram);
@@ -99,7 +101,7 @@ function histogram(def: ChartDef, series: ChartSeriesData[], base: Option, p: Ch
 }
 
 /** Cajas y bigotes: una caja por categoría (o por serie si no hay categorías), con media, atípicos y puntos. */
-function boxWhisker(def: ChartDef, series: ChartSeriesData[], base: Option, p: ChartPalette, loc: FormulaLocale): Option {
+function boxWhisker(def: ChartSpec, series: ChartSeriesData[], base: Option, p: ChartPalette, loc: ChartLocale): Option {
   const o = def.boxwhisker ?? {};
   const inclusive = !!o.inclusive;
   const showMean = o.mean !== false;
@@ -165,7 +167,7 @@ function boxWhisker(def: ChartDef, series: ChartSeriesData[], base: Option, p: C
 }
 
 /** Option for the four statistical chart kinds, or null when the chart is another kind. */
-export function statChartOption(def: ChartDef, categories: string[], series: ChartSeriesData[], base: Option, palette: ChartPalette, locale: FormulaLocale): Option | null {
+export function statChartOption(def: ChartSpec, categories: string[], series: ChartSeriesData[], base: Option, palette: ChartPalette, locale: ChartLocale): Option | null {
   switch (def.type) {
     case 'waterfall':
       return waterfall(def, categories, series, base, palette, locale);

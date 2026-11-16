@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boxStats, histogramBins, scottWidth, waterfallSteps } from './chart-stat';
+import { boxStats, histogramBins, scottWidth, waterfallSteps } from './stat';
 
 describe('histograma', () => {
   const data = [1, 2, 2, 3, 3, 3, 4, 4, 5, 9];

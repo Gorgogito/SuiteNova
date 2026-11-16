@@ -1,0 +1,101 @@
+import type { ErrorBars, Trendline } from './fit';
+
+/*
+ * El modelo de un gráfico, común a Calc, Slides y Writer: qué se dibuja y cómo, sin dónde está ni de dónde salen los datos (las series
+ * llevan referencias de rango; cada producto las lee a su manera).
+ */
+
+export type ChartType = 'column' | 'bar' | 'line' | 'pie' | 'area' | 'scatter' | 'doughnut' | 'radar' | 'stock' | 'surface' | 'waterfall' | 'funnel' | 'histogram' | 'boxwhisker';
+
+/** Types a series can take inside a combined chart. */
+export type SeriesType = 'column' | 'line' | 'area' | 'scatter';
+
+export const SERIES_TYPES: SeriesType[] = ['column', 'line', 'area', 'scatter'];
+
+export interface ChartAxis {
+  title?: string;
+  min?: number;
+  max?: number;
+  log?: boolean;
+  /** Number format of the tick labels; the cell format when empty. */
+  format?: string;
+  /** Draw the grid lines of this axis (the value axis draws them by default). */
+  gridlines?: boolean;
+  /** Show the largest values first. */
+  reverse?: boolean;
+}
+
+/** The viewing position of a 3-D chart (Excel's "Format chart area > 3-D rotation"). */
+export interface Chart3D {
+  /** Elevation in degrees (-90 to 90). */
+  rotX: number;
+  /** Rotation around the vertical axis in degrees (0 to 360). */
+  rotY: number;
+  /** Perspective in degrees (0 to 100); ignored with right-angle axes. */
+  perspective: number;
+  /** Depth as a percentage of the width (20 to 2000). */
+  depth: number;
+  /** Right-angle axes: an oblique view in which the front of the chart is not rotated. */
+  rightAngle: boolean;
+  /** Series along a depth axis (Excel's plain "3-D Column") instead of side by side. */
+  seriesDepth?: boolean;
+}
+
+export const DEFAULT_3D: Chart3D = { rotX: 15, rotY: 20, perspective: 30, depth: 100, rightAngle: true };
+
+export type StockKind = 'hlc' | 'ohlc' | 'vhlc' | 'vohlc';
+
+/** Names of the series a stock chart needs, in order. */
+export const STOCK_SERIES: Record<StockKind, string[]> = {
+  hlc: ['high', 'low', 'close'],
+  ohlc: ['open', 'high', 'low', 'close'],
+  vhlc: ['volume', 'high', 'low', 'close'],
+  vohlc: ['volume', 'open', 'high', 'low', 'close'],
+};
+
+export interface ChartSeries {
+  /** Literal name, or a reference such as "Hoja1!$B$1". */
+  name?: string;
+  nameRef?: string;
+  /** Category labels (x axis), e.g. "Hoja1!$A$2:$A$5". For scatter charts these are the X values. */
+  categories?: string;
+  /** Plotted values, e.g. "Hoja1!$B$2:$B$5". */
+  values: string;
+  /** In a combined chart, how this series is drawn; the chart's type when empty. */
+  type?: SeriesType;
+  /** Plot against the secondary value axis (shown on the right). */
+  secondary?: boolean;
+  /** "#rrggbb"; the palette when empty. */
+  color?: string;
+  /** Trendlines fitted to this series (not for stacked, pie, radar, stock, surface or 3-D charts). */
+  trendlines?: Trendline[];
+  /** Error bars along Y (and along X in scatter charts). */
+  errY?: ErrorBars;
+  errX?: ErrorBars;
+}
+
+export interface ChartSpec {
+  type: ChartType;
+  title?: string;
+  legend: boolean;
+  stacked?: boolean;
+  /** With `stacked`: every column adds up to 100%. */
+  percent?: boolean;
+  smooth?: boolean;
+  /** Axis options: X (categories or scatter X), Y (primary values) and Y2 (secondary values). */
+  axisX?: ChartAxis;
+  axisY?: ChartAxis;
+  axisY2?: ChartAxis;
+  /** Present for the 3-D version of column, bar, line, area and pie charts; surface charts always are 3-D. */
+  threeD?: Chart3D;
+  radar?: { filled?: boolean; markers?: boolean };
+  stock?: { kind: StockKind };
+  surface?: { wireframe?: boolean; contour?: boolean };
+  /** Waterfall: points shown as totals (from zero) by their index, and whether connector lines are drawn. */
+  waterfall?: { totals?: number[]; connectors?: boolean };
+  /** Histogram: how the classes are made (automatic Scott's rule when empty). */
+  histogram?: { binWidth?: number; binCount?: number; overflow?: number; underflow?: number; closed?: 'right' | 'left' };
+  /** Box and whisker: quartile method and what is drawn besides the box. */
+  boxwhisker?: { inclusive?: boolean; mean?: boolean; outliers?: boolean; inner?: boolean };
+  series: ChartSeries[];
+}

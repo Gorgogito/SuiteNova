@@ -45,4 +45,11 @@ Adaptadores: Calc (`ChartDef` + posición, datos del libro), Slides (`ChartEl` c
 - Un gráfico de Calc pegado en Slides o Writer pierde el vínculo con el rango (queda con sus valores).
 
 ## 7. Registro de fases
-(vacío: se anota aquí al terminar cada una)
+### Fase 1 (hecha, 2026-11-16): motor — `packages/chart-core`
+- **Qué se movió** (sin cambiar su comportamiento): el modelo (`model.ts`: `ChartSpec` = el gráfico sin id ni posición, y `ChartType`, `ChartAxis`, `Chart3D`, `ChartSeries`, `SeriesType`, `StockKind`…), las tendencias y barras de error (`fit.ts`, de `calc-engine/chart-fit`), los estadísticos de cascada, histograma y caja (`stat.ts`, de `chart-stat`), la opción de echarts (`option.ts` y `statOption.ts`), el 3D propio (`chart3d.ts`) y el dibujo a SVG (`render.ts`: `chartSvg`, `chart3dFor`, `is3D`, `echarts`). Los archivos se movieron con `git mv` para conservar el historial.
+- **Fuente de datos:** `ChartData { categories, series }` (`data.ts`) es lo único que el motor necesita; **no sabe nada de libros ni de rangos**. Calc sigue leyendo su libro en `apps/suite/src/calc/chartOption.ts` (`chartData`, con `readRange`) y delega en `chart-core`; `chartRender.ts` es el envoltorio equivalente.
+- **`calc-engine`:** `ChartDef = ChartSpec + { id, x, y, width, height }`; reexporta los tipos, `DEFAULT_3D` y las funciones de ajuste y estadística desde `chart-core`, de modo que el resto del código no cambió.
+- **Formato de números:** en lugar de depender de `calc-engine`, `chart-core` tiene un formateador **registrable** (`setChartNumberFormatter`, por omisión uno general); Calc registra el suyo (`formatValue`) y Slides y Writer registrarán el mismo desde la app.
+- **Pruebas:** las 23 de ajuste y estadística pasaron a `chart-core` y se añadieron 3 (opción de echarts y SVG de columnas, circular, líneas y 3D con datos literales, y el formateador); `calc-engine` queda con 264. Total sin cambios en el resto (287 = 264 + 23). Las 9 e2e de Calc (incluidas las de gráficos con tendencias, barras de error y estadísticos) pasan igual.
+- **Pendiente para la fase 2:** `chartPresets.ts` y los cuadros (`dlg-chart*.tsx`) siguen en Calc; pasan a la interfaz compartida al llegar a Slides.
+

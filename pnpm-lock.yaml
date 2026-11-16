@@ -184,6 +184,9 @@ importers:
       '@suitenova/calc-engine':
         specifier: workspace:*
         version: link:../../packages/calc-engine
+      '@suitenova/chart-core':
+        specifier: workspace:*
+        version: link:../../packages/chart-core
       '@suitenova/core-ui':
         specifier: workspace:*
         version: link:../../packages/core-ui
@@ -354,12 +357,28 @@ importers:
 
   packages/calc-engine:
     dependencies:
+      '@suitenova/chart-core':
+        specifier: workspace:*
+        version: link:../chart-core
       '@suitenova/shapes-core':
         specifier: workspace:*
         version: link:../shapes-core
       '@suitenova/wordart-core':
         specifier: workspace:*
         version: link:../wordart-core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
+
+  packages/chart-core:
+    dependencies:
+      echarts:
+        specifier: ^6.1.0
+        version: 6.1.0
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
