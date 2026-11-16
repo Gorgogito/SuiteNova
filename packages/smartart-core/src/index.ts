@@ -7,3 +7,5 @@ export * from './drawing';
 export * from './parts';
 export * from './engine';
 export * from './catalog/factory';
+export * from './host';
+export * from './svg';

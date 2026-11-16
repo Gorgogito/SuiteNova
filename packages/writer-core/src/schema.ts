@@ -1,5 +1,23 @@
 import { Schema, type DOMOutputSpec, type MarkSpec, type Node as PMNode, type NodeSpec } from 'prosemirror-model';
 import { tableNodes } from 'prosemirror-tables';
+import { drawingSvg, partsShapes, type SmartArtParts } from '@suitenova/smartart-core';
+
+const svgCache = new WeakMap<object, { w: number; h: number; uri: string }>();
+
+/** El dibujo de un SmartArt de Writer como imagen SVG (data URI); se guarda por objeto de partes, que cambia al editar. */
+export function smartArtImage(node: { attrs: Record<string, unknown> }): string {
+  const parts = node.attrs.parts as SmartArtParts | null;
+  const w = Number(node.attrs.width) || 400;
+  const h = Number(node.attrs.height) || 260;
+  if (!parts) return '';
+  const key = parts as object;
+  const hit = svgCache.get(key);
+  if (hit && hit.w === w && hit.h === h) return hit.uri;
+  const svg = drawingSvg(partsShapes(parts), w * 0.75, h * 0.75, { width: w, height: h });
+  const uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  svgCache.set(key, { w, h, uri });
+  return uri;
+}
 
 export type Align = 'left' | 'center' | 'right' | 'justify';
 export type ListFormat = 'decimal' | 'lowerLetter' | 'upperLetter' | 'lowerRoman' | 'upperRoman';
@@ -427,6 +445,38 @@ const nodes: Record<string, NodeSpec> = {
       else if (a.wrap === 'topBottom') css.push('display:block', 'margin:6px auto');
       if (a.rotation) css.push(`transform:rotate(${a.rotation}deg)`);
       return ['span', { class: 'nw-shape nw-shape-group', 'data-wrap': a.wrap, style: css.join(';') }, 0];
+    },
+  },
+  /**
+   * A SmartArt (Word's `dgm:relIds` diagram): an atom that keeps the five parts of the package (`parts`: data, layout, style, colours and
+   * the cached drawing, each as XML text) and shows the drawing as an SVG picture. It is edited as a whole (text, layout, style, colours).
+   */
+  smartart: {
+    inline: true,
+    group: 'inline',
+    atom: true,
+    selectable: true,
+    draggable: false,
+    attrs: {
+      width: { default: 400 },
+      height: { default: 260 },
+      /** inline | left | right | front | behind | topBottom */
+      wrap: { default: 'inline' },
+      x: { default: 0 },
+      y: { default: 0 },
+      alt: { default: '' },
+      id: { default: '' },
+      parts: { default: null },
+    },
+    parseDOM: [{ tag: 'span.nw-smartart', priority: 70 }],
+    toDOM: (node) => {
+      const a = node.attrs;
+      const css = [`width:${a.width}px`, `height:${a.height}px`];
+      if (a.wrap === 'left') css.push('float:left', 'margin:0 10px 6px 0');
+      else if (a.wrap === 'right') css.push('float:right', 'margin:0 0 6px 10px');
+      else if (a.wrap === 'front' || a.wrap === 'behind') css.push('position:absolute', `left:${a.x}px`, `top:${a.y}px`, `z-index:${a.wrap === 'behind' ? 0 : 3}`);
+      else if (a.wrap === 'topBottom') css.push('display:block', 'margin:6px auto');
+      return ['span', { class: 'nw-smartart', 'data-wrap': a.wrap, title: a.alt || 'SmartArt', style: css.join(';') }, ['img', { src: smartArtImage(node), alt: a.alt || 'SmartArt', draggable: 'false', style: 'width:100%;height:100%;display:block' }]];
     },
   },
   /** A content control (Word's structured document tag) inside a paragraph: text, drop-down, date, check box. */

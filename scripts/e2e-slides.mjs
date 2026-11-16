@@ -768,7 +768,7 @@ await check('SmartArt: every layout inserts a linked diagram, saved and reopened
     await ev(() => { const c = window.__novaSlides.ctl; c.newSlide(); });
     await tab('Insertar');
     await btn('SmartArt…');
-    await page.locator('.sl-sa-gallery label', { hasText: n }).click();
+    await page.locator('.sa-gallery label', { hasText: n }).click();
     await page.getByLabel('Colores del SmartArt').selectOption({ index: i % 7 });
     await page.getByRole('button', { name: 'Insertar', exact: true }).click();
     const g = await ev(() => { const c = window.__novaSlides.ctl; const e = c.slide.shapes.at(-1); return { kind: e.kind, smartart: !!e.smartart, n: e.children?.length, sel: c.selection.length }; });

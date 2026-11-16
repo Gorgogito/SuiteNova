@@ -487,6 +487,16 @@ export class WriterCtl {
             this.beginNoteEdit(id);
             return true;
           }
+          const art = el?.closest?.('.nw-smartart') as HTMLElement | null;
+          if (art && !this.readOnly) {
+            const v = this.mainView!;
+            const at = v.posAtDOM(art.parentNode!, Array.prototype.indexOf.call(art.parentNode!.childNodes, art));
+            if (v.state.doc.nodeAt(at)?.type.name === 'smartart') {
+              event.preventDefault();
+              this.onDialog('smartart', { pos: at });
+              return true;
+            }
+          }
           return false;
         },
       },

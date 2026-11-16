@@ -1,6 +1,7 @@
 import type { CommandDef } from '@suitenova/core-ui';
 import { COLORS_CATALOG, LAYOUT_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
 import { changeSmartArt, isLiveSmartArt, reflowSmartArt, smartArtIds, updateSlide, type GroupEl, type SlideElement } from '@suitenova/slides-core';
+import '../smartart/messages';
 import type { SlidesUI } from './commands';
 
 /** El SmartArt elegido (uno solo y con sus datos), o null. */

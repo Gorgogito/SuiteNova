@@ -10,6 +10,7 @@ import { isInTable, setCellAttr } from 'prosemirror-tables';
 import { helpTab, viewTab } from '../common';
 import { ShapeGallery } from '../shapes/ShapeGallery';
 import { WarpGallery, WordArtStyleGallery } from '../wordart/WordArtUi';
+import { COLORS_CATALOG, LAYOUT_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
 import { applyWordArtStyle, applyWordArtWarp, insertWordArt, wordArtTarget } from './commands-wordart';
 import { insertShapeKind } from './commands-objects';
 import { FONT_NAMES, FONT_SIZES, type WriterUI } from './commands';
@@ -288,10 +289,11 @@ export interface RibbonFlags {
   outline: boolean;
   image: boolean;
   shape: boolean;
+  smartart: boolean;
 }
 
 export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>): RibbonTab[] {
-  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, shape: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
+  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, shape: false, smartart: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
   const inTable = flags.inTable;
   const home: RibbonTab = {
     id: 'home',
@@ -401,7 +403,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           },
         ],
       },
-      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [{ kind: 'button', command: 'writer.table', size: 'large', keytip: 'T' }, { kind: 'button', command: 'writer.table.fromText', size: 'small', keytip: 'XT' }] },
+      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [{ kind: 'button', command: 'writer.table', size: 'large', keytip: 'T' }, { kind: 'button', command: 'writer.table.fromText', size: 'small', keytip: 'XT' }, { kind: 'button', command: 'writer.insert.smartart', size: 'small', keytip: 'SA' }] },
       {
         id: 'illustrations',
         label: 'Ilustraciones',
@@ -921,6 +923,28 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
+  const dd = (id: string, label: string, icon: string, keytip: string, cmds: string[]): RibbonItem => ({ kind: 'dropdown', id, label, icon, size: 'small', iconOnly: true, keytip, entries: cmds.map((c) => ({ kind: 'command' as const, command: c })) });
+  const smartTab: RibbonTab = {
+    id: 'smartTools',
+    label: 'Diseño de SmartArt',
+    keytip: 'DS',
+    contextual: { label: 'Herramientas de SmartArt', color: '#0e7c86', visible: flags.smartart },
+    groups: [
+      { id: 'saText', label: 'Texto', icon: 'smartart', items: [{ kind: 'button', command: 'writer.smartart.edit', size: 'large', keytip: 'ES' }] },
+      { id: 'saLayout', label: 'Diseño', icon: 'smartart', items: [dd('saLayouts', 'Cambiar diseño', 'smartart', 'CD', LAYOUT_CATALOG.map((l) => `writer.smartart.layout.${l.id.split('/').pop()}`))] },
+      {
+        id: 'saStyle',
+        label: 'Estilos de SmartArt',
+        icon: 'palette',
+        items: [
+          dd('saColors', 'Cambiar colores', 'palette', 'CC', COLORS_CATALOG.map((k) => `writer.smartart.colors.${k.id.split('/').pop()}`)),
+          dd('saStyles', 'Estilos rápidos', 'smartart', 'ER', STYLE_CATALOG.map((k) => `writer.smartart.style.${k.id.split('/').pop()}`)),
+        ],
+      },
+      { id: 'saReset', label: 'Restablecer', icon: 'smartart', items: [{ kind: 'button', command: 'writer.smartart.reflow', size: 'small', keytip: 'AJ' }] },
+    ],
+  };
+
   const hf: RibbonTab = {
     id: 'hfTools',
     label: 'Encabezado y pie',
@@ -1156,5 +1180,5 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
-  return [home, insert, layout, refs, mailings, review, view, developer, table, imageTab, shapeTab, hf, outlineTab, helpTab()];
+  return [home, insert, layout, refs, mailings, review, view, developer, table, imageTab, shapeTab, smartTab, hf, outlineTab, helpTab()];
 }

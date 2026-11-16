@@ -1226,3 +1226,7 @@
 .nw-doc .nw-shape[data-wordart][data-editing] > svg.nw-wordart {
   display: none;
 }
+
+.nw-smartart { display: inline-block; vertical-align: bottom; max-width: 100%; }
+.nw-smartart img { pointer-events: auto; }
+.nw-smartart.ProseMirror-selectednode { outline: 2px solid var(--colorBrandStroke1, #0f6cbd); }

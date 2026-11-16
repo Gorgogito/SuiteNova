@@ -9,6 +9,7 @@ import { resolvePart } from '../layout';
 import { parseMath, toOMML } from '../math';
 import { avLstXml, presetOf, resolveKind } from '@suitenova/shapes-core';
 import { prstTxWarpXml, w14Fx, type WordArtFx } from '@suitenova/wordart-core';
+import { DIAGRAM_URI, PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel, type SmartArtParts } from '@suitenova/smartart-core';
 import { REL, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml } from './shared';
 import { commentsExtendedXml, commentsXml, customXmlParts, footnotesXml, settingsXml, watermarkParagraph, type NoteOut } from './writer-parts';
 
@@ -26,6 +27,9 @@ export class Ctx {
   media: { name: string; data: Uint8Array; ext: string }[] = [];
   mediaByKey = new Map<string, string>();
   docPrId = 1;
+  /** Partes de SmartArt (`word/diagrams/…`) que van al paquete. */
+  diagrams: { path: string; xml: string; content: string }[] = [];
+  diagramSeq = 0;
   /** Elementos `w14:*` (estilo de WordArt) que van al final del `w:rPr` de cada letra mientras se escribe el texto de una forma. */
   fxTail = '';
   nums: { numId: number; abstractId: number; kind: 'bullet' | ListFormat; start: number }[] = [];
@@ -333,12 +337,43 @@ function floatingXml(node: PMNode, ctx: Ctx, graphicUri: string, inner: string, 
       `<wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251658240" behindDoc="${behind ? 1 : 0}" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/>${posH}${posV}` +
       `<wp:extent cx="${w}" cy="${h}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>${wrap}${docPr}<wp:cNvGraphicFramePr/>${sp}</wp:anchor>`;
   }
+  if (!requires) return `<w:r><w:drawing>${drawing}</w:drawing></w:r>`;
   return `<w:r><mc:AlternateContent><mc:Choice Requires="${requires}"><w:drawing>${drawing}</w:drawing></mc:Choice><mc:Fallback><w:pict/></mc:Fallback></mc:AlternateContent></w:r>`;
 }
 
 function shapeXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
   const isText = resolveKind(node.attrs.kind) === 'textbox';
   return floatingXml(node, ctx, 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape', wspXml(node, ctx, part, rels), 'wps', isText ? 'Cuadro de texto' : 'Forma');
+}
+
+/** Un SmartArt: sus cinco partes van a `word/diagrams/` y el dibujo del documento las enlaza con `dgm:relIds`. */
+function smartArtXml(node: PMNode, ctx: Ctx, part: PartCtx): string {
+  const p = node.attrs.parts as SmartArtParts | null;
+  if (!p) return '';
+  const n = ++ctx.diagramSeq;
+  const rid = (slot: keyof typeof PART_TYPES, xml: string): string => {
+    const t = PART_TYPES[slot];
+    const id = `rId${part.nextRel++}`;
+    part.rels.push(`<Relationship Id="${id}" Type="${t.rel}" Target="${t.dir}${n}.xml"/>`);
+    ctx.diagrams.push({ path: `word/${t.dir}${n}.xml`, xml, content: t.content });
+    return id;
+  };
+  let dataXml = p.data;
+  let drawingId: string | null = null;
+  if (p.drawing) drawingId = rid('drawing', p.drawing);
+  try {
+    const dm = parseDataModel(p.data);
+    setDrawingRelId(dm, drawingId);
+    dataXml = writeDataModel(dm);
+  } catch {
+    ctx.warn('Un SmartArt tiene datos que no se pudieron revisar; se guardan tal cual.');
+  }
+  const dm = rid('data', dataXml);
+  const lo = rid('layout', p.layout);
+  const qs = rid('style', p.style);
+  const cs = rid('colors', p.colors);
+  const inner = `<dgm:relIds xmlns:dgm="${DIAGRAM_URI}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:dm="${dm}" r:lo="${lo}" r:qs="${qs}" r:cs="${cs}"/>`;
+  return floatingXml(node, ctx, DIAGRAM_URI, inner, '', 'Diagrama');
 }
 
 function groupXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
@@ -423,6 +458,7 @@ function inlineXml(parent: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): stri
       xml = child.attrs.display ? `<m:oMathPara>${o}</m:oMathPara>` : o;
     } else if (tn === 'shape') xml = shapeXml(child, ctx, part, rels);
     else if (tn === 'shape_group') xml = groupXml(child, ctx, part, rels);
+    else if (tn === 'smartart') xml = smartArtXml(child, ctx, part);
     else if (tn === 'content_control') xml = contentControlXml(child, ctx, part, rels);
     else ctx.warn(`Elemento no exportable: ${tn}`);
     emit(before + xml + after, link);
@@ -889,6 +925,10 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
   zip.file('word/settings.xml', settingsXml(doc, ctx));
   zip.file('word/_rels/document.xml.rels', relsXml(mainRels));
   for (const m of ctx.media) zip.file(`word/media/${m.name}`, m.data);
+  for (const d of ctx.diagrams) {
+    zip.file(d.path, d.xml);
+    overrides.push([`/${d.path}`, d.content]);
+  }
 
   const exts = new Set(ctx.media.map((m) => m.ext));
   const defaults = ['<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>', '<Default Extension="xml" ContentType="application/xml"/>'];

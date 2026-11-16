@@ -8,6 +8,7 @@ import { fromOMML, toTex } from '../math';
 import { noteBodyOf } from '../notes';
 import { cleanAdjust, hasPreset, parseGuide } from '@suitenova/shapes-core';
 import { emuToPx, type FxColor, type FxFill, type WordArtFx } from '@suitenova/wordart-core';
+import { drawingRelId, parseDataModel, type SmartArtParts } from '@suitenova/smartart-core';
 import { parseFieldInstr } from './shared';
 import { attrOf, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOfNode, toggle, type XNode } from './xml';
 
@@ -286,6 +287,8 @@ interface Shared {
   numbering: Map<number, { abstract: number; start: Map<number, number> }>;
   abstracts: Map<number, Map<number, { fmt: ListFormat | 'bullet'; start: number }>>;
   media: Map<string, string>; // zip path → data URI
+  /** Partes XML de SmartArt (`word/diagrams/…`) por ruta del archivo. */
+  diagrams: Map<string, string>;
   warnings: Set<string>;
   counters: Map<string, number>;
   sections: number;
@@ -818,6 +821,11 @@ class Converter {
 
   private drawing(d: XNode, cur: () => PMNode[], marks: Mark[]) {
     // un grupo se mira antes que una forma: sus hijas también son `wsp`
+    const dgm = findDeep(d, 'relIds');
+    if (dgm) {
+      this.smartArt(d, dgm, cur);
+      return;
+    }
     const wgp = findDeep(d, 'wgp');
     if (wgp) {
       this.group(d, wgp, cur);
@@ -1005,6 +1013,39 @@ class Converter {
       { kind, width: w, height: h, fill, stroke, strokeWidth, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, adj: adjust, wordart: this.wordArtOf(wsp), wrap: at.wrap, x: at.x, y: at.y, alt },
       paras,
     );
+  }
+
+  /** A SmartArt (`dgm:relIds`): its parts are read from `word/diagrams/` and kept whole; the drawing is shown from the cached part. */
+  private smartArt(d: XNode, ids: XNode, cur: () => PMNode[]) {
+    const part = (rid: string | undefined): string | undefined => {
+      const rel = rid ? this.rels.get(rid) : undefined;
+      if (!rel || rel.external) return undefined;
+      const path = this.baseDir + rel.target.replace(/^\//, '').replace(/^word\//, '');
+      return this.sh.diagrams.get(path);
+    };
+    const data = part(attrOf(ids, 'dm'));
+    const layout = part(attrOf(ids, 'lo'));
+    const style = part(attrOf(ids, 'qs'));
+    const colors = part(attrOf(ids, 'cs'));
+    if (!data || !layout || !style || !colors) {
+      this.warn('Hay un SmartArt incompleto y se omite.');
+      return;
+    }
+    const parts: SmartArtParts = { data, layout, style, colors };
+    try {
+      const rid = drawingRelId(parseDataModel(data));
+      const drawing = part(rid);
+      if (drawing) parts.drawing = drawing;
+    } catch {
+      this.warn('Un SmartArt tiene datos que Nova Writer no entiende y se omite.');
+      return;
+    }
+    const ext = findDeep(d, 'extent');
+    const w = Math.max(20, Math.round((num(ext && attrOf(ext, 'cx')) ?? 3810000) / EMU_PER_PX));
+    const h = Math.max(20, Math.round((num(ext && attrOf(ext, 'cy')) ?? 2540000) / EMU_PER_PX));
+    const pr = findDeep(d, 'docPr');
+    cur().push(nodeTypes.smartart!.create({ width: w, height: h, ...this.anchorOf(d), alt: (pr && (attrOf(pr, 'descr') ?? attrOf(pr, 'title'))) || '', parts }));
+    if (!parts.drawing) this.warn('Un SmartArt no trae su dibujo guardado y aparece vacío hasta que se edite.');
   }
 
   /** A group of shapes (`wpg:wgp`) anchored or inline in a paragraph. */
@@ -1480,9 +1521,16 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
       }),
   );
 
+  const diagrams = new Map<string, string>();
+  await Promise.all(
+    Object.keys(zip.files)
+      .filter((p) => /^word\/diagrams\/[^/]+\.xml$/.test(p))
+      .map(async (p) => void diagrams.set(p, await zip.file(p)!.async('string'))),
+  );
+
   const commentsRead = readComments(await text(zip, 'word/comments.xml'), await text(zip, 'word/commentsExtended.xml'));
   const sh: Shared = {
-    zip, styles, baseRP, basePP, fonts, numbering, abstracts, media, warnings, counters: new Map(), sections: 0,
+    zip, styles, baseRP, basePP, fonts, numbering, abstracts, media, diagrams, warnings, counters: new Map(), sections: 0,
     comments: commentsRead.info, footnotes: new Map(), endnotes: new Map(), noteSeq: 0, custom: new Map(),
   };
   await readNotes(zip, 'word/footnotes.xml', 'footnotes', sh, sh.footnotes);

@@ -9,6 +9,7 @@ import { reviewCommands } from './commands-review';
 import { refsCommands } from './commands-refs';
 import { objectCommands } from './commands-objects';
 import { wordArtCommands } from './commands-wordart';
+import { smartArtCommands } from './commands-smartart';
 import { mailCommands } from './commands-mail';
 import { spellCommands } from './commands-spell';
 import { securityCommands } from './commands-security';
@@ -38,7 +39,7 @@ import {
   updateParagraphs,
 } from './editing';
 
-export type WriterDialog = 'link' | 'pageSetup' | 'about' | 'shortcuts' | 'tableSize' | 'columns' | 'watermark' | 'protect' | 'unprotect' | 'user' | 'toc' | 'tof' | 'caption' | 'xref' | 'bookmark' | 'indexMark' | 'cite' | 'sources' | 'noteOptions' | 'equation' | 'shape' | 'control' | 'envelope' | 'labels' | 'recipients' | 'mergeField' | 'mergeBlock' | 'mergeRule' | 'finishMerge' | 'templates' | 'spell' | 'userDict' | 'encrypt' | 'sign' | 'signInfo' | 'macros' | 'macroEditor' | 'font' | 'paragraph' | 'symbol' | 'autocorrect' | 'styles' | 'styleEdit' | 'tableProps' | 'tableSort' | 'tableToText' | 'textToTable' | 'pageBorders' | 'lineNumbers' | 'wordCount' | 'docProps' | 'accessibility' | 'compare' | 'imageFormat' | 'wordart';
+export type WriterDialog = 'link' | 'pageSetup' | 'about' | 'shortcuts' | 'tableSize' | 'columns' | 'watermark' | 'protect' | 'unprotect' | 'user' | 'toc' | 'tof' | 'caption' | 'xref' | 'bookmark' | 'indexMark' | 'cite' | 'sources' | 'noteOptions' | 'equation' | 'shape' | 'control' | 'envelope' | 'labels' | 'recipients' | 'mergeField' | 'mergeBlock' | 'mergeRule' | 'finishMerge' | 'templates' | 'spell' | 'userDict' | 'encrypt' | 'sign' | 'signInfo' | 'macros' | 'macroEditor' | 'font' | 'paragraph' | 'symbol' | 'autocorrect' | 'styles' | 'styleEdit' | 'tableProps' | 'tableSort' | 'tableToText' | 'textToTable' | 'pageBorders' | 'lineNumbers' | 'wordCount' | 'docProps' | 'accessibility' | 'compare' | 'imageFormat' | 'wordart' | 'smartart';
 
 export interface WriterUI {
   ctl: WriterCtl;
@@ -274,6 +275,7 @@ export function writerCommands(ui: WriterUI): CommandDef[] {
   defs.push(...refsCommands(ui));
   defs.push(...objectCommands(ui));
   defs.push(...wordArtCommands(ui));
+  defs.push(...smartArtCommands(ui));
   defs.push(...mailCommands(ui));
   defs.push(...spellCommands(ui));
   defs.push(...securityCommands(ui));

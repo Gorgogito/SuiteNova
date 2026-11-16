@@ -1,0 +1,10 @@
+.sa-form { display: grid; grid-template-columns: 1fr 280px; gap: 14px; }
+.sa-form select, .sa-form textarea { font: inherit; box-sizing: border-box; }
+.sa-form select { height: 28px; padding: 0 6px; }
+.sa-form textarea { width: 100%; padding: 6px; resize: vertical; }
+.sa-field { display: flex; flex-direction: column; gap: 2px; font-size: 13px; margin-top: 8px; }
+.sa-note { font-size: 12px; color: var(--colorNeutralForeground3); margin: 4px 0 0; }
+.sa-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
+.sa-gallery label { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 8px; border: 1px solid var(--colorNeutralStroke2); border-radius: 4px; cursor: pointer; font-size: 12px; }
+.sa-gallery label.is-on { border-color: var(--colorBrandStroke1); background: var(--colorBrandBackground2); outline: 1px solid var(--colorBrandStroke1); }
+.sa-gallery input { position: absolute; opacity: 0; pointer-events: none; }

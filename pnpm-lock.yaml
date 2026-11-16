@@ -554,6 +554,9 @@ importers:
       '@suitenova/shapes-core':
         specifier: workspace:*
         version: link:../shapes-core
+      '@suitenova/smartart-core':
+        specifier: workspace:*
+        version: link:../smartart-core
       '@suitenova/wordart-core':
         specifier: workspace:*
         version: link:../wordart-core
