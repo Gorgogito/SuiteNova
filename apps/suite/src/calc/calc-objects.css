@@ -446,3 +446,17 @@
   height: 12px;
   background: var(--nv-accent);
 }
+.calc-shape.is-member {
+  outline: 1px dashed var(--nv-accent);
+  outline-offset: 2px;
+}
+.calc-groupframe {
+  position: absolute;
+  box-sizing: border-box;
+  outline: 2px solid var(--nv-accent);
+  pointer-events: none;
+  z-index: 2;
+}
+.calc-groupframe > * {
+  pointer-events: auto;
+}

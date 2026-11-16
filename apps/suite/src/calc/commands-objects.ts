@@ -1,6 +1,6 @@
 import { hasPassword, type ChartSeries, type ErrorKind, type ShapeKind, type TrendType } from '@suitenova/calc-engine';
 import { supportsErrorBars, supportsTrend } from './dlg-chartfit';
-import { PIVOT_STYLE_NAMES, TABLE_STYLE_NAMES, normRect, safeUrl, type PageSetup } from '@suitenova/calc-engine';
+import { PIVOT_STYLE_NAMES, TABLE_STYLE_NAMES, normRect, rotateShapes, safeUrl, shapesBounds, type PageSetup } from '@suitenova/calc-engine';
 import type { CommandDef } from '@suitenova/core-ui';
 import { CHART_PRESETS, presetOf } from './chartPresets';
 import type { CalcUI } from './commands';
@@ -93,12 +93,20 @@ export function objectCommands(ui: CalcUI): CommandDef[] {
   add({ id: 'calc.textbox', label: 'Cuadro de texto', icon: 'textbox', description: 'Inserta un cuadro para escribir texto sobre la hoja. Doble clic para editar el texto.', enabled: () => !editing(), run: () => void x.insertShape('textBox') });
   add({ id: 'calc.shape.format', label: 'Formato de forma…', icon: 'settings', enabled: () => !!x.selectedShape, run: () => ui.openDialog('shapeFormat') });
   const turnShape = (by: number) => {
+    const group = d.sheet.shapes.filter((o) => x.selectedShapes.includes(o.id));
+    if (group.length > 1) {
+      const b = shapesBounds(group);
+      x.updateShapes(rotateShapes(group, { x: b.x + b.width / 2, y: b.y + b.height / 2 }, by), 'Girar formas');
+      return;
+    }
     const s = x.selectedShape ? d.sheet.shapes.find((o) => o.id === x.selectedShape) : undefined;
     if (s) x.updateShape(s.id, { rotation: ((((s.rotation ?? 0) + by) % 360) + 360) % 360 || undefined }, 'Girar forma');
   };
   add({ id: 'calc.shape.rotateRight', label: 'Girar a la derecha', icon: 'redo', description: 'Gira la forma 90° en el sentido de las agujas del reloj.', enabled: () => !!x.selectedShape, run: () => turnShape(90) });
   add({ id: 'calc.shape.rotateLeft', label: 'Girar a la izquierda', icon: 'undo', description: 'Gira la forma 90° en sentido contrario a las agujas del reloj.', enabled: () => !!x.selectedShape, run: () => turnShape(-90) });
-  add({ id: 'calc.shape.delete', label: 'Eliminar forma', icon: 'trash', hint: 'Supr', enabled: () => !!x.selectedShape, run: () => x.selectedShape && x.deleteShape(x.selectedShape) });
+  add({ id: 'calc.shape.delete', label: 'Eliminar forma', icon: 'trash', hint: 'Supr', enabled: () => !!x.selectedShape, run: () => x.deleteSelectedShapes() });
+  add({ id: 'calc.shape.group', label: 'Agrupar', icon: 'shapes', description: 'Une las formas seleccionadas (Ctrl+clic para elegir varias) para moverlas, cambiar su tamaño y girarlas como un bloque.', enabled: () => x.selectedShapes.length > 1, run: () => x.groupSelectedShapes() });
+  add({ id: 'calc.shape.ungroup', label: 'Desagrupar', icon: 'shapes', description: 'Separa el grupo de formas seleccionado en formas independientes.', enabled: () => x.selectionHasGroup, run: () => x.ungroupSelectedShapes() });
 
   // ---- pictures
   add({ id: 'calc.picture', label: 'Imagen…', icon: 'picture', description: 'Inserta una imagen (PNG, JPG, GIF, BMP, WebP o SVG) de un archivo.', enabled: () => !editing(), run: () => void ui.insertPicture() });

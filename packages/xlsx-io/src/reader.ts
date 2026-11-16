@@ -24,7 +24,7 @@ import {
 import JSZip from 'jszip';
 import { DEFAULT_THEME, resolveColor, type ColorSpec } from './colors';
 import { parseChartEx } from './chartex-io';
-import { parseShape } from './shapes-io';
+import { parseGroup, parseShape } from './shapes-io';
 import { anchorToRect, parseChart } from './charts-io';
 import { applySuitePart } from './suite-part';
 import { parseAutoFilter, parseConditionalFormatting, parseDxfs } from './filter-cf-io';
@@ -439,9 +439,22 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
   let n = 0;
   let p = 0;
   let s = 0;
+  let g = 0;
   for (const a of anchors) {
     const frame = a.graphicFrame ?? asArray(a.AlternateContent?.Choice)[0]?.graphicFrame;
     const chartRef = frame?.graphic?.graphicData?.chart;
+    if (!chartRef && a.grpSp !== undefined) {
+      const frame = anchorToRect(sheet, a);
+      if (frame) {
+        const members = parseGroup(a.grpSp, frame, theme);
+        const gid = `grp-imp-${sheet.id}-${++g}`;
+        for (const m of members) {
+          sheet.shapes.push({ ...m.shape, id: `shape-imp-${sheet.id}-${++s}`, ...m.rect, ...(members.length > 1 ? { group: gid } : {}) });
+          if (m.unsupported) unsupportedShapes++;
+        }
+      }
+      continue;
+    }
     if (!chartRef && (a.sp !== undefined || a.cxnSp !== undefined)) {
       const parsed = parseShape(a, theme);
       const rect = anchorToRect(sheet, a);

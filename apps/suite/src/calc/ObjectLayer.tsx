@@ -1,5 +1,5 @@
 import { adjustHandles, dragAdjust, isLineKind, shapeSvg } from '@suitenova/shapes-core';
-import { listChoices, shapeLook, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
+import { listChoices, moveShapes, rotateShapes, scaleShapes, shapeLook, shapesBounds, type ShapePatch, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { Check, FilterX, ListChecks } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -150,7 +150,7 @@ function SlicerView({ doc, sl, rect, selected, onDown }: { doc: CalcDoc; sl: Sli
   );
 }
 
-function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit, onAdjust, onRotate }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void; onAdjust: (adj: Record<string, number> | undefined) => void; onRotate: (deg: number) => void }) {
+function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit, onAdjust, onRotate, member }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void; onAdjust: (adj: Record<string, number> | undefined) => void; onRotate: (deg: number) => void; member?: boolean }) {
   const look = shapeLook(s);
   const box = useRef<HTMLDivElement>(null);
   const [adjDraft, setAdjDraft] = useState<Record<string, number> | null>(null);
@@ -218,7 +218,7 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
   return (
     <div
       ref={box}
-      className={`calc-shape ${selected ? 'is-selected' : ''}`}
+      className={`calc-shape ${selected ? 'is-selected' : ''}${member ? ' is-member' : ''}`}
       style={{ left: rect.x, top: rect.y, width: w, height: isLineKind(s.kind) ? Math.max(h, 6) : h, ...(rotation ? { transform: `rotate(${rotation}deg)` } : {}) }}
       data-shape-id={s.id}
       role="img"
@@ -295,6 +295,68 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
     (id, r, label) => doc.x.updateShape(id, r, label === 'Mover' ? 'Mover forma' : 'Cambiar tamaño de la forma'),
     (id) => doc.x.selectObject('shape', id),
   );
+  const [gPrev, setGPrev] = useState<ShapePatch[] | null>(null);
+  const sel = doc.x.selectedShapes;
+  const multi = sel.length > 1;
+  const patched = (s: SheetShape): SheetShape => {
+    const p = gPrev?.find((q) => q.id === s.id);
+    if (!p) return s;
+    const { id, rotation, ...rest } = p;
+    void id;
+    const n: SheetShape = { ...s, ...rest };
+    if ('rotation' in p) n.rotation = rotation || undefined;
+    return n;
+  };
+  /** Mover, cambiar de tamaño o girar como un bloque las formas seleccionadas (un grupo o una selección múltiple). */
+  const startGroup = (e: React.PointerEvent, mode: Handle | 'move' | 'rotate') => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    doc.commitIfEditing();
+    const orig = doc.sheet.shapes.filter((s) => doc.x.selectedShapes.includes(s.id));
+    if (!orig.length) return;
+    const b0 = shapesBounds(orig);
+    const start = { x: e.clientX, y: e.clientY };
+    const fr = (e.currentTarget as HTMLElement).parentElement?.getBoundingClientRect();
+    const centre = fr ? { x: fr.left + fr.width / 2, y: fr.top + fr.height / 2 } : start;
+    const a0 = Math.atan2(start.y - centre.y, start.x - centre.x);
+    let latest: ShapePatch[] = [];
+    let moved = false;
+    const move = (ev: PointerEvent) => {
+      const dx = (ev.clientX - start.x) / zoom;
+      const dy = (ev.clientY - start.y) / zoom;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+      moved = true;
+      if (mode === 'move') latest = moveShapes(orig, Math.max(-b0.x, dx), Math.max(-b0.y, dy));
+      else if (mode === 'rotate') {
+        let deg = ((Math.atan2(ev.clientY - centre.y, ev.clientX - centre.x) - a0) * 180) / Math.PI;
+        if (ev.shiftKey) deg = Math.round(deg / 15) * 15;
+        latest = rotateShapes(orig, { x: b0.x + b0.width / 2, y: b0.y + b0.height / 2 }, deg);
+      } else {
+        let { x, y, width, height } = b0;
+        const min = 10;
+        if (mode.includes('e')) width = Math.max(min, b0.width + dx);
+        if (mode.includes('s')) height = Math.max(min, b0.height + dy);
+        if (mode.includes('w')) {
+          width = Math.max(min, b0.width - dx);
+          x = b0.x + b0.width - width;
+        }
+        if (mode.includes('n')) {
+          height = Math.max(min, b0.height - dy);
+          y = b0.y + b0.height - height;
+        }
+        latest = scaleShapes(orig, b0, { x, y, width, height });
+      }
+      setGPrev(latest);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setGPrev(null);
+      if (moved) doc.x.updateShapes(latest, mode === 'move' ? 'Mover formas' : mode === 'rotate' ? 'Girar formas' : 'Cambiar tamaño de las formas');
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const urlsFor = useMemo(() => new Map(images.map((i) => [i.id, mediaUrl(doc, i.media)])), [images, doc]);
   useEffect(() => undefined, []);
   if (!images.length && !slicers.length && !shapes.length) return null;
@@ -311,18 +373,32 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
           </div>
         );
       })}
-      {shapes.map((s: SheetShape) => {
+      {shapes.map((s0: SheetShape) => {
+        const s = patched(s0);
         const r = shBox.preview?.id === s.id ? shBox.preview.r : { x: s.x, y: s.y, width: s.width, height: s.height };
-        const orig = { x: s.x, y: s.y, width: s.width, height: s.height };
+        const orig = { x: s0.x, y: s0.y, width: s0.width, height: s0.height };
         return (
           <ShapeView
             key={s.id}
             s={s}
             rect={place(r)}
             zoom={zoom}
-            selected={doc.x.selectedShape === s.id}
+            member={multi && sel.includes(s.id)}
+            selected={!multi && doc.x.selectedShape === s.id}
             editing={editingShape === s.id}
-            onDown={(e, m) => shBox.begin(s.id, orig, e, m, false, s.rotation ?? 0)}
+            onDown={(e, m) => {
+              if (e.ctrlKey || e.shiftKey || e.metaKey) {
+                e.stopPropagation();
+                doc.x.toggleShapeSelection(s.id);
+                return;
+              }
+              if (m === 'move' && (s.group || (multi && sel.includes(s.id)))) {
+                if (!sel.includes(s.id)) doc.x.selectObject('shape', s.id);
+                startGroup(e, 'move');
+                return;
+              }
+              shBox.begin(s.id, orig, e, m, false, s.rotation ?? 0);
+            }}
             onEdit={() => {
               doc.x.selectObject('shape', s.id);
               setEditingShape(s.id);
@@ -337,6 +413,15 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
           />
         );
       })}
+      {multi && (() => {
+        const b = place(shapesBounds(shapes.filter((x) => sel.includes(x.id)).map(patched)));
+        return (
+          <div className="calc-groupframe" data-group-frame style={{ left: b.x, top: b.y, width: b.w, height: b.h }}>
+            <Handles onDown={(e, h) => startGroup(e, h)} />
+            <span className="calc-shape__rot" data-rotate-handle title={t('Girar')} onPointerDown={(e) => startGroup(e, 'rotate')} />
+          </div>
+        );
+      })()}
       {slicers.map((sl) => {
         const r = slBox.preview?.id === sl.id ? slBox.preview.r : { x: sl.x, y: sl.y, width: sl.width, height: sl.height };
         return <SlicerView key={sl.id} doc={doc} sl={sl} rect={place(r)} selected={doc.x.selectedSlicer === sl.id} onDown={(e, m) => slBox.begin(sl.id, { x: sl.x, y: sl.y, width: sl.width, height: sl.height }, e, m)} />;

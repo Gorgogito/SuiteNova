@@ -36,7 +36,7 @@ import {
   type Workbook,
 } from '@suitenova/calc-engine';
 import { isLineKind } from '@suitenova/shapes-core';
-import { PIVOT_LABELS_EN, PIVOT_LABELS_ES, newShapeId, type SheetShape, type ShapeKind } from '@suitenova/calc-engine';
+import { PIVOT_LABELS_EN, PIVOT_LABELS_ES, applyPatches, groupShapes, newShapeId, ungroupShapes, withGroupMates, type ShapePatch, type SheetShape, type ShapeKind } from '@suitenova/calc-engine';
 import type { CalcDoc } from './doc';
 
 let counter = 0;
@@ -65,6 +65,8 @@ export class DocObjects {
   circleInvalid = false;
   selectedImage: string | null = null;
   selectedShape: string | null = null;
+  /** Formas seleccionadas a la vez (un grupo entero, o varias con Ctrl+clic); `selectedShape` es la principal. */
+  private multiShapes: string[] = [];
   selectedSlicer: string | null = null;
   /** The pivot table whose field list is open. */
   pivotPane: string | null = null;
@@ -91,9 +93,75 @@ export class DocObjects {
   selectObject(kind: ObjectKind | null, id: string | null): void {
     this.selectedImage = kind === 'image' ? id : null;
     this.selectedShape = kind === 'shape' ? id : null;
+    // un grupo se selecciona entero
+    const mates = kind === 'shape' && id ? withGroupMates(this.sheet.shapes, [id]) : [];
+    this.multiShapes = mates.length > 1 ? mates : [];
     this.selectedSlicer = kind === 'slicer' ? id : null;
     if (kind) this.d.selectedChart = null;
     this.d.touch();
+  }
+
+  /** Las formas seleccionadas que existen en la hoja activa (varias si es un grupo o una selección múltiple). */
+  get selectedShapes(): string[] {
+    const exist = new Set(this.sheet.shapes.map((s) => s.id));
+    if (this.selectedShape && this.multiShapes.includes(this.selectedShape)) return this.multiShapes.filter((i) => exist.has(i));
+    return this.selectedShape && exist.has(this.selectedShape) ? [this.selectedShape] : [];
+  }
+
+  /** Ctrl/Mayús+clic: añade o quita una forma (con su grupo) de la selección. */
+  toggleShapeSelection(id: string): void {
+    const current = this.selectedShapes;
+    const target = withGroupMates(this.sheet.shapes, [id]);
+    const allIn = target.every((t) => current.includes(t));
+    const next = allIn ? current.filter((c) => !target.includes(c)) : [...current, ...target.filter((t) => !current.includes(t))];
+    this.selectedImage = null;
+    this.selectedSlicer = null;
+    this.multiShapes = next.length > 1 ? next : [];
+    this.selectedShape = next.includes(id) ? id : (next[next.length - 1] ?? null);
+    if (next.length) this.d.selectedChart = null;
+    this.d.touch();
+  }
+
+  /** Agrupa las formas seleccionadas (dos o más). */
+  groupSelectedShapes(): void {
+    const ids = this.selectedShapes;
+    if (ids.length < 2 || !this.d.prot.allowed('objects')) return;
+    let gid: string | null = null;
+    this.d.run('Agrupar formas', () => this.wb.editObjects(this.id, (s) => void (gid = groupShapes(s.shapes, ids))));
+    if (gid && this.selectedShape) this.selectObject('shape', this.selectedShape);
+  }
+
+  /** Deshace los grupos de las formas seleccionadas; quedan seleccionadas todas, sueltas. */
+  ungroupSelectedShapes(): void {
+    const ids = this.selectedShapes;
+    if (!ids.length || !this.d.prot.allowed('objects')) return;
+    let freed: string[] = [];
+    this.d.run('Desagrupar formas', () => this.wb.editObjects(this.id, (s) => void (freed = ungroupShapes(s.shapes, ids))));
+    const keep = this.selectedShape;
+    this.multiShapes = freed.length > 1 ? freed : [];
+    this.selectedShape = keep;
+    this.d.touch();
+  }
+
+  /** ¿Alguna de las formas seleccionadas pertenece a un grupo? */
+  get selectionHasGroup(): boolean {
+    const ids = this.selectedShapes;
+    return this.sheet.shapes.some((s) => ids.includes(s.id) && !!s.group);
+  }
+
+  /** Cambios de posición, tamaño o giro de varias formas en un solo paso de deshacer. */
+  updateShapes(patches: ShapePatch[], label: string): void {
+    if (!patches.length || !this.d.prot.allowed('objects')) return;
+    this.d.run(label, () => this.wb.editObjects(this.id, (s) => applyPatches(s.shapes, patches)));
+  }
+
+  /** Elimina todas las formas seleccionadas. */
+  deleteSelectedShapes(): void {
+    const ids = this.selectedShapes;
+    if (!ids.length || !this.d.prot.allowed('objects')) return;
+    this.selectedShape = null;
+    this.multiShapes = [];
+    this.d.run(ids.length > 1 ? 'Eliminar formas' : 'Eliminar forma', () => this.wb.editObjects(this.id, (s) => void (s.shapes = s.shapes.filter((x) => !ids.includes(x.id)))));
   }
 
   // ------------------------------------------------------------------------------------------------ data validation

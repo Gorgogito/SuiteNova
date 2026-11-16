@@ -86,3 +86,4 @@ export { DEFAULT_ALLOW, PROTECT_ACTIONS, PROTECT_SPIN, checkPassword, hasPasswor
 export { ERROR_KINDS, TREND_TYPES, errorAmounts, fitTrend, fmtCoeff, trendName, trendPath, type ErrorBars, type ErrorKind, type Fit, type TrendType, type Trendline } from './chart-fit';
 export { REL_PERIODS, inPeriod, periodRange, type RelPeriod } from './reldate';
 export { boxStats, histogramBins, scottWidth, waterfallSteps, type BoxStats, type HistogramBin, type HistogramOptions, type WaterfallStep } from './chart-stat';
+export * from './shape-group';

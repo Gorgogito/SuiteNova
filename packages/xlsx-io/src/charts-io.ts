@@ -20,7 +20,7 @@ import {
   type Workbook,
 } from '@suitenova/calc-engine';
 import { NS_CX } from './chartex-io';
-import { shapeBodyXml } from './shapes-io';
+import { groupBodyXml, shapeBodyXml } from './shapes-io';
 import { errBarsXml, parseErrBars, parseTrendlines, trendlinesXml } from './chart-fit-io';
 import { DEFAULT_THEME, resolveColor } from './colors';
 import { escapeXml, asArray, attr, textOf, type XNode } from './xml';
@@ -274,9 +274,11 @@ export function chartXml(def: ChartDef, wb: Workbook, sheetId: number): string {
 
 // ------------------------------------------------------------------------------------------------ drawings
 export interface DrawingItem {
-  kind: 'chart' | 'pic' | 'shape';
+  kind: 'chart' | 'pic' | 'shape' | 'group';
   /** For shapes: the shape itself. */
   shape?: import('@suitenova/calc-engine').SheetShape;
+  /** For groups: the shapes of the group. */
+  group?: import('@suitenova/calc-engine').SheetShape[];
   /** The chart is an Excel 2016 chart (chartex): the anchor carries a fallback for older versions. */
   ex?: boolean;
   /** Relationship id of the chart or image part. */
@@ -299,7 +301,9 @@ export function drawingXml(sheet: Sheet, items: DrawingItem[]): string {
         `<xdr:col>${p.col.col}</xdr:col><xdr:colOff>${Math.round(p.col.offset * EMU)}</xdr:colOff><xdr:row>${p.row.row}</xdr:row><xdr:rowOff>${Math.round(p.row.offset * EMU)}</xdr:rowOff>`;
       const id = i + 2;
       const body =
-        c.kind === 'shape'
+        c.kind === 'group'
+          ? groupBodyXml(c.group!, id, c.name)
+          : c.kind === 'shape'
           ? shapeBodyXml(c.shape!, id)
           : c.kind === 'chart' && c.ex
           ? `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" Requires="cx1">` +
@@ -314,7 +318,7 @@ export function drawingXml(sheet: Sheet, items: DrawingItem[]): string {
           : `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"${c.alt ? ` descr="${escapeXml(c.alt)}"` : ''}/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
             `<xdr:blipFill><a:blip xmlns:r="${NS_R}" r:embed="${c.rId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
             `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.round(c.width * EMU)}" cy="${Math.round(c.height * EMU)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>`;
-      return `<xdr:twoCellAnchor${c.kind === 'pic' || c.kind === 'shape' ? ' editAs="oneCell"' : ''}><xdr:from>${pt(from)}</xdr:from><xdr:to>${pt(to)}</xdr:to>${body}<xdr:clientData/></xdr:twoCellAnchor>`;
+      return `<xdr:twoCellAnchor${c.kind === 'pic' || c.kind === 'shape' || c.kind === 'group' ? ' editAs="oneCell"' : ''}><xdr:from>${pt(from)}</xdr:from><xdr:to>${pt(to)}</xdr:to>${body}<xdr:clientData/></xdr:twoCellAnchor>`;
     })
     .join('');
   void colOffsetPx;

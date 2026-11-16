@@ -211,6 +211,95 @@ await check('rotación: asa, comandos Girar, cuadro de formato, redimensionar gi
   assert.equal(await rotOf(), 45);
 });
 
+await check('grupos: Ctrl+clic, agrupar, mover/redimensionar/girar como bloque, deshacer, desagrupar y borrar', async () => {
+  // dos formas limpias en una zona libre de la hoja
+  const [a, b] = await ev(() => {
+    const d = window.__novaCalc.doc;
+    const ids = [d.x.insertShape('rect'), d.x.insertShape('ellipse')];
+    d.x.updateShape(ids[0], { x: 600, y: 300, width: 100, height: 60 });
+    d.x.updateShape(ids[1], { x: 760, y: 380, width: 80, height: 80 });
+    d.x.selectObject(null, null);
+    return ids;
+  });
+  await page.waitForTimeout(300);
+  const get = async () => {
+    const all = await shapes();
+    return [all.find((x) => x.id === a), all.find((x) => x.id === b)];
+  };
+  const sel = () => ev(() => window.__novaCalc.doc.x.selectedShapes.length);
+  const cmd = async (name) => {
+    if ((await page.locator(`[data-nv-item="${name}"]`).count()) === 0) await page.locator('[role=tab]').filter({ hasText: 'Formato de forma' }).click();
+    await page.locator(`[data-nv-item="${name}"]`).click();
+    await page.waitForTimeout(300);
+  };
+  // selección múltiple con Ctrl+clic
+  await page.locator(`[data-shape-id="${a}"]`).click({ position: { x: 20, y: 20 } });
+  assert.equal(await sel(), 1);
+  await page.locator(`[data-shape-id="${b}"]`).click({ position: { x: 40, y: 40 }, modifiers: ['Control'] });
+  assert.equal(await sel(), 2);
+  assert.equal(await page.locator('[data-group-frame]').count(), 1);
+  await cmd('calc.shape.group');
+  let [A, B] = await get();
+  assert.ok(A.group && A.group === B.group, 'mismo grupo');
+  // un clic en una sola forma selecciona el grupo entero
+  await page.locator('.calc-charts').click({ position: { x: 5, y: 5 }, force: true }).catch(() => {});
+  await ev(() => window.__novaCalc.doc.x.selectObject(null, null));
+  await page.locator(`[data-shape-id="${a}"]`).click({ position: { x: 20, y: 20 } });
+  assert.equal(await sel(), 2);
+  await shot('grupo');
+  // arrastrar un miembro mueve todo el bloque
+  const bb = await page.locator(`[data-shape-id="${a}"]`).boundingBox();
+  await page.mouse.move(bb.x + 20, bb.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(bb.x + 20 + 50, bb.y + 20 + 30, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  let [A2, B2] = await get();
+  assert.deepEqual([A2.x - A.x, A2.y - A.y, B2.x - B.x, B2.y - B.y], [50, 30, 50, 30]);
+  await ev(() => window.__novaCalc.doc.undo());
+  [A2, B2] = await get();
+  assert.deepEqual([A2.x, A2.y, B2.x, B2.y], [A.x, A.y, B.x, B.y], 'un solo deshacer devuelve el bloque');
+  // redimensionar con el asa sureste del marco: el bloque (240 x 160) pasa a 2x en ancho
+  const se = await page.locator('[data-group-frame] .calc-chart__handle--se').boundingBox();
+  await page.mouse.move(se.x + se.width / 2, se.y + se.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(se.x + se.width / 2 + 240, se.y + se.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  [A2, B2] = await get();
+  assert.equal(A2.width, 200, 'el ancho de la primera se duplica');
+  assert.equal(B2.width, 160);
+  assert.equal(A2.height, 60, 'el alto no cambia');
+  assert.equal(B2.x - A2.x, 2 * (B.x - A.x), 'la separación también se duplica');
+  await ev(() => window.__novaCalc.doc.undo());
+  // girar el grupo 90° con el comando: cada forma gira y sus centros dan el mismo giro
+  await cmd('calc.shape.rotateRight');
+  [A2, B2] = await get();
+  assert.equal(A2.rotation, 90);
+  assert.equal(B2.rotation, 90);
+  const cAB = (p, q) => [q.x + q.width / 2 - (p.x + p.width / 2), q.y + q.height / 2 - (p.y + p.height / 2)];
+  const [dx0, dy0] = cAB(A, B);
+  const [dx1, dy1] = cAB(A2, B2);
+  assert.ok(Math.abs(dx1 + dy0) <= 1 && Math.abs(dy1 - dx0) <= 1, `giro de los centros (${dx0},${dy0}) -> (${dx1},${dy1})`);
+  await ev(() => window.__novaCalc.doc.undo());
+  // desagrupar: las formas quedan sueltas y un clic selecciona una sola
+  await cmd('calc.shape.ungroup');
+  [A2, B2] = await get();
+  assert.ok(!A2.group && !B2.group);
+  await ev(() => window.__novaCalc.doc.x.selectObject(null, null));
+  await page.locator(`[data-shape-id="${a}"]`).click({ position: { x: 20, y: 20 } });
+  assert.equal(await sel(), 1);
+  // volver a agrupar y borrar con Supr elimina las dos
+  await page.locator(`[data-shape-id="${b}"]`).click({ position: { x: 40, y: 40 }, modifiers: ['Control'] });
+  await cmd('calc.shape.group');
+  const n0 = (await shapes()).length;
+  await page.locator(`[data-shape-id="${a}"]`).click({ position: { x: 20, y: 20 } });
+  assert.equal(await sel(), 2, 'el grupo se selecciona entero');
+  await page.keyboard.press('Delete');
+  await page.waitForTimeout(300);
+  assert.equal((await shapes()).length, n0 - 2);
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors.filter((e) => !/Keyborg/.test(e)), []);
 });

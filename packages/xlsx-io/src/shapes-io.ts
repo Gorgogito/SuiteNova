@@ -23,9 +23,9 @@ function textXml(s: SheetShape): string {
 }
 
 /** Cuerpo de un ancla de dibujo para una forma; `w` y `h` son el tamaño en píxeles. */
-export function shapeBodyXml(s: SheetShape, id: number): string {
+export function shapeBodyXml(s: SheetShape, id: number, at?: { x: number; y: number }): string {
   const name = escapeXml(s.name ?? `Forma ${id - 1}`);
-  const xfrm = `<a:xfrm${s.rotation ? ` rot="${Math.round(s.rotation * 60000)}"` : ''}${s.flip ? ' flipH="1"' : ''}><a:off x="0" y="0"/><a:ext cx="${Math.round(s.width * EMU)}" cy="${Math.round(s.height * EMU)}"/></a:xfrm>`;
+  const xfrm = `<a:xfrm${s.rotation ? ` rot="${Math.round(s.rotation * 60000)}"` : ''}${s.flip ? ' flipH="1"' : ''}><a:off x="${at ? Math.round(at.x * EMU) : 0}" y="${at ? Math.round(at.y * EMU) : 0}"/><a:ext cx="${Math.round(s.width * EMU)}" cy="${Math.round(s.height * EMU)}"/></a:xfrm>`;
   const geom = `<a:prstGeom prst="${presetOf(s.kind)}">${avLstXml(s.adj)}</a:prstGeom>`;
   if (isLineKind(s.kind)) {
     return `<xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="${id}" name="${name}"${s.alt ? ` descr="${escapeXml(s.alt)}"` : ''}/><xdr:cNvCxnSpPr/></xdr:nvCxnSpPr><xdr:spPr>${xfrm}${geom}${lineXml(s.line === undefined ? { color: SHAPE_LINE, width: 2 } : s.line)}</xdr:spPr></xdr:cxnSp>`;
@@ -38,8 +38,67 @@ export function shapeBodyXml(s: SheetShape, id: number): string {
   );
 }
 
+/**
+ * Cuerpo de un ancla para un grupo de formas (`xdr:grpSp`). Los hijos usan las coordenadas absolutas de la hoja (el espacio del grupo es
+ * el mismo que el de la hoja), así que no hace falta transformarlos.
+ */
+export function groupBodyXml(shapes: SheetShape[], id: number, name: string): string {
+  const x1 = Math.min(...shapes.map((s) => s.x));
+  const y1 = Math.min(...shapes.map((s) => s.y));
+  const x2 = Math.max(...shapes.map((s) => s.x + s.width));
+  const y2 = Math.max(...shapes.map((s) => s.y + s.height));
+  const off = `<a:off x="${Math.round(x1 * EMU)}" y="${Math.round(y1 * EMU)}"/>`;
+  const ext = `<a:ext cx="${Math.round((x2 - x1) * EMU)}" cy="${Math.round((y2 - y1) * EMU)}"/>`;
+  const kids = shapes.map((s, i) => shapeBodyXml(s, 1000 * id + i + 1, { x: s.x, y: s.y })).join('');
+  return `<xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id="${id}" name="${escapeXml(name)}"/><xdr:cNvGrpSpPr/></xdr:nvGrpSpPr><xdr:grpSpPr><a:xfrm>${off}${ext}<a:chOff x="${Math.round(x1 * EMU)}" y="${Math.round(y1 * EMU)}"/><a:chExt cx="${Math.round((x2 - x1) * EMU)}" cy="${Math.round((y2 - y1) * EMU)}"/></a:xfrm></xdr:grpSpPr>${kids}</xdr:grpSp>`;
+}
+
 // ------------------------------------------------------------------------------------------------ reading
 const num = (v: unknown): number => Number(v ?? 0) || 0;
+
+export interface GroupedShape {
+  shape: Omit<SheetShape, 'id' | 'x' | 'y' | 'width' | 'height'>;
+  rect: { x: number; y: number; width: number; height: number };
+  unsupported: boolean;
+}
+
+/**
+ * Formas de un grupo (`xdr:grpSp`), con su rectángulo absoluto en la hoja. `frame` es el rectángulo (en píxeles) que ocupa el grupo; los
+ * hijos se colocan según el espacio de coordenadas del grupo (`chOff`/`chExt`). Los grupos anidados se aplanan en uno solo.
+ */
+export function parseGroup(grp: XNode, frame: { x: number; y: number; width: number; height: number }, theme: string[]): GroupedShape[] {
+  const xf = grp.grpSpPr?.xfrm;
+  const chOff = xf?.chOff;
+  const chExt = xf?.chExt;
+  const cw = num(attr(chExt, 'cx')) / EMU;
+  const ch = num(attr(chExt, 'cy')) / EMU;
+  const sx = cw > 0 ? frame.width / cw : 1;
+  const sy = ch > 0 ? frame.height / ch : 1;
+  const ox = num(attr(chOff, 'x')) / EMU;
+  const oy = num(attr(chOff, 'y')) / EMU;
+  const rectOf = (x: XNode): { x: number; y: number; width: number; height: number } | null => {
+    if (!x?.off || !x?.ext) return null;
+    return {
+      x: frame.x + (num(attr(x.off, 'x')) / EMU - ox) * sx,
+      y: frame.y + (num(attr(x.off, 'y')) / EMU - oy) * sy,
+      width: Math.max(1, (num(attr(x.ext, 'cx')) / EMU) * sx),
+      height: Math.max(1, (num(attr(x.ext, 'cy')) / EMU) * sy),
+    };
+  };
+  const out: GroupedShape[] = [];
+  for (const [key, list] of [['sp', asArray(grp.sp)], ['cxnSp', asArray(grp.cxnSp)]] as const) {
+    for (const child of list) {
+      const parsed = parseShape({ [key]: child } as XNode, theme);
+      const rect = rectOf(child.spPr?.xfrm);
+      if (parsed && rect) out.push({ shape: parsed.shape, rect, unsupported: parsed.unsupported });
+    }
+  }
+  for (const sub of asArray(grp.grpSp)) {
+    const rect = rectOf(sub.grpSpPr?.xfrm);
+    if (rect) out.push(...parseGroup(sub, rect, theme));
+  }
+  return out;
+}
 
 /** Forma leída de un ancla (`sp` o `cxnSp`); `null` si no es una forma. `unsupported` dice que la geometría se sustituyó por un rectángulo. */
 export function parseShape(a: XNode, theme: string[]): { shape: Omit<SheetShape, 'id' | 'x' | 'y' | 'width' | 'height'>; unsupported: boolean } | null {

@@ -402,7 +402,24 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
         drawingRels.push({ id: rid, type: `${NS_REL}/image`, target: `../media/${file}` });
         items.push({ kind: 'pic', rId: rid, x: img.x, y: img.y, width: img.width, height: img.height, name: img.name ?? `Imagen ${i + 1}`, alt: img.alt });
       });
-      sheet.shapes.forEach((s, i) => items.push({ kind: 'shape', shape: s, rId: '', x: s.x, y: s.y, width: s.width, height: s.height, name: s.name ?? `Forma ${i + 1}` }));
+      const doneGroups = new Set<string>();
+      let groupN = 0;
+      sheet.shapes.forEach((s, i) => {
+        if (!s.group) {
+          items.push({ kind: 'shape', shape: s, rId: '', x: s.x, y: s.y, width: s.width, height: s.height, name: s.name ?? `Forma ${i + 1}` });
+          return;
+        }
+        if (doneGroups.has(s.group)) return;
+        doneGroups.add(s.group);
+        const members = sheet.shapes.filter((o) => o.group === s.group);
+        if (members.length < 2) {
+          items.push({ kind: 'shape', shape: { ...s, group: undefined }, rId: '', x: s.x, y: s.y, width: s.width, height: s.height, name: s.name ?? `Forma ${i + 1}` });
+          return;
+        }
+        const x1 = Math.min(...members.map((m) => m.x));
+        const y1 = Math.min(...members.map((m) => m.y));
+        items.push({ kind: 'group', group: members, rId: '', x: x1, y: y1, width: Math.max(...members.map((m) => m.x + m.width)) - x1, height: Math.max(...members.map((m) => m.y + m.height)) - y1, name: `Grupo ${++groupN}` });
+      });
       put(`xl/drawings/drawing${dn}.xml`, drawingXml(sheet, items));
       put(`xl/drawings/_rels/drawing${dn}.xml.rels`, relsXml(drawingRels));
       types.push(`<Override PartName="/xl/drawings/drawing${dn}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`);

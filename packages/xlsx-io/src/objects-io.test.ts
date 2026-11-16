@@ -400,6 +400,30 @@ describe('shapes and text boxes', () => {
     expect(r.warnings.join(' ')).not.toMatch(/geometría/);
   });
 
+  it('writes and reads groups of shapes (xdr:grpSp) with the children where they were', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.editObjects(id, (sh) => void sh.shapes.push(
+      { id: 'a', kind: 'rect', x: 20, y: 30, width: 100, height: 60, group: 'g1' } as never,
+      { id: 'solo', kind: 'ellipse', x: 300, y: 30, width: 50, height: 50 } as never,
+      { id: 'b', kind: 'star5', x: 160, y: 90, width: 80, height: 80, rotation: 30, group: 'g1' } as never,
+      { id: 'alone', kind: 'rect', x: 10, y: 200, width: 40, height: 40, group: 'g2' } as never,
+    ));
+    const bytes = await writeXlsx(w);
+    const r = await readXlsx(bytes);
+    const shapes = r.workbook.sheets[0]!.shapes;
+    expect(shapes).toHaveLength(4);
+    const grouped = shapes.filter((x) => x.group);
+    expect(grouped.map((x) => x.kind).sort()).toEqual(['rect', 'star5']);
+    expect(new Set(grouped.map((x) => x.group)).size).toBe(1);
+    const rect = shapes.find((x) => x.kind === 'rect' && x.group)!;
+    expect([rect.x, rect.y, rect.width, rect.height]).toEqual([20, 30, 100, 60]);
+    const star = shapes.find((x) => x.kind === 'star5')!;
+    expect([star.x, star.y, star.width, star.height, star.rotation]).toEqual([160, 90, 80, 80, 30]);
+    // la forma suelta y la de un grupo de uno solo salen sin grupo
+    expect(shapes.filter((x) => !x.group)).toHaveLength(2);
+  });
+
   it('writes and reads the rotation of a shape', async () => {
     const w = new Workbook();
     const id = w.sheets[0]!.id;

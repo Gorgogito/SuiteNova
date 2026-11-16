@@ -395,3 +395,78 @@ describe('charts of every kind from the document', () => {
     expect(d.chartById(id)!.type).toBe('radar');
   });
 });
+
+describe('formas agrupadas del documento', () => {
+  const three = () => {
+    const d = new CalcDoc();
+    const a = d.x.insertShape('rect');
+    const b = d.x.insertShape('ellipse');
+    const c = d.x.insertShape('triangle');
+    d.x.updateShape(a, { x: 0, y: 0, width: 100, height: 50 });
+    d.x.updateShape(b, { x: 200, y: 100, width: 100, height: 50 });
+    d.x.updateShape(c, { x: 500, y: 0, width: 40, height: 40 });
+    d.x.selectObject(null, null);
+    return { d, a, b, c };
+  };
+  const shape = (d: CalcDoc, id: string) => d.sheet.shapes.find((s) => s.id === id)!;
+
+  it('Ctrl+clic añade y quita formas; agrupar las une y seleccionar una elige todo el grupo', () => {
+    const { d, a, b, c } = three();
+    d.x.selectObject('shape', a);
+    d.x.toggleShapeSelection(b);
+    expect(d.x.selectedShapes).toEqual([a, b]);
+    d.x.toggleShapeSelection(b);
+    expect(d.x.selectedShapes).toEqual([a]);
+    d.x.toggleShapeSelection(b);
+    d.x.groupSelectedShapes();
+    expect(shape(d, a).group).toBeTruthy();
+    expect(shape(d, a).group).toBe(shape(d, b).group);
+    expect(shape(d, c).group).toBeUndefined();
+    d.x.selectObject(null, null);
+    d.x.selectObject('shape', b);
+    expect(d.x.selectedShapes).toEqual([a, b]);
+    expect(d.x.selectionHasGroup).toBe(true);
+  });
+
+  it('agrupar, desagrupar y mover el bloque son un solo paso de deshacer', () => {
+    const { d, a, b } = three();
+    d.x.selectObject('shape', a);
+    d.x.toggleShapeSelection(b);
+    d.x.groupSelectedShapes();
+    d.x.updateShapes([{ id: a, x: 10 }, { id: b, x: 210 }], 'Mover formas');
+    expect(shape(d, b).x).toBe(210);
+    d.undo();
+    expect([shape(d, a).x, shape(d, b).x]).toEqual([0, 200]);
+    expect(shape(d, a).group).toBeTruthy();
+    d.undo();
+    expect(shape(d, a).group).toBeUndefined();
+    d.redo();
+    d.x.ungroupSelectedShapes();
+    expect(shape(d, a).group).toBeUndefined();
+    expect(shape(d, b).group).toBeUndefined();
+  });
+
+  it('borrar elimina todo el grupo de una vez; con menos de dos formas no agrupa', () => {
+    const { d, a, b, c } = three();
+    d.x.selectObject('shape', a);
+    d.x.groupSelectedShapes();
+    expect(shape(d, a).group).toBeUndefined();
+    d.x.toggleShapeSelection(b);
+    d.x.groupSelectedShapes();
+    d.x.deleteSelectedShapes();
+    expect(d.sheet.shapes.map((s) => s.id)).toEqual([c]);
+    d.undo();
+    expect(d.sheet.shapes).toHaveLength(3);
+  });
+
+  it('con la hoja protegida no se agrupa ni se mueve', () => {
+    const { d, a, b } = three();
+    d.x.selectObject('shape', a);
+    d.x.toggleShapeSelection(b);
+    d.prot.protectSheet(d.activeSheetId, undefined, null);
+    d.x.groupSelectedShapes();
+    expect(shape(d, a).group).toBeUndefined();
+    d.x.updateShapes([{ id: a, x: 99 }], 'Mover formas');
+    expect(shape(d, a).x).toBe(0);
+  });
+});

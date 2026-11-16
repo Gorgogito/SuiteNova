@@ -317,6 +317,8 @@ export interface SheetShape {
   vAlign?: 'top' | 'middle' | 'bottom';
   name?: string;
   alt?: string;
+  /** Grupo al que pertenece: las formas con el mismo valor se mueven, cambian de tamaño y giran como un bloque. */
+  group?: string;
 }
 
 export const SHAPE_FILL = '#4472c4';

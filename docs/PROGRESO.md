@@ -28,7 +28,8 @@ Objetivo: tener un catálogo de formas único (como las Formas de Office) compar
 ### Siguiente (orden fijado por el usuario)
 1. [x] Puntos de ajuste (amarillos) en Calc y Writer — HECHO: `shapes-core/src/adjust.ts` (adjustHandles, dragAdjust, cleanAdjust, avLstXml, parseGuide) + pruebas; Calc: `SheetShape.adj`, XLSX avLst, tiradores en `ObjectLayer.tsx`, e2e en e2e-calc-shapes; Writer: atributo `adj`, DOCX avLst, tiradores en `ShapeView` (con forma girada), e2e en e2e-writer-shapes. Tests: shapes-core 11, writer-core 145, xlsx-io 64.
 2. [x] Rotación en Calc — HECHO: `SheetShape.rotation`, XLSX `rot`, asa de giro y redimensionado en ejes girados (`ObjectLayer.tsx`), campo en `dlg-shape.tsx`, comandos `calc.shape.rotateRight/Left` en el grupo Organizar, impresión girada. Tests: xlsx-io 65; e2e-calc-shapes (asa, comandos, deshacer, redimensionar, diálogo). Lección: en los e2e de Calc los botones de la cinta se localizan con `[data-nv-item="..."]` (getByRole no los halla).
-3. [ ] Agrupar formas en Calc y Writer.
+3a. [x] Agrupar formas en CALC — HECHO (2026-11-15): `calc-engine/src/shape-group.ts` (límites, mover, escalar, girar, agrupar; 5 pruebas), `SheetShape.group`, XLSX `xdr:grpSp` (`shapes-io.ts` groupBodyXml/parseGroup, `charts-io.ts` DrawingItem 'group', `writer.ts`, `reader.ts`), `DocObjects` (selectedShapes, toggleShapeSelection, group/ungroup/deleteSelectedShapes/updateShapes; 4 pruebas), `ObjectLayer.tsx` (marco del grupo, startGroup), comandos calc.shape.group/ungroup. e2e en e2e-calc-shapes. Tests: calc-engine 287, xlsx-io 66, apps/suite 351.
+3b. [ ] Agrupar formas en WRITER (paso aparte, decidido por el usuario): las formas son nodos inline de ProseMirror; un grupo sería un nodo nuevo con formas dentro y en DOCX `wpg:wgp`. Diseñar antes de tocar código.
 
 ## Cómo retomar
 1. `git status` y este archivo.
