@@ -83,3 +83,28 @@ export const DRAWING = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <dsp:sp modelId="{P1}"><dsp:nvSpPr><dsp:cNvPr id="0" name=""/><dsp:cNvSpPr/></dsp:nvSpPr><dsp:spPr><a:xfrm rot="900000"><a:off x="100" y="200"/><a:ext cx="3000" cy="1800"/></a:xfrm><a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 10000"/></a:avLst></a:prstGeom><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:ln w="12700"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln></dsp:spPr><dsp:style><a:lnRef idx="2"/><a:fillRef idx="1"/><a:effectRef idx="0"/><a:fontRef idx="minor"/></dsp:style><dsp:txBody><a:bodyPr spcFirstLastPara="0" vert="horz" wrap="square" lIns="68580" tIns="68580" rIns="68580" bIns="68580" numCol="1" spcCol="1270" anchor="ctr" anchorCtr="0"><a:noAutofit/></a:bodyPr><a:lstStyle/><a:p><a:r><a:rPr lang="es-ES" sz="2400"/><a:t>Uno </a:t></a:r></a:p></dsp:txBody><dsp:txXfrm><a:off x="150" y="250"/><a:ext cx="2900" cy="1700"/></dsp:txXfrm></dsp:sp>
 <dsp:sp modelId="{P2}"><dsp:nvSpPr><dsp:cNvPr id="0" name=""/><dsp:cNvSpPr/></dsp:nvSpPr><dsp:spPr><a:xfrm flipH="1"><a:off x="3500" y="200"/><a:ext cx="3000" cy="1800"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></dsp:spPr></dsp:sp>
 </dsp:spTree></dsp:drawing>`;
+
+/** Un proceso lineal (nodos con flechas entre ellos), escrito a mano con el lenguaje de diseños. */
+export const LAYOUT_PROCESS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<dgm:layoutDef ${NS} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" uniqueId="urn:suitenova/layout/process">
+<dgm:title val="Proceso"/><dgm:desc val="Pasos con flechas"/><dgm:catLst><dgm:cat type="process" pri="100"/></dgm:catLst>
+<dgm:layoutNode name="diagram">
+<dgm:varLst><dgm:dir/></dgm:varLst>
+<dgm:choose name="d"><dgm:if name="n" func="var" arg="dir" op="equ" val="norm"><dgm:alg type="lin"/></dgm:if><dgm:else name="r"><dgm:alg type="lin"><dgm:param type="linDir" val="fromR"/></dgm:alg></dgm:else></dgm:choose>
+<dgm:shape r:blip=""><dgm:adjLst/></dgm:shape><dgm:presOf/>
+<dgm:constrLst>
+<dgm:constr type="w" for="ch" forName="node" refType="w"/>
+<dgm:constr type="primFontSz" for="ch" forName="node" op="equ" val="65"/>
+<dgm:constr type="w" for="ch" forName="arrow" refType="w" refFor="ch" refForName="node" fact="0.4"/>
+</dgm:constrLst>
+<dgm:forEach name="each" axis="ch" ptType="node">
+<dgm:layoutNode name="node"><dgm:varLst><dgm:bulletEnabled val="1"/></dgm:varLst><dgm:alg type="tx"/>
+<dgm:shape type="roundRect" r:blip=""><dgm:adjLst><dgm:adj idx="1" val="0.1"/></dgm:adjLst></dgm:shape><dgm:presOf axis="desOrSelf" ptType="node"/>
+<dgm:constrLst><dgm:constr type="h" refType="w" fact="0.6"/><dgm:constr type="lMarg" refType="primFontSz" fact="0.3"/><dgm:constr type="rMarg" refType="primFontSz" fact="0.3"/><dgm:constr type="tMarg" refType="primFontSz" fact="0.3"/><dgm:constr type="bMarg" refType="primFontSz" fact="0.3"/></dgm:constrLst>
+<dgm:ruleLst><dgm:rule type="primFontSz" val="5"/></dgm:ruleLst></dgm:layoutNode>
+<dgm:forEach name="between" axis="followSib" ptType="sibTrans" cnt="1"><dgm:layoutNode name="arrow"><dgm:alg type="conn"/>
+<dgm:shape type="conn" r:blip=""><dgm:adjLst/></dgm:shape><dgm:presOf axis="self"/>
+<dgm:constrLst><dgm:constr type="h" refType="w" fact="0.62"/><dgm:constr type="connDist"/></dgm:constrLst></dgm:layoutNode></dgm:forEach>
+</dgm:forEach>
+</dgm:layoutNode>
+</dgm:layoutDef>`;
