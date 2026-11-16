@@ -37,7 +37,7 @@ export function plainOf(p: PMNode): string {
     if (n.isText) out += n.text;
     else if (n.type.name === 'field' && n.attrs.result !== null && n.attrs.kind !== 'xe') out += n.attrs.result;
     else if (n.type.name === 'math') out += n.attrs.tex;
-    else if (n.type.name === 'footnote' || n.type.name === 'bookmark' || n.type.name === 'shape') return false;
+    else if (n.type.name === 'footnote' || n.type.name === 'bookmark' || n.type.name === 'shape' || n.type.name === 'shape_group') return false;
     return true;
   });
   return out.replace(/\t/g, ' ').trim();

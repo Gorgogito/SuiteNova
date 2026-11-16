@@ -40,7 +40,7 @@ export function buildStory(doc: PMNode): Story {
     });
   };
   doc.descendants((node, pos) => {
-    if (node.type.name === 'shape') return false;
+    if (node.type.name === 'shape' || node.type.name === 'shape_group') return false;
     if (node.isTextblock) {
       blocks.push({ pos: pos + 1, off: text.length, node });
       inline(node, pos + 1);

@@ -597,7 +597,7 @@ export async function writeOdt(d: WriterDoc): Promise<WriteResult> {
         return `<text:note text:id="ftn${noteN}" text:note-class="${n.attrs.kind === 'endnote' ? 'endnote' : 'footnote'}"><text:note-citation>${noteN}</text:note-citation><text:note-body>${body}</text:note-body></text:note>`;
       }
       case 'math': return esc(String(n.attrs.tex));
-      case 'shape': case 'content_control': {
+      case 'shape': case 'shape_group': case 'content_control': {
         let out = '';
         n.forEach((c) => (out += c.isBlock ? `${inlineOf(c)}<text:line-break/>` : inline(c)));
         return out;

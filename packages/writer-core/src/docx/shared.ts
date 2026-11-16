@@ -8,6 +8,7 @@ export const NS = {
   pic: 'http://schemas.openxmlformats.org/drawingml/2006/picture',
   m: 'http://schemas.openxmlformats.org/officeDocument/2006/math',
   wps: 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape',
+  wpg: 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup',
   mc: 'http://schemas.openxmlformats.org/markup-compatibility/2006',
   w14: 'http://schemas.microsoft.com/office/word/2010/wordml',
   w15: 'http://schemas.microsoft.com/office/word/2012/wordml',

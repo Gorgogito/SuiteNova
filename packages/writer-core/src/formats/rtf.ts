@@ -662,7 +662,7 @@ export function writeRtf(d: WriterDoc): WriteResult {
         return `{\\super\\chftn}{\\footnote\\pard\\plain{\\super\\chftn} ${text}}`;
       }
       case 'math': return rtfEsc(String(n.attrs.tex));
-      case 'shape': case 'content_control': {
+      case 'shape': case 'shape_group': case 'content_control': {
         let out = '';
         n.forEach((c) => (out += c.isBlock ? `${inlineContent(c)}\\line ` : inline(c)));
         return out;

@@ -222,11 +222,11 @@ function fieldXml(node: PMNode, marks: readonly Mark[], deleted: boolean): strin
   return fieldRuns(fieldInstr(a as never), result, props);
 }
 
-function shapeXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
+/** The `<wps:wsp>` of a shape. Inside a group (`child`) it also carries its own name and its offset from the group's corner. */
+function wspXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, child?: { x: number; y: number }): string {
   const a = node.attrs;
   const w = Math.round(a.width * EMU_PER_PX);
   const h = Math.round(a.height * EMU_PER_PX);
-  const id = ctx.docPrId++;
   const prst = presetOf(a.kind);
   const isText = resolveKind(a.kind) === 'textbox';
   const fill = isText && a.fill === '#ffffff' ? '<a:noFill/>' : `<a:solidFill><a:srgbClr val="${hex(a.fill)}"/></a:solidFill>`;
@@ -236,10 +236,42 @@ function shapeXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string 
     content += paragraphXml(p, ctx, part, rels);
   });
   const rot = a.rotation ? ` rot="${Math.round(a.rotation * 60000)}"` : '';
-  const sp =
-    `<a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvSpPr${isText ? ' txBox="1"' : ''}/><wps:spPr><a:xfrm${rot}><a:off x="0" y="0"/><a:ext cx="${w}" cy="${h}"/></a:xfrm>` +
-    `<a:prstGeom prst="${prst}">${avLstXml(a.adj)}</a:prstGeom>${fill}${line}</wps:spPr>${content ? `<wps:txbx><w:txbxContent>${content}</w:txbxContent></wps:txbx>` : ''}<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="t" anchorCtr="0"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic>`;
-  const docPr = `<wp:docPr id="${id}" name="${isText ? 'Cuadro de texto' : 'Forma'} ${id}" descr="${esc(a.alt ?? '')}"/>`;
+  const off = child ? `<a:off x="${Math.round(child.x * EMU_PER_PX)}" y="${Math.round(child.y * EMU_PER_PX)}"/>` : '<a:off x="0" y="0"/>';
+  const nv = child ? `<wps:cNvPr id="${ctx.docPrId++}" name="${isText ? 'Cuadro de texto' : 'Forma'}" descr="${esc(a.alt ?? '')}"/>` : '';
+  return (
+    `<wps:wsp>${nv}<wps:cNvSpPr${isText ? ' txBox="1"' : ''}/><wps:spPr><a:xfrm${rot}>${off}<a:ext cx="${w}" cy="${h}"/></a:xfrm>` +
+    `<a:prstGeom prst="${prst}">${avLstXml(a.adj)}</a:prstGeom>${fill}${line}</wps:spPr>${content ? `<wps:txbx><w:txbxContent>${content}</w:txbxContent></wps:txbx>` : ''}<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="t" anchorCtr="0"><a:noAutofit/></wps:bodyPr></wps:wsp>`
+  );
+}
+
+/**
+ * A group of shapes: `<wpg:wgp>` at the top, `<wpg:grpSp>` when it is inside another group. The children use the group's own
+ * coordinates, which match its size (`chOff`/`chExt` equal `off`/`ext`), so nothing needs scaling.
+ */
+function wgpXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, nested?: { x: number; y: number }): string {
+  const a = node.attrs;
+  const w = Math.round(a.width * EMU_PER_PX);
+  const h = Math.round(a.height * EMU_PER_PX);
+  const rot = a.rotation ? ` rot="${Math.round(a.rotation * 60000)}"` : '';
+  const off = nested ? `<a:off x="${Math.round(nested.x * EMU_PER_PX)}" y="${Math.round(nested.y * EMU_PER_PX)}"/>` : '<a:off x="0" y="0"/>';
+  const nv = nested ? `<wpg:cNvPr id="${ctx.docPrId++}" name="Grupo" descr="${esc(a.alt ?? '')}"/>` : '';
+  let kids = '';
+  node.forEach((c) => {
+    const at = { x: c.attrs.x ?? 0, y: c.attrs.y ?? 0 };
+    kids += c.type.name === 'shape_group' ? wgpXml(c, ctx, part, rels, at) : wspXml(c, ctx, part, rels, at);
+  });
+  const tag = nested ? 'wpg:grpSp' : 'wpg:wgp';
+  return `<${tag}>${nv}<wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm${rot}>${off}<a:ext cx="${w}" cy="${h}"/><a:chOff x="0" y="0"/><a:chExt cx="${w}" cy="${h}"/></a:xfrm></wpg:grpSpPr>${kids}</${tag}>`;
+}
+
+/** The run that holds a shape or a group: inline, or anchored with its wrapping. `requires` is the Office namespace the drawing needs. */
+function floatingXml(node: PMNode, ctx: Ctx, graphicUri: string, inner: string, requires: string, label: string): string {
+  const a = node.attrs;
+  const w = Math.round(a.width * EMU_PER_PX);
+  const h = Math.round(a.height * EMU_PER_PX);
+  const id = ctx.docPrId++;
+  const sp = `<a:graphic><a:graphicData uri="${graphicUri}">${inner}</a:graphicData></a:graphic>`;
+  const docPr = `<wp:docPr id="${id}" name="${label} ${id}" descr="${esc(a.alt ?? '')}"/>`;
   let drawing: string;
   if (a.wrap === 'inline') {
     drawing = `<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${w}" cy="${h}"/>${docPr}<wp:cNvGraphicFramePr/>${sp}</wp:inline>`;
@@ -263,7 +295,16 @@ function shapeXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string 
       `<wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251658240" behindDoc="${behind ? 1 : 0}" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/>${posH}${posV}` +
       `<wp:extent cx="${w}" cy="${h}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>${wrap}${docPr}<wp:cNvGraphicFramePr/>${sp}</wp:anchor>`;
   }
-  return `<w:r><mc:AlternateContent><mc:Choice Requires="wps"><w:drawing>${drawing}</w:drawing></mc:Choice><mc:Fallback><w:pict/></mc:Fallback></mc:AlternateContent></w:r>`;
+  return `<w:r><mc:AlternateContent><mc:Choice Requires="${requires}"><w:drawing>${drawing}</w:drawing></mc:Choice><mc:Fallback><w:pict/></mc:Fallback></mc:AlternateContent></w:r>`;
+}
+
+function shapeXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
+  const isText = resolveKind(node.attrs.kind) === 'textbox';
+  return floatingXml(node, ctx, 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape', wspXml(node, ctx, part, rels), 'wps', isText ? 'Cuadro de texto' : 'Forma');
+}
+
+function groupXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
+  return floatingXml(node, ctx, 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup', wgpXml(node, ctx, part, rels), 'wpg', 'Grupo');
 }
 
 // ---------- inline content ----------
@@ -343,6 +384,7 @@ function inlineXml(parent: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): stri
       const o = `<m:oMath>${toOMML(parseMath(child.attrs.tex))}</m:oMath>`;
       xml = child.attrs.display ? `<m:oMathPara>${o}</m:oMathPara>` : o;
     } else if (tn === 'shape') xml = shapeXml(child, ctx, part, rels);
+    else if (tn === 'shape_group') xml = groupXml(child, ctx, part, rels);
     else if (tn === 'content_control') xml = contentControlXml(child, ctx, part, rels);
     else ctx.warn(`Elemento no exportable: ${tn}`);
     emit(before + xml + after, link);

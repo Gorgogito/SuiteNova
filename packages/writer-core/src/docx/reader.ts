@@ -810,13 +810,15 @@ class Converter {
   }
 
   private drawing(d: XNode, cur: () => PMNode[], marks: Mark[]) {
+    // un grupo se mira antes que una forma: sus hijas también son `wsp`
+    const wgp = findDeep(d, 'wgp');
+    if (wgp) {
+      this.group(d, wgp, cur);
+      return;
+    }
     const wsp = findDeep(d, 'wsp');
     if (wsp) {
       this.shape(d, wsp, cur);
-      return;
-    }
-    if (findDeep(d, 'wgp') || findDeep(d, 'grpSp')) {
-      this.warn('Los grupos de formas no se admiten y se omiten.');
       return;
     }
     const blip = findDeep(d, 'blip');
@@ -858,11 +860,37 @@ class Converter {
     this.image(attrOf(blip, 'embed'), cx ? Math.round(cx / EMU_PER_PX) : null, cy ? Math.round(cy / EMU_PER_PX) : null, (pr && (attrOf(pr, 'descr') ?? attrOf(pr, 'title'))) || '', cur, marks, extra);
   }
 
+  /** Wrapping and position of an anchored drawing (`inline` when it is not anchored); x and y are pixels from the paragraph. */
+  private anchorOf(d: XNode): { wrap: string; x: number; y: number } {
+    const anchor = findDeep(d, 'anchor');
+    let wrap = 'inline';
+    let x = 0, y = 0;
+    if (anchor) {
+      const behind = attrOf(anchor, 'behindDoc') === '1' || attrOf(anchor, 'behindDoc') === 'true';
+      const ph = findKid(anchor, 'positionH');
+      const pv = findKid(anchor, 'positionV');
+      if (findKid(anchor, 'wrapTopAndBottom')) wrap = 'topBottom';
+      else if (findKid(anchor, 'wrapSquare') || findKid(anchor, 'wrapTight') || findKid(anchor, 'wrapThrough')) {
+        const align = textOfNode(findKid(ph ?? {}, 'align') ?? {});
+        wrap = align === 'right' ? 'right' : 'left';
+      } else wrap = behind ? 'behind' : 'front';
+      x = Math.round((num(textOfNode(findKid(ph ?? {}, 'posOffset') ?? {})) ?? 0) / EMU_PER_PX);
+      y = Math.round((num(textOfNode(findKid(pv ?? {}, 'posOffset') ?? {})) ?? 0) / EMU_PER_PX);
+    }
+    return { wrap, x, y };
+  }
+
   /** A DrawingML shape (`wps:wsp`) or text box. */
   private shape(d: XNode, wsp: XNode, cur: () => PMNode[]) {
     const ext = findDeep(d, 'extent');
     const w = Math.max(10, Math.round((num(ext && attrOf(ext, 'cx')) ?? 1143000) / EMU_PER_PX));
     const h = Math.max(10, Math.round((num(ext && attrOf(ext, 'cy')) ?? 762000) / EMU_PER_PX));
+    const pr = findDeep(d, 'docPr');
+    cur().push(this.shapeNode(wsp, w, h, this.anchorOf(d), (pr && attrOf(pr, 'descr')) || ''));
+  }
+
+  /** The shape node of a `wps:wsp`, `w` x `h` pixels, placed as `at` says (inside a group: x and y from the group's corner). */
+  private shapeNode(wsp: XNode, w: number, h: number, at: { wrap: string; x: number; y: number }, alt: string): PMNode {
     const spPr = findKid(wsp, 'spPr');
     const geom = findKid(spPr, 'prstGeom');
     const prst = attrOf(geom ?? {}, 'prst') ?? 'rect';
@@ -896,29 +924,63 @@ class Converter {
     const tx = findKid(findKid(wsp, 'txbx') ?? {}, 'txbxContent');
     const paras: PMNode[] = [];
     if (tx) for (const b of this.blocks(kidsOf(tx))) if (b.type.name === 'paragraph') paras.push(b);
-    // anchoring
-    const anchor = findDeep(d, 'anchor');
-    let wrap = 'inline';
-    let x = 0, y = 0;
-    if (anchor) {
-      const behind = attrOf(anchor, 'behindDoc') === '1' || attrOf(anchor, 'behindDoc') === 'true';
-      const ph = findKid(anchor, 'positionH');
-      const pv = findKid(anchor, 'positionV');
-      if (findKid(anchor, 'wrapTopAndBottom')) wrap = 'topBottom';
-      else if (findKid(anchor, 'wrapSquare') || findKid(anchor, 'wrapTight') || findKid(anchor, 'wrapThrough')) {
-        const align = textOfNode(findKid(ph ?? {}, 'align') ?? {});
-        wrap = align === 'right' ? 'right' : 'left';
-      } else wrap = behind ? 'behind' : 'front';
-      x = Math.round((num(textOfNode(findKid(ph ?? {}, 'posOffset') ?? {})) ?? 0) / EMU_PER_PX);
-      y = Math.round((num(textOfNode(findKid(pv ?? {}, 'posOffset') ?? {})) ?? 0) / EMU_PER_PX);
-    }
-    const pr = findDeep(d, 'docPr');
-    cur().push(
-      nodeTypes.shape!.create(
-        { kind, width: w, height: h, fill, stroke, strokeWidth, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, adj: adjust, wrap, x, y, alt: (pr && attrOf(pr, 'descr')) || '' },
-        paras,
-      ),
+    return nodeTypes.shape!.create(
+      { kind, width: w, height: h, fill, stroke, strokeWidth, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, adj: adjust, wrap: at.wrap, x: at.x, y: at.y, alt },
+      paras,
     );
+  }
+
+  /** A group of shapes (`wpg:wgp`) anchored or inline in a paragraph. */
+  private group(d: XNode, wgp: XNode, cur: () => PMNode[]) {
+    const ext = findDeep(d, 'extent');
+    const w = Math.max(10, Math.round((num(ext && attrOf(ext, 'cx')) ?? 1143000) / EMU_PER_PX));
+    const h = Math.max(10, Math.round((num(ext && attrOf(ext, 'cy')) ?? 762000) / EMU_PER_PX));
+    const pr = findDeep(d, 'docPr');
+    const node = this.groupNode(wgp, w, h, this.anchorOf(d), (pr && attrOf(pr, 'descr')) || '');
+    if (node) cur().push(node);
+  }
+
+  /**
+   * The group node of a `wpg:wgp` (or a `wpg:grpSp` inside one), `w` x `h` pixels. The children are mapped from the group's child
+   * space (`chOff`/`chExt`) to pixels from its corner. Pictures and other objects inside the group are left out with a warning.
+   */
+  private groupNode(g: XNode, w: number, h: number, at: { wrap: string; x: number; y: number }, alt: string): PMNode | null {
+    const xf = findKid(findKid(g, 'grpSpPr') ?? {}, 'xfrm');
+    const chExt = xf && findKid(xf, 'chExt');
+    const chOff = xf && findKid(xf, 'chOff');
+    const cw = num(chExt && attrOf(chExt, 'cx')) ?? 0;
+    const ch = num(chExt && attrOf(chExt, 'cy')) ?? 0;
+    const sx = cw > 0 ? w / (cw / EMU_PER_PX) : 1;
+    const sy = ch > 0 ? h / (ch / EMU_PER_PX) : 1;
+    const ox = (num(chOff && attrOf(chOff, 'x')) ?? 0) / EMU_PER_PX;
+    const oy = (num(chOff && attrOf(chOff, 'y')) ?? 0) / EMU_PER_PX;
+    const rot = num(xf && attrOf(xf, 'rot'));
+    const kids: PMNode[] = [];
+    for (const k of kidsOf(g)) {
+      const tag = tagOf(k);
+      if (tag === 'wsp' || tag === 'grpSp') {
+        const kx = findKid((tag === 'wsp' ? findKid(k, 'spPr') : findKid(k, 'grpSpPr')) ?? {}, 'xfrm');
+        const off = kx && findKid(kx, 'off');
+        const ex = kx && findKid(kx, 'ext');
+        if (!ex) continue;
+        const px = Math.round(((num(off && attrOf(off, 'x')) ?? 0) / EMU_PER_PX - ox) * sx);
+        const py = Math.round(((num(off && attrOf(off, 'y')) ?? 0) / EMU_PER_PX - oy) * sy);
+        const kw = Math.max(1, Math.round(((num(attrOf(ex, 'cx')) ?? 0) / EMU_PER_PX) * sx));
+        const kh = Math.max(1, Math.round(((num(attrOf(ex, 'cy')) ?? 0) / EMU_PER_PX) * sy));
+        const nv = findKid(k, 'cNvPr');
+        const kalt = (nv && attrOf(nv, 'descr')) || '';
+        const place = { wrap: 'front', x: px, y: py };
+        const n = tag === 'wsp' ? this.shapeNode(k, kw, kh, place, kalt) : this.groupNode(k, kw, kh, place, kalt);
+        if (n) kids.push(n);
+      } else if (tag === 'pic' || tag === 'graphicFrame' || tag === 'contentPart') {
+        this.warn('Las imágenes y otros objetos dentro de un grupo de formas no se admiten y se omiten.');
+      }
+    }
+    if (!kids.length) {
+      this.warn('Un grupo de formas sin ninguna forma que se pueda leer se omite.');
+      return null;
+    }
+    return nodeTypes.shape_group!.create({ width: w, height: h, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, wrap: at.wrap, x: at.x, y: at.y, alt }, kids);
   }
 
   private pict(p: XNode, cur: () => PMNode[]) {

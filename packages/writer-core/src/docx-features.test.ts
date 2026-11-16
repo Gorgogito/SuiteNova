@@ -167,6 +167,79 @@ describe('DOCX: ecuaciones, formas y controles de contenido', () => {
     expect(shapes[1]!.attrs).toMatchObject({ kind: 'star5', fill: '#ffcc00', stroke: '#cc0000', wrap: 'front', x: 30, y: 12, rotation: 15 });
   });
 
+  it('grupos de formas (wpg): hijas con su texto, giro, ajuste y grupos anidados sobreviven al .docx', async () => {
+    const base = { fill: '#ffffff', stroke: '#000000', strokeWidth: 1, wrap: 'front' };
+    const rect = nodeTypes.shape!.create({ ...base, kind: 'roundRect', width: 100, height: 60, x: 0, y: 0, fill: '#bcd4f0', adj: { adj: 30000 } }, []);
+    const box = nodeTypes.shape!.create({ ...base, kind: 'textbox', width: 120, height: 40, x: 20, y: 80 }, [p('Dentro del grupo')]);
+    const star = nodeTypes.shape!.create({ ...base, kind: 'star5', width: 50, height: 50, x: 10, y: 5, rotation: 30 }, []);
+    const inner = nodeTypes.shape_group!.create({ width: 70, height: 60, wrap: 'front', x: 130, y: 0 }, [star, nodeTypes.shape!.create({ ...base, kind: 'ellipse', width: 30, height: 30, x: 40, y: 30 }, [])]);
+    const group = nodeTypes.shape_group!.create({ width: 200, height: 120, rotation: 15, wrap: 'front', x: 40, y: 12, alt: 'Mi grupo' }, [rect, box, inner]);
+    const { blocks, zip } = await rt(wd([p([t('a'), group])]));
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('wordprocessingGroup');
+    expect(xml).toContain('<wpg:wgp>');
+    expect(xml).toContain('<wpg:grpSp>');
+    expect(xml).toContain('Requires="wpg"');
+    expect(xml).toMatch(/xmlns:wpg="http:\/\/schemas.microsoft.com\/office\/word\/2010\/wordprocessingGroup"/);
+    let g: PMNode | null = null;
+    blocks[0]!.forEach((c) => c.type.name === 'shape_group' && (g = c));
+    expect(g).not.toBeNull();
+    const G = g as unknown as PMNode;
+    expect(G.attrs).toMatchObject({ width: 200, height: 120, rotation: 15, wrap: 'front', x: 40, y: 12, alt: 'Mi grupo' });
+    expect(G.childCount).toBe(3);
+    const [r, b, i] = [G.child(0), G.child(1), G.child(2)];
+    expect(r.attrs).toMatchObject({ kind: 'roundRect', width: 100, height: 60, x: 0, y: 0, fill: '#bcd4f0', adj: { adj: 30000 } });
+    expect(b.attrs).toMatchObject({ kind: 'textbox', width: 120, height: 40, x: 20, y: 80 });
+    expect(b.textContent).toBe('Dentro del grupo');
+    expect(i.type.name).toBe('shape_group');
+    expect(i.attrs).toMatchObject({ width: 70, height: 60, x: 130, y: 0 });
+    expect(i.child(0).attrs).toMatchObject({ kind: 'star5', x: 10, y: 5, rotation: 30 });
+    expect(i.child(1).attrs).toMatchObject({ kind: 'ellipse', x: 40, y: 30 });
+  });
+
+  it('grupo con espacio de hijas distinto del de la página: las hijas se escalan al leer', async () => {
+    const base = { fill: '#ffffff', stroke: '#000000', strokeWidth: 1, wrap: 'front' };
+    const a = nodeTypes.shape!.create({ ...base, kind: 'rect', width: 100, height: 50, x: 0, y: 0 }, []);
+    const b = nodeTypes.shape!.create({ ...base, kind: 'rect', width: 100, height: 50, x: 100, y: 50 }, []);
+    const group = nodeTypes.shape_group!.create({ width: 200, height: 100, wrap: 'front' }, [a, b]);
+    const w = await writeDocx(wd([p([t('x'), group])]));
+    // el espacio hijo del archivo es el doble de grande que el marco que ocupa: todo se reduce a la mitad
+    const zip = await JSZip.loadAsync(w.data);
+    let xml = await zip.file('word/document.xml')!.async('string');
+    const emu = (px: number) => px * 9525;
+    const doubled = (n: number) => String(emu(n) * 2);
+    xml = xml
+      .replace(`<a:chExt cx="${emu(200)}" cy="${emu(100)}"/>`, `<a:chExt cx="${doubled(200)}" cy="${doubled(100)}"/>`)
+      .replace(`<a:off x="${emu(100)}" y="${emu(50)}"/>`, `<a:off x="${doubled(100)}" y="${doubled(50)}"/>`)
+      .replace(new RegExp(`<a:ext cx="${emu(100)}" cy="${emu(50)}"/>`, 'g'), `<a:ext cx="${doubled(100)}" cy="${doubled(50)}"/>`);
+    expect(xml).toContain(`<a:chExt cx="${doubled(200)}" cy="${doubled(100)}"/>`);
+    expect(xml).toContain(`<a:off x="${doubled(100)}" y="${doubled(50)}"/>`);
+    expect(xml).toContain(`<a:ext cx="${doubled(100)}" cy="${doubled(50)}"/>`);
+    zip.file('word/document.xml', xml);
+    const r = await readDocx(await zip.generateAsync({ type: 'uint8array' }));
+    let g: PMNode | null = null;
+    r.doc.body.firstChild!.firstChild!.forEach((c) => c.type.name === 'shape_group' && (g = c));
+    const G = g as unknown as PMNode;
+    expect(G.attrs).toMatchObject({ width: 200, height: 100 });
+    expect(G.child(0).attrs).toMatchObject({ x: 0, y: 0, width: 100, height: 50 });
+    expect(G.child(1).attrs).toMatchObject({ x: 100, y: 50, width: 100, height: 50 });
+  });
+
+  it('un grupo con una imagen dentro omite la imagen con aviso y conserva las formas', async () => {
+    const base = { fill: '#ffffff', stroke: '#000000', strokeWidth: 1, wrap: 'front' };
+    const group = nodeTypes.shape_group!.create({ width: 100, height: 50, wrap: 'front' }, [nodeTypes.shape!.create({ ...base, kind: 'rect', width: 100, height: 50, x: 0, y: 0 }, [])]);
+    const w = await writeDocx(wd([p([t('x'), group])]));
+    const zip = await JSZip.loadAsync(w.data);
+    let xml = await zip.file('word/document.xml')!.async('string');
+    xml = xml.replace('</wpg:wgp>', '<pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="x"/><pic:cNvPicPr/></pic:nvPicPr></pic:pic></wpg:wgp>');
+    zip.file('word/document.xml', xml);
+    const r = await readDocx(await zip.generateAsync({ type: 'uint8array' }));
+    expect(r.warnings.join(' ')).toMatch(/dentro de un grupo/);
+    let n = 0;
+    r.doc.body.descendants((c) => void (c.type.name === 'shape' && n++));
+    expect(n).toBe(1);
+  });
+
   it('los valores de ajuste de una forma (tiradores amarillos) sobreviven al .docx', async () => {
     const base = { width: 100, height: 60, fill: '#ffffff', stroke: '#000000', strokeWidth: 1 };
     const a = nodeTypes.shape!.create({ ...base, kind: 'roundRect', adj: { adj: 40000 } }, []);

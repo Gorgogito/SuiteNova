@@ -43,7 +43,7 @@ export function collectNotes(doc: PMNode, opts: NotesOptions): NoteRef[] {
         const number = kind === 'footnote' ? ++fn : ++en;
         const custom = child.attrs.custom as string | null;
         out.push({ id: child.attrs.id, kind, pos: cp, node: child, number, label: custom || noteLabel(number, kind === 'footnote' ? opts.footnoteFormat : opts.endnoteFormat), section: inSection });
-      } else if (child.type.name === 'shape' || child.type.name === 'content_control') {
+      } else if (child.type.name === 'shape' || child.type.name === 'shape_group' || child.type.name === 'content_control') {
         visit(child, cp, inSection);
       } else if (!child.isLeaf && !child.isTextblock) {
         visit(child, cp, inSection);

@@ -369,7 +369,7 @@ const nodes: Record<string, NodeSpec> = {
       alt: { default: '' },
       id: { default: '' },
     },
-    parseDOM: [{ tag: 'span.nw-shape', getAttrs: (dom) => ({ kind: (dom as HTMLElement).dataset.kind ?? 'rect' }) }],
+    parseDOM: [{ tag: 'span.nw-shape', getAttrs: (dom) => ((dom as HTMLElement).classList.contains('nw-shape-group') ? false : { kind: (dom as HTMLElement).dataset.kind ?? 'rect' }) }],
     toDOM: (node) => {
       const a = node.attrs;
       const css = [`width:${a.width}px`, `height:${a.height}px`];
@@ -379,6 +379,40 @@ const nodes: Record<string, NodeSpec> = {
       else if (a.wrap === 'topBottom') css.push('display:block', 'margin:6px auto');
       if (a.rotation) css.push(`transform:rotate(${a.rotation}deg)`);
       return ['span', { class: `nw-shape nw-shape-${a.kind}`, 'data-kind': a.kind, 'data-wrap': a.wrap, style: css.join(';') }, 0];
+    },
+  },
+  /**
+   * A group of shapes (Word's `wpg:wgp`): one object whose children are shapes (or groups) placed in its own coordinates. A child's
+   * `x`/`y` are pixels from the top-left corner of the group; its `wrap` is ignored. The group's size always matches its children
+   * (resizing it rewrites theirs); it turns with CSS and its children follow.
+   */
+  shape_group: {
+    inline: true,
+    group: 'inline',
+    content: '(shape | shape_group)+',
+    isolating: true,
+    draggable: false,
+    attrs: {
+      width: { default: 120 },
+      height: { default: 80 },
+      rotation: { default: 0 },
+      /** inline | left | right | front | behind | topBottom (like a shape) */
+      wrap: { default: 'front' },
+      x: { default: 0 },
+      y: { default: 0 },
+      alt: { default: '' },
+      id: { default: '' },
+    },
+    parseDOM: [{ tag: 'span.nw-shape-group', priority: 60 }],
+    toDOM: (node) => {
+      const a = node.attrs;
+      const css = [`width:${a.width}px`, `height:${a.height}px`];
+      if (a.wrap === 'left') css.push('float:left', 'margin:0 10px 6px 0');
+      else if (a.wrap === 'right') css.push('float:right', 'margin:0 0 6px 10px');
+      else if (a.wrap === 'front' || a.wrap === 'behind') css.push('position:absolute', `left:${a.x}px`, `top:${a.y}px`, `z-index:${a.wrap === 'behind' ? 0 : 3}`);
+      else if (a.wrap === 'topBottom') css.push('display:block', 'margin:6px auto');
+      if (a.rotation) css.push(`transform:rotate(${a.rotation}deg)`);
+      return ['span', { class: 'nw-shape nw-shape-group', 'data-wrap': a.wrap, style: css.join(';') }, 0];
     },
   },
   /** A content control (Word's structured document tag) inside a paragraph: text, drop-down, date, check box. */
