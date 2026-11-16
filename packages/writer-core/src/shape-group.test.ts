@@ -13,13 +13,23 @@ const doc = (group: PMNode): WriterDoc => ({
 });
 
 describe('nodo shape_group', () => {
-  it('exige al menos una forma y solo admite formas o grupos dentro', () => {
+  it('exige al menos una forma y solo admite formas, imágenes o grupos dentro', () => {
     const g = nodeTypes.shape_group!;
     expect(() => g.createChecked({ width: 10, height: 10 }, [])).toThrow();
     expect(() => g.createChecked({ width: 10, height: 10 }, [p('texto')])).toThrow();
     expect(() => g.createChecked({ width: 10, height: 10 }, [box('a', 0, 0)])).not.toThrow();
     const nested = g.createChecked({ width: 10, height: 10 }, [g.createChecked({ width: 5, height: 5 }, [box('a', 0, 0)]), box('b', 0, 0)]);
     expect(nested.childCount).toBe(2);
+  });
+
+  it('admite imágenes dentro y las escala (con su giro) como a las formas', () => {
+    const g = nodeTypes.shape_group!;
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    const img = nodeTypes.image!.create({ src: png, width: 40, height: 20, wrap: 'front', x: 10, y: 10 });
+    const grp = g.createChecked({ width: 100, height: 60 }, [box('a', 0, 0), img]);
+    const big = scaleGroupContent(grp, 200, 120);
+    expect(big.child(1).type.name).toBe('image');
+    expect(big.child(1).attrs).toMatchObject({ x: 20, y: 20, width: 80, height: 40 });
   });
 
   it('un grupo cabe en un párrafo y no se confunde con una forma al volver del DOM', () => {

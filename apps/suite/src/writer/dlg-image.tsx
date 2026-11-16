@@ -3,6 +3,7 @@ import { t } from '@suitenova/core-ui';
 import { useState } from 'react';
 import type { WriterUI } from './commands';
 import { patchImage, selectedImage } from './commands-image';
+import { wrapPatch } from './image-objects';
 import { Modal, field, focusDocSoon } from './dialogs';
 
 const PX_CM = 2.54 / 96;
@@ -84,7 +85,8 @@ export function ImageFormatDialog({ ui, onClose }: { ui: WriterUI; onClose: () =
       flipH,
       flipV,
       border: border ? { color: border.color, width: Math.min(20, Math.max(0.25, border.width)) } : null,
-      wrap: wrap === 'inline' ? null : wrap,
+      // solo el ajuste y la posición: el tamaño es el que se acaba de elegir en el cuadro
+      ...(({ wrap: wr, x, y }) => ({ wrap: wr, x, y }))(wrapPatch(ui.ctl.mainView!, sel.pos, wrap === 'inline' ? null : (wrap as 'left' | 'right' | 'top' | 'front' | 'behind')) as { wrap: unknown; x: unknown; y: unknown }),
     });
     onClose();
     focusDocSoon(ui);
@@ -153,6 +155,8 @@ export function ImageFormatDialog({ ui, onClose }: { ui: WriterUI; onClose: () =
             <option value="left">{t('A la izquierda, texto alrededor')}</option>
             <option value="right">{t('A la derecha, texto alrededor')}</option>
             <option value="top">{t('Arriba y abajo')}</option>
+            <option value="front">{t('Delante del texto')}</option>
+            <option value="behind">{t('Detrás del texto')}</option>
           </Select>
         </div>
       </div>

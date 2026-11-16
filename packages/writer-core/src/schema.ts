@@ -151,6 +151,7 @@ export function imageDOM(a: Record<string, any>): DOMOutputSpec {
   if (a.wrap === 'left') outer.push('float:left', 'margin:0 12px 6px 0');
   else if (a.wrap === 'right') outer.push('float:right', 'margin:0 0 6px 12px');
   else if (a.wrap === 'top') outer.push('display:block', 'margin:6px auto');
+  else if (a.wrap === 'front' || a.wrap === 'behind') outer.push('position:absolute', `left:${a.x ?? 0}px`, `top:${a.y ?? 0}px`, `z-index:${a.wrap === 'behind' ? 0 : 3}`, 'max-width:none');
   const data: Record<string, string> = {};
   if (crop) data['data-crop'] = JSON.stringify(crop);
   if (a.rotate) data['data-rotate'] = String(a.rotate);
@@ -158,6 +159,10 @@ export function imageDOM(a: Record<string, any>): DOMOutputSpec {
   if (a.flipV) data['data-flipv'] = '1';
   if (bd) data['data-border'] = JSON.stringify(bd);
   if (a.wrap) data['data-wrap'] = a.wrap;
+  if (a.wrap === 'front' || a.wrap === 'behind') {
+    data['data-x'] = String(a.x ?? 0);
+    data['data-y'] = String(a.y ?? 0);
+  }
   const attrs: Record<string, string> = { src: a.src, alt: a.alt, class: 'nw-image', ...data };
   if (!crop) {
     if (w) attrs.width = String(w);
@@ -256,8 +261,13 @@ const nodes: Record<string, NodeSpec> = {
       flipV: { default: false },
       /** Outline: colour `#rrggbb` and width in pt. */
       border: { default: null },
-      /** Text wrapping: in the line (null), floating left or right with text around it, or alone on its lines (`top`). */
+      /**
+       * Text wrapping: in the line (null), floating left or right with text around it, alone on its lines (`top`), or free in front of
+       * (`front`) or behind (`behind`) the text at `x`/`y` px from the paragraph's corner (from the group's corner inside a group).
+       */
       wrap: { default: null },
+      x: { default: 0 },
+      y: { default: 0 },
     },
     parseDOM: [
       {
@@ -282,6 +292,8 @@ const nodes: Record<string, NodeSpec> = {
             flipV: el.dataset.flipv === '1',
             border: json('border'),
             wrap: el.dataset.wrap || null,
+            x: Number(el.dataset.x) || 0,
+            y: Number(el.dataset.y) || 0,
           };
         },
       },
@@ -384,14 +396,14 @@ const nodes: Record<string, NodeSpec> = {
     },
   },
   /**
-   * A group of shapes (Word's `wpg:wgp`): one object whose children are shapes (or groups) placed in its own coordinates. A child's
+   * A group of shapes (Word's `wpg:wgp`): one object whose children are shapes, pictures (or groups) placed in its own coordinates. A child's
    * `x`/`y` are pixels from the top-left corner of the group; its `wrap` is ignored. The group's size always matches its children
    * (resizing it rewrites theirs); it turns with CSS and its children follow.
    */
   shape_group: {
     inline: true,
     group: 'inline',
-    content: '(shape | shape_group)+',
+    content: '(shape | shape_group | image)+',
     isolating: true,
     draggable: false,
     attrs: {

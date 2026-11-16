@@ -22,7 +22,7 @@ interface Origin {
 }
 
 /** Origen (esquina del relleno del bloque contenedor) y zoom con que se miden las formas del párrafo de `pos`. */
-function originOf(view: EditorView, pos: number): Origin {
+export function originOf(view: EditorView, pos: number): Origin {
   const $p = view.state.doc.resolve(pos);
   const para = view.nodeDOM($p.before($p.depth)) as HTMLElement | null;
   const cb = containingBlock(para ?? (view.dom as HTMLElement));
@@ -31,15 +31,18 @@ function originOf(view: EditorView, pos: number): Origin {
 }
 
 /** Marco de una forma o grupo en las coordenadas del origen: sin girar, que es como se guarda (el giro va aparte). */
-function measure(view: EditorView, pos: number, node: PMNode, o: Origin): Frame {
+export function measure(view: EditorView, pos: number, node: PMNode, o: Origin): Frame {
   const el = view.nodeDOM(pos) as HTMLElement | null;
-  const w = node.attrs.width as number;
-  const h = node.attrs.height as number;
-  if (!el) return { id: String(pos), x: node.attrs.x ?? 0, y: node.attrs.y ?? 0, width: w, height: h, rotation: node.attrs.rotation || 0 };
+  // una imagen en línea puede no tener tamaño guardado: entonces vale el que tiene en pantalla
+  const w = (node.attrs.width as number | null) ?? Math.round((el?.offsetWidth ?? 0) || 1);
+  const h = (node.attrs.height as number | null) ?? Math.round((el?.offsetHeight ?? 0) || 1);
+  // las imágenes guardan el giro en `rotate` y las formas en `rotation`
+  const rotation = node.attrs.rotation || node.attrs.rotate || 0;
+  if (!el) return { id: String(pos), x: node.attrs.x ?? 0, y: node.attrs.y ?? 0, width: w, height: h, rotation };
   const r = el.getBoundingClientRect();
   const cx = (r.left + r.width / 2 - o.left) / o.scale;
   const cy = (r.top + r.height / 2 - o.top) / o.scale;
-  return { id: String(pos), x: cx - w / 2, y: cy - h / 2, width: w, height: h, rotation: node.attrs.rotation || 0 };
+  return { id: String(pos), x: cx - w / 2, y: cy - h / 2, width: w, height: h, rotation };
 }
 
 /**
@@ -57,7 +60,8 @@ export function groupSelectedShapes(view: EditorView): boolean {
   const g = framesToGroup(frames);
   const kids = nodes.map((n, i) => {
     const f = g.children[i]!;
-    return n.type.create({ ...n.attrs, x: Math.round(f.x), y: Math.round(f.y), wrap: 'front' }, n.content, n.marks);
+    const size = n.type.name === 'image' ? { width: Math.round(f.width), height: Math.round(f.height) } : {};
+    return n.type.create({ ...n.attrs, ...size, x: Math.round(f.x), y: Math.round(f.y), wrap: 'front' }, n.content, n.marks);
   });
   const group = nodeTypes.shape_group!.create({ width: Math.max(1, g.box.width), height: Math.max(1, g.box.height), wrap: 'front', x: g.box.x, y: g.box.y, id: `group-${Date.now().toString(36)}` }, kids);
   const tr = view.state.tr;
@@ -82,12 +86,13 @@ export function ungroupSelectedShapes(view: EditorView): boolean {
     const node = doc.nodeAt(pos)!;
     const gf = measure(view, pos, node, originOf(view, pos));
     const frames: Frame[] = [];
-    node.forEach((c, _o, i) => frames.push({ id: String(i), x: c.attrs.x ?? 0, y: c.attrs.y ?? 0, width: c.attrs.width, height: c.attrs.height, rotation: c.attrs.rotation || 0 }));
+    node.forEach((c, _o, i) => frames.push({ id: String(i), x: c.attrs.x ?? 0, y: c.attrs.y ?? 0, width: c.attrs.width, height: c.attrs.height, rotation: c.attrs.rotation || c.attrs.rotate || 0 }));
     const patches = framesFromGroup(gf, frames);
     const kids: PMNode[] = [];
     node.forEach((c, _o, i) => {
       const p = patches[i]!;
-      kids.push(c.type.create({ ...c.attrs, x: Math.round(p.x ?? 0), y: Math.round(p.y ?? 0), rotation: p.rotation ?? c.attrs.rotation ?? 0, wrap: 'front' }, c.content, c.marks));
+      const turn = c.type.name === 'image' ? { rotate: Math.round(p.rotation ?? c.attrs.rotate ?? 0) } : { rotation: p.rotation ?? c.attrs.rotation ?? 0 };
+      kids.push(c.type.create({ ...c.attrs, x: Math.round(p.x ?? 0), y: Math.round(p.y ?? 0), ...turn, wrap: 'front' }, c.content, c.marks));
     });
     return { pos, node, kids };
   });

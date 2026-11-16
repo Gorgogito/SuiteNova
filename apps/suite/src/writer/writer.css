@@ -76,6 +76,15 @@
 .nw-doc li.nw-li {
   padding-left: 0;
 }
+.nw-doc .nw-shape-group img.nw-image {
+  max-width: none;
+}
+.nw-doc img.nw-image[data-wrap='front'],
+.nw-doc img.nw-image[data-wrap='behind'],
+.nw-doc .nw-imgbox:has(> img[data-wrap='front']),
+.nw-doc .nw-imgbox:has(> img[data-wrap='behind']) {
+  cursor: move;
+}
 .nw-doc img.nw-image {
   max-width: 100%;
   vertical-align: baseline;

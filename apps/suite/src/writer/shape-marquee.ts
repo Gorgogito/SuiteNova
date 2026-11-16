@@ -48,8 +48,11 @@ export function startShapeMarquee(view: EditorView, e: MouseEvent): boolean {
 /** Posiciones de las formas y grupos más externos cuyo rectángulo en pantalla cabe por completo en `r`. */
 function shapesInside(view: EditorView, r: { x1: number; y1: number; x2: number; y2: number }): number[] {
   const out: number[] = [];
-  view.dom.querySelectorAll<HTMLElement>('.nw-shape').forEach((el) => {
-    if (el.parentElement?.closest('.nw-shape')) return; // una forma dentro de un grupo o de un cuadro de texto no se elige sola
+  // formas y grupos, e imágenes libres (la caja de recorte o el propio `img`)
+  const sel = ".nw-shape, .nw-imgbox:has(> img[data-wrap='front']), .nw-imgbox:has(> img[data-wrap='behind']), img.nw-image[data-wrap='front'], img.nw-image[data-wrap='behind']";
+  view.dom.querySelectorAll<HTMLElement>(sel).forEach((el) => {
+    if (el.parentElement?.closest('.nw-shape')) return; // una forma o imagen dentro de un grupo o de un cuadro de texto no se elige sola
+    if (el.tagName === 'IMG' && el.parentElement?.classList.contains('nw-imgbox')) return; // la caja de recorte ya cuenta
     const b = el.getBoundingClientRect();
     if (b.width === 0 || b.height === 0) return;
     if (b.left < r.x1 || b.top < r.y1 || b.right > r.x2 || b.bottom > r.y2) return;

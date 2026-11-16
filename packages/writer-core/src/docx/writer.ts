@@ -158,21 +158,25 @@ export function addMedia(src: string, ctx: Ctx): string | null {
   return name;
 }
 
-function imageXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, props: string): string {
+/** The media of a picture, stored in the package: its name and relationship id, or null (with a warning) when it cannot go in. */
+function embedPicture(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): { name: string; rid: string } | null {
   const src: string = node.attrs.src;
   if (!/^data:/.test(src)) {
     ctx.warn('Hay imágenes enlazadas desde internet; no se incrustan y se sustituyen por su texto alternativo.');
-    return textRuns(node.attrs.alt ? `[${node.attrs.alt}]` : '[imagen]', props);
+    return null;
   }
   const name = addMedia(src, ctx);
   if (!name) {
     ctx.warn(`Formato de imagen no admitido en DOCX: ${/^data:([^;,]+)/.exec(src)?.[1] ?? '?'}.`);
-    return textRuns('[imagen]', props);
+    return null;
   }
-  const rid = rels.media(name, part);
+  return { name, rid: rels.media(name, part) };
+}
+
+/** The `<pic:pic>` of a picture; inside a group (`off`) it sits at that offset (px) from the group's corner. */
+function picElement(node: PMNode, id: number, name: string, rid: string, off?: { x: number; y: number }): string {
   const w = Math.round((node.attrs.width ?? 200) * EMU_PER_PX);
   const h = Math.round((node.attrs.height ?? 150) * EMU_PER_PX);
-  const id = ctx.docPrId++;
   const alt = esc(node.attrs.alt ?? '');
   const at = node.attrs;
   const crop = at.crop as { l: number; t: number; r: number; b: number } | null;
@@ -181,14 +185,38 @@ function imageXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, props: s
   const xfrm = `<a:xfrm${rot ? ` rot="${rot}"` : ''}${at.flipH ? ' flipH="1"' : ''}${at.flipV ? ' flipV="1"' : ''}>`;
   const bd = at.border as { color: string; width: number } | null;
   const line = bd ? `<a:ln w="${Math.round(bd.width * 12700)}"><a:solidFill><a:srgbClr val="${bd.color.replace('#', '').toUpperCase()}"/></a:solidFill></a:ln>` : '';
+  const ox = off ? Math.round(off.x * EMU_PER_PX) : 0;
+  const oy = off ? Math.round(off.y * EMU_PER_PX) : 0;
+  return (
+    `<pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="${esc(name)}" descr="${alt}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill><a:blip r:embed="${rid}"/>${crop ? `<a:srcRect l="${pct(crop.l)}" t="${pct(crop.t)}" r="${pct(crop.r)}" b="${pct(crop.b)}"/>` : ''}<a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr>${xfrm}<a:off x="${ox}" y="${oy}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${line}</pic:spPr></pic:pic>`
+  );
+}
+
+function imageXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, props: string): string {
+  const media = embedPicture(node, ctx, part, rels);
+  if (!media) return textRuns(node.attrs.alt ? `[${node.attrs.alt}]` : '[imagen]', props);
+  const w = Math.round((node.attrs.width ?? 200) * EMU_PER_PX);
+  const h = Math.round((node.attrs.height ?? 150) * EMU_PER_PX);
+  const id = ctx.docPrId++;
+  const alt = esc(node.attrs.alt ?? '');
+  const at = node.attrs;
   const graphic =
     `<wp:docPr id="${id}" name="Imagen ${id}" descr="${alt}"/>` +
     `<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>` +
-    `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="${esc(name)}" descr="${alt}"/><pic:cNvPicPr/></pic:nvPicPr>` +
-    `<pic:blipFill><a:blip r:embed="${rid}"/>${crop ? `<a:srcRect l="${pct(crop.l)}" t="${pct(crop.t)}" r="${pct(crop.r)}" b="${pct(crop.b)}"/>` : ''}<a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
-    `<pic:spPr>${xfrm}<a:off x="0" y="0"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${line}</pic:spPr></pic:pic></a:graphicData></a:graphic>`;
+    `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">${picElement(node, id, media.name, media.rid)}</a:graphicData></a:graphic>`;
   const extent = `<wp:extent cx="${w}" cy="${h}"/>`;
-  const wrap = at.wrap as 'left' | 'right' | 'top' | null;
+  const wrap = at.wrap as 'left' | 'right' | 'top' | 'front' | 'behind' | null;
+  if (wrap === 'front' || wrap === 'behind') {
+    const x = Math.round((at.x ?? 0) * EMU_PER_PX);
+    const y = Math.round((at.y ?? 0) * EMU_PER_PX);
+    return (
+      `<w:r>${props}<w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251658240" behindDoc="${wrap === 'behind' ? 1 : 0}" locked="0" layoutInCell="1" allowOverlap="1">` +
+      `<wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:posOffset>${x}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>${y}</wp:posOffset></wp:positionV>` +
+      `${extent}<wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>${graphic}</wp:anchor></w:drawing></w:r>`
+    );
+  }
   if (!wrap) return `<w:r>${props}<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">${extent}${graphic}</wp:inline></w:drawing></w:r>`;
   const align = wrap === 'top' ? 'center' : wrap;
   const wrapXml = wrap === 'top' ? '<wp:wrapTopAndBottom/>' : `<wp:wrapSquare wrapText="${wrap === 'left' ? 'right' : 'left'}"/>`;
@@ -265,7 +293,10 @@ function wgpXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, nested?: {
   let kids = '';
   node.forEach((c) => {
     const at = { x: c.attrs.x ?? 0, y: c.attrs.y ?? 0 };
-    kids += c.type.name === 'shape_group' ? wgpXml(c, ctx, part, rels, at) : wspXml(c, ctx, part, rels, at);
+    if (c.type.name === 'image') {
+      const media = embedPicture(c, ctx, part, rels);
+      if (media) kids += picElement(c, ctx.docPrId++, media.name, media.rid, at);
+    } else kids += c.type.name === 'shape_group' ? wgpXml(c, ctx, part, rels, at) : wspXml(c, ctx, part, rels, at);
   });
   const tag = nested ? 'wpg:grpSp' : 'wpg:wgp';
   return `<${tag}>${nv}<wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm${rot}>${off}<a:ext cx="${w}" cy="${h}"/><a:chOff x="0" y="0"/><a:chExt cx="${w}" cy="${h}"/></a:xfrm></wpg:grpSpPr>${kids}</${tag}>`;

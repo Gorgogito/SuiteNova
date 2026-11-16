@@ -795,19 +795,25 @@ class Converter {
   }
 
   private image(rid: string | undefined, w: number | null, h: number | null, alt: string, cur: () => PMNode[], marks: Mark[] = [], extra: Record<string, unknown> = {}) {
+    const n = this.imageNode(rid, w, h, alt, marks, extra);
+    if (n) cur().push(n);
+  }
+
+  /** The image node for a relationship id (with a warning and `null` when the picture cannot be read). */
+  private imageNode(rid: string | undefined, w: number | null, h: number | null, alt: string, marks: Mark[] = [], extra: Record<string, unknown> = {}): PMNode | null {
     const rel = rid ? this.rels.get(rid) : undefined;
-    if (!rel) return;
+    if (!rel) return null;
     if (rel.external) {
       this.warn('Hay imágenes vinculadas a un archivo externo; se omiten.');
-      return;
+      return null;
     }
     const path = this.baseDir + rel.target.replace(/^\//, '').replace(/^word\//, '');
     const uri = this.sh.media.get(path.replace(/^word\/word\//, 'word/'));
     if (!uri) {
       this.warn(`Formato de imagen no admitido (${rel.target.split('.').pop()}); se omite.`);
-      return;
+      return null;
     }
-    cur().push(nodeTypes.image!.create({ src: uri, alt, width: w, height: h, ...extra }, null, marks.filter((m) => m.type.name === 'ins' || m.type.name === 'del' || m.type.name === 'comment')));
+    return nodeTypes.image!.create({ src: uri, alt, width: w, height: h, ...extra }, null, marks.filter((m) => m.type.name === 'ins' || m.type.name === 'del' || m.type.name === 'comment'));
   }
 
   private drawing(d: XNode, cur: () => PMNode[], marks: Mark[]) {
@@ -856,7 +862,13 @@ class Converter {
         const side = findDeep(anchor, 'wrapSquare') ?? findDeep(anchor, 'wrapTight') ?? findDeep(anchor, 'wrapThrough');
         extra.wrap = al === 'right' || (al !== 'left' && attrOf(side!, 'wrapText') === 'left') ? 'right' : 'left';
         if (!al) this.warn('La posición exacta de una imagen flotante se convierte en «a la izquierda» o «a la derecha» con el texto alrededor.');
-      } else this.warn('Las imágenes flotantes detrás o delante del texto, o sin ajuste, se convierten en imágenes en línea.');
+      } else {
+        // sin ajuste de texto: libre delante o detrás, en el punto donde Word la colocó
+        const at = this.anchorOf(d);
+        extra.wrap = at.wrap;
+        extra.x = at.x;
+        extra.y = at.y;
+      }
     }
     this.image(attrOf(blip, 'embed'), cx ? Math.round(cx / EMU_PER_PX) : null, cy ? Math.round(cy / EMU_PER_PX) : null, (pr && (attrOf(pr, 'descr') ?? attrOf(pr, 'title'))) || '', cur, marks, extra);
   }
@@ -1007,7 +1019,7 @@ class Converter {
 
   /**
    * The group node of a `wpg:wgp` (or a `wpg:grpSp` inside one), `w` x `h` pixels. The children are mapped from the group's child
-   * space (`chOff`/`chExt`) to pixels from its corner. Pictures and other objects inside the group are left out with a warning.
+   * space (`chOff`/`chExt`) to pixels from its corner. Pictures (`pic:pic`) become images; other objects are left out with a warning.
    */
   private groupNode(g: XNode, w: number, h: number, at: { wrap: string; x: number; y: number }, alt: string): PMNode | null {
     const xf = findKid(findKid(g, 'grpSpPr') ?? {}, 'xfrm');
@@ -1037,8 +1049,36 @@ class Converter {
         const place = { wrap: 'front', x: px, y: py };
         const n = tag === 'wsp' ? this.shapeNode(k, kw, kh, place, kalt) : this.groupNode(k, kw, kh, place, kalt);
         if (n) kids.push(n);
-      } else if (tag === 'pic' || tag === 'graphicFrame' || tag === 'contentPart') {
-        this.warn('Las imágenes y otros objetos dentro de un grupo de formas no se admiten y se omiten.');
+      } else if (tag === 'pic') {
+        const sp = findKid(k, 'spPr');
+        const kx = sp && findKid(sp, 'xfrm');
+        const off = kx && findKid(kx, 'off');
+        const ex = kx && findKid(kx, 'ext');
+        const blip = findDeep(k, 'blip');
+        if (!ex || !blip) continue;
+        const nv = findDeep(k, 'cNvPr');
+        const extra: Record<string, unknown> = {
+          wrap: 'front',
+          x: Math.round(((num(off && attrOf(off, 'x')) ?? 0) / EMU_PER_PX - ox) * sx),
+          y: Math.round(((num(off && attrOf(off, 'y')) ?? 0) / EMU_PER_PX - oy) * sy),
+        };
+        const src = findDeep(k, 'srcRect');
+        if (src) {
+          const fr = (n: string) => Math.min(0.95, Math.max(0, (num(attrOf(src, n)) ?? 0) / 100000));
+          const crop = { l: fr('l'), t: fr('t'), r: fr('r'), b: fr('b') };
+          if (crop.l || crop.t || crop.r || crop.b) extra.crop = crop;
+        }
+        const prot = num(kx && attrOf(kx, 'rot'));
+        if (prot) extra.rotate = Math.round((((prot / 60000) % 360) + 360) % 360);
+        if (/^(1|true)$/.test((kx && attrOf(kx, 'flipH')) ?? '')) extra.flipH = true;
+        if (/^(1|true)$/.test((kx && attrOf(kx, 'flipV')) ?? '')) extra.flipV = true;
+        const ln = sp && findKid(sp, 'ln');
+        const lc = ln && findDeep(ln, 'srgbClr');
+        if (ln && lc && !findDeep(ln, 'noFill')) extra.border = { color: `#${(attrOf(lc, 'val') ?? '000000').toLowerCase()}`, width: Math.max(0.25, Math.round(((num(attrOf(ln, 'w')) ?? 12700) / 12700) * 4) / 4) };
+        const img = this.imageNode(attrOf(blip, 'embed'), Math.max(1, Math.round(((num(attrOf(ex, 'cx')) ?? 0) / EMU_PER_PX) * sx)), Math.max(1, Math.round(((num(attrOf(ex, 'cy')) ?? 0) / EMU_PER_PX) * sy)), (nv && attrOf(nv, 'descr')) || '', [], extra);
+        if (img) kids.push(img);
+      } else if (tag === 'graphicFrame' || tag === 'contentPart') {
+        this.warn('Los objetos que no son formas ni imágenes dentro de un grupo se omiten.');
       }
     }
     if (!kids.length) {

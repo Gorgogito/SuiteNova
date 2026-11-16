@@ -9,7 +9,10 @@ import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
  */
 export const shapeSelKey = new PluginKey<number[]>('shapeSelection');
 
-export const isShapeLike = (n: PMNode | null | undefined): boolean => !!n && (n.type.name === 'shape' || n.type.name === 'shape_group');
+/** Imagen libre (delante o detrás del texto): se elige, se mueve y se agrupa como una forma. */
+export const isFloatingImage = (n: PMNode | null | undefined): boolean => !!n && n.type.name === 'image' && (n.attrs.wrap === 'front' || n.attrs.wrap === 'behind');
+
+export const isShapeLike = (n: PMNode | null | undefined): boolean => !!n && (n.type.name === 'shape' || n.type.name === 'shape_group' || isFloatingImage(n));
 
 export function shapeSelectionPlugin(): Plugin<number[]> {
   return new Plugin<number[]>({

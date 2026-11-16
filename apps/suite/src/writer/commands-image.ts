@@ -2,7 +2,9 @@ import type { CommandDef } from '@suitenova/core-ui';
 import { NodeSelection, type EditorState } from 'prosemirror-state';
 import type { WriterUI } from './commands';
 
-export type ImageWrap = 'left' | 'right' | 'top' | null;
+import { wrapPatch } from './image-objects';
+
+export type ImageWrap = 'left' | 'right' | 'top' | 'front' | 'behind' | null;
 
 /** The selected picture (position and attributes), or null. */
 export function selectedImage(state: EditorState | null | undefined): { pos: number; attrs: Record<string, any> } | null {
@@ -43,7 +45,7 @@ export function imageCommands(ui: WriterUI): CommandDef[] {
         const crop = a.crop as { l: number; t: number; r: number; b: number } | null;
         const kx = crop ? 1 - crop.l - crop.r : 1;
         const ky = crop ? 1 - crop.t - crop.b : 1;
-        patchImage(ui, { crop: null, rotate: 0, flipH: false, flipV: false, border: null, wrap: null, width: a.width ? Math.round(a.width / kx) : null, height: a.height ? Math.round(a.height / ky) : null });
+        patchImage(ui, { crop: null, rotate: 0, flipH: false, flipV: false, border: null, wrap: null, x: 0, y: 0, width: a.width ? Math.round(a.width / kx) : null, height: a.height ? Math.round(a.height / ky) : null });
       },
     },
   ];
@@ -52,7 +54,9 @@ export function imageCommands(ui: WriterUI): CommandDef[] {
     ['left', 'A la izquierda, texto alrededor', 'left', 'alignLeft'],
     ['right', 'A la derecha, texto alrededor', 'right', 'alignRight'],
     ['top', 'Arriba y abajo', 'top', 'alignCenter'],
+    ['front', 'Delante del texto', 'front', 'alignJustify'],
+    ['behind', 'Detrás del texto', 'behind', 'alignJustify'],
   ];
-  for (const [id, label, wrap, icon] of wraps) defs.push({ id: `writer.image.wrap.${id}`, label, icon, enabled: ready, checked: () => (at().wrap ?? null) === wrap, run: () => patchImage(ui, { wrap }) });
+  for (const [id, label, wrap, icon] of wraps) defs.push({ id: `writer.image.wrap.${id}`, label, icon, enabled: ready, checked: () => (at().wrap ?? null) === wrap, run: () => { const v = c.mainView; const s = sel(); if (v && s) patchImage(ui, wrapPatch(v, s.pos, wrap)); } });
   return defs;
 }

@@ -9,7 +9,7 @@ export function scaleGroupContent(group: PMNode, w: number, h: number): PMNode {
   const oldW = group.attrs.width as number;
   const oldH = group.attrs.height as number;
   const frames = [] as { id: string; x: number; y: number; width: number; height: number; rotation: number }[];
-  group.forEach((c, _off, i) => frames.push({ id: String(i), x: c.attrs.x ?? 0, y: c.attrs.y ?? 0, width: c.attrs.width, height: c.attrs.height, rotation: c.attrs.rotation ?? 0 }));
+  group.forEach((c, _off, i) => frames.push({ id: String(i), x: c.attrs.x ?? 0, y: c.attrs.y ?? 0, width: c.attrs.width, height: c.attrs.height, rotation: c.attrs.rotation ?? c.attrs.rotate ?? 0 }));
   const patches = scaleFrames(frames, { x: 0, y: 0, width: oldW, height: oldH }, { x: 0, y: 0, width: w, height: h });
   const kids: PMNode[] = [];
   group.forEach((c, _off, i) => {

@@ -225,13 +225,58 @@ describe('DOCX: ecuaciones, formas y controles de contenido', () => {
     expect(G.child(1).attrs).toMatchObject({ x: 100, y: 50, width: 100, height: 50 });
   });
 
-  it('un grupo con una imagen dentro omite la imagen con aviso y conserva las formas', async () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+  it('imagen libre delante o detrás del texto: posición, anclaje y ajuste sin texto alrededor sobreviven al .docx', async () => {
+    const front = nodeTypes.image!.create({ src: PNG, alt: 'Logo', width: 80, height: 40, wrap: 'front', x: 30, y: 12 });
+    const behind = nodeTypes.image!.create({ src: PNG, alt: 'Marca', width: 60, height: 60, wrap: 'behind', x: 200, y: 5, rotate: 20 });
+    const { r, blocks, zip } = await rt(wd([p([t('Texto '), front, behind])]));
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('behindDoc="1"');
+    expect(xml).toContain('<wp:wrapNone/>');
+    const imgs: PMNode[] = [];
+    blocks[0]!.forEach((c) => c.type.name === 'image' && imgs.push(c));
+    expect(imgs).toHaveLength(2);
+    expect(imgs[0]!.attrs).toMatchObject({ alt: 'Logo', width: 80, height: 40, wrap: 'front', x: 30, y: 12 });
+    expect(imgs[1]!.attrs).toMatchObject({ alt: 'Marca', width: 60, height: 60, wrap: 'behind', x: 200, y: 5, rotate: 20 });
+    expect(r.warnings.join(' ')).not.toMatch(/en línea/);
+  });
+
+  it('un grupo con imágenes (también anidado): cada imagen conserva sitio, tamaño, recorte, giro y texto alternativo', async () => {
+    const base = { fill: '#ffffff', stroke: '#000000', strokeWidth: 1, wrap: 'front' };
+    const rect = nodeTypes.shape!.create({ ...base, kind: 'rect', width: 100, height: 60, x: 0, y: 0 }, []);
+    const pic = nodeTypes.image!.create({ src: PNG, alt: 'Foto', width: 90, height: 50, wrap: 'front', x: 20, y: 70, rotate: 15, crop: { l: 0.1, t: 0.2, r: 0.1, b: 0 } });
+    const inner = nodeTypes.shape_group!.create({ width: 80, height: 40, wrap: 'front', x: 120, y: 10 }, [nodeTypes.image!.create({ src: PNG, alt: 'Interior', width: 80, height: 40, wrap: 'front', x: 0, y: 0 })]);
+    const group = nodeTypes.shape_group!.create({ width: 210, height: 130, wrap: 'front', x: 5, y: 5 }, [rect, pic, inner]);
+    const { r, blocks, zip } = await rt(wd([p([t('a'), group])]));
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('<wpg:wgp>');
+    const open = xml.indexOf('<wpg:wgp>');
+    const picAt = xml.indexOf('<pic:pic>', open);
+    expect(picAt).toBeGreaterThan(open);
+    expect(picAt).toBeLessThan(xml.indexOf('</wpg:wgp>'));
+    let g: PMNode | null = null;
+    blocks[0]!.forEach((c) => c.type.name === 'shape_group' && (g = c));
+    const G = g as unknown as PMNode;
+    expect(G.childCount).toBe(3);
+    expect(G.child(1).type.name).toBe('image');
+    expect(G.child(1).attrs).toMatchObject({ alt: 'Foto', width: 90, height: 50, x: 20, y: 70, rotate: 15, wrap: 'front' });
+    expect(G.child(1).attrs.crop.l).toBeCloseTo(0.1, 3);
+    expect(G.child(2).type.name).toBe('shape_group');
+    expect(G.child(2).child(0).type.name).toBe('image');
+    expect(G.child(2).child(0).attrs).toMatchObject({ alt: 'Interior', width: 80, height: 40 });
+    expect(r.warnings).toEqual([]);
+    // el medio se guarda una sola vez aunque haya tres imágenes iguales
+    expect(Object.keys(zip.files).filter((n) => n.startsWith('word/media/') && n.endsWith('.png'))).toHaveLength(1);
+  });
+
+  it('un grupo con un objeto que no es forma ni imagen lo omite con aviso y conserva las formas', async () => {
     const base = { fill: '#ffffff', stroke: '#000000', strokeWidth: 1, wrap: 'front' };
     const group = nodeTypes.shape_group!.create({ width: 100, height: 50, wrap: 'front' }, [nodeTypes.shape!.create({ ...base, kind: 'rect', width: 100, height: 50, x: 0, y: 0 }, [])]);
     const w = await writeDocx(wd([p([t('x'), group])]));
     const zip = await JSZip.loadAsync(w.data);
     let xml = await zip.file('word/document.xml')!.async('string');
-    xml = xml.replace('</wpg:wgp>', '<pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="x"/><pic:cNvPicPr/></pic:nvPicPr></pic:pic></wpg:wgp>');
+    xml = xml.replace('</wpg:wgp>', '<wpg:graphicFrame><wpg:cNvPr id="0" name="x"/></wpg:graphicFrame></wpg:wgp>');
     zip.file('word/document.xml', xml);
     const r = await readDocx(await zip.generateAsync({ type: 'uint8array' }));
     expect(r.warnings.join(' ')).toMatch(/dentro de un grupo/);
