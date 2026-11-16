@@ -38,6 +38,9 @@ import {
   resizeSlide,
   setLayout,
   ungroupElements,
+  isLiveSmartArt,
+  reflowSmartArt,
+  type GroupEl,
   updateElement,
   updateElements,
   updateSlide,
@@ -635,7 +638,17 @@ export class SlidesCtl {
   }
   /** Sets the transforms of several elements at once (one step), used by drag, resize and rotate. */
   setXfrms(map: Record<string, Xfrm>, label: string): void {
-    this.apply(label, (d) => updateElements(d, this.slide.id, Object.keys(map), (el) => (el.kind === 'table' ? scaleTable({ ...el, xfrm: map[el.id] } as TableEl, map[el.id]!.w, map[el.id]!.h) : { ...el, xfrm: map[el.id] }) as SlideElement));
+    this.apply(label, (d) =>
+      updateElements(d, this.slide.id, Object.keys(map), (el) => {
+        if (el.kind === 'table') return scaleTable({ ...el, xfrm: map[el.id] } as TableEl, map[el.id]!.w, map[el.id]!.h) as SlideElement;
+        const moved = { ...el, xfrm: map[el.id] } as SlideElement;
+        // un SmartArt vinculado vuelve a distribuirse con su tamaño nuevo (como en PowerPoint)
+        const old = this.xfrmOf(el);
+        const nu = map[el.id]!;
+        if (isLiveSmartArt(el) && (Math.abs(old.w - nu.w) > 0.5 || Math.abs(old.h - nu.h) > 0.5)) return (reflowSmartArt(moved as GroupEl) ?? moved) as SlideElement;
+        return moved;
+      }),
+    );
   }
   order(how: ZMove): void {
     this.apply('Orden', (d) => reorderElements(d, this.slide.id, this.selection, how));

@@ -1,6 +1,6 @@
 import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { buildDiagram, DIAGRAM_LAYOUTS, diagramArea, newNovaArt, parseDiagramText, NOVAART_STYLES, NOVAART_WARPS, novaArtStyle, warpOf, type BodyProps, type ShapeEl, type SlideElement } from '@suitenova/slides-core';
+import { newNovaArt, NOVAART_STYLES, NOVAART_WARPS, novaArtStyle, warpOf, type BodyProps, type ShapeEl, type SlideElement } from '@suitenova/slides-core';
 import { useState } from 'react';
 import type { SlidesUI } from './commands';
 import { Modal } from './Dialogs';
@@ -71,63 +71,6 @@ export function NovaArtDialog({ ui, onClose }: P) {
           </label>
         </div>
         <p className="sl-note">{t('NovaArt guarda el texto como WordArt de PowerPoint: relleno, contorno, sombra, reflejo, resplandor y transformación se conservan en el archivo.')}</p>
-      </div>
-    </Modal>
-  );
-}
-
-// ------------------------------------------------------------------------------------------------ diagrams (SmartArt)
-
-const SAMPLE = 'Planificar\nHacer\nVerificar\nActuar';
-const SAMPLE_HIER = 'Dirección\n  Ventas\n    Norte\n    Sur\n  Producción\n  Soporte';
-
-export function SmartArtDialog({ ui, onClose }: P) {
-  const c = ui.ctl;
-  const [layout, setLayout] = useState('process');
-  const [text, setText] = useState(SAMPLE);
-  const [colour, setColour] = useState(0);
-  const items = parseDiagramText(text);
-  const pick = (id: string) => {
-    setLayout(id);
-    if (text === SAMPLE || text === SAMPLE_HIER) setText(id === 'hier' ? SAMPLE_HIER : SAMPLE);
-  };
-  const insert = () => {
-    c.addElement(buildDiagram(layout, items, diagramArea(c.deck.size), colour), { select: true });
-    onClose();
-  };
-  return (
-    <Modal
-      title={t('Insertar un diagrama (SmartArt)')}
-      onClose={onClose}
-      wide
-      actions={
-        <>
-          <Button onClick={onClose}>{t('Cancelar')}</Button>
-          <Button appearance="primary" disabled={!items.length} onClick={insert}>{t('Insertar')}</Button>
-        </>
-      }
-    >
-      <div className="sl-form">
-        <div className="sl-layouts" role="radiogroup" aria-label={t('Diseño del diagrama')}>
-          {DIAGRAM_LAYOUTS.map((l) => (
-            <label key={l.id} className={layout === l.id ? 'is-on' : ''}>
-              <input type="radio" name="dg-layout" checked={layout === l.id} onChange={() => pick(l.id)} />
-              <b>{t(l.name)}</b>
-              <small>{t(l.description)}</small>
-            </label>
-          ))}
-        </div>
-        <label className="sl-field">
-          <span>{t('Elementos (uno por línea; con sangría para los subniveles)')}</span>
-          <textarea rows={7} aria-label={t('Elementos del diagrama')} value={text} onChange={(e) => setText(e.target.value)} />
-        </label>
-        <label className="sl-field">
-          <span>{t('Color')}</span>
-          <select aria-label={t('Color del diagrama')} value={colour} onChange={(e) => setColour(Number(e.target.value))}>
-            {[1, 2, 3, 4, 5, 6].map((n, i) => <option key={n} value={i}>{t('Énfasis {n}', { n })}</option>)}
-          </select>
-        </label>
-        <p className="sl-note">{t('El diagrama se inserta como un grupo de formas que puedes editar una a una; no queda vinculado a la lista, así que para cambiarla se genera de nuevo.')}</p>
       </div>
     </Modal>
   );

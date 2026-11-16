@@ -725,6 +725,7 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
     }
     else if (target.kind === 'pic') ctl.emit(target.name === 'Ecuación' ? 'equation' : 'format', target.id);
     else if (target.kind === 'chart') ctl.emit('chart', target.id);
+    else if (target.kind === 'group' && target.smartart) ctl.emit('smartArt', target.id);
   };
 
   // ---- handles

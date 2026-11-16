@@ -761,28 +761,22 @@ await check('NovaArt (WordArt): styles, transform, insert, apply to a selected t
   assert.match(sx, /<a:glow/);
 });
 
-await check('SmartArt: every layout inserts a diagram of editable shapes, saved and reopened', async () => {
+await check('SmartArt: every layout inserts a linked diagram, saved and reopened', async () => {
   await ev(() => { const c = window.__novaSlides.ctl; c.newDoc(); c.goTo(0); });
-  const names = ['Lista básica', 'Lista vertical', 'Proceso básico', 'Ciclo', 'Jerarquía', 'Pirámide', 'Relación (Venn)'];
+  const names = ['Lista de bloques', 'Lista vertical', 'Proceso básico', 'Ciclo básico', 'Organigrama', 'Pirámide básica', 'Venn básico', 'Matriz básica'];
   for (const [i, n] of names.entries()) {
     await ev(() => { const c = window.__novaSlides.ctl; c.newSlide(); });
     await tab('Insertar');
     await btn('SmartArt…');
-    await page.locator('.sl-layouts label', { hasText: n }).click();
-    await page.getByLabel('Color del diagrama').selectOption(String(i % 6));
+    await page.locator('.sl-sa-gallery label', { hasText: n }).click();
+    await page.getByLabel('Colores del SmartArt').selectOption({ index: i % 7 });
     await page.getByRole('button', { name: 'Insertar', exact: true }).click();
-    const g = await ev(() => { const c = window.__novaSlides.ctl; const e = c.slide.shapes.at(-1); return { kind: e.kind, n: e.children?.length, sel: c.selection.length }; });
+    const g = await ev(() => { const c = window.__novaSlides.ctl; const e = c.slide.shapes.at(-1); return { kind: e.kind, smartart: !!e.smartart, n: e.children?.length, sel: c.selection.length }; });
     assert.equal(g.kind, 'group', n);
-    assert.ok(g.n >= 4, `${n}: ${g.n} parts`);
-    if (['Ciclo', 'Jerarquía', 'Pirámide', 'Relación (Venn)'].includes(n)) await shot(`smartart-${i}`);
+    assert.ok(g.smartart, n + ' vinculado');
+    assert.ok(g.n >= 3, `${n}: ${g.n} parts`);
+    if (['Ciclo básico', 'Organigrama', 'Pirámide básica', 'Venn básico'].includes(n)) await shot(`smartart-${i}`);
   }
-  // the diagram is shapes: ungroup gives them back, one undo step each
-  await ev(() => { const c = window.__novaSlides.ctl; c.select([c.slide.shapes.at(-1).id]); });
-  const before = await ev(() => window.__novaSlides.ctl.slide.shapes.length);
-  await page.keyboard.press('Control+Shift+G');
-  assert.ok((await ev(() => window.__novaSlides.ctl.slide.shapes.length)) > before);
-  await ev(() => window.__novaSlides.ctl.undo());
-  assert.equal(await ev(() => window.__novaSlides.ctl.slide.shapes.length), before);
   const back = await ev(async () => { const w = window.__novaSlides; const b = await w.write(); return b.length; });
   assert.ok(back > 5000);
 });

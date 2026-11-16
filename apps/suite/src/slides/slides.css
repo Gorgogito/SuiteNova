@@ -643,3 +643,8 @@
 
 .sl-site { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; background: #fff; border-style: solid; border-color: #0f6cbd; pointer-events: none; box-sizing: border-box; }
 .sl-site--on { background: #0f6cbd; }
+
+.sl-sa-gallery { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.sl-sa-gallery label { align-items: center; }
+.sl-sa-gallery label.is-on { border-color: var(--colorBrandStroke1); background: var(--colorBrandBackground2); }
+.sl-sa-gallery input { position: absolute; opacity: 0; pointer-events: none; }

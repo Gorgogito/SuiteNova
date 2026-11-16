@@ -8,6 +8,7 @@ import { addLayout, deleteLayout, deleteMaster, duplicateLayout, duplicateMaster
 import { fitCrop, cellsOf, deleteCols, deleteRows, distributeCols, distributeRows, insertCols, insertRows, mapCells, mergeCells, type CellRange } from '@suitenova/slides-core';
 import { imageDims } from './render/assets';
 import { textCommands2 } from './commands-text2';
+import { smartArtCommands } from './commands-smartart';
 import { designCommands } from './commands-design';
 import { pictureCommands2 } from './commands-picture2';
 import { reviewCommands2 } from './commands-review2';
@@ -488,6 +489,7 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
   add({ id: 'slides.view.notesPane', label: 'Notas', icon: 'notes', checked: () => c.showNotes, run: () => ((c.showNotes = !c.showNotes), c.touch()) });
   add({ id: 'slides.view.fit', label: 'Ajustar a la ventana', icon: 'fit', run: () => ((c.zoom = 0), c.touch()) });
   defs.push(...textCommands2(ui));
+  defs.push(...smartArtCommands(ui));
   defs.push(...designCommands(ui));
   defs.push(...pictureCommands2(ui));
   defs.push(...reviewCommands2(ui));

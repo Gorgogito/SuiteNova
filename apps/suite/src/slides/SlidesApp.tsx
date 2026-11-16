@@ -283,6 +283,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
 
   useEffect(() => ctl.on('equation', () => setDialog({ kind: 'equation' })), [ctl]);
   useEffect(() => ctl.on('chart', (id: string) => setDialog({ kind: 'chart', arg: id })), [ctl]);
+  useEffect(() => ctl.on('smartArt', () => setDialog({ kind: 'smartArt', arg: { edit: true } })), [ctl]);
 
   // Fluent leaves `aria-hidden` on the page when a menu is unmounted while open (a ribbon group that disappears as the selection
   // changes): give the page back to assistive technology once nothing modal is open.

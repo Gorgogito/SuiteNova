@@ -208,6 +208,9 @@ importers:
       '@suitenova/slides-core':
         specifier: workspace:*
         version: link:../../packages/slides-core
+      '@suitenova/smartart-core':
+        specifier: workspace:*
+        version: link:../../packages/smartart-core
       '@suitenova/wordart-core':
         specifier: workspace:*
         version: link:../../packages/wordart-core

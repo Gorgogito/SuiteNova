@@ -1,5 +1,6 @@
 import type { CommandDef } from '@suitenova/core-ui';
-import { DIAGRAM_LAYOUTS, buildDiagram, docToDiagramText, parseDiagramText, updateSlide, type BodyProps, type CaseMode, type ShapeEl, type SlideElement } from '@suitenova/slides-core';
+import { LAYOUT_CATALOG } from '@suitenova/smartart-core';
+import { docToDiagramText, newSmartArtGroup, parseDiagramText, updateSlide, type BodyProps, type CaseMode, type ShapeEl, type SlideElement } from '@suitenova/slides-core';
 import type { SlidesUI } from './commands';
 import { applyCase, applyPara, applyRun, canFormatText } from './textcmds';
 
@@ -67,9 +68,9 @@ export function textCommands2(ui: SlidesUI): CommandDef[] {
     const e = c.selected;
     return e.length === 1 && e[0]!.kind === 'shape' && !!e[0]!.text && parseDiagramText(docToDiagramText(e[0]!.text.doc)).length > 0 && !(e[0] as ShapeEl).ph;
   };
-  for (const l of DIAGRAM_LAYOUTS)
+  for (const l of LAYOUT_CATALOG)
     add({
-      id: `slides.toSmartArt.${l.id}`,
+      id: `slides.toSmartArt.${l.id.split('/').pop()}`,
       label: l.name,
       icon: 'smartart',
       description: l.description,
@@ -77,8 +78,8 @@ export function textCommands2(ui: SlidesUI): CommandDef[] {
       run: () => {
         const el = c.selected[0] as ShapeEl;
         const x = c.xfrmOf(el);
-        const items = parseDiagramText(docToDiagramText(el.text!.doc));
-        const g = buildDiagram(l.id, items, { x: x.x, y: x.y, w: x.w, h: x.h });
+        const text = docToDiagramText(el.text!.doc);
+        const g = newSmartArtGroup({ layout: l.id, text }, { x: x.x, y: x.y, w: x.w, h: x.h });
         c.apply('Convertir en SmartArt', (d) => updateSlide(d, c.slide.id, (s) => ({ ...s, shapes: s.shapes.map((e): SlideElement => (e.id === el.id ? g : e)) })), { selection: [g.id] });
       },
     });

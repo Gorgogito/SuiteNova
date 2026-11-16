@@ -5,7 +5,8 @@ import type { SlidesUI } from './commands';
 import { PlaceholderGallery } from './MasterPanel';
 import { ColorPicker, EffectsMenu, FillMenu, FontGroup, LayoutGallery, OutlineMenu, ShapesGallery, useUi } from './ribbonParts';
 import { applyRun } from './textcmds';
-import { DIAGRAM_LAYOUTS } from '@suitenova/slides-core';
+import { LAYOUT_CATALOG, COLORS_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
+import { isLiveSmartArt } from '@suitenova/slides-core';
 import { ArtisticMenu } from './ribbonParts3';
 import { BgStylesGallery, ColorsGallery, FontsGallery } from './ribbonParts3';
 import { TextEffectsMenu, TextFillPicker, TextOutlinePicker } from './ribbonParts2';
@@ -160,7 +161,7 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
           dd('charSp', 'Espaciado entre caracteres', 'charSpacing', 'EC', ['slides.charSp.vtight', 'slides.charSp.tight', 'slides.charSp.normal', 'slides.charSp.loose', 'slides.charSp.vloose', '-', 'slides.charSp.options']),
           dd('changeCase', 'Cambiar mayúsculas y minúsculas', 'changeCase', 'MM', ['slides.case.sentence', 'slides.case.lower', 'slides.case.upper', 'slides.case.title', 'slides.case.toggle']),
           { kind: 'button', command: 'slides.fonts.replace', size: 'small', iconOnly: true, keytip: 'RZ' },
-          dd('toSmartArt', 'Convertir en SmartArt', 'smartart', 'CS', DIAGRAM_LAYOUTS.map((l) => `slides.toSmartArt.${l.id}`)),
+          dd('toSmartArt', 'Convertir en SmartArt', 'smartart', 'CS', LAYOUT_CATALOG.map((l) => `slides.toSmartArt.${l.id.split('/').pop()}`)),
         ],
       },
       { id: 'editing', label: 'Edición', icon: 'search', items: [btn('slides.review.find', { keytip: 'BU' }), btn('slides.selectAll', { keytip: 'ST' })] },
@@ -459,6 +460,27 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     groups: [{ id: 'chartData', label: 'Datos', icon: 'chart', items: [L('slides.chart.edit', 'ED')] }],
   };
 
+  const smartTools: RibbonTab = {
+    id: 'smartTools',
+    label: 'Diseño de SmartArt',
+    keytip: 'DS',
+    contextual: { label: 'Herramientas de SmartArt', color: '#0e7c86', visible: c.selected.length === 1 && isLiveSmartArt(c.selected[0]!) },
+    groups: [
+      { id: 'saText', label: 'Texto', icon: 'smartart', items: [L('slides.smartart.edit', 'ES')] },
+      { id: 'saLayout', label: 'Diseño', icon: 'smartart', items: [dd('saLayouts', 'Cambiar diseño', 'smartart', 'CD', LAYOUT_CATALOG.map((l) => `slides.smartart.layout.${l.id.split('/').pop()}`))] },
+      {
+        id: 'saStyle',
+        label: 'Estilos de SmartArt',
+        icon: 'palette',
+        items: [
+          dd('saColors', 'Cambiar colores', 'palette', 'CC', COLORS_CATALOG.map((k) => `slides.smartart.colors.${k.id.split('/').pop()}`)),
+          dd('saStyles', 'Estilos rápidos', 'smartart', 'ER', STYLE_CATALOG.map((k) => `slides.smartart.style.${k.id.split('/').pop()}`)),
+        ],
+      },
+      { id: 'saReset', label: 'Restablecer', icon: 'smartart', items: [S('slides.smartart.reflow', 'AJ2')] },
+    ],
+  };
+
   const PH_ITEMS: [string, string][] = [['obj', 'Contenido'], ['body', 'Texto'], ['pic', 'Imagen'], ['chart', 'Gráfico'], ['tbl', 'Tabla'], ['media', 'Multimedia'], ['dgm', 'SmartArt']];
   const masterTab: RibbonTab = {
     id: 'master',
@@ -479,7 +501,7 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     ],
   };
 
-  return [home, insert, design, transitions, animations, show, review, viewExtra, format, tableDesign, tableLayout, picFormat, chartTools, masterTab, helpTab()];
+  return [home, insert, design, transitions, animations, show, review, viewExtra, format, tableDesign, tableLayout, picFormat, chartTools, smartTools, masterTab, helpTab()];
 }
 
 export { Icon };

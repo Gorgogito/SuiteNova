@@ -5,7 +5,8 @@ import type { SlidesDialog, SlidesUI } from './commands';
 import { BackgroundDialog, ColumnsDialog, FontDialog, ParagraphDialog, TabsDialog } from './FormDialogs3';
 import { ActionDialog, AltTextDialog, PositionDialog, ThemesDialog } from './FormDialogs4';
 import { MasterPropsDialog } from './MasterPanel';
-import { NovaArtDialog, SmartArtDialog } from './FormDialogs5';
+import { NovaArtDialog } from './FormDialogs5';
+import { SmartArtDialog } from './SmartArtUi';
 import { ExportMediaDialog } from './FormDialogs8';
 import { ReplaceFontsDialog, SymbolDialog } from './dlg-text2';
 import { PrintDialog } from './dlg-print';
@@ -115,7 +116,7 @@ export function Dialogs({ ui, dialog, onClose }: { ui: SlidesUI; dialog: { kind:
   if (kind === 'position') return <PositionDialog ui={ui} onClose={onClose} />;
   if (kind === 'altText') return <AltTextDialog ui={ui} onClose={onClose} />;
   if (kind === 'actionSettings') return <ActionDialog ui={ui} onClose={onClose} />;
-  if (kind === 'smartArt') return <SmartArtDialog ui={ui} onClose={onClose} />;
+  if (kind === 'smartArt') return <SmartArtDialog ui={ui} onClose={onClose} arg={arg} />;
   if (kind === 'wordArt') return <NovaArtDialog ui={ui} onClose={onClose} />;
   if (kind === 'masterLayout') return <MasterPropsDialog ui={ui} onClose={onClose} />;
   if (kind === 'background') return <BackgroundDialog ui={ui} onClose={onClose} />;
