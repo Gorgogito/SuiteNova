@@ -1230,3 +1230,6 @@
 .nw-smartart { display: inline-block; vertical-align: bottom; max-width: 100%; }
 .nw-smartart img { pointer-events: auto; }
 .nw-smartart.ProseMirror-selectednode { outline: 2px solid var(--colorBrandStroke1, #0f6cbd); }
+.nw-chart { display: inline-block; vertical-align: bottom; max-width: 100%; }
+.nw-chart img { pointer-events: auto; }
+.nw-chart.ProseMirror-selectednode { outline: 2px solid var(--colorBrandStroke1, #0f6cbd); }

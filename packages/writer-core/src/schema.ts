@@ -1,6 +1,7 @@
 import { Schema, type DOMOutputSpec, type MarkSpec, type Node as PMNode, type NodeSpec } from 'prosemirror-model';
 import { tableNodes } from 'prosemirror-tables';
 import { drawingSvg, partsShapes, type SmartArtParts } from '@suitenova/smartart-core';
+import { CHART_COLORS, chartData, chartSvg, gridSource, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 
 const svgCache = new WeakMap<object, { w: number; h: number; uri: string }>();
 
@@ -16,6 +17,29 @@ export function smartArtImage(node: { attrs: Record<string, unknown> }): string 
   const svg = drawingSvg(partsShapes(parts), w * 0.75, h * 0.75, { width: w, height: h });
   const uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   svgCache.set(key, { w, h, uri });
+  return uri;
+}
+
+const chartCache = new WeakMap<object, { w: number; h: number; uri: string }>();
+
+/** Un gráfico de Writer como imagen SVG (data URI) dibujada con el motor compartido; se guarda por objeto de rejilla, que cambia al editar. */
+export function chartImage(node: { attrs: Record<string, unknown> }): string {
+  const spec = node.attrs.chart as ChartSpec | null;
+  const grid = node.attrs.grid as ChartGrid | null;
+  const w = Number(node.attrs.width) || 480;
+  const h = Number(node.attrs.height) || 288;
+  if (!spec || !grid) return '';
+  const hit = chartCache.get(grid);
+  if (hit && hit.w === w && hit.h === h && (hit as { spec?: unknown }).spec === spec) return hit.uri;
+  let uri = '';
+  try {
+    const colored: ChartSpec = { ...spec, series: spec.series.map((s, i) => ({ ...s, color: s.color ?? CHART_COLORS[i % CHART_COLORS.length] })) };
+    const svg = chartSvg(colored, chartData(colored, gridSource(grid), 'es'), 'es', { text: '#333333', grid: '#dddddd', bg: 'transparent' }, w, h);
+    uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  } catch {
+    uri = '';
+  }
+  chartCache.set(grid, Object.assign({ w, h, uri }, { spec }));
   return uri;
 }
 
@@ -477,6 +501,39 @@ const nodes: Record<string, NodeSpec> = {
       else if (a.wrap === 'front' || a.wrap === 'behind') css.push('position:absolute', `left:${a.x}px`, `top:${a.y}px`, `z-index:${a.wrap === 'behind' ? 0 : 3}`);
       else if (a.wrap === 'topBottom') css.push('display:block', 'margin:6px auto');
       return ['span', { class: 'nw-smartart', 'data-wrap': a.wrap, title: a.alt || 'SmartArt', style: css.join(';') }, ['img', { src: smartArtImage(node), alt: a.alt || 'SmartArt', draggable: 'false', style: 'width:100%;height:100%;display:block' }]];
+    },
+  },
+  /**
+   * A chart (Word's `c:chart` / `cx:chart`): an atom with the chart (`chart`, from the shared engine) and the data grid it points into
+   * (`grid`). It is drawn as an SVG picture and edited as a whole in a dialog; the file keeps the values and an embedded workbook.
+   */
+  chart: {
+    inline: true,
+    group: 'inline',
+    atom: true,
+    selectable: true,
+    draggable: false,
+    attrs: {
+      width: { default: 480 },
+      height: { default: 288 },
+      /** inline | left | right | front | behind | topBottom */
+      wrap: { default: 'inline' },
+      x: { default: 0 },
+      y: { default: 0 },
+      alt: { default: '' },
+      id: { default: '' },
+      chart: { default: null },
+      grid: { default: null },
+    },
+    parseDOM: [{ tag: 'span.nw-chart', priority: 70 }],
+    toDOM: (node) => {
+      const a = node.attrs;
+      const css = [`width:${a.width}px`, `height:${a.height}px`];
+      if (a.wrap === 'left') css.push('float:left', 'margin:0 10px 6px 0');
+      else if (a.wrap === 'right') css.push('float:right', 'margin:0 0 6px 10px');
+      else if (a.wrap === 'front' || a.wrap === 'behind') css.push('position:absolute', `left:${a.x}px`, `top:${a.y}px`, `z-index:${a.wrap === 'behind' ? 0 : 3}`);
+      else if (a.wrap === 'topBottom') css.push('display:block', 'margin:6px auto');
+      return ['span', { class: 'nw-chart', 'data-wrap': a.wrap, title: a.alt || 'Gráfico', style: css.join(';') }, ['img', { src: chartImage(node), alt: a.alt || 'Gráfico', draggable: 'false', style: 'width:100%;height:100%;display:block' }]];
     },
   },
   /** A content control (Word's structured document tag) inside a paragraph: text, drop-down, date, check box. */

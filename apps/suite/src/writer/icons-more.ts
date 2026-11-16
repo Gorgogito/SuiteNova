@@ -2,6 +2,7 @@ import { registerIcon } from '@suitenova/core-ui';
 import {
   ArrowLeft,
   Network,
+  ChartColumn,
   Palette,
   ArrowRight,
   Bookmark,
@@ -78,6 +79,7 @@ const icons = {
   shapes: Shapes,
   wordart: Sparkles,
   smartart: Network,
+  chart: ChartColumn,
   palette: Palette,
   textbox: TextCursorInput,
   mail: Mail,

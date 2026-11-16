@@ -9,6 +9,7 @@ import { BookmarkDialog, CaptionDialog, CiteDialog, IndexMarkDialog, NoteOptions
 import { ControlDialog, EquationDialog, ShapeDialog } from './dlg-objects';
 import { WordArtDialog } from './dlg-wordart';
 import { SmartArtDialog } from './dlg-smartart';
+import { ChartDialog } from './dlg-chart';
 import { FontDialog, ParagraphDialog, SymbolDialog } from './dlg-format';
 import { AutoCorrectDialog } from './dlg-autocorrect';
 import { LineNumbersDialog, PageBordersDialog } from './dlg-page';
@@ -312,6 +313,8 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
       return <ShapeDialog ui={ui} pos={(arg as { pos: number }).pos} onClose={onClose} />;
     case 'smartart':
       return <SmartArtDialog ui={ui} pos={(arg as { pos?: number } | undefined)?.pos} onClose={onClose} />;
+    case 'chart':
+      return <ChartDialog ui={ui} pos={(arg as { pos?: number } | undefined)?.pos} onClose={onClose} />;
     case 'wordart':
       return <WordArtDialog ui={ui} pos={(arg as { pos: number }).pos} onClose={onClose} />;
     case 'control':

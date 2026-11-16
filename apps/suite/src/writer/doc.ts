@@ -487,13 +487,14 @@ export class WriterCtl {
             this.beginNoteEdit(id);
             return true;
           }
-          const art = el?.closest?.('.nw-smartart') as HTMLElement | null;
+          const art = el?.closest?.('.nw-smartart, .nw-chart') as HTMLElement | null;
           if (art && !this.readOnly) {
             const v = this.mainView!;
             const at = v.posAtDOM(art.parentNode!, Array.prototype.indexOf.call(art.parentNode!.childNodes, art));
-            if (v.state.doc.nodeAt(at)?.type.name === 'smartart') {
+            const kind = v.state.doc.nodeAt(at)?.type.name;
+            if (kind === 'smartart' || kind === 'chart') {
               event.preventDefault();
-              this.onDialog('smartart', { pos: at });
+              this.onDialog(kind, { pos: at });
               return true;
             }
           }

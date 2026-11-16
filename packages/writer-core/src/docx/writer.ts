@@ -9,6 +9,7 @@ import { resolvePart } from '../layout';
 import { parseMath, toOMML } from '../math';
 import { avLstXml, presetOf, resolveKind } from '@suitenova/shapes-core';
 import { prstTxWarpXml, w14Fx, type WordArtFx } from '@suitenova/wordart-core';
+import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, NS_CX, REL_CHARTEX, chartParts, isExType, writeGridWorkbook, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 import { DIAGRAM_URI, PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel, type SmartArtParts } from '@suitenova/smartart-core';
 import { REL, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml } from './shared';
 import { commentsExtendedXml, commentsXml, customXmlParts, footnotesXml, settingsXml, watermarkParagraph, type NoteOut } from './writer-parts';
@@ -30,6 +31,11 @@ export class Ctx {
   /** Partes de SmartArt (`word/diagrams/…`) que van al paquete. */
   diagrams: { path: string; xml: string; content: string }[] = [];
   diagramSeq = 0;
+  /** Partes de gráfico (parte, relaciones, libro incrustado, estilo) que van al paquete. */
+  chartFiles: { path: string; data: Uint8Array }[] = [];
+  chartSeq = 0;
+  /** El libro incrustado de cada gráfico, generado antes de escribir (es asíncrono). */
+  chartBooks = new WeakMap<object, Uint8Array>();
   /** Elementos `w14:*` (estilo de WordArt) que van al final del `w:rPr` de cada letra mientras se escribe el texto de una forma. */
   fxTail = '';
   nums: { numId: number; abstractId: number; kind: 'bullet' | ListFormat; start: number }[] = [];
@@ -376,6 +382,23 @@ function smartArtXml(node: PMNode, ctx: Ctx, part: PartCtx): string {
   return floatingXml(node, ctx, DIAGRAM_URI, inner, '', 'Diagrama');
 }
 
+/** Un gráfico: la parte, sus relaciones y el libro incrustado van a `word/charts/` y `word/embeddings/`; el dibujo las enlaza con `c:chart`. */
+function chartXmlOf(node: PMNode, ctx: Ctx, part: PartCtx): string {
+  const spec = node.attrs.chart as ChartSpec | null;
+  const grid = node.attrs.grid as ChartGrid | null;
+  const book = grid ? ctx.chartBooks.get(grid) : undefined;
+  if (!spec || !grid || !book) return '';
+  const n = ++ctx.chartSeq;
+  const ex = isExType(spec.type);
+  for (const [path, data] of Object.entries(chartParts(spec, grid, book, 'word', n))) ctx.chartFiles.push({ path, data });
+  const id = `rId${part.nextRel++}`;
+  const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  part.rels.push(`<Relationship Id="${id}" Type="${ex ? REL_CHARTEX : `${R}/chart`}" Target="charts/${ex ? 'chartEx' : 'chart'}${n}.xml"/>`);
+  if (!ex) return floatingXml(node, ctx, 'http://schemas.openxmlformats.org/drawingml/2006/chart', `<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="${R}" r:id="${id}"/>`, '', 'Gráfico');
+  const xml = floatingXml(node, ctx, NS_CX, `<cx:chart xmlns:cx="${NS_CX}" xmlns:r="${R}" r:id="${id}"/>`, 'cx1', 'Gráfico');
+  return xml.replace('Requires="cx1"', 'xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" Requires="cx1"');
+}
+
 function groupXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
   return floatingXml(node, ctx, 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup', wgpXml(node, ctx, part, rels), 'wpg', 'Grupo');
 }
@@ -459,6 +482,7 @@ function inlineXml(parent: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): stri
     } else if (tn === 'shape') xml = shapeXml(child, ctx, part, rels);
     else if (tn === 'shape_group') xml = groupXml(child, ctx, part, rels);
     else if (tn === 'smartart') xml = smartArtXml(child, ctx, part);
+    else if (tn === 'chart') xml = chartXmlOf(child, ctx, part);
     else if (tn === 'content_control') xml = contentControlXml(child, ctx, part, rels);
     else ctx.warn(`Elemento no exportable: ${tn}`);
     emit(before + xml + after, link);
@@ -830,6 +854,12 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
   const rels = new RelSink();
   const zip = new JSZip();
   prepareComments(doc, ctx);
+  // el libro incrustado de cada gráfico (generarlo es asíncrono; escribir el documento no)
+  const charts: PMNode[] = [];
+  const collect = (n: PMNode) => n.descendants((c) => (c.type.name === 'chart' ? void charts.push(c) : undefined));
+  collect(doc.body);
+  for (const p of Object.values(doc.parts)) collect(p);
+  for (const c of charts) if (c.attrs.grid) ctx.chartBooks.set(c.attrs.grid as object, await writeGridWorkbook(c.attrs.grid as ChartGrid));
 
   // sections (copies, so that the watermark can add header parts without touching the document)
   const secProps: SectionProps[] = [];
@@ -929,10 +959,16 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
     zip.file(d.path, d.xml);
     overrides.push([`/${d.path}`, d.content]);
   }
+  for (const f of ctx.chartFiles) {
+    zip.file(f.path, f.data);
+    const ct = /charts\/chartEx\d+\.xml$/.test(f.path) ? CT_CHARTEX : /charts\/chart\d+\.xml$/.test(f.path) ? 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml' : /charts\/style\d+\.xml$/.test(f.path) ? CT_CHARTEX_STYLE : /charts\/colors\d+\.xml$/.test(f.path) ? CT_CHARTEX_COLORS : undefined;
+    if (ct) overrides.push([`/${f.path}`, ct]);
+  }
 
   const exts = new Set(ctx.media.map((m) => m.ext));
   const defaults = ['<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>', '<Default Extension="xml" ContentType="application/xml"/>'];
   const mimeFor: Record<string, string> = { png: 'image/png', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', svg: 'image/svg+xml', webp: 'image/webp' };
+  if (ctx.chartFiles.length) defaults.push('<Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>');
   for (const e of exts) defaults.push(`<Default Extension="${e}" ContentType="${mimeFor[e]}"/>`);
   const allOverrides: [string, string][] = [
     ['/word/document.xml', doc.isTemplate ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],

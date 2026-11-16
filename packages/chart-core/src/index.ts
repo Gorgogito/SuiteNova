@@ -14,3 +14,4 @@ export { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, EX_TYPES, NS_CX, REL_C
 export { gridFromCaches, readChartCaches } from './dml/cache';
 export { readGridWorkbook, writeGridWorkbook } from './dml/workbook';
 export { parser as dmlParser, type XNode } from './dml/xml';
+export { chartParts, readChartPart } from './dml/part';

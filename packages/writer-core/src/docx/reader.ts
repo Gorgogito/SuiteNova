@@ -9,6 +9,7 @@ import { noteBodyOf } from '../notes';
 import { cleanAdjust, hasPreset, parseGuide } from '@suitenova/shapes-core';
 import { emuToPx, type FxColor, type FxFill, type WordArtFx } from '@suitenova/wordart-core';
 import { drawingRelId, parseDataModel, type SmartArtParts } from '@suitenova/smartart-core';
+import { readChartPart } from '@suitenova/chart-core';
 import { parseFieldInstr } from './shared';
 import { attrOf, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOfNode, toggle, type XNode } from './xml';
 
@@ -289,6 +290,8 @@ interface Shared {
   media: Map<string, string>; // zip path → data URI
   /** Partes XML de SmartArt (`word/diagrams/…`) por ruta del archivo. */
   diagrams: Map<string, string>;
+  /** Partes de gráfico (`word/charts/…`) por ruta del archivo. */
+  charts: Map<string, string>;
   warnings: Set<string>;
   counters: Map<string, number>;
   sections: number;
@@ -821,6 +824,11 @@ class Converter {
 
   private drawing(d: XNode, cur: () => PMNode[], marks: Mark[]) {
     // un grupo se mira antes que una forma: sus hijas también son `wsp`
+    const chartRef = findDeep(d, 'chart');
+    if (chartRef && attrOf(chartRef, 'id') !== undefined) {
+      this.chart(d, chartRef, cur);
+      return;
+    }
     const dgm = findDeep(d, 'relIds');
     if (dgm) {
       this.smartArt(d, dgm, cur);
@@ -1013,6 +1021,26 @@ class Converter {
       { kind, width: w, height: h, fill, stroke, strokeWidth, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, adj: adjust, wordart: this.wordArtOf(wsp), wrap: at.wrap, x: at.x, y: at.y, alt },
       paras,
     );
+  }
+
+  /** A chart (`c:chart` / `cx:chart`): the chart part is interpreted and its data grid comes from the cached values. */
+  private chart(d: XNode, ref: XNode, cur: () => PMNode[]) {
+    const rel = this.rels.get(attrOf(ref, 'id') ?? '');
+    const xml = rel && !rel.external ? this.sh.charts.get(this.baseDir + rel.target.replace(/^\//, '').replace(/^word\//, '')) : undefined;
+    if (!xml) {
+      this.warn('Hay un gráfico cuya parte no está en el archivo y se omite.');
+      return;
+    }
+    const read = readChartPart(xml);
+    if ('skip' in read) {
+      this.warn(`Un gráfico no se pudo interpretar (${read.skip}) y se omite.`);
+      return;
+    }
+    const ext = findDeep(d, 'extent');
+    const w = Math.max(20, Math.round((num(ext && attrOf(ext, 'cx')) ?? 4572000) / EMU_PER_PX));
+    const h = Math.max(20, Math.round((num(ext && attrOf(ext, 'cy')) ?? 2743200) / EMU_PER_PX));
+    const pr = findDeep(d, 'docPr');
+    cur().push(nodeTypes.chart!.create({ width: w, height: h, ...this.anchorOf(d), alt: (pr && (attrOf(pr, 'descr') ?? attrOf(pr, 'title'))) || '', chart: read.spec, grid: read.grid }));
   }
 
   /** A SmartArt (`dgm:relIds`): its parts are read from `word/diagrams/` and kept whole; the drawing is shown from the cached part. */
@@ -1528,9 +1556,16 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
       .map(async (p) => void diagrams.set(p, await zip.file(p)!.async('string'))),
   );
 
+  const charts = new Map<string, string>();
+  await Promise.all(
+    Object.keys(zip.files)
+      .filter((p) => /^word\/charts\/(chart|chartEx)[^/]*\.xml$/.test(p))
+      .map(async (p) => void charts.set(p, await zip.file(p)!.async('string'))),
+  );
+
   const commentsRead = readComments(await text(zip, 'word/comments.xml'), await text(zip, 'word/commentsExtended.xml'));
   const sh: Shared = {
-    zip, styles, baseRP, basePP, fonts, numbering, abstracts, media, diagrams, warnings, counters: new Map(), sections: 0,
+    zip, styles, baseRP, basePP, fonts, numbering, abstracts, media, diagrams, charts, warnings, counters: new Map(), sections: 0,
     comments: commentsRead.info, footnotes: new Map(), endnotes: new Map(), noteSeq: 0, custom: new Map(),
   };
   await readNotes(zip, 'word/footnotes.xml', 'footnotes', sh, sh.footnotes);

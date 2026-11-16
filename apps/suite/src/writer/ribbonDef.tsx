@@ -290,10 +290,11 @@ export interface RibbonFlags {
   image: boolean;
   shape: boolean;
   smartart: boolean;
+  chart: boolean;
 }
 
 export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>): RibbonTab[] {
-  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, shape: false, smartart: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
+  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, shape: false, smartart: false, chart: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
   const inTable = flags.inTable;
   const home: RibbonTab = {
     id: 'home',
@@ -403,7 +404,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           },
         ],
       },
-      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [{ kind: 'button', command: 'writer.table', size: 'large', keytip: 'T' }, { kind: 'button', command: 'writer.table.fromText', size: 'small', keytip: 'XT' }, { kind: 'button', command: 'writer.insert.smartart', size: 'small', keytip: 'SA' }] },
+      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [{ kind: 'button', command: 'writer.table', size: 'large', keytip: 'T' }, { kind: 'button', command: 'writer.table.fromText', size: 'small', keytip: 'XT' }, { kind: 'button', command: 'writer.insert.smartart', size: 'small', keytip: 'SA' }, { kind: 'button', command: 'writer.insert.chart', size: 'small', keytip: 'GR' }] },
       {
         id: 'illustrations',
         label: 'Ilustraciones',
@@ -945,6 +946,14 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
+  const chartTab: RibbonTab = {
+    id: 'chartTools',
+    label: 'Diseño de gráfico',
+    keytip: 'DG',
+    contextual: { label: 'Herramientas de gráfico', color: '#2e7d32', visible: flags.chart },
+    groups: [{ id: 'chartData', label: 'Datos', icon: 'chart', items: [{ kind: 'button', command: 'writer.chart.edit', size: 'large', keytip: 'ED' }] }],
+  };
+
   const hf: RibbonTab = {
     id: 'hfTools',
     label: 'Encabezado y pie',
@@ -1180,5 +1189,5 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
-  return [home, insert, layout, refs, mailings, review, view, developer, table, imageTab, shapeTab, smartTab, hf, outlineTab, helpTab()];
+  return [home, insert, layout, refs, mailings, review, view, developer, table, imageTab, shapeTab, smartTab, chartTab, hf, outlineTab, helpTab()];
 }
