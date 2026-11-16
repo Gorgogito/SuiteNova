@@ -1,6 +1,6 @@
 # Diseño: SmartArt compartido (2026-11-16)
 
-Estado: **decisiones tomadas por el usuario; falta resolver de dónde sale el catálogo de diseños (sección 5). Sin código.**
+Estado: **decisiones tomadas (catálogo propio, opción a); fase 1 HECHA (2026-11-16); fases 2 a 6 pendientes.**
 
 ## 1. Cómo es en Office
 SmartArt es **un componente único de Office**, no una función de cada programa: Word, Excel, PowerPoint y Outlook usan el mismo motor y el mismo formato. Cada producto solo lo aloja:
@@ -47,4 +47,9 @@ Opciones: (a) catálogo **propio**: diseños escritos por nosotros en el mismo l
 - Nada se ha contrastado con Office real hasta que se pruebe.
 
 ## 8. Registro de fases
-(vacío)
+### Fase 1 (hecha, 2026-11-16): modelo y archivos — `packages/smartart-core`
+- **Decisión del usuario:** catálogo **propio** (opción a): diseños escritos por nosotros en `layoutDef` con los identificadores de Office; los de Microsoft no se empaquetan. Un archivo de Office trae su propio diseño y se ejecuta sin catálogo.
+- `xml.ts`: árbol XML ordenado y sin pérdidas (`El`), con prefijos conservados. `datamodel.ts`: `dgm:dataModel` completo (puntos, conexiones, `prSet`, `extLst` con el `relId` del dibujo). `model.ts`: árbol de nodos editable y operaciones puras (añadir hijo/hermano/primer nivel, quitar sin perder hijos, subir/bajar nivel, mover, cambiar texto), esquema de texto del panel (`treeToOutline`/`outlineToTree`, que conserva ids y formato) y conversión de ida y vuelta al modelo de datos (descarta los puntos de presentación y el dibujo en caché, que regenera el motor). `layoutdef.ts`: lector tipado de `layoutDef` (alg, shape, presOf, constrLst, ruleLst, varLst, forEach, choose/if/else, layoutNode, con los valores por omisión de la norma). `styles.ts`: `styleDef` y `colorsDef`. `drawing.ts`: `dsp:drawing` (lectura y escritura). `parts.ts`: las cinco partes juntas, tipos de relación y de contenido, y `DIAGRAM_URI`.
+- **Pruebas:** 26 con datos escritos a mano (`fixtures.ts`) + 1 que valida con **archivos reales de Office** (`office-files.test.ts`, se activa con la variable `SMARTART_FILES`; no se guardan en el repositorio). Se generaron 8 SmartArt reales con PowerPoint (COM) en una carpeta temporal: lista de bloques, proceso, ciclo, jerarquía, pirámide, Venn, lista vertical y matriz; todos se leen y se reescriben sin pérdidas (datos y dibujo).
+- **Lo que enseñaron los archivos reales:** algoritmos en uso: `snake`, `tx`, `sp`, `composite`, `lin`, `hierRoot`, `hierChild`, `conn`, `pyra`, `cycle`; restricciones: `w h l t r b ctrX ctrY sp sibSp lMarg rMarg tMarg bMarg begPad endPad connDist bendDist primFontSz secFontSz pyraAcctRatio` (con `equ`/`lte`); reglas: `h primFontSz secFontSz`; funciones de `choose`: `var:dir`, `cnt`, `pos`, `depth`, `maxDepth`; ejes: `ch followSib self none`. Es la lista de trabajo de la fase 2.
+- **Límites de esta fase:** al volver el árbol al modelo de datos se escriben solo los puntos de contenido, las transiciones y las conexiones `parOf`; Office regenera lo demás al abrir (no comprobado con Office real hasta la fase 4).

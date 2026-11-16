@@ -52,7 +52,7 @@ Se abordan de uno en uno; registrar aquí cada uno al empezarlo.
 
 ## Subproducto SmartArt (2026-11-16)
 Decisiones del usuario: motor compartido `smartart-core`, vinculado a los datos, intérprete completo de `layoutDef`, orden motor → Slides → Writer → Calc. Diseño y fases en `docs/diseno-smartart.md`. **Punto abierto:** de dónde sale el catálogo de diseños para crear SmartArt nuevos (propio / exportado de Office con riesgo de licencia / mixto); no bloquea las fases 1-3.
-- [ ] Fase 1: modelo y archivos (`model`, `layoutdef`, `io` de las 5 partes).
+- [x] **Fase 1 HECHA:** `packages/smartart-core` (XML ordenado, `dgm:dataModel`, árbol editable y operaciones, panel de texto, `layoutDef` tipado, estilos, colores, `dsp:drawing`, 5 partes). 27 pruebas, validado con 8 SmartArt reales generados con PowerPoint (`SMARTART_FILES`). Catálogo propio decidido. Detalle en la sección 8 del diseño.
 - [ ] Fase 2: motor de diseño y dibujo a formas neutras.
 - [ ] Fase 3: estilos y colores.
 - [ ] Fase 4: Slides (migrar el actual, panel de texto, cambiar diseño).
