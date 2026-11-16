@@ -97,3 +97,26 @@ Adaptadores: Calc (`ChartDef` + posición, datos del libro), Slides (`ChartEl` c
 - **Lo que se aprendió de Office (queda como regla):** (1) un gráfico de Office 2016 sin las partes `chartStyle`/`chartColorStyle` hace que Excel no abra el libro; (2) Excel guarda las fórmulas de esos gráficos como nombres ocultos `_xlchart.v1.N`, y PowerPoint y Word a veces solo guardan los valores dentro del gráfico, sin fórmulas; (3) Word y PowerPoint llevan siempre un libro incrustado para «Editar datos»; (4) la automatización por COM no deja crear gráficos desde cero en Word (ni en PowerPoint sin ventana), por eso la lectura de gráficos de Word se comprobó con archivos que Word reescribe.
 - **Regresión completa:** typecheck de todos los paquetes sin errores; pruebas unitarias de todos los paquetes en verde (`chart-core` 34, `calc-engine` 264, `xlsx-io` 73, `slides-core` 99, `writer-core` 168, `apps/suite` 354, y el resto sin cambios); e2e de Calc, Slides y Writer (ver `PROGRESO.md`).
 - **Pendiente (opcional, no empezado):** mover o redimensionar con el ratón en Writer; información emergente al pasar el ratón en Slides y Writer; conservar el estilo de Office al reescribir; conservar el libro original en vez del mínimo; ODT, ODP y ODS con gráficos; pegar de Calc a Slides o Writer conservando el vínculo.
+
+## 8. Segunda ronda: igualar a Office (2026-11-16)
+El usuario pidió cerrar los pendientes y límites para parecerse lo más posible a Office. Inventario hecho contra el código (no de memoria). Lo que Office tiene y Nova no, ordenado por lo que más se nota:
+
+| Área | Office | Nova hoy |
+|---|---|---|
+| Elementos del gráfico | título, **títulos de ejes**, **etiquetas de datos**, **leyenda en 4 posiciones**, **cuadrículas mayores y menores**, **tabla de datos**, líneas de tendencia, barras de error, ejes, ejes secundarios | título y leyenda (solo abajo), tendencias, barras de error, título y cuadrícula por eje |
+| Formato de serie y de punto | color, relleno, borde, grosor y estilo de línea, marcadores (forma y tamaño), ancho del hueco y superposición, suavizado, color por punto, explosión de sectores | color de serie y suavizado |
+| Estilos | galería de estilos de gráfico (decenas) y de colores (monocromáticos, coloridos), formato del área del gráfico y del área de trazado, fuentes | un estilo mínimo (colores del tema) |
+| Ratón | mover, redimensionar, información emergente al pasar | Calc y Slides sí mueven y redimensionan; Writer solo desde el cuadro; sin información emergente en Slides y Writer |
+| Archivo | conserva todo lo que no entiende; libro incrustado original; ODF | Slides conserva el original mientras no se edita; Writer y Calc regeneran; libro mínimo; ODF sin gráficos |
+| Portapapeles | pegar un gráfico de Excel en Word o PowerPoint: incrustado (con su libro) o vinculado | no hay pegado entre productos |
+
+### Fases propuestas
+1. **Elementos del gráfico (motor + Calc):** títulos de ejes, etiquetas de datos (valor, nombre, porcentaje; posición), leyenda en 4 posiciones, cuadrículas mayores/menores, tabla de datos; menú «Elementos del gráfico» con casillas como el de Office. Modelo, `option.ts`, DrawingML de ida y vuelta, interfaz, pruebas y Excel real.
+2. **Formato de serie y de punto (motor + Calc):** relleno, borde, línea, marcadores, ancho del hueco, superposición, color por punto, explosión; panel «Formato de serie». Ida y vuelta con Office.
+3. **Estilos y colores (motor + Calc):** galería de estilos y de colores, formato del área del gráfico y de trazado, fuentes. Escritura de `c:style`/`chartStyle` reales.
+4. **Slides y Writer con los mismos elementos y formatos:** pestaña «Diseño de gráfico» completa (como la de Calc), mover y redimensionar en Writer con el ratón, información emergente en los tres.
+5. **Fidelidad de archivo:** conservar lo no modelado al reescribir (partes originales con parches de datos), conservar el libro original actualizando sus celdas, Writer sin regenerar, nombres de serie tras Word.
+6. **Portapapeles y ODF:** copiar/pegar gráficos entre Calc, Slides y Writer (incrustado con su rejilla, como Office) y exportar/importar gráficos en ODS/ODP/ODT.
+7. **Cierre:** documentación, límites, regresión y comprobación con Office real.
+
+**Reglas de la ronda:** cada fase con comprobación contra Excel, PowerPoint o Word reales; lo que Office haga y Nova no pueda se dice sin rodeos en `LIMITACIONES.md`.
