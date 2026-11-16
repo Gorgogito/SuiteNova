@@ -257,17 +257,23 @@ export function presetGeometry(name: string, w: number, h: number, adj: Record<s
  * values, so it is inverted numerically (the functions are monotonic in the range the handle may take).
  */
 export function dragHandle(name: string, w: number, h: number, adj: Record<string, number>, index: number, x: number, y: number): Record<string, number> {
-  const base = { ...presetDefaults(name), ...adj };
-  const g0 = presetGeometry(name, w, h, base);
-  const hd = g0?.handles[index];
-  if (!g0 || !hd) return adj;
+  return dragHandleBy((a) => presetGeometry(name, w, h, a)?.handles ?? [], presetDefaults(name), w, h, adj, index, x, y);
+}
+
+/**
+ * Lo mismo para cualquier cosa con asas de ajuste: `handlesAt` da las asas para unos valores de ajuste completos (las formas, y las
+ * transformaciones de texto del WordArt) y `defaults` son los valores por omisión.
+ */
+export function dragHandleBy(handlesAt: (adj: Record<string, number>) => PresetHandle[], defaults: Record<string, number>, w: number, h: number, adj: Record<string, number>, index: number, x: number, y: number): Record<string, number> {
+  const base = { ...defaults, ...adj };
+  const hd = handlesAt(base)[index];
+  if (!hd) return adj;
   const out = { ...adj };
   const solve = (ref: string, target: number, axis: 'x' | 'y', lo: number, hi: number) => {
     let a = lo;
     let b = hi;
     const at = (v: number) => {
-      const g = presetGeometry(name, w, h, { ...base, ...out, [ref]: v })!;
-      return g.handles[index]![axis];
+      return handlesAt({ ...base, ...out, [ref]: v })[index]![axis];
     };
     const inc = at(b) >= at(a);
     for (let i = 0; i < 40; i++) {
@@ -286,15 +292,41 @@ export function dragHandle(name: string, w: number, h: number, adj: Record<strin
     const cx = w / 2;
     const cy = h / 2;
     const ang = ((Math.atan2(y - cy, x - cx) * 180) / Math.PI) * 60000;
-    if (hd.refAng) {
-      let a = ang < 0 ? ang + 21600000 : ang;
-      a = Math.min(Math.max(a, hd.min[1]!), hd.max[1]!);
-      out[hd.refAng] = Math.round(a);
-    }
-    if (hd.refR) {
-      const dist = Math.hypot(x - cx, y - cy);
-      const ss = Math.min(w, h);
-      out[hd.refR] = Math.round(Math.min(Math.max((dist / ss) * 100000, hd.min[0]!), hd.max[0]!));
+    const target = ang < 0 ? ang + 21600000 : ang;
+    const dist = Math.hypot(x - cx, y - cy);
+    const at = () => handlesAt({ ...base, ...out })[index]!;
+    // el asa recorre una elipse y a veces depende a la vez del ángulo y del radio: se afinan los dos por iteración (unas pasadas bastan)
+    if (hd.refR) out[hd.refR] = Math.round(Math.min(Math.max((dist / Math.min(w, h)) * 100000, hd.min[0]!), hd.max[0]!));
+    for (let pass = 0; pass < 3; pass++) {
+      if (hd.refAng) {
+        const ref = hd.refAng;
+        const clamp = (v: number) => Math.min(Math.max(v, hd.min[1]!), hd.max[1]!);
+        let a = clamp(out[ref] ?? target);
+        for (let i = 0; i < 12; i++) {
+          out[ref] = a;
+          const p = at();
+          const cur = (Math.atan2(p.y - cy, p.x - cx) * 180 / Math.PI) * 60000;
+          let e = target - (cur < 0 ? cur + 21600000 : cur);
+          if (e > 10800000) e -= 21600000;
+          if (e < -10800000) e += 21600000;
+          if (Math.abs(e) < 30) break;
+          a = clamp(a + e);
+        }
+        out[ref] = Math.round(a);
+      }
+      if (hd.refR && dist > 0.5) {
+        const ref = hd.refR;
+        const clamp = (v: number) => Math.min(Math.max(v, hd.min[0]!), hd.max[0]!);
+        let r = Math.max(out[ref] ?? 0, 1000);
+        for (let i = 0; i < 12; i++) {
+          out[ref] = r;
+          const p = at();
+          const cur = Math.hypot(p.x - cx, p.y - cy);
+          if (cur < 0.01 || Math.abs(cur - dist) < 0.05) break;
+          r = clamp(r * (dist / cur));
+        }
+        out[ref] = Math.round(clamp(r));
+      }
     }
   }
   return out;

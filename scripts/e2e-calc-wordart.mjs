@@ -63,6 +63,21 @@ const insertStyle = async (page, id) => {
   await page.locator(`[data-wordart-style="${id}"]`).click();
   await page.waitForTimeout(700);
 };
+
+const pathD = (page) => page.evaluate(() => document.querySelector('.calc-shape svg.calc-shape__wordart path[d]')?.getAttribute('d') ?? '');
+const dragHandle = async (page, sel, dx, dy) => {
+  const b = await page.locator(sel).first().boundingBox();
+  assert.ok(b, 'el asa existe: ' + sel);
+  const x = b.x + b.width / 2;
+  const y = b.y + b.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx / 2, y + dy / 2, { steps: 4 });
+  await page.mouse.move(x + dx, y + dy, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  return b;
+};
 const shapeTab = (page) => page.locator('[role=tab]').filter({ hasText: 'Formato de forma' }).click();
 
 await check('Insertar › WordArt: la galería tiene 22 estilos y se inserta un cuadro dibujado con el motor', true, async (page, shot) => {
@@ -187,6 +202,35 @@ await check('guardar y volver a leer el .xlsx conserva el estilo y la transforma
   await page.evaluate(() => window.__novaCalc.doc.undo());
   await page.waitForTimeout(500);
   assert.equal((await shapes(page))[0].wordart.warp.prst, 'textCircle', 'deshacer devuelve el WordArt');
+});
+
+await check('asas de la transformación: aparecen con la forma elegida, se arrastran y se deshacen', true, async (page, shot) => {
+  await insertStyle(page, 'tx1');
+  await shapeTab(page);
+  assert.equal(await page.locator('[data-warp-handle]').count(), 0, 'sin transformación no hay asas');
+  await page.getByRole('button', { name: 'Transformar', exact: true }).click();
+  await page.locator('[data-warp="textWave1"]').click();
+  await page.waitForTimeout(500);
+  assert.ok(await page.locator('[data-warp-handle]').count() >= 1, 'una onda tiene asas');
+  const before = await pathD(page);
+  const h0 = await dragHandle(page, '[data-warp-handle="0"]', 0, -12);
+  const w = (await shapes(page))[0].wordart.warp;
+  assert.equal(w.prst, 'textWave1');
+  assert.ok(w.adj && Object.keys(w.adj).length, 'el ajuste quedó guardado: ' + JSON.stringify(w));
+  const h1 = await page.locator('[data-warp-handle="0"]').first().boundingBox();
+  assert.ok(Math.abs(h1.y - (h0.y - 12)) < 4, 'el asa quedó donde se soltó');
+  assert.notEqual(await pathD(page), before, 'el dibujo cambió');
+  await shot('asa-onda');
+  // arco: asa polar
+  await page.getByRole('button', { name: 'Transformar', exact: true }).click();
+  await page.locator('[data-warp="textArchUp"]').click();
+  await page.waitForTimeout(500);
+  await dragHandle(page, '[data-warp-handle="0"]', 60, 30);
+  assert.ok((await shapes(page))[0].wordart.warp.adj, 'el asa del arco cambió su ángulo');
+  await shot('asa-arco');
+  await page.evaluate(() => window.__novaCalc.doc.undo());
+  await page.waitForTimeout(400);
+  assert.equal((await shapes(page))[0].wordart.warp.adj, undefined, 'deshacer devuelve el ajuste');
 });
 
 await check('sin permiso de fuentes: el texto se queda normal y visible, y el modelo conserva el WordArt', false, async (page) => {

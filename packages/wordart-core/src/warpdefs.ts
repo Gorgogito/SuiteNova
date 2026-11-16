@@ -1,4 +1,4 @@
-import { baseEnv, ellipsePoint, formula, rad, val, type Env } from '@suitenova/shapes-core';
+import { baseEnv, dragHandleBy, ellipsePoint, formula, rad, val, type Env, type PresetHandle } from '@suitenova/shapes-core';
 import { Curve } from './geometry';
 import type { Pt } from './types';
 import data from './textwarps.json';
@@ -103,6 +103,30 @@ function sample(cmds: Cmd[], env: Env): Pt[] {
     }
   }
   return pts;
+}
+
+/** Las asas de ajuste de una transformación (con los valores que mueven y sus límites) para una caja de `w` x `h` px. */
+export function warpAdjustHandles(name: string, w: number, h: number, adj: Record<string, number> = {}): PresetHandle[] {
+  const def = DEFS[name];
+  if (!def) return [];
+  const env = baseEnv(w, h);
+  const defaults = warpDefaults(name);
+  for (const k of Object.keys(def.av)) env.set(k, adj[k] ?? defaults[k] ?? 0);
+  for (const [n, fm] of def.gd) env.set(n, formula(fm, env));
+  return def.ah.map((a) =>
+    a.t === 'xy'
+      ? { kind: 'xy', x: val(a.x, env), y: val(a.y, env), refX: a.rx, refY: a.ry, min: [val(a.minX, env), val(a.minY, env)], max: [val(a.maxX, env), val(a.maxY, env)] }
+      : { kind: 'polar', x: val(a.x, env), y: val(a.y, env), refR: a.rr, refAng: a.ra, min: [val(a.minR, env), val(a.minA, env)], max: [val(a.maxR, env), val(a.maxA, env)] },
+  );
+}
+
+/** Valores de ajuste nuevos al arrastrar el asa `index` de una transformación hasta (x, y) (píxeles de la caja); `undefined` si quedan los de por omisión. */
+export function dragWarpAdjust(name: string, w: number, h: number, adj: Record<string, number>, index: number, x: number, y: number): Record<string, number> | undefined {
+  const next = dragHandleBy((a) => warpAdjustHandles(name, w, h, a), warpDefaults(name), w, h, adj, index, x, y);
+  const def = warpDefaults(name);
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(next)) if (Number.isFinite(v) && Math.round(v) !== Math.round(def[k] ?? NaN)) out[k] = Math.round(v);
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** La geometría de una transformación para una caja de `w` x `h` px y unos valores de ajuste (los que falten, los de por omisión). */

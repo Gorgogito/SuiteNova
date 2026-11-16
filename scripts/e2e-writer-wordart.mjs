@@ -65,6 +65,21 @@ const insertStyle = async (page, id) => {
 const shapeTab = async (page) => {
   await page.locator('[role=tab]').filter({ hasText: 'Formato de forma' }).click();
 };
+
+const pathD = (page) => page.evaluate(() => document.querySelector('.ProseMirror .nw-shape[data-wordart] svg.nw-wordart path[d]')?.getAttribute('d') ?? '');
+const dragHandle = async (page, sel, dx, dy) => {
+  const b = await page.locator(sel).first().boundingBox();
+  assert.ok(b, 'el asa existe: ' + sel);
+  const x = b.x + b.width / 2;
+  const y = b.y + b.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx / 2, y + dy / 2, { steps: 4 });
+  await page.mouse.move(x + dx, y + dy, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  return b;
+};
 const drawn = (page) => page.evaluate(() => { const s = document.querySelector('.ProseMirror .nw-shape[data-wordart]'); const p = s?.querySelector('svg.nw-wordart path[d]'); return p ? (p.getAttribute('d').match(/L/g) ?? []).length : 0; });
 
 await check('Insertar › WordArt: la galería tiene 22 estilos y se inserta un cuadro dibujado con el motor', true, async (page, shot) => {
@@ -171,6 +186,34 @@ await check('guardar y volver a leer el .docx conserva el estilo y la transforma
   await page.waitForTimeout(500);
   assert.equal(await wordart(page), null);
   assert.equal(await page.locator('.ProseMirror .nw-shape[data-wordart]').count(), 0);
+});
+
+await check('asas de la transformación: aparecen con la forma elegida y se arrastran', true, async (page, shot) => {
+  await insertStyle(page, 'tx1');
+  await shapeTab(page);
+  assert.equal(await page.locator('.nw-warp-adj').count(), 0, 'sin transformación no hay asas');
+  await page.getByRole('button', { name: 'Transformar', exact: true }).click();
+  await page.locator('[data-warp="textWave1"]').click();
+  await page.waitForTimeout(500);
+  assert.ok(await page.locator('.nw-warp-adj').count() >= 1, 'una onda tiene asas');
+  const before = await pathD(page);
+  const h0 = await dragHandle(page, '.nw-warp-adj', 0, -12);
+  const w = (await wordart(page)).wordart.warp;
+  assert.equal(w.prst, 'textWave1');
+  assert.ok(w.adj && Object.keys(w.adj).length, 'el ajuste quedó guardado: ' + JSON.stringify(w));
+  const h1 = await page.locator('.nw-warp-adj').first().boundingBox();
+  assert.ok(Math.abs(h1.y - (h0.y - 12)) < 4, 'el asa quedó donde se soltó');
+  assert.notEqual(await pathD(page), before, 'el dibujo cambió');
+  await shot('asa-onda');
+  // el ajuste viaja en el .docx
+  const back = await page.evaluate(async () => {
+    const w = window.__novaWriter;
+    const { data } = await w.docx.writeDocx(w.ctl.toWriterDoc());
+    let a = null;
+    (await w.docx.readDocx(data)).doc.body.descendants((n) => void (n.type.name === 'shape' && n.attrs.wordart && !a && (a = n.attrs.wordart)));
+    return a;
+  });
+  assert.deepEqual(back.warp.adj, w.adj);
 });
 
 await check('sin permiso de fuentes: el texto se queda normal y visible, y nada se rompe', false, async (page) => {

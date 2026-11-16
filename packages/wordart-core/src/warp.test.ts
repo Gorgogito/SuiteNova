@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Curve, flattenPath, hasWarp, layoutText, warpDefaults, warpGeometry, warpNames, warpText, type Contour, type FontLike } from './index';
+import { Curve, flattenPath, hasWarp, layoutText, dragWarpAdjust, warpAdjustHandles, warpDefaults, warpGeometry, warpNames, warpText, type Contour, type FontLike } from './index';
 
 /** Una fuente falsa: cada letra es un rectángulo de 500 x 700 en una celda de 700 (unidades de 1000 por em). */
 const box: FontLike = {
@@ -134,5 +134,38 @@ describe('transformaciones de texto (ECMA-376)', () => {
     const a = bounds(warpText(b, 'textWave1', 600, 200)!);
     const c = bounds(warpText(b, 'textWave1', 600, 200, { adj1: 40000 })!);
     expect(c.y1).not.toBeCloseTo(a.y1, 1);
+  });
+
+  it('las asas de ajuste: todas las transformaciones tienen y arrastrar un asa hasta donde ya está no la mueve', () => {
+    const W = 300;
+    const H = 120;
+    let withHandles = 0;
+    for (const n of warpNames()) {
+      const hs = warpAdjustHandles(n, W, H);
+      if (hs.length) withHandles++;
+      hs.forEach((h, i) => {
+        const adj = dragWarpAdjust(n, W, H, {}, i, h.x, h.y) ?? {};
+        const again = warpAdjustHandles(n, W, H, { ...warpDefaults(n), ...adj })[i]!;
+        expect(Math.hypot(again.x - h.x, again.y - h.y), n + ' asa ' + i).toBeLessThan(2.5);
+      });
+    }
+    expect(withHandles).toBe(40);
+  });
+
+  it('arrastrar el asa de una onda cambia su ajuste y mueve el asa hasta donde se soltó', () => {
+    const [h0] = warpAdjustHandles('textWave1', 300, 120);
+    const target = { x: h0!.x, y: h0!.y - 8 };
+    const adj = dragWarpAdjust('textWave1', 300, 120, {}, 0, target.x, target.y);
+    expect(adj).toBeDefined();
+    const [h1] = warpAdjustHandles('textWave1', 300, 120, adj!);
+    expect(h1!.y).toBeLessThan(h0!.y);
+    expect(Math.abs(h1!.y - target.y)).toBeLessThan(2.5);
+  });
+
+  it('un arco: el asa polar gira y el ajuste vuelve a ser el de por omisión al devolverla', () => {
+    const [h0] = warpAdjustHandles('textArchUp', 300, 120);
+    const moved = dragWarpAdjust('textArchUp', 300, 120, {}, 0, 270, 100);
+    expect(moved?.adj).toBeDefined();
+    expect(dragWarpAdjust('textArchUp', 300, 120, moved!, 0, h0!.x, h0!.y)).toBeUndefined();
   });
 });

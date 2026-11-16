@@ -69,6 +69,23 @@ await check('con otra transformación (onda) y un estilo con sombra', true, asyn
   if (shotsDir) await page.screenshot({ path: `${shotsDir}/${String(++step).padStart(2, '0')}-onda.png` });
 });
 
+await check('asas de la transformación: se ven con el WordArt elegido y se arrastran', true, async (page) => {
+  await insert(page, 'Negro con sombra', 'Onda', 'textWave1');
+  const warpOf = () => page.evaluate(() => { const c = window.__novaSlides.ctl; return c.selected[0].text.body.warp; });
+  assert.ok(await page.locator('.sl-adjust-warp').count() >= 1, 'hay asas de la transformación');
+  const b0 = await page.locator('.sl-adjust-warp').first().boundingBox();
+  await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2 - 8, { steps: 4 });
+  await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2 - 16, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  const w = await warpOf();
+  assert.equal(w.prst, 'textWave1');
+  assert.ok(w.adj && Object.keys(w.adj).length, 'el ajuste quedó guardado: ' + JSON.stringify(w));
+  if (shotsDir) await page.screenshot({ path: `${shotsDir}/${String(++step).padStart(2, '0')}-asa.png` });
+});
+
 await check('sin permiso de fuentes: se usa el respaldo (texto sobre trayectoria) y no se rompe nada', false, async (page) => {
   await insert(page, 'Degradado azul', 'Respaldo', 'textArchUp');
   assert.ok(await page.locator('.sl-surface svg textPath').count(), 'el respaldo sigue funcionando');

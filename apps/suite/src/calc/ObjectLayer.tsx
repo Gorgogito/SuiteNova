@@ -2,6 +2,7 @@ import { adjustHandles, dragAdjust, isLineKind, shapeSvg } from '@suitenova/shap
 import { listChoices, moveShapes, rotateShapes, scaleShapes, shapeLook, shapesBounds, type ShapePatch, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { Check, FilterX, ListChecks } from 'lucide-react';
+import { dragWarpAdjust, warpAdjustHandles } from '@suitenova/wordart-core';
 import { renderWordArt } from '../wordart/engine';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CalcDoc } from './doc';
@@ -175,7 +176,7 @@ function WordArtDraw({ s, w, h, zoom, onDrawn }: { s: SheetShape; w: number; h: 
   return <svg className="calc-shape__wordart" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit, onAdjust, onRotate, member }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void; onAdjust: (adj: Record<string, number> | undefined) => void; onRotate: (deg: number) => void; member?: boolean }) {
+function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit, onAdjust, onWarpAdjust, onRotate, member }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void; onAdjust: (adj: Record<string, number> | undefined) => void; onWarpAdjust: (adj: Record<string, number> | undefined) => void; onRotate: (deg: number) => void; member?: boolean }) {
   const look = shapeLook(s);
   const box = useRef<HTMLDivElement>(null);
   const [adjDraft, setAdjDraft] = useState<Record<string, number> | null>(null);
@@ -208,6 +209,40 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
+  /** El puntero en coordenadas de la forma (sin su giro): el giro se deshace alrededor del centro. */
+  const toLocal = (ev: PointerEvent, el: HTMLElement, w: number, h: number) => {
+    const r = el.getBoundingClientRect();
+    const rot = ((s.rotation ?? 0) * Math.PI) / 180;
+    const scale = el.offsetWidth ? r.width / (Math.abs(Math.cos(rot)) * el.offsetWidth + Math.abs(Math.sin(rot)) * el.offsetHeight) : 1;
+    const dx = (ev.clientX - (r.left + r.width / 2)) / (scale || 1);
+    const dy = (ev.clientY - (r.top + r.height / 2)) / (scale || 1);
+    return { x: dx * Math.cos(rot) + dy * Math.sin(rot) + w / 2, y: -dx * Math.sin(rot) + dy * Math.cos(rot) + h / 2 };
+  };
+  const [warpDraft, setWarpDraft] = useState<Record<string, number> | null>(null);
+  const warpAdj = warpDraft ?? s.wordart?.warp?.adj ?? {};
+  const warpHandles = selected && !editing && s.wordart?.warp ? warpAdjustHandles(s.wordart.warp.prst, Math.max(rect.w, 1), Math.max(rect.h, 1), warpAdj) : [];
+  const startWarp = (e: React.PointerEvent, index: number) => {
+    if (e.button !== 0 || !s.wordart?.warp) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const el = box.current;
+    if (!el) return;
+    const prst = s.wordart.warp.prst;
+    let latest: Record<string, number> | undefined = s.wordart.warp.adj;
+    const move = (ev: PointerEvent) => {
+      const p = toLocal(ev, el, rect.w, rect.h);
+      latest = dragWarpAdjust(prst, Math.max(rect.w, 1), Math.max(rect.h, 1), s.wordart!.warp!.adj ?? {}, index, p.x, p.y);
+      setWarpDraft(latest ?? {});
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setWarpDraft(null);
+      if (JSON.stringify(latest ?? null) !== JSON.stringify(s.wordart?.warp?.adj ?? null)) onWarpAdjust(latest);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const startAdjust = (e: React.PointerEvent, index: number) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -216,9 +251,7 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
     if (!el) return;
     let latest: Record<string, number> | undefined = s.adj;
     const move = (ev: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      const x = ((ev.clientX - r.left) * w) / (r.width || 1);
-      const y = ((ev.clientY - r.top) * h) / (r.height || 1);
+      const { x, y } = toLocal(ev, el, w, h);
       latest = dragAdjust(s.kind, w, h, s.adj ?? {}, index, x, y);
       setAdjDraft(latest ?? {});
     };
@@ -255,7 +288,7 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
         <g dangerouslySetInnerHTML={{ __html: shapeSvg(s.kind, w, h, { fill: look.fill, stroke: look.line?.color ?? null, strokeWidth: (look.line?.width ?? 1) * zoom, flip: s.flip, adj }) }} />
       </svg>
-      {s.wordart && !editing && <WordArtDraw s={s} w={w} h={h} zoom={zoom} onDrawn={setWaDrawn} />}
+      {s.wordart && !editing && <WordArtDraw s={warpDraft && s.wordart.warp ? { ...s, wordart: { ...s.wordart, warp: { ...s.wordart.warp, adj: warpDraft } } } : s} w={w} h={h} zoom={zoom} onDrawn={setWaDrawn} />}
       {editing ? (
         <textarea
           className="calc-shape__edit"
@@ -280,6 +313,9 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
       )}
       {selected && !editing && <Handles onDown={onDown} />}
       {selected && !editing && <span className="calc-shape__rot" data-rotate-handle title={t('Girar')} onPointerDown={startRotate} />}
+      {warpHandles.map((p, i) => (
+        <span key={`w${i}`} className="calc-shape__adj calc-shape__adj--warp" data-warp-handle={i} title={t('Ajustar la transformación del texto')} style={{ left: p.x, top: p.y }} onPointerDown={(e) => startWarp(e, i)} />
+      ))}
       {adjHandles.map((p, i) => (
         <span key={i} className="calc-shape__adj" data-adj-handle={i} title={t('Ajustar la forma')} style={{ left: p.x, top: p.y }} onPointerDown={(e) => startAdjust(e, i)} />
       ))}
@@ -431,6 +467,7 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
               setEditingShape(s.id);
             }}
             onAdjust={(adj) => doc.x.updateShape(s.id, { adj }, 'Ajustar forma')}
+            onWarpAdjust={(adj) => s.wordart?.warp && doc.x.setWordArt({ warp: { prst: s.wordart.warp.prst, ...(adj ? { adj } : {}) } }, 'Ajustar la transformación')}
             onRotate={(deg) => doc.x.updateShape(s.id, { rotation: deg || undefined }, 'Girar forma')}
             onCommit={(text) => {
               setEditingShape(null);

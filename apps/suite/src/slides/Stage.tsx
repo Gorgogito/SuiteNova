@@ -1,4 +1,5 @@
-import { connectEnd, nearestSite, sitesOf, cropBy, panCrop, type CropHandle, type PicEl, addNodeAt, newId, clearCells, scaleTable, curveThrough, dragHandle, findElement, geometryOf, localToSlide, moveHandle, moveNode, nearestOnPaths, newFreeform, newLine, newShape, newTextBox, pathsToSvg, presetDefaults, simplify, slideToLocal, updateElement, visualBox, type Box, type Paths, type Pt, type ConnEl, type ShapeEl, type SlideElement, type TableEl, type Xfrm } from '@suitenova/slides-core';
+import { withBodyDefaults, connectEnd, nearestSite, sitesOf, cropBy, panCrop, type CropHandle, type PicEl, addNodeAt, newId, clearCells, scaleTable, curveThrough, dragHandle, findElement, geometryOf, localToSlide, moveHandle, moveNode, nearestOnPaths, newFreeform, newLine, newShape, newTextBox, pathsToSvg, presetDefaults, simplify, slideToLocal, updateElement, visualBox, type Box, type Paths, type Pt, type ConnEl, type ShapeEl, type SlideElement, type TableEl, type Xfrm } from '@suitenova/slides-core';
+import { dragWarpAdjust, hasWarp, warpAdjustHandles } from '@suitenova/wordart-core';
 import { CommentMarks } from './comments';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ShapeTextEditor } from './edit/TextEditor';
@@ -34,6 +35,7 @@ type Gesture =
   | { kind: 'marquee'; start: { x: number; y: number }; add: boolean }
   | { kind: 'draw'; start: { x: number; y: number } }
   | { kind: 'adjust'; id: string; index: number }
+  | { kind: 'warp'; id: string; index: number }
   | { kind: 'guide'; id: string }
   | { kind: 'scribble' }
   | { kind: 'lineend'; id: string; which: 'a' | 'b'; fixed: { x: number; y: number } }
@@ -529,6 +531,19 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
       ctl.liveDeck((d) => updateElement(d, slide.id, g.id, (s) => ({ ...s, geom: { prst: geom.prst, adj } }) as SlideElement));
       return;
     }
+    if (g.kind === 'warp') {
+      const el = ctl.element(g.id) as ShapeEl | undefined;
+      const wb = el ? warpBoxOf(el, ctl.xfrmOf(el)) : null;
+      if (!el || !wb || !el.text) return;
+      const x = ctl.xfrmOf(el);
+      const c = { x: x.x + x.w / 2, y: x.y + x.h / 2 };
+      const q = x.rot ? rotPoint(p.x, p.y, c.x, c.y, -x.rot) : p;
+      const adj = dragWarpAdjust(wb.warp.prst, wb.w, wb.h, wb.warp.adj ?? {}, g.index, q.x - x.x - wb.left, q.y - x.y - wb.top);
+      ctl.beginGesture('Ajustar la transformación');
+      const text = el.text;
+      ctl.liveDeck((d) => updateElement(d, slide.id, g.id, (s) => ({ ...s, text: { ...text, body: { ...text.body, warp: { prst: wb.warp.prst, ...(adj ? { adj } : {}) } } } }) as SlideElement));
+      return;
+    }
     if (g.kind === 'resize') {
       const b = g.box;
       const c = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
@@ -738,6 +753,14 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
     setG({ kind: 'adjust', id: el.id, index });
   };
 
+  const startWarp = (index: number) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    const el = selected[0];
+    if (!el) return;
+    surface.current!.setPointerCapture(e.pointerId);
+    setG({ kind: 'warp', id: el.id, index });
+  };
+
   const startLine = (which: 'a' | 'b') => (e: React.PointerEvent) => {
     e.stopPropagation();
     const el = single as ConnEl | null;
@@ -887,6 +910,8 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
   const single = selected.length === 1 ? selected[0]! : null;
   const adj = single && single.kind === 'shape' && single.geom && 'prst' in single.geom ? geometryOf(single.geom, ctl.xfrmOf(single).w, ctl.xfrmOf(single).h).handles : [];
   const isLine = single?.kind === 'cxn';
+  const warpBox = single && single.kind === 'shape' ? warpBoxOf(single, ctl.xfrmOf(single)) : null;
+  const warpHandles = warpBox ? warpAdjustHandles(warpBox.warp.prst, warpBox.w, warpBox.h, warpBox.warp.adj ?? {}) : [];
 
   return (
     <div ref={wrap} className={`sl-stagearea tool-${ctl.tool.kind}${ctl.painter ? ' painter-on' : ''}`} tabIndex={0} onKeyDown={onKeyDown} onPointerDown={(e) => e.currentTarget.focus({ preventScroll: true })} data-testid="stage-area" onContextMenu={(e) => onContext?.(e, hit(toSlide(e))?.id ?? null)}>
@@ -953,6 +978,12 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
             const c = { x: x.x + x.w / 2, y: x.y + x.h / 2 };
             const pt = rotPoint(x.x + a.x, x.y + a.y, c.x, c.y, x.rot ?? 0);
             return <div key={i} className="sl-adjust" role="button" aria-label="Ajustar forma" style={{ left: pt.x - handleSize / 2, top: pt.y - handleSize / 2, width: handleSize, height: handleSize }} onPointerDown={startAdjust(i)} />;
+          })}
+          {showHandles && single && warpBox && warpHandles.map((a, i) => {
+            const x = ctl.xfrmOf(single);
+            const c = { x: x.x + x.w / 2, y: x.y + x.h / 2 };
+            const pt = rotPoint(x.x + warpBox.left + a.x, x.y + warpBox.top + a.y, c.x, c.y, x.rot ?? 0);
+            return <div key={`w${i}`} className="sl-adjust sl-adjust-warp" role="button" aria-label="Ajustar la transformación del texto" style={{ left: pt.x - handleSize / 2, top: pt.y - handleSize / 2, width: handleSize, height: handleSize }} onPointerDown={startWarp(i)} />;
           })}
           {tip && <div className="sl-guidetip" style={{ left: tip.x + 10 / zoom, top: tip.y + 10 / zoom, fontSize: 11 / zoom, padding: `${2 / zoom}px ${6 / zoom}px` }}>{tip.text}</div>}
           {marquee && <div className="sl-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h, borderWidth: 1 / zoom }} />}
@@ -1073,4 +1104,14 @@ function Rulers({ w, h, zoom, onStart }: { w: number; h: number; zoom: number; o
       </svg>
     </>
   );
+}
+
+/** La caja donde se dibuja una transformación de texto (el rectángulo de texto de la forma menos los márgenes) y la transformación; `null` si no hay o no es de la norma. */
+function warpBoxOf(el: ShapeEl, x: Xfrm): { warp: { prst: string; adj?: Record<string, number> }; left: number; top: number; w: number; h: number } | null {
+  const body = el.text?.body;
+  const warp = body?.warp;
+  if (!body || !warp || !el.geom || !('prst' in el.geom) || !hasWarp(warp.prst)) return null;
+  const tr = geometryOf(el.geom, Math.max(0, x.w), Math.max(0, x.h)).textRect;
+  const b = withBodyDefaults(body);
+  return { warp, left: tr.l + b.lIns, top: tr.t + b.tIns, w: tr.r - tr.l - (b.lIns + b.rIns), h: tr.b - tr.t - (b.tIns + b.bIns) };
 }

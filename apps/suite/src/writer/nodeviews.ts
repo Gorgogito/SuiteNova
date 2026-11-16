@@ -4,7 +4,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { NodeSelection, TextSelection, type Transaction } from 'prosemirror-state';
 import type { Decoration, EditorView, NodeView } from 'prosemirror-view';
 import { outerGroupPos, placeCaretFromClick, selectShapeOnly, toggleShapeSelection } from './shape-selection';
-import type { WordArtFx } from '@suitenova/wordart-core';
+import { dragWarpAdjust, warpAdjustHandles, type WordArtFx } from '@suitenova/wordart-core';
 import { renderWordArt, type WordArtSpec } from '../wordart/engine';
 
 let waCounter = 0;
@@ -214,8 +214,34 @@ export class ShapeView implements NodeView {
       this.dom.appendChild(e);
       this.adjEls.push(e);
     });
+    // las asas de la transformación del WordArt (son otras que las de la forma; las mismas que el asa amarilla de Office)
+    const wa = a.wordart as { fx: WordArtFx; warp: { prst: string; adj?: Record<string, number> } | null } | null;
+    if (wa?.warp) {
+      warpAdjustHandles(wa.warp.prst, a.width, a.height, wa.warp.adj ?? {}).forEach((p, i) => {
+        const e = document.createElement('span');
+        e.className = 'nw-handle nw-adj nw-warp-adj';
+        e.contentEditable = 'false';
+        e.dataset.warpAdj = String(i);
+        e.title = 'Ajustar la transformación del texto';
+        e.style.cssText = `left:${p.x - 5}px;top:${p.y - 5}px;cursor:grab`;
+        e.addEventListener('pointerdown', (ev) =>
+          this.dragHandle(ev, (x, y) => {
+            const cur = this.node.attrs.wordart as { fx: WordArtFx; warp: { prst: string; adj?: Record<string, number> } };
+            const adj = dragWarpAdjust(cur.warp.prst, a.width, a.height, cur.warp.adj ?? {}, i, x, y);
+            return { wordart: { ...cur, warp: { prst: cur.warp.prst, ...(adj ? { adj } : {}) } } };
+          }),
+        );
+        this.dom.appendChild(e);
+        this.adjEls.push(e);
+      });
+    }
   }
   private dragAdjust(e: PointerEvent, index: number) {
+    const a0 = this.node.attrs;
+    this.dragHandle(e, (x, y) => ({ adj: dragAdjust(a0.kind, a0.width, a0.height, a0.adj ?? {}, index, x, y) ?? null }));
+  }
+  /** Arrastra un asa: `next` recibe el puntero en coordenadas de la forma (sin giro ni zoom) y devuelve los atributos que cambian. */
+  private dragHandle(e: PointerEvent, next: (x: number, y: number) => Record<string, unknown>) {
     e.preventDefault();
     e.stopPropagation();
     const a0 = this.node.attrs;
@@ -230,8 +256,7 @@ export class ShapeView implements NodeView {
       const dy = (ev.clientY - (r.top + r.height / 2)) / scale;
       const x = dx * Math.cos(rot) + dy * Math.sin(rot) + a0.width / 2;
       const y = -dx * Math.sin(rot) + dy * Math.cos(rot) + a0.height / 2;
-      const adj = dragAdjust(a0.kind, a0.width, a0.height, a0.adj ?? {}, index, x, y) ?? null;
-      this.view.dispatch(keepNodeSelected(this.view.state.tr.setNodeMarkup(p, undefined, { ...this.node.attrs, adj }), p).setMeta('nw-no-track', true));
+      this.view.dispatch(keepNodeSelected(this.view.state.tr.setNodeMarkup(p, undefined, { ...this.node.attrs, ...next(x, y) }), p).setMeta('nw-no-track', true));
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
