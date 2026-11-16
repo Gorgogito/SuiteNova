@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { WORDART_STYLES, contoursToPath, fontFromBytes, layoutText, warpNames, warpText, wordArtStyle, wordArtSvg, boundsOf, warpName, type Contour, type FontLike } from './index';
+import { LocalFontSource, WORDART_STYLES, contoursToPath, fontFromBytes, layoutText, warpNames, warpText, wordArtStyle, wordArtSvg, boundsOf, warpName, type Contour, type FontLike } from './index';
 
 const box: FontLike = {
   unitsPerEm: 1000,
@@ -144,5 +144,19 @@ describe('marcado de Word (w14)', () => {
     expect(prstTxWarpXml('textWave1')).toBe('<a:prstTxWarp prst="textWave1"><a:avLst/></a:prstTxWarp>');
     expect(prstTxWarpXml('textWave1', { adj1: 30000 })).toContain('<a:gd name="adj1" fmla="val 30000"/>');
     expect(emuToPx(9525)).toBe(1);
+  });
+  it('LocalFontSource usa el proveedor dado (la app de escritorio) y elige negrita y cursiva', async () => {
+    const bytes = fs.existsSync('C:/Windows/Fonts/calibri.ttf') ? fs.readFileSync('C:/Windows/Fonts/calibri.ttf') : null;
+    const asked: string[] = [];
+    const src = new LocalFontSource(async () => [
+      { family: 'Calibri', style: 'Regular', fullName: 'Calibri', blob: async () => { asked.push('Regular'); return new Blob([bytes ?? new Uint8Array(4)]); } },
+      { family: 'Calibri', style: 'Bold', fullName: 'Calibri Bold', blob: async () => { asked.push('Bold'); return new Blob([bytes ?? new Uint8Array(4)]); } },
+    ]);
+    expect(await src.load('Inexistente', false, false)).toBeNull();
+    const f = await src.load('calibri', true, false);
+    expect(asked).toEqual(['Bold']);
+    if (bytes) expect(f?.glyph('A').path.length).toBeGreaterThan(3);
+    else expect(f).toBeNull();
+    expect(await new LocalFontSource(async () => { throw new Error('x'); }).load('Calibri', false, false)).toBeNull();
   });
 });

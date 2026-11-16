@@ -1,3 +1,4 @@
+mod fonts;
 mod mail;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
@@ -58,6 +59,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| open_file_from_args(app))
         .invoke_handler(tauri::generate_handler![
+            fonts::system_fonts,
+            fonts::system_font_bytes,
             mail::commands::mail_accounts,
             mail::commands::mail_account_save,
             mail::commands::mail_account_remove,

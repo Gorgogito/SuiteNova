@@ -39,7 +39,7 @@ export function fontFromBytes(bytes: ArrayBuffer | Uint8Array): FontLike {
   };
 }
 
-interface LocalFontData {
+export interface LocalFontData {
   family: string;
   style: string;
   fullName: string;
@@ -47,14 +47,20 @@ interface LocalFontData {
 }
 
 /**
- * Fuentes del sistema por la API de fuentes locales del navegador (Edge/Chromium; pide el permiso `local-fonts`). Devuelve `null`
- * si la API no existe, si se niega el permiso o si la fuente no está: el llamador dibuja entonces de otra forma.
+ * Fuentes del sistema por la API de fuentes locales del navegador (Edge/Chromium; pide el permiso `local-fonts`), o por el proveedor
+ * que se pase (la app de escritorio usa uno propio porque su WebView2 no responde a esa API). Devuelve `null` si no hay API ni
+ * proveedor, si se niega el permiso o si la fuente no está: el llamador dibuja entonces de otra forma.
  */
 export class LocalFontSource implements FontSource {
   private list: Promise<LocalFontData[] | null> | null = null;
+  constructor(private readonly provider?: () => Promise<LocalFontData[] | null>) {}
   private readonly cache = new Map<string, Promise<FontLike | null>>();
   private fonts(): Promise<LocalFontData[] | null> {
     if (!this.list) {
+      if (this.provider) {
+        this.list = this.provider().catch(() => null);
+        return this.list;
+      }
       const q = (globalThis as unknown as { queryLocalFonts?: () => Promise<LocalFontData[]> }).queryLocalFonts;
       this.list = q ? q.call(globalThis).catch(() => null) : Promise.resolve(null);
     }

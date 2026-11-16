@@ -1,11 +1,18 @@
-import { LocalFontSource, layoutText, placeText, warpText, wordArtSvg, type FontLike, type WordArtFx } from '@suitenova/wordart-core';
+import { invoke, isTauri } from '@tauri-apps/api/core';
+import { LocalFontSource, layoutText, placeText, warpText, wordArtSvg, type FontLike, type LocalFontData, type WordArtFx } from '@suitenova/wordart-core';
 
 /*
  * Lo común a los productos que alojan WordArt (Writer, Calc): las fuentes del sistema (se piden una vez por página) y el dibujo de un
  * texto con su estilo y su transformación como marcado SVG. Si no hay fuente, devuelve `null` y el anfitrión dibuja el texto normal.
  */
 
-export const localFonts = new LocalFontSource();
+/** En la app de escritorio las fuentes las da el programa (comandos `system_fonts` y `system_font_bytes`); en el navegador, la API de fuentes locales. */
+const desktopFonts = async (): Promise<LocalFontData[]> => {
+  const list = await invoke<{ id: number; family: string; style: string }[]>('system_fonts');
+  return list.map((f) => ({ family: f.family, style: f.style, fullName: `${f.family} ${f.style}`, blob: async () => new Blob([await invoke<ArrayBuffer>('system_font_bytes', { id: f.id })]) }));
+};
+
+export const localFonts = new LocalFontSource(isTauri() ? desktopFonts : undefined);
 
 export interface WordArtSpec {
   text: string;
