@@ -118,3 +118,63 @@ describe('elementos del gráfico en DrawingML', () => {
     expect(chartXml(stacked, gridSource(g))).not.toContain('<c:dLblPos');
   });
 });
+
+describe('formato de serie y de punto en DrawingML', () => {
+  const rt = (spec: ReturnType<typeof specFromGrid>) => {
+    const g = sampleGrid();
+    const back = parseChart(dmlParser.parse(chartXml(spec, gridSource(g))));
+    if (!('def' in back)) throw new Error('skip');
+    return back.def;
+  };
+
+  it('columnas: relleno con transparencia, borde, color por punto, hueco y superposición', () => {
+    const spec = specFromGrid('column', sampleGrid(), {});
+    spec.gapWidth = 80;
+    spec.overlap = -20;
+    spec.series[0]!.color = '#ff0000';
+    spec.series[0]!.transparency = 40;
+    spec.series[0]!.line = { color: '#00ff00', width: 2, dash: 'dash' };
+    spec.series[0]!.points = [{ idx: 1, color: '#0000ff' }];
+    spec.series[1]!.noFill = true;
+    const back = rt(spec);
+    expect(back.gapWidth).toBe(80);
+    expect(back.overlap).toBe(-20);
+    expect(back.series[0]).toMatchObject({ color: '#ff0000', transparency: 40, line: { color: '#00ff00', width: 2, dash: 'dash' }, points: [{ idx: 1, color: '#0000ff' }] });
+    expect(back.series[1]!.noFill).toBe(true);
+  });
+
+  it('líneas y dispersión: grosor, guiones y marcadores', () => {
+    const spec = specFromGrid('line', sampleGrid(), {});
+    spec.series[0]!.color = '#123456';
+    spec.series[0]!.line = { width: 4.5, dash: 'dot' };
+    spec.series[0]!.marker = { symbol: 'diamond', size: 11, color: '#abcdef' };
+    spec.series[1]!.line = { none: true };
+    const back = rt(spec);
+    expect(back.series[0]).toMatchObject({ color: '#123456', line: { width: 4.5, dash: 'dot' }, marker: { symbol: 'diamond', size: 11, color: '#abcdef' } });
+    expect(back.series[1]!.line).toEqual({ none: true });
+    const sc = specFromGrid('scatter', sampleGrid(), {});
+    sc.series[0]!.color = '#336699';
+    sc.series[0]!.marker = { symbol: 'star', size: 9 };
+    expect(rt(sc).series[0]).toMatchObject({ color: '#336699', marker: { symbol: 'star', size: 9 } });
+  });
+
+  it('circular y anillo: sectores sacados, ángulo del primero y agujero', () => {
+    const pie = specFromGrid('pie', sampleGrid(), {});
+    pie.firstSliceAng = 90;
+    pie.series[0]!.explosion = 10;
+    pie.series[0]!.points = [{ idx: 2, color: '#ff00ff', explosion: 30 }];
+    const back = rt(pie);
+    expect(back.firstSliceAng).toBe(90);
+    expect(back.series[0]).toMatchObject({ explosion: 10, points: [{ idx: 2, color: '#ff00ff', explosion: 30 }] });
+    const ring = specFromGrid('doughnut', sampleGrid(), {});
+    ring.holeSize = 70;
+    expect(rt(ring).holeSize).toBe(70);
+  });
+
+  it('una serie sin formato no añade nada (el XML de siempre)', () => {
+    const back = rt(specFromGrid('column', sampleGrid(), {}));
+    expect(back.series[0]!.line).toBeUndefined();
+    expect(back.series[0]!.points).toBeUndefined();
+    expect(back.gapWidth).toBeUndefined();
+  });
+});

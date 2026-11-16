@@ -29,6 +29,38 @@ export interface ChartAxis {
   hidden?: boolean;
 }
 
+/** Dash pattern of a line or border (Excel's "Dash type"). */
+export type DashStyle = 'solid' | 'dash' | 'dot' | 'dashDot' | 'longDash';
+
+/** A line or a border (Excel's "Line" in "Format data series"): width in points. */
+export interface StrokeFormat {
+  /** "#rrggbb"; the series colour when empty (for lines) or none (for borders). */
+  color?: string;
+  width?: number;
+  dash?: DashStyle;
+  /** No line (or no border). */
+  none?: boolean;
+}
+
+export type MarkerSymbol = 'circle' | 'square' | 'diamond' | 'triangle' | 'x' | 'star' | 'dot' | 'dash' | 'plus' | 'none';
+
+/** The markers of a line, scatter or radar series (Excel's "Marker"). */
+export interface MarkerFormat {
+  symbol?: MarkerSymbol;
+  /** Size in points (2 to 72). */
+  size?: number;
+  /** "#rrggbb"; the series colour when empty. */
+  color?: string;
+}
+
+/** Format of one data point (a column, a slice): Excel's "Format data point". */
+export interface PointFormat {
+  idx: number;
+  color?: string;
+  /** Pie slice pulled out, in percent of the radius. */
+  explosion?: number;
+}
+
 /** Where the legend goes (Excel's "Legend" element): bottom, top, left, right or top right. */
 export type LegendPos = 'b' | 't' | 'l' | 'r' | 'tr';
 
@@ -95,6 +127,18 @@ export interface ChartSeries {
   trendlines?: Trendline[];
   /** Data labels of this series (none when empty). */
   labels?: DataLabels;
+  /** The line of a line, scatter or radar series, or the border of a column, area or slice. */
+  line?: StrokeFormat;
+  /** Markers of a line, scatter or radar series. */
+  marker?: MarkerFormat;
+  /** Fill transparency in percent (0 = opaque). */
+  transparency?: number;
+  /** No fill (columns, areas, slices). */
+  noFill?: boolean;
+  /** Pie: every slice pulled out, in percent of the radius. */
+  explosion?: number;
+  /** Format of single points; the rest follow the series. */
+  points?: PointFormat[];
   /** Error bars along Y (and along X in scatter charts). */
   errY?: ErrorBars;
   errX?: ErrorBars;
@@ -106,6 +150,16 @@ export interface ChartSpec {
   legend: boolean;
   /** Where the legend goes; the bottom when empty. */
   legendPos?: LegendPos;
+  /** Columns and bars: space between categories as a percentage of the bar width (0 to 500; 150 in Excel). */
+  gapWidth?: number;
+  /** Columns and bars: how much the bars of one category overlap (-100 to 100; 0 clustered, 100 stacked). */
+  overlap?: number;
+  /** Doughnut: hole size in percent of the radius (10 to 90; 50 in Excel). */
+  holeSize?: number;
+  /** Pie and doughnut: angle of the first slice in degrees (0 to 360). */
+  firstSliceAng?: number;
+  /** One colour per point in a single-series chart ("Vary colours by point"). */
+  varyColors?: boolean;
   /** Excel's "Data table" under the plot (column, bar-less category charts); `keys` shows the legend keys in it. */
   dataTable?: { keys?: boolean };
   stacked?: boolean;

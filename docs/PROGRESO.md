@@ -70,4 +70,5 @@ Decisiones del usuario: motor compartido `chart-core` (Slides y Calc migran), da
 
 ### Gráficos, segunda ronda: igualar a Office (plan en `docs/diseno-graficos.md` §8)
 - [x] **Fase 1 HECHA:** elementos del gráfico (leyenda en 4 posiciones, etiquetas de datos, títulos de ejes, cuadrículas secundarias, ejes, tabla de datos) en motor, DrawingML y Calc; menú «Agregar elemento de gráfico»; Excel real lo abre.
-- [ ] Fase 2: formato de serie y de punto. · [ ] Fase 3: estilos y colores. · [ ] Fase 4: Slides y Writer con los mismos elementos, ratón y tooltips. · [ ] Fase 5: fidelidad de archivo. · [ ] Fase 6: portapapeles y ODF. · [ ] Fase 7: cierre.
+- [x] **Fase 2 HECHA:** formato de serie y de punto (relleno, transparencia, borde, línea, marcadores, color por punto, hueco, superposición, sectores) en motor, DrawingML y Calc; panel compartido; Excel real lo abre.
+- [ ] Fase 3: estilos y colores. · [ ] Fase 4: Slides y Writer con los mismos elementos, ratón y tooltips. · [ ] Fase 5: fidelidad de archivo. · [ ] Fase 6: portapapeles y ODF. · [ ] Fase 7: cierre.

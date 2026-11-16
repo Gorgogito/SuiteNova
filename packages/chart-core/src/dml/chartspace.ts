@@ -1,4 +1,4 @@
-import { DEFAULT_3D, STOCK_SERIES, type Chart3D, type ChartAxis, type ChartSeries, type ChartSpec, type DataLabels, type LabelPos, type LegendPos, type ChartType, type SeriesType, type StockKind } from '../model';
+import { DEFAULT_3D, STOCK_SERIES, type Chart3D, type ChartAxis, type ChartSeries, type ChartSpec, type DashStyle, type DataLabels, type LabelPos, type LegendPos, type MarkerFormat, type MarkerSymbol, type PointFormat, type StrokeFormat, type ChartType, type SeriesType, type StockKind } from '../model';
 import { formatChartNumber } from '../format';
 import type { ChartCell, ChartSource } from '../source';
 import { errBarsXml, parseErrBars, parseTrendlines, trendlinesXml } from './fitio';
@@ -81,6 +81,114 @@ function readLabels(s: XNode): DataLabels | undefined {
   return out;
 }
 
+
+// ---- formato de serie y de punto (relleno, borde, línea, marcadores)
+const DASH_OUT: Record<string, string> = { solid: 'solid', dash: 'dash', dot: 'sysDot', dashDot: 'dashDot', longDash: 'lgDash' };
+const DASH_IN: Record<string, DashStyle> = { solid: 'solid', dash: 'dash', sysDash: 'dash', dot: 'dot', sysDot: 'dot', dashDot: 'dashDot', sysDashDot: 'dashDot', lgDash: 'longDash', lgDashDot: 'dashDot', sysDashDotDot: 'dashDot', lgDashDotDot: 'dashDot' };
+
+const hex6 = (c: string) => c.replace('#', '').toUpperCase();
+const colorXml = (c: string, transparency?: number) => `<a:srgbClr val="${hex6(c)}">${transparency ? `<a:alpha val="${Math.round((100 - transparency) * 1000)}"/>` : ''}</a:srgbClr>`;
+
+/** El relleno de una serie o un punto: liso (con transparencia), sin relleno, o nada (el estilo del gráfico). */
+function fillXml(color: string | undefined, o: { noFill?: boolean; transparency?: number } = {}): string {
+  if (o.noFill) return '<a:noFill/>';
+  return color ? `<a:solidFill>${colorXml(color, o.transparency)}</a:solidFill>` : '';
+}
+
+/** `a:ln` de una línea o un borde. `fallback` es el color cuando el formato no trae uno propio. */
+function lnXml(st: StrokeFormat | undefined, fallback: string | undefined, def: { width?: number; round?: boolean } = {}): string {
+  if (st?.none) return '<a:ln><a:noFill/></a:ln>';
+  const width = st?.width !== undefined ? Math.round(st.width * 12700) : def.width;
+  const color = st?.color ?? fallback;
+  const inner = (color ? `<a:solidFill>${colorXml(color)}</a:solidFill>` : '') + (st?.dash ? `<a:prstDash val="${DASH_OUT[st.dash]}"/>` : '') + (def.round ? '<a:round/>' : '');
+  if (!inner && width === undefined) return '';
+  return `<a:ln${width !== undefined ? ` w="${width}"` : ''}${def.round ? ' cap="rnd"' : ''}>${inner}</a:ln>`;
+}
+
+const SYMBOL_OUT = ['circle', 'square', 'diamond', 'triangle', 'x', 'star', 'dot', 'dash', 'plus', 'none'];
+
+function markerXml(m: MarkerFormat | undefined, color: string | undefined, fallbackSymbol: string): string {
+  const symbol = m?.symbol && SYMBOL_OUT.includes(m.symbol) ? m.symbol : fallbackSymbol;
+  if (symbol === 'none') return '<c:marker><c:symbol val="none"/></c:marker>';
+  const c = m?.color ?? color;
+  const size = m?.size !== undefined ? Math.max(2, Math.min(72, Math.round(m.size))) : undefined;
+  return `<c:marker><c:symbol val="${symbol}"/>${size !== undefined ? `<c:size val="${size}"/>` : ''}${c ? `<c:spPr>${fillXml(c)}<a:ln w="9525">${`<a:solidFill>${colorXml(c)}</a:solidFill>`}</a:ln></c:spPr>` : ''}</c:marker>`;
+}
+
+/** `c:dPt` de los puntos con formato propio (columnas y sectores). */
+function pointsXml(s: ChartSeries, kind: GroupKind): string {
+  if (!(kind === 'bar' || kind === 'pie' || kind === 'doughnut')) return '';
+  return (s.points ?? [])
+    .filter((p) => p.color || p.explosion)
+    .map((p) => {
+      const sp = p.color ? `<c:spPr>${fillXml(p.color, { transparency: s.transparency })}${lnXml(s.line, undefined)}</c:spPr>` : '';
+      return kind === 'bar'
+        ? `<c:dPt><c:idx val="${p.idx}"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/>${sp}</c:dPt>`
+        : `<c:dPt><c:idx val="${p.idx}"/><c:bubble3D val="0"/>${p.explosion ? `<c:explosion val="${Math.round(p.explosion)}"/>` : ''}${sp}</c:dPt>`;
+    })
+    .join('');
+}
+
+const explosionXml = (s: ChartSeries): string => (s.explosion ? `<c:explosion val="${Math.round(s.explosion)}"/>` : '');
+
+// ---- lectura
+function readColorNode(sf: XNode, theme: string[]): { color: string; transparency?: number } | undefined {
+  if (!sf) return undefined;
+  const node = sf.srgbClr ?? sf.schemeClr;
+  let color: string | undefined;
+  if (sf.srgbClr) {
+    const v = attr(sf.srgbClr, 'val');
+    color = v ? `#${v.slice(-6).toLowerCase()}` : undefined;
+  } else if (sf.schemeClr) {
+    const i = SCHEME_INDEX[attr(sf.schemeClr, 'val') ?? ''];
+    const h = i === undefined ? undefined : theme[i];
+    color = h ? `#${h.toLowerCase()}` : undefined;
+  }
+  if (!color) return undefined;
+  const a = Number(attr(node?.alpha, 'val'));
+  return Number.isFinite(a) && node?.alpha !== undefined && a < 100000 ? { color, transparency: Math.round(100 - a / 1000) } : { color };
+}
+
+function readStroke(ln: XNode, theme: string[]): StrokeFormat | undefined {
+  if (!ln) return undefined;
+  if (ln.noFill !== undefined) return { none: true };
+  const out: StrokeFormat = {};
+  const c = readColorNode(ln.solidFill, theme);
+  if (c) out.color = c.color;
+  const w = Number(attr(ln, 'w'));
+  if (Number.isFinite(w) && w > 0) out.width = Math.round((w / 12700) * 100) / 100;
+  const dash = DASH_IN[attr(ln.prstDash, 'val') ?? ''];
+  if (dash && dash !== 'solid') out.dash = dash;
+  return Object.keys(out).length ? out : undefined;
+}
+
+function readMarker(m: XNode, theme: string[]): MarkerFormat | undefined {
+  if (!m) return undefined;
+  const out: MarkerFormat = {};
+  const sym = attr(m.symbol, 'val');
+  if (sym && SYMBOL_OUT.includes(sym)) out.symbol = sym as MarkerSymbol;
+  const size = Number(attr(m.size, 'val'));
+  if (Number.isFinite(size) && m.size !== undefined) out.size = size;
+  const c = readColorNode(m.spPr?.solidFill, theme);
+  if (c) out.color = c.color;
+  return Object.keys(out).length ? out : undefined;
+}
+
+function readPoints(s: XNode, theme: string[]): PointFormat[] {
+  const out: PointFormat[] = [];
+  for (const p of asArray(s.dPt)) {
+    const idx = Number(attr(p.idx, 'val'));
+    if (!Number.isInteger(idx)) continue;
+    const pt: PointFormat = { idx };
+    const c = readColorNode(p.spPr?.solidFill, theme);
+    if (c) pt.color = c.color;
+    const ex = Number(attr(p.explosion, 'val'));
+    if (p.explosion !== undefined && Number.isFinite(ex) && ex > 0) pt.explosion = ex;
+    if (pt.color || pt.explosion) out.push(pt);
+  }
+  return out;
+}
+
 const HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 
 // ------------------------------------------------------------------------------------------------ writing
@@ -105,8 +213,6 @@ interface Group {
   secondary: boolean;
 }
 
-const solid = (hex: string) => `<a:solidFill><a:srgbClr val="${hex.replace('#', '').toUpperCase()}"/></a:solidFill>`;
-
 function serXml(item: { s: ChartSeries; index: number }, g: Group, def: ChartSpec, src: ChartSource): string {
   const { s, index } = item;
   const tx = s.nameRef
@@ -128,26 +234,26 @@ function serXml(item: { s: ChartSeries; index: number }, g: Group, def: ChartSpe
   switch (g.kind) {
     case 'scatter': {
       const x = s.categories ? `<c:xVal><c:numRef><c:f>${escapeXml(s.categories)}</c:f>${numCache(catVals)}</c:numRef></c:xVal>` : '';
-      const sp = `<c:spPr><a:ln w="19050"><a:noFill/></a:ln></c:spPr>`;
-      const marker = color ? `<c:marker><c:symbol val="circle"/><c:size val="7"/><c:spPr>${solid(color)}</c:spPr></c:marker>` : '';
+      const sp = `<c:spPr>${s.line && !s.line.none ? lnXml(s.line, color, { width: 19050 }) : '<a:ln w="19050"><a:noFill/></a:ln>'}</c:spPr>`;
+      const marker = color || s.marker ? markerXml({ size: 7, ...s.marker }, color, 'circle') : '';
       return `<c:ser>${head}${sp}${marker}${labelsXml(s, 'scatter', def)}${analysis('scatter')}${x}<c:yVal><c:numRef><c:f>${escapeXml(s.values)}</c:f>${numCache(vals)}</c:numRef></c:yVal><c:smooth val="0"/></c:ser>`;
     }
     case 'bar': {
-      const sp = color ? `<c:spPr>${solid(color)}</c:spPr>` : '';
-      return `<c:ser>${head}${sp}<c:invertIfNegative val="0"/>${labelsXml(s, 'bar', def)}${analysis('other')}${cat}${val}</c:ser>`;
+      const sp = color || s.line || s.noFill ? `<c:spPr>${fillXml(color, s)}${lnXml(s.line, undefined)}</c:spPr>` : '';
+      return `<c:ser>${head}${sp}<c:invertIfNegative val="0"/>${pointsXml(s, 'bar')}${labelsXml(s, 'bar', def)}${analysis('other')}${cat}${val}</c:ser>`;
     }
     case 'line': {
-      const sp = `<c:spPr><a:ln w="28575" cap="rnd">${color ? solid(color) : ''}<a:round/></a:ln></c:spPr>`;
-      return `<c:ser>${head}${sp}<c:marker><c:symbol val="${def.type === 'line' || s.type === 'line' ? 'circle' : 'none'}"/></c:marker>${labelsXml(s, 'line', def)}${analysis('line')}${cat}${val}<c:smooth val="${def.smooth ? 1 : 0}"/></c:ser>`;
+      const sp = `<c:spPr>${lnXml(s.line, color, { width: 28575, round: true })}</c:spPr>`;
+      return `<c:ser>${head}${sp}${markerXml(s.marker, color, def.type === 'line' || s.type === 'line' ? 'circle' : 'none')}${labelsXml(s, 'line', def)}${analysis('line')}${cat}${val}<c:smooth val="${def.smooth ? 1 : 0}"/></c:ser>`;
     }
     case 'area': {
-      const sp = color ? `<c:spPr>${solid(color)}</c:spPr>` : '';
+      const sp = color || s.line || s.noFill ? `<c:spPr>${fillXml(color, s)}${lnXml(s.line, undefined)}</c:spPr>` : '';
       return `<c:ser>${head}${sp}${labelsXml(s, 'area', def)}${analysis('other')}${cat}${val}</c:ser>`;
     }
     case 'radar': {
       const filled = !!def.radar?.filled;
-      const sp = filled ? (color ? `<c:spPr>${solid(color)}</c:spPr>` : '') : `<c:spPr><a:ln w="28575">${color ? solid(color) : ''}</a:ln></c:spPr>`;
-      const marker = filled ? '' : `<c:marker><c:symbol val="${def.radar?.markers ? 'circle' : 'none'}"/></c:marker>`;
+      const sp = filled ? (color ? `<c:spPr>${fillXml(color, s)}${lnXml(s.line, undefined)}</c:spPr>` : '') : `<c:spPr>${lnXml(s.line, color, { width: 28575 })}</c:spPr>`;
+      const marker = filled ? '' : markerXml(s.marker, color, def.radar?.markers ? 'circle' : 'none');
       return `<c:ser>${head}${sp}${marker}${labelsXml(s, 'radar', def)}${cat}${val}</c:ser>`;
     }
     case 'stock': {
@@ -156,8 +262,8 @@ function serXml(item: { s: ChartSeries; index: number }, g: Group, def: ChartSpe
     case 'surface':
       return `<c:ser>${head}${cat}${val}</c:ser>`;
     default: {
-      const sp = color ? `<c:spPr>${solid(color)}</c:spPr>` : '';
-      return `<c:ser>${head}${sp}${labelsXml(s, g.kind, def)}${cat}${val}</c:ser>`;
+      const sp = color || s.line || s.noFill ? `<c:spPr>${fillXml(color, s)}${lnXml(s.line, undefined)}</c:spPr>` : '';
+      return `<c:ser>${head}${sp}${explosionXml(s)}${pointsXml(s, g.kind)}${labelsXml(s, g.kind, def)}${cat}${val}</c:ser>`;
     }
   }
 }
@@ -246,8 +352,11 @@ function groupXml(g: Group, def: ChartSpec, src: ChartSource): string {
     case 'bar': {
       const dir = g.horizontal ? 'bar' : 'col';
       const grp = def.stacked ? (def.percent ? 'percentStacked' : 'stacked') : seriesDepth ? 'standard' : 'clustered';
-      if (threeD) return `<c:bar3DChart><c:barDir val="${dir}"/><c:grouping val="${grp}"/><c:varyColors val="0"/>${sers}<c:gapWidth val="150"/><c:shape val="box"/>${ids}</c:bar3DChart>`;
-      return `<c:barChart><c:barDir val="${dir}"/><c:grouping val="${grp}"/><c:varyColors val="0"/>${sers}<c:gapWidth val="150"/>${def.stacked ? '<c:overlap val="100"/>' : ''}${ids}</c:barChart>`;
+      const vary = def.varyColors ? 1 : 0;
+      const gap = Math.max(0, Math.min(500, Math.round(def.gapWidth ?? 150)));
+      const overlap = def.overlap !== undefined ? Math.max(-100, Math.min(100, Math.round(def.overlap))) : def.stacked ? 100 : undefined;
+      if (threeD) return `<c:bar3DChart><c:barDir val="${dir}"/><c:grouping val="${grp}"/><c:varyColors val="${vary}"/>${sers}<c:gapWidth val="${gap}"/><c:shape val="box"/>${ids}</c:bar3DChart>`;
+      return `<c:barChart><c:barDir val="${dir}"/><c:grouping val="${grp}"/><c:varyColors val="${vary}"/>${sers}<c:gapWidth val="${gap}"/>${overlap !== undefined ? `<c:overlap val="${overlap}"/>` : ''}${ids}</c:barChart>`;
     }
     case 'line':
       if (threeD) return `<c:line3DChart><c:grouping val="${grouping}"/><c:varyColors val="0"/>${sers}${ids}</c:line3DChart>`;
@@ -256,9 +365,9 @@ function groupXml(g: Group, def: ChartSpec, src: ChartSource): string {
       if (threeD) return `<c:area3DChart><c:grouping val="${grouping}"/><c:varyColors val="0"/>${sers}${ids}</c:area3DChart>`;
       return `<c:areaChart><c:grouping val="${grouping}"/><c:varyColors val="0"/>${sers}${ids}</c:areaChart>`;
     case 'pie':
-      return threeD ? `<c:pie3DChart><c:varyColors val="1"/>${sers}</c:pie3DChart>` : `<c:pieChart><c:varyColors val="1"/>${sers}<c:firstSliceAng val="0"/></c:pieChart>`;
+      return threeD ? `<c:pie3DChart><c:varyColors val="1"/>${sers}</c:pie3DChart>` : `<c:pieChart><c:varyColors val="1"/>${sers}<c:firstSliceAng val="${Math.round(def.firstSliceAng ?? 0) % 360}"/></c:pieChart>`;
     case 'doughnut':
-      return `<c:doughnutChart><c:varyColors val="1"/>${sers}<c:firstSliceAng val="0"/><c:holeSize val="50"/></c:doughnutChart>`;
+      return `<c:doughnutChart><c:varyColors val="1"/>${sers}<c:firstSliceAng val="${Math.round(def.firstSliceAng ?? 0) % 360}"/><c:holeSize val="${Math.max(10, Math.min(90, Math.round(def.holeSize ?? 50)))}"/></c:doughnutChart>`;
     case 'scatter':
       return `<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>${sers}<c:axId val="${a}"/><c:axId val="${b}"/></c:scatterChart>`;
     case 'radar':
@@ -455,8 +564,27 @@ export function parseChart(doc: XNode, theme: string[] = DEFAULT_CHART_THEME): {
       else if (typeof s.tx?.v === 'string') ser.name = s.tx.v;
       const cats = fText(g.kind === 'scatter' ? s.xVal : s.cat);
       if (cats) ser.categories = cats.replace(/^=/, '');
-      const color = fillColor(s.spPr, theme);
+      const lineKind = g.kind === 'line' || g.kind === 'scatter' || (g.kind === 'radar' && !!s.spPr?.ln && s.spPr.solidFill === undefined);
+      const color = lineKind ? (readColorNode(s.spPr?.ln?.solidFill, theme)?.color ?? readColorNode(s.marker?.spPr?.solidFill, theme)?.color) : fillColor({ solidFill: s.spPr?.solidFill }, theme);
       if (color && g.kind !== 'stock') ser.color = color;
+      if (g.kind !== 'stock' && g.kind !== 'surface') {
+        const stroke = readStroke(s.spPr?.ln, theme);
+        if (lineKind) {
+          // en líneas, el color de la línea es el de la serie; el resto (grosor, guiones, sin línea) es formato aparte
+          if (stroke && (stroke.width !== undefined || stroke.dash || (stroke.none && g.kind !== 'scatter'))) ser.line = { ...(stroke.width !== undefined ? { width: stroke.width } : {}), ...(stroke.dash ? { dash: stroke.dash } : {}), ...(stroke.none ? { none: true } : {}) };
+          else if (stroke?.width !== undefined && g.kind === 'scatter') ser.line = { width: stroke.width };
+          const mk = readMarker(s.marker, theme);
+          if (mk) ser.marker = mk;
+        } else if (stroke) ser.line = stroke;
+        const fillNode = s.spPr?.solidFill;
+        const fc = readColorNode(fillNode, theme);
+        if (fc?.transparency && !lineKind) ser.transparency = fc.transparency;
+        if (s.spPr?.noFill !== undefined && !lineKind) ser.noFill = true;
+        const pts = readPoints(s, theme);
+        if (pts.length) ser.points = pts;
+        const ex = Number(attr(s.explosion, 'val'));
+        if (s.explosion !== undefined && Number.isFinite(ex) && ex > 0) ser.explosion = ex;
+      }
       const lbl = g.kind === 'stock' || g.kind === 'surface' ? undefined : readLabels(s);
       if (lbl) ser.labels = lbl;
       if (isSecondary(g)) ser.secondary = true;
@@ -505,6 +633,21 @@ export function parseChart(doc: XNode, theme: string[] = DEFAULT_CHART_THEME): {
   if (grouping === 'stacked' || grouping === 'percentStacked') {
     def.stacked = true;
     if (grouping === 'percentStacked') def.percent = true;
+  }
+  const bars = groups.find((g) => g.kind === 'bar');
+  if (bars) {
+    const gw = Number(attr(bars.node.gapWidth, 'val'));
+    if (bars.node.gapWidth !== undefined && Number.isFinite(gw) && gw !== 150) def.gapWidth = gw;
+    const ov = Number(attr(bars.node.overlap, 'val'));
+    if (bars.node.overlap !== undefined && Number.isFinite(ov) && !(def.stacked && ov === 100) && ov !== 0) def.overlap = ov;
+    if (['1', 'true'].includes(attr(bars.node.varyColors, 'val') ?? '')) def.varyColors = true;
+  }
+  const round = groups.find((g) => g.kind === 'pie' || g.kind === 'doughnut');
+  if (round) {
+    const ang = Number(attr(round.node.firstSliceAng, 'val'));
+    if (round.node.firstSliceAng !== undefined && Number.isFinite(ang) && ang !== 0) def.firstSliceAng = ang;
+    const hole = Number(attr(round.node.holeSize, 'val'));
+    if (round.node.holeSize !== undefined && Number.isFinite(hole) && hole !== 50) def.holeSize = hole;
   }
   if (type === 'line' && groups.some((g) => g.kind === 'line' && asArray(g.node.ser).some((s: XNode) => attr(s.smooth, 'val') === '1'))) def.smooth = true;
   // single-type charts do not need a type on each series

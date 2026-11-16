@@ -1,4 +1,5 @@
-import type { ChartAxis, ChartSpec, DataLabels } from './model';
+import { CHART_COLORS } from './data';
+import type { ChartAxis, ChartSeries, ChartSpec, DataLabels, MarkerFormat } from './model';
 import type { ErrorBars, Trendline } from './fit';
 import { fitTrend, trendName, trendPath } from './fit';
 import { formatChartNumber } from './format';
@@ -153,6 +154,71 @@ function dataTableSeries(def: ChartSpec, categories: string[], series: ChartSeri
 }
 
 
+
+const DASHES: Record<string, string | number[]> = { solid: 'solid', dash: 'dashed', dot: 'dotted', dashDot: [8, 3, 2, 3], longDash: [12, 4] };
+/** Points to pixels (96 dpi). */
+const px = (pt: number): number => Math.round(((pt * 4) / 3) * 10) / 10;
+
+/** "#rrggbb" with transparency in percent as an rgba() colour. */
+function withAlpha(hex: string, transparency?: number): string {
+  if (!transparency || !/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${Math.max(0, Math.min(1, 1 - transparency / 100))})`;
+}
+
+const SYMBOLS: Record<string, string> = {
+  circle: 'circle',
+  square: 'rect',
+  diamond: 'diamond',
+  triangle: 'triangle',
+  dot: 'circle',
+  dash: 'path://M0,40 L100,40 L100,60 L0,60 Z',
+  x: 'path://M10,0 L50,40 L90,0 L100,10 L60,50 L100,90 L90,100 L50,60 L10,100 L0,90 L40,50 L0,10 Z',
+  plus: 'path://M40,0 L60,0 L60,40 L100,40 L100,60 L60,60 L60,100 L40,100 L40,60 L0,60 L0,40 L40,40 Z',
+  star: 'path://M50,0 L61,35 L98,35 L68,57 L79,91 L50,70 L21,91 L32,57 L2,35 L39,35 Z',
+};
+
+/** The marker of a series as ECharts symbol options. */
+function markerOf(m: MarkerFormat | undefined, color: string, fallback: { symbol: string; size: number }): Record<string, unknown> {
+  const symbol = m?.symbol ? (m.symbol === 'none' ? 'none' : SYMBOLS[m.symbol]) : fallback.symbol;
+  const size = m?.size ?? undefined;
+  return {
+    symbol,
+    symbolSize: size !== undefined ? px(size) * (m?.symbol === 'dot' ? 0.5 : 1) : fallback.size,
+    ...(m?.color ? { itemStyle: { color: m.color, borderColor: m.color } } : { itemStyle: { color } }),
+    ...(m?.symbol ? { showSymbol: m.symbol !== 'none' } : {}),
+  };
+}
+
+/** The line of a line, scatter or radar series. */
+function lineOf(s: ChartSeries | undefined, color: string): Record<string, unknown> {
+  const l = s?.line;
+  if (l?.none) return { color, width: 0, opacity: 0 };
+  return { color: l?.color ?? color, ...(l?.width !== undefined ? { width: px(l.width) } : {}), ...(l?.dash ? { type: DASHES[l.dash] } : {}) };
+}
+
+/** The fill and border of a column, area or slice. */
+function fillOf(s: ChartSeries | undefined, color: string): Record<string, unknown> {
+  const l = s?.line;
+  const out: Record<string, unknown> = { color: s?.noFill ? 'rgba(0,0,0,0)' : withAlpha(color, s?.transparency) };
+  if (l && !l.none && (l.color || l.width !== undefined || l.dash)) {
+    out.borderColor = l.color ?? '#000000';
+    out.borderWidth = l.width !== undefined ? px(l.width) : 1;
+    if (l.dash) out.borderType = DASHES[l.dash];
+  }
+  return out;
+}
+
+/** Point formats (colour per column or slice) over the values of a series. */
+function pointData(values: (number | null)[], s: ChartSeries | undefined, base: { vary?: boolean; palette: string[]; border?: Record<string, unknown> }): unknown[] {
+  const byIdx = new Map((s?.points ?? []).map((p) => [p.idx, p]));
+  return values.map((v, i) => {
+    const p = byIdx.get(i);
+    const color = p?.color ?? (base.vary ? base.palette[i % base.palette.length] : undefined);
+    return color || p?.explosion ? { value: v, ...(color ? { itemStyle: { ...(base.border ?? {}), color: withAlpha(color, s?.transparency) } } : {}) } : v;
+  });
+}
+
 const SUPERSCRIPT_R2 = 'R\u00b2';
 
 interface TrendDraw {
@@ -306,13 +372,20 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
 
   if (def.type === 'pie' || def.type === 'doughnut') {
     const s = series[0];
-    const data = (s?.values ?? []).map((v, i) => ({ name: categories[i] ?? String(i + 1), value: v ?? 0 })).filter((d) => d.value > 0);
+    const ps = def.series[0];
+    const pts = new Map((ps?.points ?? []).map((p) => [p.idx, p]));
+    const explode = (i: number): number => pts.get(i)?.explosion ?? ps?.explosion ?? 0;
+    const data = (s?.values ?? [])
+      .map((v, i) => ({ name: categories[i] ?? String(i + 1), value: v ?? 0, ...(pts.get(i)?.color ? { itemStyle: { color: pts.get(i)!.color } } : {}), ...(explode(i) ? { selected: true } : {}), i }))
+      .filter((d) => d.value > 0)
+      .map(({ i, ...d }) => ({ ...d, ...(explode(i) ? { selected: true } : {}) }));
+    const maxExplode = Math.max(0, ...(s?.values ?? []).map((_v, i) => explode(i)));
     return {
       ...base,
       color: undefined,
       grid: undefined,
       legend: legendOf(def, palette, data.map((d) => d.name)),
-      series: [{ type: 'pie', name: s?.name, radius: def.type === 'doughnut' ? ['38%', '68%'] : ['0%', '68%'], center: roundCenter(def), data, label: { color: palette.text, ...labelOf(def.series[0]?.labels, 'pie') }, itemStyle: { borderColor: palette.bg, borderWidth: 1 } }],
+      series: [{ type: 'pie', name: s?.name, radius: def.type === 'doughnut' ? [`${Math.round(((def.holeSize ?? 50) / 100) * 68)}%`, '68%'] : ['0%', '68%'], center: roundCenter(def), startAngle: 90 - (def.firstSliceAng ?? 0), data, selectedMode: 'multiple', selectedOffset: Math.round(maxExplode * 0.6), label: { color: palette.text, ...labelOf(def.series[0]?.labels, 'pie') }, itemStyle: { borderColor: palette.bg, borderWidth: 1, ...(({ color: _c, ...border }) => border)(fillOf(ps, '#000000')) } }],
     };
   }
 
@@ -336,7 +409,7 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
           type: 'radar',
           symbol: def.radar?.markers || def.radar?.filled ? 'circle' : 'none',
           symbolSize: 5,
-          data: series.map((s) => ({ name: s.name, value: s.values.map((v) => v ?? 0), itemStyle: { color: s.color }, lineStyle: { color: s.color, width: 2 }, ...(def.radar?.filled ? { areaStyle: { color: s.color, opacity: 0.3 } } : {}) })),
+          data: series.map((s, si) => ({ name: s.name, value: s.values.map((v) => v ?? 0), ...markerOf(def.series[si]?.marker, s.color, { symbol: def.radar?.markers || def.radar?.filled ? 'circle' : 'none', size: 5 }), lineStyle: { width: 2, ...lineOf(def.series[si], s.color) }, ...(def.radar?.filled ? { areaStyle: { color: withAlpha(s.color, def.series[si]?.transparency ?? 70), opacity: 1 } } : {}) })),
         },
       ],
     };
@@ -384,7 +457,7 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
           type: 'scatter',
           name: s.name,
           label: labelOf(def.series[si]?.labels, 'scatter'),
-          symbolSize: 8,
+          ...markerOf(def.series[si]?.marker, s.color, { symbol: 'circle', size: 8 }),
           yAxisIndex: s.secondary ? 1 : 0,
           data: s.values.map((y, i) => [s.x[i] ?? i + 1, y]).filter((p) => p[0] !== null && p[1] !== null),
         })),
@@ -400,6 +473,11 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
   const totals = percent ? categories.map((_c, i) => series.filter((s) => s.type !== 'line' || def.stacked).reduce((a, s) => a + Math.abs(s.values[i] ?? 0), 0) || 1) : [];
   const hasSecondary = series.some((s) => s.secondary);
   const table = hasTable(def);
+  // ancho del hueco y superposición de Excel como separación entre categorías y entre barras de ECharts
+  const nBars = Math.max(1, series.filter((s) => s.type === 'column').length);
+  const overlap = def.overlap ?? (def.stacked ? 100 : 0);
+  const effective = def.stacked ? 1 : 1 + (nBars - 1) * (1 - overlap / 100);
+  const barSpacing = def.gapWidth !== undefined || def.overlap !== undefined ? { barCategoryGap: `${Math.round(((def.gapWidth ?? 150) / 100 / (effective + (def.gapWidth ?? 150) / 100)) * 1000) / 10}%`, barGap: `${-overlap}%` } : {};
   const catAxis = { type: 'category', data: categories, name: def.axisX?.title, nameLocation: 'middle', nameGap: 30, inverse: horizontal !== !!def.axisX?.reverse, ...axisBase(palette), ...(table ? { axisLabel: { show: false } } : {}), ...(def.axisX?.hidden ? { show: false } : {}), splitLine: { show: !!def.axisX?.gridlines, lineStyle: { color: palette.grid } } };
   const primary = valueAxis(def.axisY, palette, { percent, grid: def.axisY?.gridlines ?? true });
   const yAxis = hasSecondary ? [primary, valueAxis(def.axisY2, palette, { opposite: true, grid: false })] : primary;
@@ -422,16 +500,18 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
     series: [...series.map((s, si) => {
       const label = labelOf(def.series[si]?.labels, s.type === 'column' ? 'bar' : s.type === 'area' ? 'area' : s.type === 'scatter' ? 'scatter' : 'line', { horizontal, stacked: !!def.stacked });
       const data = percent && s.type !== 'line' ? s.values.map((v, i) => (v === null ? null : Math.round((v / totals[i]!) * 10000) / 100)) : s.values;
-      const common = { name: s.name, data, yAxisIndex: s.secondary && !horizontal ? 1 : 0, itemStyle: { color: s.color }, label };
+      const fmt = def.series[si];
+      const pdata = s.type === 'column' ? pointData(data, fmt, { vary: !!def.varyColors && series.length === 1, palette: CHART_COLORS, border: (({ color: _c, ...b }) => b)(fillOf(fmt, s.color)) }) : data;
+      const common = { name: s.name, data: pdata, yAxisIndex: s.secondary && !horizontal ? 1 : 0, itemStyle: s.type === 'column' || s.type === 'area' ? fillOf(fmt, s.color) : { color: s.color }, label };
       switch (s.type) {
         case 'column':
-          return { ...common, type: 'bar', barMaxWidth: 48, ...(def.stacked ? { stack: s.secondary ? 'secondary' : 'total' } : {}) };
+          return { ...common, type: 'bar', ...(def.gapWidth === undefined ? { barMaxWidth: 48 } : {}), ...barSpacing, ...(def.stacked ? { stack: s.secondary ? 'secondary' : 'total' } : {}) };
         case 'area':
-          return { ...common, type: 'line', smooth: !!def.smooth, symbol: 'none', areaStyle: { opacity: 0.35, color: s.color }, lineStyle: { color: s.color }, ...(def.stacked ? { stack: s.secondary ? 'secondary' : 'total' } : {}) };
+          return { ...common, type: 'line', smooth: !!def.smooth, symbol: 'none', areaStyle: { opacity: 1, color: fmt?.noFill ? 'rgba(0,0,0,0)' : withAlpha(s.color, fmt?.transparency ?? 65) }, lineStyle: fmt?.line && !fmt.line.none ? lineOf(fmt, s.color) : { color: s.color }, ...(def.stacked ? { stack: s.secondary ? 'secondary' : 'total' } : {}) };
         case 'scatter':
-          return { ...common, type: 'scatter', symbolSize: 8 };
+          return { ...common, type: 'scatter', ...markerOf(fmt?.marker, s.color, { symbol: 'circle', size: 8 }) };
         default:
-          return { ...common, type: 'line', smooth: !!def.smooth, symbolSize: 6, showSymbol: n < 40, lineStyle: { color: s.color }, ...(def.stacked && def.type === 'line' ? { stack: s.secondary ? 'secondary' : 'total' } : {}) };
+          return { ...common, type: 'line', smooth: !!def.smooth, symbolSize: 6, showSymbol: n < 40, ...markerOf(fmt?.marker, s.color, { symbol: 'circle', size: 6 }), lineStyle: lineOf(fmt, s.color), ...(def.stacked && def.type === 'line' ? { stack: s.secondary ? 'secondary' : 'total' } : {}) };
       }
     }), ...trends.series, ...bars, ...(table ? [dataTableSeries(def, categories, series, palette)] : [])],
   };

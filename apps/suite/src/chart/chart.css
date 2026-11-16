@@ -13,3 +13,13 @@
 .nc-preview { border: 1px solid var(--colorNeutralStroke2); background: #fff; min-height: 232px; display: flex; align-items: center; justify-content: center; }
 .nc-preview__error { margin: 8px; font-size: 13px; color: #8a1f11; }
 @media (max-width: 900px) { .nc-form__body { grid-template-columns: 1fr; } }
+.nc-set { border: 1px solid var(--colorNeutralStroke2); border-radius: 6px; padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.nc-set legend { font-size: 12px; padding: 0 4px; }
+.nc-field--narrow { flex: none; min-width: 0; width: 120px; }
+.nc-field input[type=color] { padding: 0 2px; width: 56px; }
+.nc-note { font-size: 12px; opacity: 0.75; }
+.nc-points { max-height: 190px; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.nc-points__row { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.nc-points__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-points__num { width: 64px; height: 24px; box-sizing: border-box; }
+.nc-points__reset { font: inherit; font-size: 12px; }

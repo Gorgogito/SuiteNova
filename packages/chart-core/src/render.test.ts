@@ -75,3 +75,33 @@ describe('elementos del gráfico', () => {
     expect(opt(spec({ type: 'bar', dataTable: {} })).series.some((x) => x.type === 'custom')).toBe(false);
   });
 });
+
+describe('formato de serie y de punto en el dibujo', () => {
+  type Ser = Record<string, unknown>;
+  const sers = (s: ChartSpec) => (chartOption(s, data, 'es', palette) as unknown as { series: Ser[] }).series;
+
+  it('relleno con transparencia, borde y color por punto en columnas', () => {
+    const o = sers(spec({ series: [{ values: 'A', color: '#ff0000', transparency: 50, line: { color: '#00ff00', width: 3, dash: 'dash' }, points: [{ idx: 1, color: '#0000ff' }] }, { values: 'B', noFill: true }] }));
+    expect(o[0]!.itemStyle).toMatchObject({ color: 'rgba(59,130,196,0.5)', borderColor: '#00ff00', borderWidth: 4, borderType: 'dashed' });
+    expect((o[0]!.data as unknown[])[1]).toMatchObject({ value: 20, itemStyle: { color: 'rgba(0,0,255,0.5)', borderColor: '#00ff00' } });
+    expect(o[1]!.itemStyle).toMatchObject({ color: 'rgba(0,0,0,0)' });
+  });
+
+  it('ancho del hueco y superposición de Excel como separaciones de ECharts', () => {
+    const o = sers(spec({ gapWidth: 100, overlap: 100 }));
+    expect(o[0]).toMatchObject({ barGap: '-100%', barCategoryGap: '50%' });
+    expect(o[0]!.barMaxWidth).toBeUndefined();
+    expect(sers(spec())[0]!.barMaxWidth).toBe(48);
+  });
+
+  it('líneas: grosor, guiones y marcadores; circular: sectores sacados y agujero', () => {
+    const lineData: ChartData = { ...data, series: data.series.map((s) => ({ ...s, type: 'line' as const })) };
+    const o = (chartOption(spec({ type: 'line', series: [{ values: 'A', line: { width: 3, dash: 'dot' }, marker: { symbol: 'diamond', size: 9 } }, { values: 'B', marker: { symbol: 'none' } }] }), lineData, 'es', palette) as unknown as { series: Ser[] }).series;
+    expect(o[0]).toMatchObject({ lineStyle: { width: 4, type: 'dotted' }, symbol: 'diamond', symbolSize: 12 });
+    expect(o[1]).toMatchObject({ symbol: 'none', showSymbol: false });
+    const ring = chartOption(spec({ type: 'doughnut', holeSize: 70, firstSliceAng: 90, series: [{ values: 'A', explosion: 20 }] }), data, 'es', palette) as unknown as { series: { radius: string[]; startAngle: number; data: { selected?: boolean }[] }[] };
+    expect(ring.series[0]!.radius[0]).toBe('48%');
+    expect(ring.series[0]!.startAngle).toBe(0);
+    expect(ring.series[0]!.data.every((d) => d.selected)).toBe(true);
+  });
+});
