@@ -1,6 +1,7 @@
 /** Formas y cuadros de texto de la hoja (`xdr:sp` y `xdr:cxnSp` del dibujo de SpreadsheetML). */
 import { SHAPE_FILL, SHAPE_LINE, type SheetShape, type ShapeKind } from '@suitenova/calc-engine';
 import { avLstXml, cleanAdjust, hasPreset, isLineKind, parseGuide, presetOf } from '@suitenova/shapes-core';
+import { dmlTextFx, prstTxWarpXml, type FxColor, type FxFill, type WordArtFx } from '@suitenova/wordart-core';
 import { resolveColor } from './colors';
 import { asArray, attr, escapeXml, textOf, type XNode } from './xml';
 
@@ -14,12 +15,14 @@ const lineXml = (line: SheetShape['line']): string =>
 function textXml(s: SheetShape): string {
   const algn = { left: 'l', center: 'ctr', right: 'r' }[s.hAlign ?? (s.kind === 'textBox' ? 'left' : 'center')];
   const anchor = { top: 't', middle: 'ctr', bottom: 'b' }[s.vAlign ?? (s.kind === 'textBox' ? 'top' : 'middle')];
-  const rPr = `<a:rPr lang="es-ES" sz="${Math.round((s.fontSize ?? 11) * 100)}"${s.bold ? ' b="1"' : ''}${s.italic ? ' i="1"' : ''}>${s.textColor ? `<a:solidFill><a:srgbClr val="${hex(s.textColor)}"/></a:solidFill>` : ''}</a:rPr>`;
+  // WordArt: el estilo va en `a:rPr` como en PowerPoint (contorno, relleno, efectos); si no, solo el color del texto
+  const look = s.wordart ? dmlTextFx(s.wordart.fx) : s.textColor ? `<a:solidFill><a:srgbClr val="${hex(s.textColor)}"/></a:solidFill>` : '';
+  const rPr = `<a:rPr lang="es-ES" sz="${Math.round((s.fontSize ?? 11) * 100)}"${s.bold ? ' b="1"' : ''}${s.italic ? ' i="1"' : ''}>${look}</a:rPr>`;
   const paras = (s.text ?? '')
     .split('\n')
     .map((line) => `<a:p><a:pPr algn="${algn}"/>${line ? `<a:r>${rPr}<a:t>${escapeXml(line)}</a:t></a:r>` : `<a:endParaRPr lang="es-ES" sz="${Math.round((s.fontSize ?? 11) * 100)}"/>`}</a:p>`)
     .join('');
-  return `<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" wrap="square" rtlCol="0" anchor="${anchor}"/><a:lstStyle/>${paras}</xdr:txBody>`;
+  return `<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" wrap="square" rtlCol="0" anchor="${anchor}">${s.wordart?.warp ? prstTxWarpXml(s.wordart.warp.prst, s.wordart.warp.adj) : ''}</a:bodyPr><a:lstStyle/>${paras}</xdr:txBody>`;
 }
 
 /** Cuerpo de un ancla de dibujo para una forma; `w` y `h` son el tamaño en píxeles. */
@@ -30,7 +33,7 @@ export function shapeBodyXml(s: SheetShape, id: number, at?: { x: number; y: num
   if (isLineKind(s.kind)) {
     return `<xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="${id}" name="${name}"${s.alt ? ` descr="${escapeXml(s.alt)}"` : ''}/><xdr:cNvCxnSpPr/></xdr:nvCxnSpPr><xdr:spPr>${xfrm}${geom}${lineXml(s.line === undefined ? { color: SHAPE_LINE, width: 2 } : s.line)}</xdr:spPr></xdr:cxnSp>`;
   }
-  const hasText = !!s.text || s.kind === 'textBox';
+  const hasText = !!s.text || s.kind === 'textBox' || !!s.wordart;
   return (
     `<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="${id}" name="${name}"${s.alt ? ` descr="${escapeXml(s.alt)}"` : ''}/><xdr:cNvSpPr${s.kind === 'textBox' ? ' txBox="1"' : ''}/></xdr:nvSpPr>` +
     `<xdr:spPr>${xfrm}${geom}${fillXml(s.fill === undefined ? (s.kind === 'textBox' ? null : SHAPE_FILL) : s.fill)}${lineXml(s.line === undefined ? (s.kind === 'textBox' ? { color: '#7f7f7f', width: 1 } : { color: SHAPE_LINE, width: 1 }) : s.line)}</xdr:spPr>` +
@@ -163,10 +166,70 @@ export function parseShape(a: XNode, theme: string[]): { shape: Omit<SheetShape,
     if (attr(rp, 'i') === '1') out.italic = true;
     const tc = color(rp?.solidFill);
     if (tc) out.textColor = tc;
+    const wa = wordArtOf(sp.txBody?.bodyPr, rp, color);
+    if (wa) out.wordart = wa;
     const algn = attr(paras[0]?.pPr, 'algn');
     if (algn === 'l' || algn === 'r' || algn === 'ctr') out.hAlign = algn === 'l' ? 'left' : algn === 'r' ? 'right' : 'center';
     const anchor = attr(sp.txBody?.bodyPr, 'anchor');
     if (anchor === 't' || anchor === 'b' || anchor === 'ctr') out.vAlign = anchor === 't' ? 'top' : anchor === 'b' ? 'bottom' : 'middle';
   }
   return { shape: out, unsupported: known === undefined };
+}
+
+const pct = (v: unknown): number => (Number(v ?? 100000) || 0) / 100000;
+
+/**
+ * WordArt de un cuadro: la transformación (`a:prstTxWarp` de `bodyPr`) y el estilo del texto (contorno, relleno y efectos de `a:rPr`).
+ * `null` si no hay transformación ni nada más que un color liso: eso es solo texto con color.
+ */
+function wordArtOf(bodyPr: XNode, rp: XNode, color: (n: XNode) => string | undefined): SheetShape['wordart'] | null {
+  const tw = bodyPr?.prstTxWarp;
+  const prst = attr(tw, 'prst');
+  let warp: { prst: string; adj?: Record<string, number> } | null = null;
+  if (prst && prst !== 'textNoShape') {
+    const adj: Record<string, number> = {};
+    for (const g of asArray(tw.avLst?.gd)) {
+      const p = parseGuide(attr(g, 'name'), attr(g, 'fmla'));
+      if (p) adj[p[0]] = p[1];
+    }
+    warp = { prst, ...(Object.keys(adj).length ? { adj } : {}) };
+  }
+  const clr = (n: XNode): FxColor | null => {
+    const c = color(n);
+    if (!c) return null;
+    const a = n?.srgbClr?.alpha;
+    return { color: c.toLowerCase(), alpha: a ? pct(attr(a, 'val')) : 1 };
+  };
+  const ln = rp?.ln;
+  const eff = rp?.effectLst;
+  const grad = rp?.gradFill;
+  if (!warp && !grad && !ln && !eff) return null;
+  let fill: FxFill = { type: 'solid', color: '#000000' };
+  if (rp?.noFill !== undefined) fill = { type: 'none' };
+  else if (grad) {
+    const stops = asArray(grad.gsLst?.gs).flatMap((g: XNode) => {
+      const c = clr(g);
+      return c ? [{ pos: pct(attr(g, 'pos')), ...c }] : [];
+    });
+    if (stops.length >= 2) fill = { type: 'gradient', angle: (Number(attr(grad.lin, 'ang') ?? 0) || 0) / 60000, stops };
+  } else {
+    const c = clr(rp?.solidFill);
+    if (c) fill = { type: 'solid', ...c };
+  }
+  const fx: WordArtFx = { fill };
+  const oc = ln && !ln.noFill ? clr(ln.solidFill) : null;
+  if (ln && oc) fx.outline = { ...oc, width: Math.max(0.25, (Number(attr(ln, 'w') ?? EMU) || EMU) / EMU) };
+  const gl = eff?.glow && clr(eff.glow);
+  if (gl) fx.glow = { ...gl, radius: (Number(attr(eff.glow, 'rad') ?? 0) || 0) / EMU };
+  const sh = eff?.outerShdw && clr(eff.outerShdw);
+  if (sh) {
+    const dist = (Number(attr(eff.outerShdw, 'dist') ?? 0) || 0) / EMU;
+    const dir = ((Number(attr(eff.outerShdw, 'dir') ?? 0) || 0) / 60000 / 180) * Math.PI;
+    fx.shadow = { ...sh, blur: (Number(attr(eff.outerShdw, 'blurRad') ?? 0) || 0) / EMU, dx: Math.round(dist * Math.cos(dir) * 1000) / 1000, dy: Math.round(dist * Math.sin(dir) * 1000) / 1000 };
+  }
+  if (eff?.reflection) {
+    const r = eff.reflection;
+    fx.reflection = { alpha: pct(attr(r, 'stA')), size: pct(attr(r, 'endPos')), gap: (Number(attr(r, 'dist') ?? 0) || 0) / EMU };
+  }
+  return { fx, warp };
 }

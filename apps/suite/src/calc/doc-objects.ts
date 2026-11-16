@@ -1,3 +1,4 @@
+import { wordArtStyle, type WordArtFx } from '@suitenova/wordart-core';
 import {
   MAX_COLS,
   colOffsetPx,
@@ -361,6 +362,45 @@ export class DocObjects {
     this.d.run('Insertar forma', () => this.wb.editObjects(this.id, (s) => void s.shapes.push(shape)));
     this.selectObject('shape', shape.id);
     return shape.id;
+  }
+
+  /** Inserta un cuadro de WordArt con el estilo dado junto a la celda activa. Devuelve su identificador ('' con la hoja protegida). */
+  insertWordArt(styleId: string): string {
+    if (!this.d.prot.allowed('objects')) return '';
+    this.d.commitIfEditing();
+    const { row, col } = this.d.sel.active;
+    const shape: SheetShape = {
+      id: newShapeId(),
+      kind: 'textBox',
+      x: colOffsetPx(this.sheet, col) + 12,
+      y: rowOffsetPx(this.sheet, row) + 12,
+      width: 360,
+      height: 100,
+      fill: null,
+      line: null,
+      text: 'Su texto aquí',
+      fontSize: 40,
+      bold: true,
+      hAlign: 'center',
+      vAlign: 'middle',
+      wordart: { fx: structuredClone(wordArtStyle(styleId).fx), warp: null },
+    };
+    this.d.run('Insertar WordArt', () => this.wb.editObjects(this.id, (s) => void s.shapes.push(shape)));
+    this.selectObject('shape', shape.id);
+    return shape.id;
+  }
+
+  /** WordArt de la forma elegida: `null` lo quita; el estilo y la transformación se pueden cambiar por separado. */
+  setWordArt(patch: { fx?: WordArtFx; warp?: { prst: string; adj?: Record<string, number> } | null } | null, label = 'Formato de WordArt'): void {
+    const id = this.selectedShape;
+    const s = id ? this.sheet.shapes.find((o) => o.id === id) : undefined;
+    if (!s || isLineKind(s.kind)) return;
+    if (patch === null) {
+      this.updateShape(s.id, { wordart: undefined }, 'Quitar WordArt');
+      return;
+    }
+    const cur = s.wordart;
+    this.updateShape(s.id, { wordart: { fx: patch.fx ?? cur?.fx ?? structuredClone(wordArtStyle('tx1').fx), warp: patch.warp === undefined ? (cur?.warp ?? null) : patch.warp } }, label);
   }
 
   updateShape(id: string, patch: Partial<Omit<SheetShape, 'id'>>, label = 'Modificar forma'): void {

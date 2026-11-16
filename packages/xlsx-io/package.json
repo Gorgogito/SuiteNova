@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@suitenova/shapes-core": "workspace:*",
+    "@suitenova/wordart-core": "workspace:*",
     "@suitenova/calc-engine": "workspace:*",
     "fast-xml-parser": "^5.2.0",
     "jszip": "^3.10.1"

@@ -400,6 +400,51 @@ describe('shapes and text boxes', () => {
     expect(r.warnings.join(' ')).not.toMatch(/geometría/);
   });
 
+  it('writes and reads WordArt as PowerPoint does (a:prstTxWarp and a:rPr fill, outline and effects, no w14)', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    const wordart = {
+      fx: {
+        fill: { type: 'gradient', angle: 90, stops: [{ pos: 0, color: '#ff0000' }, { pos: 1, color: '#0000ff', alpha: 0.5 }] },
+        outline: { color: '#203864', width: 1.5 },
+        shadow: { color: '#000000', alpha: 0.4, blur: 4, dx: 2, dy: 2 },
+        glow: { color: '#4472c4', alpha: 0.6, radius: 9 },
+        reflection: { alpha: 0.5, size: 0.35, gap: 0 },
+      },
+      warp: { prst: 'textArchUp', adj: { adj: 10800000 } },
+    };
+    w.editObjects(id, (sh) => void sh.shapes.push({ id: 'wa', kind: 'textBox', x: 20, y: 20, width: 240, height: 90, text: 'Hola', fontSize: 28, bold: true, wordart } as never));
+    const r = await roundTrip(w);
+    const xml = await (await JSZip.loadAsync(r.bytes)).file('xl/drawings/drawing1.xml')!.async('string');
+    expect(xml).toContain('<a:prstTxWarp prst="textArchUp">');
+    expect(xml).toContain('<a:gradFill');
+    expect(xml).toContain('<a:effectLst>');
+    expect(xml).not.toContain('w14:');
+    const back = r.workbook.sheets[0]!.shapes[0]!;
+    expect(back.text).toBe('Hola');
+    expect(back.wordart?.warp?.prst).toBe('textArchUp');
+    expect(back.wordart?.warp?.adj?.adj).toBe(10800000);
+    const fx = back.wordart!.fx;
+    expect(fx.fill.type).toBe('gradient');
+    if (fx.fill.type === 'gradient') {
+      expect(fx.fill.stops).toHaveLength(2);
+      expect(fx.fill.stops[1]!.alpha).toBeCloseTo(0.5, 3);
+    }
+    expect(fx.outline?.width).toBeCloseTo(1.5, 3);
+    expect(fx.glow?.radius).toBeCloseTo(9, 3);
+    expect(fx.shadow?.blur).toBeCloseTo(4, 3);
+    expect(fx.shadow?.dx).toBeCloseTo(2, 2);
+    expect(fx.reflection?.size).toBeCloseTo(0.35, 3);
+  });
+
+  it('plain colored text is not WordArt', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.editObjects(id, (sh) => void sh.shapes.push({ id: 'p', kind: 'rect', x: 10, y: 10, width: 80, height: 40, text: 'x', textColor: '#ff0000' } as never));
+    const r = await roundTrip(w);
+    expect(r.workbook.sheets[0]!.shapes[0]!.wordart).toBeUndefined();
+  });
+
   it('writes and reads groups of shapes (xdr:grpSp) with the children where they were', async () => {
     const w = new Workbook();
     const id = w.sheets[0]!.id;

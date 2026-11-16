@@ -19,7 +19,7 @@ import './icons-more';
 import './messages';
 import './messages-more';
 import './messages-objects';
-import './messages-wordart';
+import '../wordart/messages';
 import './messages-format';
 import './messages-review';
 import './messages-image';

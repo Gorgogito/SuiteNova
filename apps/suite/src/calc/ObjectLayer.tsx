@@ -2,6 +2,7 @@ import { adjustHandles, dragAdjust, isLineKind, shapeSvg } from '@suitenova/shap
 import { listChoices, moveShapes, rotateShapes, scaleShapes, shapeLook, shapesBounds, type ShapePatch, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { Check, FilterX, ListChecks } from 'lucide-react';
+import { renderWordArt } from '../wordart/engine';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { CalcDoc } from './doc';
 import { colX, screenX, screenY, type Layout, type Viewport } from './render';
@@ -150,6 +151,30 @@ function SlicerView({ doc, sl, rect, selected, onDown }: { doc: CalcDoc; sl: Sli
   );
 }
 
+/** El texto de una forma dibujado como WordArt (estilo + transformación). `onDrawn` dice si hay dibujo; si no hay fuente, el texto normal sigue visible. */
+let waSeq = 0;
+function WordArtDraw({ s, w, h, zoom, onDrawn }: { s: SheetShape; w: number; h: number; zoom: number; onDrawn: (ok: boolean) => void }) {
+  const [id] = useState(() => `cwa${++waSeq}`);
+  const [svg, setSvg] = useState<string | null>(null);
+  const wa = s.wordart!;
+  const key = JSON.stringify([wa, s.text, s.fontSize, s.bold, s.italic, s.hAlign, w, h, zoom]);
+  useEffect(() => {
+    let live = true;
+    void renderWordArt({ text: s.text ?? '', family: 'Calibri', bold: !!s.bold, italic: !!s.italic, sizePx: (s.fontSize ?? 11) * zoom, align: s.hAlign ?? 'center', fx: wa.fx, warp: wa.warp, width: w, height: h, id }).then((r) => {
+      if (!live) return;
+      setSvg(r);
+      onDrawn(r !== null);
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  useEffect(() => () => onDrawn(false), []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!svg) return null;
+  return <svg className="calc-shape__wordart" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
 function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit, onAdjust, onRotate, member }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void; onAdjust: (adj: Record<string, number> | undefined) => void; onRotate: (deg: number) => void; member?: boolean }) {
   const look = shapeLook(s);
   const box = useRef<HTMLDivElement>(null);
@@ -209,6 +234,7 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
   const w = Math.max(rect.w, 1);
   const h = Math.max(rect.h, 1);
   const [draft, setDraft] = useState(s.text ?? '');
+  const [waDrawn, setWaDrawn] = useState(false);
   useEffect(() => {
     if (editing) setDraft(s.text ?? '');
   }, [editing, s.text]);
@@ -229,6 +255,7 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
         <g dangerouslySetInnerHTML={{ __html: shapeSvg(s.kind, w, h, { fill: look.fill, stroke: look.line?.color ?? null, strokeWidth: (look.line?.width ?? 1) * zoom, flip: s.flip, adj }) }} />
       </svg>
+      {s.wordart && !editing && <WordArtDraw s={s} w={w} h={h} zoom={zoom} onDrawn={setWaDrawn} />}
       {editing ? (
         <textarea
           className="calc-shape__edit"
@@ -245,7 +272,7 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
           }}
         />
       ) : (
-        s.text && (
+        s.text && !(s.wordart && waDrawn) && (
           <div className="calc-shape__text" style={{ ...font, justifyContent: justify }}>
             {s.text}
           </div>

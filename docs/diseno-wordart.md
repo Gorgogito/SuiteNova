@@ -1,6 +1,6 @@
 # Diseño: WordArt compartido (Slides, Writer y Calc)
 
-Estado: **aprobado por el usuario (2026-11-15); fases 1 (motor + Slides) y 2 (Writer) HECHAS, fase 3 (Calc) pendiente** (2026-11-15). El dato que faltaba (sección 7) **ya está en el repositorio y validado**. No hay código escrito.
+Estado: **aprobado por el usuario (2026-11-15); las 3 fases (motor + Slides, Writer, Calc) HECHAS** (2026-11-15). El dato que faltaba (sección 7) **ya está en el repositorio y validado**. No hay código escrito.
 Decisiones del usuario (2026-11-15): **motor compartido**, **deformación real de las letras**, orden **motor → Writer → Calc**.
 
 ## 1. Qué es WordArt en Office
@@ -118,3 +118,13 @@ Aprobado por el usuario: el diseño tal cual y la dependencia **opentype.js 2.0.
 - **e2e** `scripts/e2e-writer-wordart.mjs` (6 comprobaciones, con y sin permiso de fuentes) y capturas revisadas. Verificado: typecheck limpio; todo `pnpm test`; e2e de Writer (19 + shapes + image + page + tables + styles + review + autocorrect + format), Slides y Calc en verde.
 - **Un defecto encontrado por el camino:** un componente intermedio como disparador de `PopoverTrigger` no recibe sus propiedades y el menú no se abre; hay que pasar un `<button>` directo.
 - **Límites:** la transformación no tiene asas de ajuste (sí se respetan los valores `adj` leídos de un archivo); el estilo se guarda con los efectos de Word 2010 (`w14`), no con los de PowerPoint; con varias letras de estilos distintos solo se usa el de la primera; la fuente, el tamaño y la alineación salen del texto del cuadro. **No se ha abierto en Word real.**
+
+## 13. Registro de la fase 3 (hecha, 2026-11-16): Calc
+- **Modelo (`calc-engine`):** `SheetShape.wordart?: { fx, warp }` (el mismo estilo neutral de `wordart-core`; `warp: null` = sin deformar; ausente = texto normal). Un WordArt es un cuadro de texto, así que se mueve, redimensiona, gira, agrupa y se deshace como cualquier forma.
+- **Motor:** `wordart-core/src/dml.ts` (`dmlTextFx`, `dmlFill`): el estilo como hijos de `a:rPr` en el orden del esquema (`a:ln`, relleno, `a:effectLst` con glow, outerShdw y reflection), como PowerPoint; en Excel **no** se usa `w14`.
+- **XLSX (`xlsx-io/src/shapes-io.ts`):** al escribir, `a:prstTxWarp` dentro de `a:bodyPr` y el estilo en `a:rPr`; al leer, `wordArtOf` toma la transformación del `bodyPr` y el estilo de la primera letra. Un color liso sin transformación ni efectos sigue siendo solo texto con color (no se convierte en WordArt). 2 pruebas nuevas (68 en total).
+- **App:** `ObjectLayer.tsx` (`WordArtDraw`: SVG encima de la forma, con el tamaño y el zoom; si no hay fuente, el texto normal sigue visible; al editar se ve el `textarea` normal), `doc-objects.ts` (`insertWordArt`, `setWordArt`), `commands-objects.ts` (`calc.wordart.format/clear`), `dlg-wordart.tsx` (reutiliza `WordArtForm`), cinta: Insertar › Ilustraciones › WordArt (22 estilos) y, en la pestaña «Formato de forma», el grupo «Estilos de WordArt» (Estilos, Transformar con las 40, Formato de WordArt…, Quitar). Los textos en inglés se movieron a `apps/suite/src/wordart/messages.ts` (compartidos con Writer).
+- **e2e** `scripts/e2e-calc-wordart.mjs` (7 comprobaciones, con y sin permiso de fuentes; usa el gancho de desarrollo `__novaCalc.xlsxRoundTrip`) y capturas revisadas (arco, degradado con sombra y reflejo, texto editado).
+- **Verificado:** typecheck limpio; todo `pnpm test` (xlsx-io 68, wordart-core 24, calc-engine 287, apps/suite 351…); e2e Calc (shapes, general), Writer WordArt y Slides WordArt en verde.
+- **Defecto propio por el camino:** las barras de una expresión regular se perdieron al escribir el gancho con un script de shell y Vite devolvió 500 (la página no cargaba); se corrigió con la herramienta de edición.
+- **Límites:** el tamaño de letra de Calc se dibuja como en el resto de formas de Calc (puntos tratados como píxeles, igual que el texto normal); un solo estilo por cuadro; sin asas de ajuste de la transformación; los extremos de un arco pueden rozar el borde del cuadro. **No se ha abierto en Excel real.**

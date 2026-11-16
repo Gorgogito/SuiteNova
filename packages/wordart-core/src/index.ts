@@ -7,3 +7,4 @@ export * from './fonts';
 export * from './render';
 export * from './catalog';
 export * from './docx';
+export * from './dml';

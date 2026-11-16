@@ -460,3 +460,12 @@
 .calc-groupframe > * {
   pointer-events: auto;
 }
+
+/* WordArt: el texto deformado va dibujado encima de la forma; no recibe clics. */
+.calc-shape__wordart {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}

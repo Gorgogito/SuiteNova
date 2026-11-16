@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@suitenova/shapes-core": "workspace:*"
+    "@suitenova/shapes-core": "workspace:*",
+    "@suitenova/wordart-core": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^3.2.0",

@@ -108,6 +108,9 @@ export function objectCommands(ui: CalcUI): CommandDef[] {
   add({ id: 'calc.shape.group', label: 'Agrupar', icon: 'shapes', description: 'Une las formas seleccionadas (Ctrl+clic para elegir varias) para moverlas, cambiar su tamaño y girarlas como un bloque.', enabled: () => x.selectedShapes.length > 1, run: () => x.groupSelectedShapes() });
   add({ id: 'calc.shape.ungroup', label: 'Desagrupar', icon: 'shapes', description: 'Separa el grupo de formas seleccionado en formas independientes.', enabled: () => x.selectionHasGroup, run: () => x.ungroupSelectedShapes() });
 
+  add({ id: 'calc.wordart.format', label: 'Formato de WordArt…', icon: 'wordart', description: 'Cambia el relleno, el contorno, la sombra, el resplandor, el reflejo y la transformación del texto de la forma.', enabled: () => !!x.selectedShape && !editing(), run: () => ui.openDialog('wordartFormat') });
+  add({ id: 'calc.wordart.clear', label: 'Quitar WordArt', icon: 'close', description: 'Devuelve el texto de la forma a su aspecto normal.', enabled: () => !!x.selectedShape && !!d.sheet.shapes.find((o) => o.id === x.selectedShape)?.wordart, run: () => x.setWordArt(null) });
+
   // ---- pictures
   add({ id: 'calc.picture', label: 'Imagen…', icon: 'picture', description: 'Inserta una imagen (PNG, JPG, GIF, BMP, WebP o SVG) de un archivo.', enabled: () => !editing(), run: () => void ui.insertPicture() });
   add({ id: 'calc.picture.delete', label: 'Eliminar imagen', icon: 'trash', enabled: () => !!x.selectedImage, run: () => x.selectedImage && x.deleteImage(x.selectedImage) });

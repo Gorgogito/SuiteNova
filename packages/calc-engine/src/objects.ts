@@ -1,4 +1,5 @@
 import { isLineKind, resolveKind } from '@suitenova/shapes-core';
+import type { WordArtFx } from '@suitenova/wordart-core';
 import { normRect, rectContains, type Rect } from './addr';
 import { evaluate } from './evaluator';
 import { adjustForStructure, printFormula, shiftRefs, type StructureChange } from './formula';
@@ -308,6 +309,8 @@ export interface SheetShape {
   adj?: Record<string, number>;
   /** Giro en grados (0–359, sentido horario) alrededor del centro; ausente = 0. */
   rotation?: number;
+  /** WordArt: estilo del texto (relleno, contorno, efectos) y transformación (`null` = sin deformar); ausente = texto normal. */
+  wordart?: { fx: WordArtFx; warp: { prst: string; adj?: Record<string, number> } | null };
   text?: string;
   textColor?: string;
   fontSize?: number;

@@ -25,6 +25,7 @@ import './messages-cf2';
 import './messages-filter2';
 import './messages-stat';
 import './messages-shape';
+import '../wordart/messages';
 import { calcTabs } from './ribbonDef';
 import { SheetTabs } from './SheetTabs';
 import { ListMenu } from './ObjectLayer';
@@ -244,6 +245,16 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
         return doc.display(doc.activeSheetId, p.row, p.col).text;
       },
       colWidth: (c: number) => doc.wb.colWidth(doc.activeSheetId, c),
+      /** Guarda el libro como .xlsx y lo vuelve a leer; devuelve las formas de la primera hoja y el XML del dibujo. */
+      xlsxRoundTrip: async () => {
+        const { readXlsx, writeXlsx } = await import('@suitenova/xlsx-io');
+        const bytes = await writeXlsx(doc.wb);
+        const back = await readXlsx(bytes);
+        const JSZip = (await import('jszip')).default;
+        const zip = await JSZip.loadAsync(bytes);
+        const drawing = await zip.file(/^xl\/drawings\/drawing\d+\.xml$/)[0]?.async('string');
+        return { shapes: back.workbook.sheets[0]!.shapes, drawing: drawing ?? '' };
+      },
       doc,
     };
   }, [doc]);

@@ -1,5 +1,7 @@
 import type { RibbonGroup, RibbonItem, RibbonTab } from '@suitenova/core-ui';
 import { ShapeGallery } from '../shapes/ShapeGallery';
+import { WarpGallery, WordArtStyleGallery } from '../wordart/WordArtUi';
+import { wordArtStyle } from '@suitenova/wordart-core';
 import { CHART_PRESETS } from './chartPresets';
 import type { CalcUI } from './commands';
 import { TableNameField } from './dlg-table';
@@ -52,6 +54,7 @@ export function insertGroups(ui: CalcUI): RibbonGroup[] {
         { kind: 'button', command: 'calc.picture', size: 'large', keytip: 'IM' },
         { kind: 'custom', id: 'shapesGallery', label: 'Formas', keytip: 'OF', render: () => <ShapeGallery onPick={(k) => void ui.doc.x.insertShape(k)} /> },
         { kind: 'button', command: 'calc.textbox', size: 'large', keytip: 'QT' },
+        { kind: 'custom', id: 'wordartGallery', label: 'WordArt', keytip: 'WA', render: () => <WordArtStyleGallery onPick={(id) => void ui.doc.x.insertWordArt(id)} /> },
       ],
     },
     {
@@ -402,6 +405,17 @@ export function contextualTabs(ui: CalcUI, f: ContextFlags): RibbonTab[] {
     contextual: { label: 'Herramientas de dibujo', color: '#0f766e', visible: f.shape },
     groups: [
       { id: 'shapeFormat', label: 'Estilos de forma', icon: 'settings', items: [{ kind: 'button', command: 'calc.shape.format', size: 'large', keytip: 'FO' }] },
+      {
+        id: 'wordart',
+        label: 'Estilos de WordArt',
+        icon: 'wordart',
+        items: [
+          { kind: 'custom', id: 'wordartStyles', label: 'Estilos de WordArt', keytip: 'WE', render: () => <WordArtStyleGallery label="Estilos de WordArt" onPick={(id) => ui.doc.x.setWordArt({ fx: structuredClone(wordArtStyle(id).fx) }, 'Estilo de WordArt')} /> },
+          { kind: 'custom', id: 'wordartWarp', label: 'Transformar', keytip: 'WT', render: () => <WarpGallery size="small" current={ui.doc.sheet.shapes.find((o) => o.id === ui.doc.x.selectedShape)?.wordart?.warp?.prst ?? null} onPick={(prst) => ui.doc.x.setWordArt({ warp: prst ? { prst } : null }, 'Transformar WordArt')} /> },
+          { kind: 'button', command: 'calc.wordart.format', size: 'small', keytip: 'WF' },
+          { kind: 'button', command: 'calc.wordart.clear', size: 'small', keytip: 'WQ' },
+        ],
+      },
       { id: 'shapeArrange', label: 'Organizar', icon: 'shapes', items: [{ kind: 'button', command: 'calc.shape.rotateRight', size: 'small', keytip: 'GD' }, { kind: 'button', command: 'calc.shape.rotateLeft', size: 'small', keytip: 'GI' }, { kind: 'button', command: 'calc.shape.group', size: 'small', keytip: 'AG' }, { kind: 'button', command: 'calc.shape.ungroup', size: 'small', keytip: 'DG' }] },
       { id: 'shapeActions', label: 'Acciones', icon: 'trash', items: [{ kind: 'button', command: 'calc.shape.delete', size: 'large', keytip: 'EF' }] },
     ],
