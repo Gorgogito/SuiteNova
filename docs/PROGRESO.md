@@ -58,3 +58,10 @@ Decisiones del usuario: motor compartido `smartart-core`, vinculado a los datos,
 - [x] **Fase 4 HECHA (Slides):** catálogo propio (8 diseños, 3 estilos, 7 colores), puente `slides-core/src/smartart-art.ts` y la interfaz (`SmartArtUi.tsx`, `commands-smartart.ts`): cuadro con galería y vista previa, texto con subniveles, pestaña contextual *Diseño de SmartArt*, doble clic, reajuste al cambiar de tamaño y «Convertir en SmartArt» con el catálogo. PowerPoint real abre los archivos y los recalcula. e2e: `scripts/e2e-slides-smartart.mjs` (5) y la de `e2e-slides.mjs` actualizada.
 - [x] **Fase 5 HECHA (Writer):** nodo `smartart` (átomo con las cinco partes), lectura y escritura de `dgm:relIds` y `word/diagrams/*` en `.docx` (Word real lo abre y lo reconoce), cuadro compartido `apps/suite/src/smartart/SmartArtUi.tsx` (Slides y Writer), pestaña *Diseño de SmartArt*, doble clic, e2e `scripts/e2e-writer-smartart.mjs`. Nuevo en `smartart-core`: `host.ts` (operaciones sobre las partes) y `svg.ts` (dibujo como SVG), para Writer y Calc.
 - [x] **Fase 6 HECHA (Calc):** `SheetImage.smartart` (las cinco partes; `media` guarda el SVG del dibujo), lectura y escritura de `dgm:relIds` y `xl/diagrams/*` en `.xlsx` (Excel real lo abre y lo reconoce), cuadro compartido, pestaña *Diseño de SmartArt*, doble clic, reajuste al cambiar de tamaño, e2e `scripts/e2e-calc-smartart.mjs`. **Con esto el SmartArt queda en Slides, Writer y Calc.**
+
+## Subproducto Gráficos (2026-11-16)
+Decisiones del usuario: motor compartido `chart-core` (Slides y Calc migran), datos de Slides/Writer en rejilla propia con libro mínimo incrustado, todos los tipos de Calc, orden motor → Calc → Slides → Writer. Diseño y fases en `docs/diseno-graficos.md`.
+- [ ] Fase 1: motor `chart-core` (mover modelo, ajustes, opciones de echarts, 3D y render; Calc lo importa).
+- [ ] Fase 2: formato DrawingML (`c:chartSpace`, `cx:chartSpace`) con caché y libro mínimo.
+- [ ] Fase 3: Calc sobre el motor y comprobación con Excel real.
+- [ ] Fase 4: Slides. · [ ] Fase 5: Writer. · [ ] Fase 6: cierre.
