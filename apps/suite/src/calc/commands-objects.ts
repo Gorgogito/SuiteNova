@@ -2,7 +2,7 @@ import { hasPassword, type ChartSeries, type ErrorKind, type ShapeKind, type Tre
 import { supportsErrorBars, supportsTrend } from './dlg-chartfit';
 import { PIVOT_STYLE_NAMES, TABLE_STYLE_NAMES, normRect, rotateShapes, safeUrl, shapesBounds, type PageSetup } from '@suitenova/calc-engine';
 import type { CommandDef } from '@suitenova/core-ui';
-import { CHART_PRESETS, presetOf } from './chartPresets';
+import { CHART_PRESETS, presetOf } from '../chart/presets';
 import type { CalcUI } from './commands';
 import { slicerSource } from './dlg-table';
 import { COLORS_CATALOG, LAYOUT_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';

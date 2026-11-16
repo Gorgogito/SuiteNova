@@ -209,7 +209,8 @@ function groupXml(g: Group, def: ChartSpec, src: ChartSource): string {
   }
 }
 
-export function chartXml(def: ChartSpec, src: ChartSource): string {
+/** `workbookRid`: la relación del libro incrustado (Word y PowerPoint), para que Office deje editar los datos. */
+export function chartXml(def: ChartSpec, src: ChartSource, workbookRid?: string): string {
   const groups = groupsOf(def);
   const plotGroups = groups.map((g) => groupXml(g, def, src)).join('');
   const hasSecondary = groups.some((g) => g.secondary);
@@ -254,6 +255,7 @@ export function chartXml(def: ChartSpec, src: ChartSource): string {
     HEAD +
     `<c:chartSpace xmlns:c="${NS_C}" xmlns:a="${NS_A}" xmlns:r="${NS_R}"><c:roundedCorners val="0"/>` +
     `<c:chart>${title}${view3D}<c:plotArea><c:layout/>${plotGroups}${axes}</c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>` +
+    (workbookRid ? `<c:externalData r:id="${workbookRid}"><c:autoUpdate val="0"/></c:externalData>` : '') +
     '</c:chartSpace>'
   );
 }

@@ -1,7 +1,8 @@
 import { esc } from '@suitenova/writer-core';
+import { NS_CX, REL_CHARTEX } from '@suitenova/chart-core';
 import type { ChartEl, ConnEl, GroupEl, MediaEl, OleEl, PicEl, ShapeEl, SlideElement, StyleRef, TableCell, TableEl, TableStyleDef } from '../types';
 import { clrXml, effectsXml, fillXml, geomXml, lnXml, txBodyXml, xfrmXml, EMU, type WriteCtx } from './dmlw';
-import { chartXml } from './chartw';
+import { chartParts } from './chartio';
 
 export interface PartWriter extends WriteCtx {
   /** numeric shape id for an element (kept from the original file when there is one) */
@@ -19,6 +20,8 @@ export interface PartWriter extends WriteCtx {
   /** rewrites the text of a part already added */
   patchPart(path: string, fn: (text: string) => string): void;
   slidePath(slideId: string): string | undefined;
+  /** el libro incrustado de un gráfico (se genera antes de escribir, porque es asíncrono) */
+  chartBook(elId: string): Uint8Array | undefined;
   /** table style GUID to write for a style id of the model */
   tableStyleGuid(id: string | undefined): string | undefined;
 }
@@ -167,16 +170,29 @@ function tableXml(el: TableEl, w: PartWriter): string {
 // ---- charts
 
 function chartFrameXml(el: ChartEl, w: PartWriter): string {
-  let path: string;
-  if (el.raw && Object.keys(el.raw).length) {
-    const map = w.copyRaw(el.raw);
-    const main = [...map.keys()].find((k) => /charts\/chart\d*\.xml$/.test(k)) ?? [...map.keys()][0]!;
-    path = map.get(main)!;
-  } else {
-    path = w.addPart(w.freshPath('ppt/charts', 'chart', 'xml'), chartXml(el.chart), 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml');
+  let raw = el.raw;
+  // un gráfico leído y sin tocar se escribe tal cual; uno nuevo o editado, con las partes del motor compartido y su libro
+  if (!raw || !Object.keys(raw).length) {
+    const book = w.chartBook(el.id);
+    raw = book ? chartParts(el.chart, el.grid, book) : undefined;
   }
-  const rid = w.rel('http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart', `../charts/${path.split('/').pop()}`);
-  return `<p:graphicFrame><p:nvGraphicFramePr>${cNvPr(el, w)}<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrmXml(el.xfrm, 'p:xfrm')}<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="${rid}"/></a:graphicData></a:graphic></p:graphicFrame>`;
+  if (!raw) return '';
+  const map = w.copyRaw(raw);
+  const main = [...map.keys()].find((k) => /charts\/chart(Ex)?\d*\.xml$/.test(k)) ?? [...map.keys()][0]!;
+  const path = map.get(main)!;
+  const ex = /chartEx\d*\.xml$/.test(path);
+  const rid = w.rel(ex ? REL_CHARTEX : 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart', `../charts/${path.split('/').pop()}`);
+  const frame = (inner: string) => `<p:graphicFrame><p:nvGraphicFramePr>${cNvPr(el, w)}<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>${xfrmXml(el.xfrm, 'p:xfrm')}<a:graphic>${inner}</a:graphic></p:graphicFrame>`;
+  if (!ex) return frame(`<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="${rid}"/></a:graphicData>`);
+  // PowerPoint 2013 y anteriores no conocen estos gráficos: ven un rectángulo con un aviso
+  const x = el.xfrm;
+  return (
+    `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" Requires="cx1">` +
+    frame(`<a:graphicData uri="${NS_CX}"><cx:chart xmlns:cx="${NS_CX}" r:id="${rid}"/></a:graphicData>`) +
+    `</mc:Choice><mc:Fallback><p:sp><p:nvSpPr><p:cNvPr id="0" name=""/><p:cNvSpPr><a:spLocks noTextEdit="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>` +
+    `<p:spPr><a:xfrm><a:off x="${Math.round((x?.x ?? 0) * EMU)}" y="${Math.round((x?.y ?? 0) * EMU)}"/><a:ext cx="${Math.round((x?.w ?? 0) * EMU)}" cy="${Math.round((x?.h ?? 0) * EMU)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:prstClr val="white"/></a:solidFill></p:spPr>` +
+    `<p:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip"/><a:lstStyle/><a:p><a:r><a:rPr lang="es-ES"/><a:t>Este gráfico no está disponible en esta versión de PowerPoint.</a:t></a:r></a:p></p:txBody></p:sp></mc:Fallback></mc:AlternateContent>`
+  );
 }
 
 export function elementXml(el: SlideElement, w: PartWriter): string {

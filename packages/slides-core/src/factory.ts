@@ -1,6 +1,7 @@
 import { newId } from './defaults';
 import { emptyDocJson, makeDoc } from './text';
-import type { ChartEl, ChartModel, ConnEl, MediaEl, PicEl, ShapeEl, StyleRef, TableCell, TableEl, TextBody } from './types';
+import { sampleGrid, specFromGrid, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
+import type { ChartEl, ConnEl, MediaEl, PicEl, ShapeEl, StyleRef, TableCell, TableEl, TextBody } from './types';
 
 /** The style PowerPoint gives a new shape: accent 1 fill, darker outline, white text. */
 export const SHAPE_STYLE: StyleRef = {
@@ -55,21 +56,12 @@ export function newTable(rows: number, cols: number, x: number, y: number, w: nu
   };
 }
 
-export function newChart(chart: ChartModel, x: number, y: number, w: number, h: number): ChartEl {
-  return { kind: 'chart', id: newId(), name: 'Gráfico', xfrm: { x, y, w, h }, chart };
+export function newChart(chart: ChartSpec, grid: ChartGrid, x: number, y: number, w: number, h: number): ChartEl {
+  return { kind: 'chart', id: newId(), name: 'Gráfico', xfrm: { x, y, w, h }, chart, grid };
 }
 
-export const SAMPLE_CHART: ChartModel = {
-  kind: 'bar',
-  barDir: 'col',
-  grouping: 'clustered',
-  categories: ['Categoría 1', 'Categoría 2', 'Categoría 3', 'Categoría 4'],
-  series: [
-    { name: 'Serie 1', values: [4.3, 2.5, 3.5, 4.5] },
-    { name: 'Serie 2', values: [2.4, 4.4, 1.8, 2.8] },
-    { name: 'Serie 3', values: [2, 2, 3, 5] },
-  ],
-  title: 'Título del gráfico',
-  legend: 'b',
-  axes: { val: { gridlines: true } },
-};
+/** The chart PowerPoint offers first: clustered columns over a sample grid. */
+export function sampleChart(): { chart: ChartSpec; grid: ChartGrid } {
+  const grid = sampleGrid();
+  return { chart: specFromGrid('column', grid, { title: 'Título del gráfico', legend: true }), grid };
+}

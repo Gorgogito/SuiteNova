@@ -3,7 +3,7 @@ import { ShapeGallery } from '../shapes/ShapeGallery';
 import { WarpGallery, WordArtStyleGallery } from '../wordart/WordArtUi';
 import { wordArtStyle } from '@suitenova/wordart-core';
 import { COLORS_CATALOG, LAYOUT_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
-import { CHART_PRESETS } from './chartPresets';
+import { CHART_PRESETS } from '../chart/presets';
 import type { CalcUI } from './commands';
 import { TableNameField } from './dlg-table';
 

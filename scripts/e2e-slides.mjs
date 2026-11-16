@@ -419,11 +419,11 @@ await check('dialogs: table, chart (data sheet, type, edit later), header & foot
   await page.getByLabel('Título del gráfico', { exact: true }).fill('Ventas');
   await page.getByLabel('Fila 1, columna 2').fill('9');
   await page.getByRole('button', { name: 'Aceptar', exact: true }).click();
-  let chart = await ev(() => window.__novaSlides.ctl.slide.shapes.find((s) => s.kind === 'chart').chart);
-  assert.equal(chart.kind, 'pie');
-  assert.equal(chart.title, 'Ventas');
-  assert.equal(chart.series[0].values[0], 9);
-  assert.ok(await page.locator('.sl-chart svg').count(), 'the chart is drawn');
+  let chart = await ev(() => window.__novaSlides.ctl.slide.shapes.find((s) => s.kind === 'chart'));
+  assert.equal(chart.chart.type, 'pie');
+  assert.equal(chart.chart.title, 'Ventas');
+  assert.equal(chart.grid[1][1], 9);
+  assert.ok(await page.locator('[role=img] svg').count(), 'the chart is drawn');
   // edit it from the contextual tab
   await page.getByRole('tab', { name: /Diseño de gráfico/ }).click();
   await btn('Editar datos y tipo del gráfico…');
@@ -431,9 +431,20 @@ await check('dialogs: table, chart (data sheet, type, edit later), header & foot
   await page.getByLabel('Fila 5, columna 1').fill('Nueva');
   await page.getByLabel('Fila 5, columna 2').fill('7');
   await page.getByRole('button', { name: 'Aceptar', exact: true }).click();
-  chart = await ev(() => window.__novaSlides.ctl.slide.shapes.find((s) => s.kind === 'chart').chart);
-  assert.equal(chart.categories[4], 'Nueva');
-  assert.equal(chart.series[0].values[4], 7);
+  chart = await ev(() => window.__novaSlides.ctl.slide.shapes.find((s) => s.kind === 'chart'));
+  assert.equal(chart.grid[5][0], 'Nueva');
+  assert.equal(chart.grid[5][1], 7);
+  // a type of Office 2016 (waterfall) is also available, and the file keeps it
+  await btn('Editar datos y tipo del gráfico…');
+  await page.getByLabel('Tipo de gráfico').selectOption('waterfall');
+  await page.getByRole('button', { name: 'Aceptar', exact: true }).click();
+  chart = await ev(() => window.__novaSlides.ctl.slide.shapes.find((s) => s.kind === 'chart'));
+  assert.equal(chart.chart.type, 'waterfall');
+  const zipEx = await JSZip.loadAsync(Buffer.from(await ev(() => window.__novaSlides.write())));
+  assert.ok(Object.keys(zipEx.files).some((f) => /ppt\/charts\/chartEx\d*\.xml$/.test(f)));
+  await btn('Editar datos y tipo del gráfico…');
+  await page.getByLabel('Tipo de gráfico').selectOption('pie');
+  await page.getByRole('button', { name: 'Aceptar', exact: true }).click();
   // file has the chart
   const zip = await JSZip.loadAsync(Buffer.from(await ev(() => window.__novaSlides.write())));
   assert.ok(Object.keys(zip.files).some((f) => /ppt\/charts\/chart\d*\.xml$/.test(f)));

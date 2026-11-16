@@ -45,7 +45,7 @@ import {
   type Sheet,
   type Style,
 } from '@suitenova/calc-engine';
-import { applyPreset, presetById } from './chartPresets';
+import { applyPreset, presetById } from '../chart/presets';
 import { CalcRuntime } from './macros';
 import { DocObjects, ENTRY_PENDING, overlaps } from './doc-objects';
 import { MSG_BOOK, ProtectionGuard } from './protection';

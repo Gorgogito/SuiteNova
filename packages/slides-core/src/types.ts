@@ -239,6 +239,7 @@ export interface TextBody {
 // ------------------------------------------------------------------------------------------------ geometry
 
 export type { PathCmd, CustPath, Geometry } from '@suitenova/shapes-core';
+import type { ChartGrid, ChartSpec } from '@suitenova/chart-core';
 import type { Geometry } from '@suitenova/shapes-core';
 
 // ------------------------------------------------------------------------------------------------ elements
@@ -360,8 +361,9 @@ export interface TableEl extends Common {
 }
 export interface ChartEl extends Common {
   kind: 'chart';
-  /** the chart in Nova Calc's chart model plus cached values (see chart.ts) */
-  chart: ChartModel;
+  /** the chart (shared engine `chart-core`) and the data grid its series point into */
+  chart: ChartSpec;
+  grid: ChartGrid;
   /** original chart part(s), written back while the chart is not edited */
   raw?: RawParts;
 }
@@ -395,44 +397,6 @@ export type SlideElement = ShapeEl | PicEl | GroupEl | ConnEl | TableEl | ChartE
 
 /** Bytes of untouched package parts, keyed by their path in the package. */
 export type RawParts = Record<string, Uint8Array>;
-
-// ------------------------------------------------------------------------------------------------ charts
-
-export interface ChartSeries {
-  name: string;
-  /** category labels shared by the chart are in `categories`; values here */
-  values: (number | null)[];
-  /** for scatter/bubble */
-  xValues?: (number | null)[];
-  sizes?: (number | null)[];
-  fill?: Fill;
-  ln?: Ln;
-  type?: string;
-  secondary?: boolean;
-  points?: { idx: number; fill?: Fill }[];
-  labels?: { value?: boolean; percent?: boolean; category?: boolean; series?: boolean; pos?: string; numFmt?: string };
-  smooth?: boolean;
-  marker?: { symbol?: string; size?: number };
-}
-export interface ChartModel {
-  kind: string;
-  /** 'clustered' | 'stacked' | 'percent' */
-  grouping?: string;
-  barDir?: 'col' | 'bar';
-  categories: string[];
-  series: ChartSeries[];
-  title?: string;
-  legend?: 'r' | 't' | 'b' | 'l' | 'tr' | null;
-  axes?: { cat?: { title?: string; delete?: boolean }; val?: { title?: string; min?: number; max?: number; delete?: boolean; numFmt?: string; gridlines?: boolean } };
-  style?: number;
-  holeSize?: number;
-  firstSliceAng?: number;
-  gapWidth?: number;
-  overlap?: number;
-  varyColors?: boolean;
-  /** the workbook behind the chart, if the file has one */
-  hasWorkbook?: boolean;
-}
 
 // ------------------------------------------------------------------------------------------------ theme, master, layout
 

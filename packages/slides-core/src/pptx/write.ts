@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { esc } from '@suitenova/writer-core';
+import { writeGridWorkbook } from '@suitenova/chart-core';
 import { DEFAULT_CLRMAP } from '../color';
 import type { Background, ColorMap, Comment, Deck, Effects, Fill, Hyperlink, Layout, Ln, Master, Slide, SlideElement, TableStyleDef, TableStylePart, TextBody, Theme, Transition } from '../types';
 import { bodyPrXml, clrXml, effectsXml, fillXml, listStyleXml, lnXml, txBodyXml, EMU, type WriteCtx } from './dmlw';
@@ -34,6 +35,7 @@ export function tableStyleXml(d: TableStyleDef, w: WriteCtx): string {
 const MIME_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpeg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/svg+xml': 'svg', 'image/webp': 'webp', 'image/tiff': 'tiff', 'image/x-emf': 'emf', 'image/x-wmf': 'wmf', 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/x-ms-wmv': 'wmv', 'video/webm': 'webm', 'video/x-msvideo': 'avi', 'video/mpeg': 'mpg', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/x-ms-wma': 'wma', 'audio/midi': 'mid' };
 const EXT_MIME: Record<string, string> = Object.fromEntries(Object.entries(MIME_EXT).map(([m, e]) => [e, m]));
 EXT_MIME.jpg = 'image/jpeg';
+EXT_MIME.xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 const TABLE_GUID: Record<string, string> = {
   accent1: '{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}',
@@ -78,6 +80,15 @@ function themeXml(t: Theme, ctx: WriteCtx): string {
 
 export async function writePptx(deck: Deck, opts: { slideshow?: boolean; template?: boolean } = {}): Promise<WriteResult> {
   const zip = new JSZip();
+  // el libro incrustado de cada gráfico nuevo o editado (generarlo es asíncrono; el resto de la escritura no)
+  const chartBooks = new Map<string, Uint8Array>();
+  const collectCharts = async (els: SlideElement[]): Promise<void> => {
+    for (const e of els) {
+      if (e.kind === 'chart' && !(e.raw && Object.keys(e.raw).length)) chartBooks.set(e.id, await writeGridWorkbook(e.grid));
+      else if (e.kind === 'group') await collectCharts(e.children);
+    }
+  };
+  for (const s of deck.slides) await collectCharts(s.shapes);
   const warnings: string[] = [];
   const overrides: [string, string][] = [];
   const used = new Set<string>();
@@ -162,6 +173,7 @@ export async function writePptx(deck: Deck, opts: { slideshow?: boolean; templat
           else if (cur) parts.set(p, fn(new TextDecoder().decode(cur)));
         },
         slidePath: (id) => slidePaths.get(id),
+        chartBook: (id) => chartBooks.get(id),
         tableStyleGuid: (id) => {
           if (!id) return undefined;
           const m = /^medium2-(accent\d)$/.exec(id);
@@ -215,6 +227,7 @@ export async function writePptx(deck: Deck, opts: { slideshow?: boolean; templat
   const defaultExt = new Map<string, string>([['rels', 'application/vnd.openxmlformats-package.relationships+xml'], ['xml', 'application/xml']]);
   const contentTypeFor = (path: string, bytes: Uint8Array): string => {
     const head = new TextDecoder().decode(bytes.subarray(0, 400));
+    if (/charts\/chartEx/.test(path)) return 'application/vnd.ms-office.chartex+xml';
     if (/charts\/chart/.test(path)) return 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
     if (/charts\/style/.test(path)) return 'application/vnd.ms-office.chartstyle+xml';
     if (/charts\/colors/.test(path)) return 'application/vnd.ms-office.chartcolorstyle+xml';

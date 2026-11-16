@@ -1,7 +1,7 @@
 import { attrOf, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, type XNode } from '@suitenova/writer-core';
 import { newId } from '../defaults';
 import type { ChartEl, ConnEl, GroupEl, MediaEl, OleEl, PicEl, Placeholder, ShapeEl, SlideElement, StyleRef, TableCell, TableEl, Xfrm } from '../types';
-import { readChartXml } from './chartxml';
+import { readChartPart } from './chartio';
 import { EMU, boolAttr, numAttr, readClr, readEffects, readFill, readGeometry, readHyperlink, readLn, readTextBody, readXfrm, type DmlCtx } from './dml';
 
 export interface ElementCtx extends DmlCtx {
@@ -333,7 +333,7 @@ function readGraphicFrame(n: XNode, ctx: ElementCtx): SlideElement | undefined {
     const tbl = findKid(data, 'tbl');
     return tbl ? readTable(n, tbl, ctx) : undefined;
   }
-  if (/\/chart$/.test(uri)) {
+  if (/\/chart(ex)?$/.test(uri)) {
     const ch = findKid(data, 'chart');
     const rid = ch ? attrOf(ch, 'id') : undefined;
     const rel = rid ? ctx.rels().get(rid) : undefined;
@@ -341,8 +341,9 @@ function readGraphicFrame(n: XNode, ctx: ElementCtx): SlideElement | undefined {
     const path = ctx.resolve(rel.target);
     const xml = ctx.part(path);
     if (!xml) return undefined;
-    const model = readChartXml(xml);
-    const el: ChartEl = { kind: 'chart', ...common, ...(xfrm ? { xfrm } : {}), chart: model.chart };
+    const model = readChartPart(xml);
+    if ('skip' in model) ctx.warn(`Un gráfico no se pudo interpretar (${model.skip}); se conserva sin cambios.`);
+    const el: ChartEl = { kind: 'chart', ...common, ...(xfrm ? { xfrm } : {}), chart: 'skip' in model ? { type: 'column', legend: false, series: [] } : model.spec, grid: 'skip' in model ? [] : model.grid };
     // keep chart part, its rels and the embedded workbook untouched
     const raw: Record<string, Uint8Array> = {};
     const b = ctx.bytes(path);
@@ -407,6 +408,9 @@ export function readTree(tree: XNode, ctx: ElementCtx): SlideElement[] {
         const fb = findKid(n, 'Fallback');
         const ch = findKid(n, 'Choice');
         const req = attrOf(ch ?? {}, 'Requires') ?? '';
+        // un gráfico de Office 2016 (cascada, embudo…) solo está en la opción; la alternativa es un rectángulo con un aviso
+        const gf = ch ? findKid(ch, 'graphicFrame') : undefined;
+        if (gf && /chartex$/.test(attrOf(findKid(findKid(gf, 'graphic'), 'graphicData') ?? {}, 'uri') ?? '')) return handle(gf);
         // prefer the fallback (plain old elements); the choice is used when there is no fallback
         const src = fb ?? (KNOWN_REQUIRES.has(req) ? ch : undefined);
         if (src) for (const k of kidsOf(src)) handle(k);

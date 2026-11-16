@@ -1,10 +1,14 @@
 import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { applyHeaderFooter, docText, headerFooterOf, newChart, newTable, SAMPLE_CHART, updateElement, type ChartModel, type ChartSeries, type Hyperlink, type HeaderFooterSpec, type SlideElement } from '@suitenova/slides-core';
+import { applyHeaderFooter, chainFor, clrCss, colorContext, docText, headerFooterOf, newChart, newTable, sampleChart, updateElement, type Hyperlink, type HeaderFooterSpec, type SlideElement } from '@suitenova/slides-core';
+import { ChartEditor, useBuilt } from '../chart/ChartEditor';
+import { draftOf, type ChartDraft } from '../chart/draft';
 import { useMemo, useState } from 'react';
 import type { SlidesUI } from './commands';
 import { Modal } from './Dialogs';
 import { applyRun } from './textcmds';
+
+const ACCENTS = ['accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6'] as const;
 
 type P = { ui: SlidesUI; onClose: () => void; arg?: unknown };
 
@@ -196,80 +200,22 @@ export function TableDialog({ ui, onClose }: P) {
 
 // ------------------------------------------------------------------------------------------------ chart
 
-const CHART_TYPES: { id: string; label: string; kind: string; barDir?: 'col' | 'bar'; grouping?: string }[] = [
-  { id: 'col', label: 'Columnas agrupadas', kind: 'bar', barDir: 'col', grouping: 'clustered' },
-  { id: 'colStack', label: 'Columnas apiladas', kind: 'bar', barDir: 'col', grouping: 'stacked' },
-  { id: 'bar', label: 'Barras agrupadas', kind: 'bar', barDir: 'bar', grouping: 'clustered' },
-  { id: 'barStack', label: 'Barras apiladas', kind: 'bar', barDir: 'bar', grouping: 'stacked' },
-  { id: 'line', label: 'Líneas', kind: 'line', grouping: 'standard' },
-  { id: 'area', label: 'Áreas', kind: 'area', grouping: 'standard' },
-  { id: 'pie', label: 'Circular', kind: 'pie' },
-  { id: 'doughnut', label: 'Anillos', kind: 'doughnut' },
-  { id: 'radar', label: 'Radial', kind: 'radar' },
-  { id: 'scatter', label: 'Dispersión (XY)', kind: 'scatter' },
-];
-
-const typeIdOf = (m: ChartModel): string => CHART_TYPES.find((x) => x.kind === m.kind.replace(/3D$/, '') && (x.kind !== 'bar' || (x.barDir === (m.barDir ?? 'col') && x.grouping === (m.grouping === 'stacked' || m.grouping === 'percentStacked' ? 'stacked' : 'clustered'))))?.id ?? 'col';
-
-/** The data of a chart as a sheet: first column categories (or X values), then one column per series. */
-function toGrid(m: ChartModel): string[][] {
-  const scatter = m.kind === 'scatter';
-  const n = Math.max(m.categories.length, ...m.series.map((s) => s.values.length), scatter ? Math.max(0, ...m.series.map((s) => s.xValues?.length ?? 0)) : 0);
-  const head = ['', ...m.series.map((s) => s.name)];
-  const rows: string[][] = [];
-  for (let i = 0; i < n; i++) rows.push([scatter ? String(m.series[0]?.xValues?.[i] ?? '') : (m.categories[i] ?? ''), ...m.series.map((s) => (s.values[i] === null || s.values[i] === undefined ? '' : String(s.values[i])))]);
-  return [head, ...rows];
-}
-
-function fromGrid(base: ChartModel, grid: string[][], kind: string): { cats: string[]; series: ChartSeries[] } {
-  const [head, ...rows] = grid;
-  const num = (s: string): number | null => {
-    const v = Number(s.replace(',', '.'));
-    return s.trim() === '' || !Number.isFinite(v) ? null : v;
-  };
-  const used = rows.filter((r) => r.some((x) => x.trim() !== ''));
-  const series: ChartSeries[] = head!.slice(1).map((name, j) => {
-    const old = base.series[j];
-    return { ...(old ?? {}), name: name || `Serie ${j + 1}`, values: used.map((r) => num(r[j + 1] ?? '')), ...(kind === 'scatter' ? { xValues: used.map((r) => num(r[0] ?? '')) } : { xValues: undefined }) };
-  });
-  return { cats: used.map((r) => r[0] ?? ''), series };
-}
-
 export function ChartDialog({ ui, onClose, arg }: P) {
   const c = ui.ctl;
   const existing = typeof arg === 'string' ? (c.element(arg) as Extract<SlideElement, { kind: 'chart' }> | null) : null;
-  const base: ChartModel = existing?.chart ?? SAMPLE_CHART;
-  const [type, setType] = useState(typeIdOf(base));
-  const [grid, setGrid] = useState<string[][]>(() => toGrid(base));
-  const [title, setTitle] = useState(base.title ?? '');
-  const [legend, setLegend] = useState<string>(base.legend === undefined ? 'b' : (base.legend ?? 'none'));
+  const sample = useMemo(() => sampleChart(), []);
+  const base = existing?.chart ?? sample.chart;
+  const [draft, setDraft] = useState<ChartDraft>(() => draftOf(base, existing?.grid ?? sample.grid));
+  const built = useBuilt(draft, existing?.chart);
+  const accents = useMemo(() => ACCENTS.map((k) => clrCss({ scheme: k }, colorContext(chainFor(c.deck, c.slide)))), []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const setCell = (r: number, k: number, v: string) => setGrid((g) => g.map((row, i) => (i === r ? row.map((x, j) => (j === k ? v : x)) : row)));
-  const addRow = () => setGrid((g) => [...g, g[0]!.map(() => '')]);
-  const addCol = () => setGrid((g) => g.map((row, i) => [...row, i === 0 ? `Serie ${row.length}` : '']));
-  const delRow = () => setGrid((g) => (g.length > 2 ? g.slice(0, -1) : g));
-  const delCol = () => setGrid((g) => (g[0]!.length > 2 ? g.map((row) => row.slice(0, -1)) : g));
-
-  const ct = CHART_TYPES.find((x) => x.id === type)!;
-  const ok = grid.length > 1 && grid[0]!.length > 1;
   const commit = () => {
-    const { cats, series } = fromGrid(base, grid, ct.kind);
-    const model: ChartModel = {
-      ...base,
-      kind: ct.kind,
-      barDir: ct.barDir,
-      grouping: ct.grouping,
-      categories: cats,
-      series,
-      title: title || undefined,
-      legend: legend === 'none' ? null : (legend as ChartModel['legend']),
-      varyColors: ct.kind === 'pie' || ct.kind === 'doughnut' ? true : base.varyColors,
-    };
-    if (existing) c.apply('Cambiar gráfico', (d) => updateElement(d, c.slide.id, existing.id, (e) => ({ ...e, chart: model, raw: undefined }) as SlideElement));
+    if (typeof built === 'string') return;
+    if (existing) c.apply('Cambiar gráfico', (d) => updateElement(d, c.slide.id, existing.id, (e) => ({ ...e, chart: built.spec, grid: built.grid, raw: undefined }) as SlideElement));
     else {
       const w = c.deck.size.w * 0.7;
       const h = c.deck.size.h * 0.65;
-      c.addElement(newChart(model, (c.deck.size.w - w) / 2, c.deck.size.h * 0.25, w, h));
+      c.addElement(newChart(built.spec, built.grid, (c.deck.size.w - w) / 2, c.deck.size.h * 0.25, w, h));
     }
     onClose();
   };
@@ -282,72 +228,11 @@ export function ChartDialog({ ui, onClose, arg }: P) {
       actions={
         <>
           <Button onClick={onClose}>{t('Cancelar')}</Button>
-          <Button appearance="primary" disabled={!ok} onClick={commit}>{t('Aceptar')}</Button>
+          <Button appearance="primary" disabled={typeof built === 'string'} onClick={commit}>{t('Aceptar')}</Button>
         </>
       }
     >
-      <div className="sl-form">
-        <div className="sl-form__row">
-          <label className="sl-field">
-            <span>{t('Tipo de gráfico')}</span>
-            <select value={type} onChange={(e) => setType(e.target.value)} aria-label={t('Tipo de gráfico')}>
-              {CHART_TYPES.map((x) => (
-                <option key={x.id} value={x.id}>{t(x.label)}</option>
-              ))}
-            </select>
-          </label>
-          <label className="sl-field">
-            <span>{t('Título del gráfico')}</span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} />
-          </label>
-          <label className="sl-field">
-            <span>{t('Leyenda')}</span>
-            <select value={legend} onChange={(e) => setLegend(e.target.value)} aria-label={t('Leyenda')}>
-              <option value="none">{t('Sin leyenda')}</option>
-              <option value="b">{t('Abajo')}</option>
-              <option value="t">{t('Arriba')}</option>
-              <option value="r">{t('A la derecha')}</option>
-              <option value="l">{t('A la izquierda')}</option>
-            </select>
-          </label>
-        </div>
-        <div className="sl-sheet" role="grid" aria-label={t('Datos del gráfico')}>
-          <table>
-            <thead>
-              <tr>
-                <th aria-hidden="true" />
-                {grid[0]!.map((h, k) => (
-                  <th key={k}>
-                    {k === 0 ? (
-                      <span>{ct.kind === 'scatter' ? t('Valores X') : t('Categorías')}</span>
-                    ) : (
-                      <input aria-label={t('Nombre de la serie {n}', { n: k })} value={h} onChange={(e) => setCell(0, k, e.target.value)} />
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {grid.slice(1).map((row, i) => (
-                <tr key={i}>
-                  <th scope="row">{i + 1}</th>
-                  {row.map((v, k) => (
-                    <td key={k}>
-                      <input aria-label={t('Fila {r}, columna {c}', { r: i + 1, c: k + 1 })} value={v} inputMode={k === 0 && ct.kind !== 'scatter' ? 'text' : 'decimal'} onChange={(e) => setCell(i + 1, k, e.target.value)} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="sl-form__row">
-          <Button size="small" onClick={addRow}>{t('Agregar fila')}</Button>
-          <Button size="small" onClick={delRow} disabled={grid.length <= 2}>{t('Quitar la última fila')}</Button>
-          <Button size="small" onClick={addCol}>{t('Agregar serie')}</Button>
-          <Button size="small" onClick={delCol} disabled={grid[0]!.length <= 2}>{t('Quitar la última serie')}</Button>
-        </div>
-      </div>
+      <ChartEditor draft={draft} onChange={setDraft} base={existing?.chart} accents={accents} />
     </Modal>
   );
 }

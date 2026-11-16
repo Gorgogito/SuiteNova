@@ -70,3 +70,15 @@ describe('libro mínimo incrustado', () => {
     expect(back[2]![2]).toBe('texto');
   });
 });
+
+describe('gráficos de Office 2016 sin fórmulas (PowerPoint y Word)', () => {
+  it('los datos guardados dentro del gráfico reciben referencias propias y salen como rejilla', () => {
+    const xml = '<cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="3"><cx:pt idx="0">a</cx:pt><cx:pt idx="1">b</cx:pt><cx:pt idx="2">c</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="3" formatCode="General"><cx:pt idx="0">5</cx:pt><cx:pt idx="1">-2</cx:pt><cx:pt idx="2">7</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="waterfall"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>';
+    const doc = dmlParser.parse(xml);
+    const r = parseChartEx(doc);
+    if (!('def' in r)) throw new Error('skip');
+    expect(r.def.series[0]!.values).toBe('Sheet1!$B$2:$B$4');
+    expect(r.literals?.get('Sheet1!$B$2:$B$4')).toEqual([5, -2, 7]);
+    expect(r.literals?.get('Sheet1!$A$2:$A$4')).toEqual(['a', 'b', 'c']);
+  });
+});

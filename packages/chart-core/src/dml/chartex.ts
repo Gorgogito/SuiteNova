@@ -3,7 +3,7 @@
  * Se escriben según el esquema de Office, pero no se han abierto en Excel; los que crea Excel se leen con lo que Nova Calc entiende.
  */
 import type { ChartSeries, ChartSpec, ChartType } from '../model';
-import type { ChartSource } from '../source';
+import type { ChartCell, ChartSource } from '../source';
 import { asArray, attr, escapeXml, textOf, type XNode } from './xml';
 
 export const NS_CX = 'http://schemas.microsoft.com/office/drawing/2014/chartex';
@@ -26,7 +26,7 @@ function numLevel(values: unknown[]): string {
   return `<cx:lvl ptCount="${values.length}" formatCode="General">${pts}</cx:lvl>`;
 }
 
-export function chartExXml(def: ChartSpec, src: ChartSource): string {
+export function chartExXml(def: ChartSpec, src: ChartSource, workbookRid?: string): string {
   const layoutId = LAYOUT[def.type] ?? 'waterfall';
   const dataBlocks: string[] = [];
   const seriesXml: string[] = [];
@@ -62,7 +62,7 @@ export function chartExXml(def: ChartSpec, src: ChartSource): string {
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
     `<cx:chartSpace xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:cx="${NS_CX}">` +
-    `<cx:chartData>${dataBlocks.join('')}</cx:chartData>` +
+    `<cx:chartData>${workbookRid ? `<cx:externalData r:id="${workbookRid}" cx:autoUpdate="0"/>` : ''}${dataBlocks.join('')}</cx:chartData>` +
     `<cx:chart>${title}<cx:plotArea><cx:plotAreaRegion>${seriesXml.join('')}</cx:plotAreaRegion>` +
     '<cx:axis id="0"><cx:catScaling gapWidth="0.5"/><cx:tickLabels/></cx:axis><cx:axis id="1"><cx:valScaling/><cx:majorGridlines/><cx:tickLabels/></cx:axis>' +
     `</cx:plotArea>${legend}</cx:chart></cx:chartSpace>`
@@ -78,7 +78,28 @@ const fText = (n: XNode): string | undefined => {
   return t ? t.replace(/^=/, '') : undefined;
 };
 
-export function parseChartEx(doc: XNode): { def: ChartSpec } | { skip: string } {
+/** Los puntos de un `cx:lvl` (los valores guardados dentro del propio gráfico). */
+function lvlCells(dim: XNode | undefined, numeric: boolean): ChartCell[] {
+  const lvl = asArray(dim?.lvl)[0];
+  const pts = asArray(lvl?.pt);
+  const out: ChartCell[] = Array.from({ length: Number(attr(lvl, 'ptCount') ?? pts.length) }, () => null);
+  for (const pt of pts) {
+    const i = Number(attr(pt, 'idx'));
+    if (!Number.isInteger(i) || i < 0) continue;
+    const t = textOf(pt);
+    const n = Number(t);
+    out[i] = numeric ? (t === '' || !Number.isFinite(n) ? null : n) : t;
+  }
+  return out;
+}
+
+const colLetter = (c: number): string => String.fromCharCode(65 + c);
+
+/**
+ * Interpreta un gráfico de Office 2016. PowerPoint y Word guardan a veces los datos solo dentro del gráfico, sin fórmulas: entonces
+ * se les da referencias propias (categorías en la columna A, una serie por columna) y los valores salen en `literals`.
+ */
+export function parseChartEx(doc: XNode): { def: ChartSpec; literals?: Map<string, ChartCell[]> } | { skip: string } {
   const space = doc?.chartSpace;
   const chart = space?.chart;
   const region = chart?.plotArea?.plotAreaRegion;
@@ -87,6 +108,7 @@ export function parseChartEx(doc: XNode): { def: ChartSpec } | { skip: string } 
   for (const d of asArray(space.chartData?.data)) dataById.set(attr(d, 'id') ?? '0', d);
 
   const series: ChartSeries[] = [];
+  const literals = new Map<string, ChartCell[]>();
   let type: ChartType | undefined;
   let extra: Partial<ChartSpec> = {};
   for (const s of asArray(region.series)) {
@@ -96,13 +118,27 @@ export function parseChartEx(doc: XNode): { def: ChartSpec } | { skip: string } 
     type ??= t;
     const data = dataById.get(attr(s.dataId, 'val') ?? '0');
     const num = asArray(data?.numDim).find((d: XNode) => attr(d, 'type') === 'val');
-    const values = fText(num?.f);
-    if (!values) return { skip: 'los datos del gráfico no son referencias a celdas' };
-    const ser: ChartSeries = { values };
+    let values = fText(num?.f);
     const cat = asArray(data?.strDim).find((d: XNode) => attr(d, 'type') === 'cat') ?? asArray(data?.numDim).find((d: XNode) => attr(d, 'type') === 'cat');
-    const cats = fText(cat?.f);
+    let cats = fText(cat?.f);
+    let nameRef = fText(s.tx?.txData?.f);
+    if (!values) {
+      // sin fórmulas: los datos son los del propio gráfico
+      if (!num?.lvl) return { skip: 'los datos del gráfico no son referencias a celdas' };
+      const vals = lvlCells(num, true);
+      const col = colLetter(series.length + 1);
+      values = `Sheet1!$${col}$2:$${col}$${vals.length + 1}`;
+      literals.set(values, vals);
+      if (cat?.lvl) {
+        const labels = lvlCells(cat, false);
+        cats = `Sheet1!$A$2:$A$${labels.length + 1}`;
+        literals.set(cats, labels);
+      }
+      nameRef = `Sheet1!$${col}$1`;
+      literals.set(nameRef, [s.tx?.txData?.v !== undefined ? textOf(s.tx.txData.v) : `Serie ${series.length + 1}`]);
+    }
+    const ser: ChartSeries = { values };
     if (cats) ser.categories = cats;
-    const nameRef = fText(s.tx?.txData?.f);
     if (nameRef) ser.nameRef = nameRef;
     else if (s.tx?.txData?.v !== undefined) ser.name = textOf(s.tx.txData.v);
     series.push(ser);
@@ -142,7 +178,7 @@ export function parseChartEx(doc: XNode): { def: ChartSpec } | { skip: string } 
   const def: Omit<ChartSpec, 'id' | 'x' | 'y' | 'width' | 'height'> = { type, legend: chart.legend !== undefined, series, ...extra };
   const title = chart.title?.tx?.txData?.v;
   if (title !== undefined) def.title = textOf(title);
-  return { def };
+  return literals.size ? { def, literals } : { def };
 }
 
 // ------------------------------------------------------------------------------------------------ estilo y colores

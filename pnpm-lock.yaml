@@ -507,6 +507,9 @@ importers:
 
   packages/slides-core:
     dependencies:
+      '@suitenova/chart-core':
+        specifier: workspace:*
+        version: link:../chart-core
       '@suitenova/shapes-core':
         specifier: workspace:*
         version: link:../shapes-core

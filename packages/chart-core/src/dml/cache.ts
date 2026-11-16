@@ -1,3 +1,5 @@
+import { parseRef, type ChartGrid } from '../grid';
+import type { ChartSpec } from '../model';
 import type { ChartCell } from '../source';
 import { asArray, attr, textOf, type XNode } from './xml';
 
@@ -58,4 +60,33 @@ export function readChartCaches(doc: XNode): Map<string, ChartCell[]> {
   };
   walk(doc);
   return out;
+}
+
+/**
+ * La rejilla de un gráfico a partir de sus valores en caché: cada referencia de cada serie (nombre, categorías, valores) se coloca
+ * en su rectángulo. Así Slides y Writer recuperan los datos sin abrir el libro incrustado, con la misma disposición que tenía.
+ */
+export function gridFromCaches(def: ChartSpec, caches: Map<string, ChartCell[]>): ChartGrid {
+  const grid: ChartGrid = [];
+  const put = (ref: string | undefined) => {
+    const p = ref ? parseRef(ref) : null;
+    const values = ref ? (caches.get(ref.trim().replace(/^=/, '')) ?? caches.get(ref)) : undefined;
+    if (!p || !values) return;
+    let i = 0;
+    for (let r = p.rect.r1; r <= p.rect.r2; r++)
+      for (let c = p.rect.c1; c <= p.rect.c2; c++) {
+        const v = values[i++] ?? null;
+        while (grid.length <= r) grid.push([]);
+        const row = grid[r]!;
+        while (row.length <= c) row.push(null);
+        row[c] = v;
+      }
+  };
+  for (const s of def.series) {
+    put(s.nameRef);
+    put(s.categories);
+    put(s.values);
+  }
+  for (const row of grid) for (let c = 0; c < row.length; c++) if (row[c] === undefined) row[c] = null;
+  return grid;
 }

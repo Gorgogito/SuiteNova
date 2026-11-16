@@ -1,4 +1,4 @@
-import { DEFAULT_3D, STOCK_SERIES, type Chart3D, type ChartDef, type ChartType, type StockKind } from '@suitenova/calc-engine';
+import { DEFAULT_3D, STOCK_SERIES, type Chart3D, type ChartSpec, type ChartType, type StockKind } from '@suitenova/chart-core';
 
 export interface ChartPreset {
   id: string;
@@ -8,9 +8,9 @@ export interface ChartPreset {
   type: ChartType;
   group: 'column' | 'bar' | 'line' | 'area' | 'pie' | 'scatter' | 'radar' | 'stock' | 'surface' | 'combo' | 'stats';
   /** What to set on the chart (series types and the rest of the flags are reset first). */
-  patch: (def: Pick<ChartDef, 'series'>) => Partial<ChartDef>;
+  patch: (def: Pick<ChartSpec, 'series'>) => Partial<ChartSpec>;
   /** A reason why the data cannot make this chart, in Spanish, or null. */
-  check?: (def: Pick<ChartDef, 'series'>) => string | null;
+  check?: (def: Pick<ChartSpec, 'series'>) => string | null;
 }
 
 const d3 = (over: Partial<Chart3D> = {}): Chart3D => ({ ...DEFAULT_3D, ...over });
@@ -21,14 +21,14 @@ const stock = (kind: StockKind): Pick<ChartPreset, 'patch' | 'check'> => ({
 function stockLabel(s: string): string {
   return { open: 'apertura', high: 'máximo', low: 'mínimo', close: 'cierre', volume: 'volumen' }[s] ?? s;
 }
-const needsTwo = (def: Pick<ChartDef, 'series'>) => (def.series.length >= 2 ? null : 'Un gráfico combinado necesita al menos dos series de datos.');
-const surfaceNeeds = (def: Pick<ChartDef, 'series'>) => (def.series.length >= 2 ? null : 'Un gráfico de superficie necesita al menos dos series (columnas de números).');
-const surface3d = (surface: ChartDef['surface']): Pick<ChartPreset, 'patch' | 'check'> => ({
+const needsTwo = (def: Pick<ChartSpec, 'series'>) => (def.series.length >= 2 ? null : 'Un gráfico combinado necesita al menos dos series de datos.');
+const surfaceNeeds = (def: Pick<ChartSpec, 'series'>) => (def.series.length >= 2 ? null : 'Un gráfico de superficie necesita al menos dos series (columnas de números).');
+const surface3d = (surface: ChartSpec['surface']): Pick<ChartPreset, 'patch' | 'check'> => ({
   patch: () => ({ surface, threeD: d3({ rotX: 25, rotY: 30, rightAngle: false, perspective: 30, depth: 100 }), legend: true }),
   check: surfaceNeeds,
 });
 
-const oneSeries = (what: string) => (def: Pick<ChartDef, 'series'>) => (def.series.length >= 1 ? null : `${what} necesita una serie de datos.`);
+const oneSeries = (what: string) => (def: Pick<ChartSpec, 'series'>) => (def.series.length >= 1 ? null : `${what} necesita una serie de datos.`);
 
 export const CHART_PRESETS: ChartPreset[] = [
   { id: 'column', label: 'Columnas agrupadas', icon: 'chartColumn', type: 'column', group: 'column', patch: () => ({}) },
@@ -97,11 +97,11 @@ export const CHART_PRESETS: ChartPreset[] = [
 export const presetById = (id: string): ChartPreset | undefined => CHART_PRESETS.find((p) => p.id === id);
 
 /** A chart with the settings of a preset applied; series refs and layout are kept. Returns the reason when the data does not fit. */
-export function applyPreset(def: ChartDef, preset: ChartPreset): ChartDef | string {
+export function applyPreset<T extends ChartSpec>(def: T, preset: ChartPreset): T | string {
   const reason = preset.check?.(def);
   if (reason) return reason;
   // start from a clean slate: forget everything a previous type set
-  const clean: ChartDef = {
+  const clean: T = {
     ...def,
     type: preset.type,
     stacked: undefined,
@@ -117,14 +117,14 @@ export function applyPreset(def: ChartDef, preset: ChartPreset): ChartDef | stri
     series: def.series.map((s) => ({ ...s, type: undefined, secondary: undefined })),
     axisY2: undefined,
   };
-  const patched = { ...clean, ...preset.patch(clean) };
+  const patched: T = { ...clean, ...preset.patch(clean) };
   if (preset.type === 'pie' || preset.type === 'doughnut') patched.series = patched.series.slice(0, 1);
   // a combined chart that came out with the same type in every series is just that chart
   return patched;
 }
 
 /** Which preset describes a chart (for the "checked" state of the type menu). */
-export function presetOf(def: ChartDef): string {
+export function presetOf(def: ChartSpec): string {
   const types = new Set(def.series.map((s) => s.type ?? ''));
   const combo = types.size > 1 || def.series.some((s) => s.secondary);
   if (combo) return def.series.some((s) => s.secondary) ? 'combo' : def.series.some((s) => s.type === 'area') ? 'comboArea' : 'comboLine';

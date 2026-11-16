@@ -1,0 +1,15 @@
+.nc-form { display: flex; flex-direction: column; gap: 10px; }
+.nc-form__row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.nc-form__body { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
+.nc-form__data { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.nc-field { display: flex; flex-direction: column; gap: 2px; font-size: 13px; flex: 1; min-width: 140px; }
+.nc-field input, .nc-field select { height: 28px; box-sizing: border-box; font: inherit; padding: 0 6px; }
+.nc-check { display: flex; gap: 6px; align-items: center; font-size: 13px; height: 28px; }
+.nc-sheet { max-height: 300px; overflow: auto; border: 1px solid var(--colorNeutralStroke2); }
+.nc-sheet table { border-collapse: collapse; width: 100%; }
+.nc-sheet th, .nc-sheet td { border: 1px solid var(--colorNeutralStroke2); padding: 0; font-weight: 400; font-size: 12px; }
+.nc-sheet th[scope=row] { width: 28px; text-align: center; background: var(--colorNeutralBackground3); }
+.nc-sheet input { width: 100%; min-width: 80px; height: 24px; border: 0; box-sizing: border-box; padding: 0 6px; font: inherit; background: transparent; color: inherit; }
+.nc-preview { border: 1px solid var(--colorNeutralStroke2); background: #fff; min-height: 232px; display: flex; align-items: center; justify-content: center; }
+.nc-preview__error { margin: 8px; font-size: 13px; color: #8a1f11; }
+@media (max-width: 900px) { .nc-form__body { grid-template-columns: 1fr; } }
