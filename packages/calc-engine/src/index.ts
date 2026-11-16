@@ -13,6 +13,7 @@ export { DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT, Workbook, type ArrayLikeValue, t
 export { ES_FUNCTIONS, canonicalFormula, canonicalFunctionName, localizeFormula, localizedFunctionName, type FormulaLocale } from './locale';
 export type { PrintOptions } from './formula';
 export { adjustChartRefs, colAtPx, colOffsetPx, rangeText, readRangeValues, renameChartRefs, resolveRangeText, rowAtPx, rowOffsetPx, suggestChart, DEFAULT_3D, SERIES_TYPES, STOCK_SERIES, type Chart3D, type ChartAxis, type ChartDef, type ChartSeries, type ChartType, type SeriesType, type StockKind } from './charts';
+export { chartSource } from './chart-source';
 export { CFEvaluator, CF_PERIODS, ICON_COUNTS, adjustCFRules, defaultIconThresholds, newRuleId, nextPriority, shiftRect, type CFFormat, type CFKind, type CFOperator, type CFResult, type CFRule, type CFValue, type IconSetName } from './cf';
 export { applyAutoFilter, cellKeyText, columnValues, filterCounts, hasActiveFilter, isRowHidden, rowPasses, type AutoFilter, type ColumnFilter, type ColumnValue, type DynamicFilter, type FilterCondition, type FilterOp } from './filter';
 export {

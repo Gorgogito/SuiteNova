@@ -2,6 +2,7 @@ import {
   BUILTIN_FORMATS,
   CalcError,
   MAX_COLS,
+  chartSource,
   formatA1,
   formatRect,
   keyCol,
@@ -13,8 +14,8 @@ import {
   type Workbook,
 } from '@suitenova/calc-engine';
 import JSZip from 'jszip';
-import { CT_CHARTEX, REL_CHARTEX, chartExXml, isExType } from './chartex-io';
-import { chartXml, drawingXml, type DrawingItem } from './charts-io';
+import { CT_CHARTEX, REL_CHARTEX, chartExXml, chartXml, isExType } from '@suitenova/chart-core';
+import { drawingXml, type DrawingItem } from './charts-io';
 import { PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel } from '@suitenova/smartart-core';
 import { commentsXml, hyperlinksXml, pageXml, printNames, sparklinesExtXml, tableXml, validationsXml, vmlXml } from './objects-io';
 import { toFileFormula } from './fileformula';
@@ -380,11 +381,11 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
         const rid = `rId${drawingRels.length + 1}`;
         if (isExType(c.type)) {
           drawingRels.push({ id: rid, type: REL_CHARTEX, target: `../charts/chartEx${k}.xml` });
-          put(`xl/charts/chartEx${k}.xml`, chartExXml(c, wb, sheet.id));
+          put(`xl/charts/chartEx${k}.xml`, chartExXml(c, chartSource(wb, sheet.id)));
           types.push(`<Override PartName="/xl/charts/chartEx${k}.xml" ContentType="${CT_CHARTEX}"/>`);
         } else {
           drawingRels.push({ id: rid, type: `${NS_REL}/chart`, target: `../charts/chart${k}.xml` });
-          put(`xl/charts/chart${k}.xml`, chartXml(c, wb, sheet.id));
+          put(`xl/charts/chart${k}.xml`, chartXml(c, chartSource(wb, sheet.id)));
           types.push(`<Override PartName="/xl/charts/chart${k}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`);
         }
         items.push({ kind: 'chart', ex: isExType(c.type), rId: rid, x: c.x, y: c.y, width: c.width, height: c.height, name: `Gráfico ${i + 1}` });

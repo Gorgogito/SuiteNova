@@ -11,7 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "echarts": "^6.1.0"
+    "echarts": "^6.1.0",
+    "fast-xml-parser": "^5.2.0",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

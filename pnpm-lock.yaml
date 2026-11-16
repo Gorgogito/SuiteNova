@@ -379,6 +379,12 @@ importers:
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
+      fast-xml-parser:
+        specifier: ^5.2.0
+        version: 5.11.2
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -634,6 +640,9 @@ importers:
       '@suitenova/calc-engine':
         specifier: workspace:*
         version: link:../calc-engine
+      '@suitenova/chart-core':
+        specifier: workspace:*
+        version: link:../chart-core
       '@suitenova/shapes-core':
         specifier: workspace:*
         version: link:../shapes-core

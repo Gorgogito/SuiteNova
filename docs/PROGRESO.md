@@ -62,6 +62,6 @@ Decisiones del usuario: motor compartido `smartart-core`, vinculado a los datos,
 ## Subproducto Gráficos (2026-11-16)
 Decisiones del usuario: motor compartido `chart-core` (Slides y Calc migran), datos de Slides/Writer en rejilla propia con libro mínimo incrustado, todos los tipos de Calc, orden motor → Calc → Slides → Writer. Diseño y fases en `docs/diseno-graficos.md`.
 - [x] **Fase 1 HECHA:** `packages/chart-core` (modelo `ChartSpec`, tendencias y estadísticos, opción de echarts, 3D, SVG; `ChartData` como única entrada, sin libro); Calc lo importa con envoltorios (`chartOption.ts`, `chartRender.ts`); 26 pruebas y las 9 e2e de Calc en verde.
-- [ ] Fase 2: formato DrawingML (`c:chartSpace`, `cx:chartSpace`) con caché y libro mínimo.
+- [x] **Fase 2 HECHA:** `chart-core/src/dml` (`chartXml`/`parseChart`, `chartExXml`/`parseChartEx`, tendencias y barras de error, caché `readChartCaches`, libro mínimo `writeGridWorkbook`/`readGridWorkbook`), `ChartSource` y `chartData` genéricos, rejilla (`grid.ts`); `xlsx-io` solo conserva el ancla; Excel real abre el libro mínimo; 33 pruebas en `chart-core`.
 - [ ] Fase 3: Calc sobre el motor y comprobación con Excel real.
 - [ ] Fase 4: Slides. · [ ] Fase 5: Writer. · [ ] Fase 6: cierre.

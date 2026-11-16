@@ -23,9 +23,9 @@ import {
 } from '@suitenova/calc-engine';
 import JSZip from 'jszip';
 import { DEFAULT_THEME, resolveColor, type ColorSpec } from './colors';
-import { parseChartEx } from './chartex-io';
+import { parseChart, parseChartEx } from '@suitenova/chart-core';
 import { parseGroup, parseShape } from './shapes-io';
-import { anchorToRect, parseChart } from './charts-io';
+import { anchorToRect } from './charts-io';
 import { applySuitePart } from './suite-part';
 import { parseAutoFilter, parseConditionalFormatting, parseDxfs } from './filter-cf-io';
 import { parseComments, parseHyperlinks, parseSparklines, parseTable, parseThreaded, parseValidations, readPage, parseX14Validations } from './objects-io';

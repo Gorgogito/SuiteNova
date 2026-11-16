@@ -1,5 +1,7 @@
 /** Líneas de tendencia (`c:trendline`) y barras de error (`c:errBars`) de una serie de gráfico, en XLSX. */
-import { readRangeValues, type ChartSeries, type ErrorBars, type ErrorKind, type TrendType, type Trendline, type Workbook } from '@suitenova/calc-engine';
+import type { ChartSeries } from '../model';
+import type { ErrorBars, ErrorKind, TrendType, Trendline } from '../fit';
+import type { ChartSource } from '../source';
 import { asArray, attr, escapeXml, type XNode } from './xml';
 
 const hex = (c: string) => c.replace('#', '').toUpperCase();
@@ -32,11 +34,11 @@ export function trendlinesXml(s: ChartSeries): string {
 }
 
 /** `plus`/`minus` personalizados: un rango se escribe con su caché; una lista o un número, como literal. */
-function customXml(tag: 'plus' | 'minus', text: string | undefined, wb: Workbook, sheetId: number): string {
+function customXml(tag: 'plus' | 'minus', text: string | undefined, src: ChartSource): string {
   if (!text) return '';
   const t = text.trim().replace(/^=/, '');
   if (t.includes('!') || /^[A-Za-z$]+\$?\d/.test(t)) {
-    const vals = readRangeValues(wb, t, sheetId);
+    const vals = src.range(t).values;
     const pts = vals.map((v, i) => (typeof v === 'number' ? `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>` : '')).join('');
     return `<c:${tag}><c:numRef><c:f>${escapeXml(t)}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${vals.length}"/>${pts}</c:numCache></c:numRef></c:${tag}>`;
   }
@@ -44,9 +46,9 @@ function customXml(tag: 'plus' | 'minus', text: string | undefined, wb: Workbook
   return `<c:${tag}><c:numLit><c:formatCode>General</c:formatCode><c:ptCount val="${nums.length}"/>${nums.map((v, i) => `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`).join('')}</c:numLit></c:${tag}>`;
 }
 
-function errBarXml(eb: ErrorBars, dir: 'x' | 'y', kind: 'scatter' | 'line' | 'other', wb: Workbook, sheetId: number): string {
+function errBarXml(eb: ErrorBars, dir: 'x' | 'y', kind: 'scatter' | 'line' | 'other', src: ChartSource): string {
   const val = eb.kind === 'custom' ? '' : `<c:val val="${eb.value ?? (eb.kind === 'percent' ? 5 : 1)}"/>`;
-  const cust = eb.kind === 'custom' ? customXml('plus', eb.direction === 'minus' ? undefined : eb.plus, wb, sheetId) + customXml('minus', eb.direction === 'plus' ? undefined : (eb.minus ?? eb.plus), wb, sheetId) : '';
+  const cust = eb.kind === 'custom' ? customXml('plus', eb.direction === 'minus' ? undefined : eb.plus, src) + customXml('minus', eb.direction === 'plus' ? undefined : (eb.minus ?? eb.plus), src) : '';
   return (
     '<c:errBars>' +
     (kind === 'scatter' ? `<c:errDir val="${dir}"/>` : kind === 'line' ? '<c:errDir val="y"/>' : '') +
@@ -55,8 +57,8 @@ function errBarXml(eb: ErrorBars, dir: 'x' | 'y', kind: 'scatter' | 'line' | 'ot
   );
 }
 
-export function errBarsXml(s: ChartSeries, kind: 'scatter' | 'line' | 'other', wb: Workbook, sheetId: number): string {
-  return (s.errX && kind === 'scatter' ? errBarXml(s.errX, 'x', kind, wb, sheetId) : '') + (s.errY ? errBarXml(s.errY, 'y', kind, wb, sheetId) : '');
+export function errBarsXml(s: ChartSeries, kind: 'scatter' | 'line' | 'other', src: ChartSource): string {
+  return (s.errX && kind === 'scatter' ? errBarXml(s.errX, 'x', kind, src) : '') + (s.errY ? errBarXml(s.errY, 'y', kind, src) : '');
 }
 
 // ------------------------------------------------------------------------------------------ reading

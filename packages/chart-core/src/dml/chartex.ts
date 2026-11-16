@@ -2,7 +2,8 @@
  * Gráficos de Excel 2016 («chartex», espacio de nombres `cx`): cascada, embudo, histograma y cajas y bigotes.
  * Se escriben según el esquema de Office, pero no se han abierto en Excel; los que crea Excel se leen con lo que Nova Calc entiende.
  */
-import { readRangeValues, type ChartDef, type ChartSeries, type ChartType, type Workbook } from '@suitenova/calc-engine';
+import type { ChartSeries, ChartSpec, ChartType } from '../model';
+import type { ChartSource } from '../source';
 import { asArray, attr, escapeXml, textOf, type XNode } from './xml';
 
 export const NS_CX = 'http://schemas.microsoft.com/office/drawing/2014/chartex';
@@ -25,14 +26,14 @@ function numLevel(values: unknown[]): string {
   return `<cx:lvl ptCount="${values.length}" formatCode="General">${pts}</cx:lvl>`;
 }
 
-export function chartExXml(def: ChartDef, wb: Workbook, sheetId: number): string {
+export function chartExXml(def: ChartSpec, src: ChartSource): string {
   const layoutId = LAYOUT[def.type] ?? 'waterfall';
   const dataBlocks: string[] = [];
   const seriesXml: string[] = [];
   def.series.forEach((s, i) => {
-    const vals = readRangeValues(wb, s.values, sheetId);
-    const cats = s.categories ? readRangeValues(wb, s.categories, sheetId) : [];
-    const name = s.nameRef ? String(readRangeValues(wb, s.nameRef, sheetId)[0] ?? '') : (s.name ?? '');
+    const vals = src.range(s.values).values;
+    const cats = s.categories ? src.range(s.categories).values : [];
+    const name = s.nameRef ? String(src.range(s.nameRef).values[0] ?? '') : (s.name ?? '');
     dataBlocks.push(
       `<cx:data id="${i}">` +
         (s.categories ? `<cx:strDim type="cat"><cx:f>${escapeXml(s.categories)}</cx:f>${strLevel(cats)}</cx:strDim>` : '') +
@@ -77,7 +78,7 @@ const fText = (n: XNode): string | undefined => {
   return t ? t.replace(/^=/, '') : undefined;
 };
 
-export function parseChartEx(doc: XNode): { def: Omit<ChartDef, 'id' | 'x' | 'y' | 'width' | 'height'> } | { skip: string } {
+export function parseChartEx(doc: XNode): { def: ChartSpec } | { skip: string } {
   const space = doc?.chartSpace;
   const chart = space?.chart;
   const region = chart?.plotArea?.plotAreaRegion;
@@ -87,7 +88,7 @@ export function parseChartEx(doc: XNode): { def: Omit<ChartDef, 'id' | 'x' | 'y'
 
   const series: ChartSeries[] = [];
   let type: ChartType | undefined;
-  let extra: Partial<ChartDef> = {};
+  let extra: Partial<ChartSpec> = {};
   for (const s of asArray(region.series)) {
     const layout = attr(s, 'layoutId') ?? '';
     const t = TYPE_BY_LAYOUT[layout];
@@ -112,7 +113,7 @@ export function parseChartEx(doc: XNode): { def: Omit<ChartDef, 'id' | 'x' | 'y'
       extra = { waterfall: { ...(totals.length ? { totals } : {}), connectors: true } };
     } else if (t === 'histogram') {
       const b = lp?.binning;
-      const h: NonNullable<ChartDef['histogram']> = {};
+      const h: NonNullable<ChartSpec['histogram']> = {};
       if (b) {
         const size = Number(attr(b.binSize, 'val'));
         const count = Number(attr(b.binCount, 'val'));
@@ -138,7 +139,7 @@ export function parseChartEx(doc: XNode): { def: Omit<ChartDef, 'id' | 'x' | 'y'
     }
   }
   if (!series.length || !type) return { skip: 'gráfico de Excel 2016 sin series' };
-  const def: Omit<ChartDef, 'id' | 'x' | 'y' | 'width' | 'height'> = { type, legend: chart.legend !== undefined, series, ...extra };
+  const def: Omit<ChartSpec, 'id' | 'x' | 'y' | 'width' | 'height'> = { type, legend: chart.legend !== undefined, series, ...extra };
   const title = chart.title?.tx?.txData?.v;
   if (title !== undefined) def.title = textOf(title);
   return { def };
