@@ -353,6 +353,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         items: [
           { kind: 'button', command: 'writer.find', size: 'large', keytip: 'FD' },
           { kind: 'button', command: 'writer.replace', size: 'large', keytip: 'R' },
+          { kind: 'button', command: 'writer.selectObjects', size: 'small', keytip: 'SO' },
         ],
       },
     ],

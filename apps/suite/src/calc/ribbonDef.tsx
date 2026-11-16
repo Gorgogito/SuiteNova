@@ -434,6 +434,7 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
               { kind: 'command', command: 'calc.find' },
               { kind: 'command', command: 'calc.replace' },
               { kind: 'command', command: 'calc.goto' },
+              { kind: 'command', command: 'calc.selectObjects' },
             ],
           },
         ],

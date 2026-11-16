@@ -2,6 +2,8 @@ import { registerMessages } from '@suitenova/core-ui';
 
 // English text for equations, shapes, forms, mail merge, templates, spelling, signature, encryption, formats and macros.
 registerMessages('en', {
+  'Seleccionar objetos': 'Select Objects',
+  'Arrastra sobre el documento para elegir con un recuadro las formas que quedan dentro (Ctrl o Mayús suman). Esc o este mismo comando vuelven a escribir.': 'Drag over the document to pick the shapes inside the box (Ctrl or Shift add). Esc or this same command goes back to typing.',
   'NO COPIAR': 'DO NOT COPY',
   'No se pudo leer la lista: {error}': 'The list could not be read: {error}',
   'Lista escrita a mano': 'Typed list',

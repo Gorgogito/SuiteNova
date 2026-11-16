@@ -28,6 +28,8 @@ registerMessages('en', {
   'Une las formas seleccionadas (Ctrl+clic para elegir varias) para moverlas, cambiar su tamaño y girarlas como un bloque.': 'Joins the selected shapes (Ctrl+click to pick several) so they move, resize and rotate as one block.',
   'Separa el grupo de formas seleccionado en formas independientes.': 'Splits the selected group into separate shapes.',
   'Girar': 'Rotate',
+  'Seleccionar objetos': 'Select Objects',
+  'Arrastra sobre la hoja para elegir con un recuadro las formas que quedan dentro (Ctrl o Mayús suman). Esc o este mismo comando vuelven a elegir celdas.': 'Drag over the sheet to pick the shapes inside the box (Ctrl or Shift add). Esc or this same command goes back to picking cells.',
   'Organizar': 'Arrange',
   'Girar a la derecha': 'Rotate Right',
   'Girar a la izquierda': 'Rotate Left',

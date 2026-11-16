@@ -195,6 +195,8 @@ export class WriterCtl {
   category?: string;
   pageSpecs: PageSpec[] = [{ section: 0, blank: false, notes: [], number: 1, inSection: 0 }];
   showMarks = false;
+  /** Modo «Seleccionar objetos»: arrastrar elige con un recuadro las formas que quedan dentro. */
+  selectObjects = false;
   /** Autocorrección al escribir (se guarda en este equipo). */
   autoCorrect: AutoCorrectOptions = loadAutoCorrect();
   /** «Copiar formato» activo: el formato copiado se aplica a la próxima selección. */

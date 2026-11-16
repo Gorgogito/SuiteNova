@@ -47,3 +47,4 @@ Decisiones del usuario: motor compartido `wordart-core`, deformación real de le
 ## Otros subproductos de Office (lista del usuario: ver `SubProductos.png` / `Pruductos.png`)
 Se abordan de uno en uno; registrar aquí cada uno al empezarlo.
 - [x] **Fuentes en Tauri HECHO (2026-11-16):** probado en la app real (WebView2 por CDP): `queryLocalFonts()` no responde (permiso en «prompt»). Plan B implementado: `src-tauri/src/fonts.rs` (`system_fonts`, `system_font_bytes`), `LocalFontSource` con proveedor inyectable, `scripts/probe-tauri-fonts.mjs` (OK: 275 fuentes, Writer dibuja WordArt).
+- [x] **Selección por recuadro HECHA (2026-11-16)** en Calc y Writer: modo «Seleccionar objetos» (ver sección 14 de `docs/diseno-agrupar-writer.md`). Pendiente de Formas: imágenes dentro de grupos de Writer (necesita diseño y aprobación), editar relleno de una hija sin desagrupar.

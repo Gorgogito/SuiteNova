@@ -300,6 +300,62 @@ await check('grupos: Ctrl+clic, agrupar, mover/redimensionar/girar como bloque, 
   assert.equal((await shapes()).length, n0 - 2);
 });
 
+await check('Seleccionar objetos: recuadro elige las formas que quedan dentro, Ctrl suma, un clic vacío deselecciona, Esc sale', async () => {
+  const [a, b, c] = await ev(() => {
+    const d = window.__novaCalc.doc;
+    d.wb.editObjects(d.activeSheetId, (sh) => void (sh.shapes = []));
+    const ids = [d.x.insertShape('rect'), d.x.insertShape('ellipse'), d.x.insertShape('rect')];
+    d.x.updateShape(ids[0], { x: 600, y: 300, width: 100, height: 60 });
+    d.x.updateShape(ids[1], { x: 760, y: 380, width: 80, height: 80 });
+    d.x.updateShape(ids[2], { x: 1000, y: 300, width: 100, height: 60 });
+    d.x.selectObject(null, null);
+    return ids;
+  });
+  await page.waitForTimeout(300);
+  const selected = () => ev(() => [...window.__novaCalc.doc.x.selectedShapes].sort());
+  const layer = await page.locator('.calc-charts').boundingBox();
+  const drag = async (x1, y1, x2, y2, mod) => {
+    if (mod) await page.keyboard.down(mod);
+    await page.mouse.move(layer.x + x1, layer.y + y1);
+    await page.mouse.down();
+    await page.mouse.move(layer.x + (x1 + x2) / 2, layer.y + (y1 + y2) / 2, { steps: 4 });
+    await page.mouse.move(layer.x + x2, layer.y + y2, { steps: 4 });
+    await page.mouse.up();
+    if (mod) await page.keyboard.up(mod);
+    await page.waitForTimeout(250);
+  };
+  // el modo se activa desde la cinta: Inicio › Buscar › Seleccionar objetos
+  await page.getByRole('tab', { name: 'Inicio', exact: true }).click();
+  // a 1400 px el grupo «Edición» está colapsado: se abre primero
+  if (!(await page.getByRole('button', { name: 'Buscar', exact: true }).count())) await page.getByRole('button', { name: 'Edición', exact: true }).click();
+  await page.getByRole('button', { name: 'Buscar', exact: true }).first().click();
+  await page.getByRole('menuitem', { name: 'Seleccionar objetos' }).click();
+  await page.waitForTimeout(250);
+  assert.equal(await ev(() => window.__novaCalc.doc.x.selectMode), true);
+  // un recuadro que contiene A y B pero no C
+  await drag(560, 260, 900, 500);
+  assert.deepEqual(await selected(), [a, b].sort());
+  assert.equal(await page.locator('[data-group-frame]').count(), 1, 'se ve el marco de la selección múltiple');
+  await shot('recuadro');
+  // un recuadro que solo corta a C (no lo encierra) no selecciona nada
+  await drag(950, 280, 1050, 330);
+  assert.deepEqual(await selected(), []);
+  // Ctrl suma a lo elegido
+  await drag(560, 260, 720, 380);
+  assert.deepEqual(await selected(), [a]);
+  await drag(960, 260, 1150, 400, 'Control');
+  assert.deepEqual(await selected(), [a, c].sort());
+  // un clic en vacío deselecciona
+  await page.mouse.click(layer.x + 300, layer.y + 150);
+  await page.waitForTimeout(200);
+  assert.deepEqual(await selected(), []);
+  // Esc vuelve al modo normal y se pueden elegir celdas otra vez
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  assert.equal(await ev(() => window.__novaCalc.doc.x.selectMode), false);
+  assert.equal(await page.locator('[data-select-objects]').count(), 0);
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors.filter((e) => !/Keyborg/.test(e)), []);
 });

@@ -26,6 +26,7 @@ import './messages-image';
 import { selectedImage } from './commands-image';
 import { selectedShapePositions } from './shape-selection';
 import { PageOverlay } from './PageOverlay';
+import { startShapeMarquee } from './shape-marquee';
 import { LineNumbersLayer } from './LineNumbers';
 import { ZonesLayer } from './ZonesLayer';
 import { NavPane } from './NavPane';
@@ -224,6 +225,19 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Esc sale del modo «Seleccionar objetos» aunque el foco no esté en el documento
+  const selecting = ctl.selectObjects;
+  useEffect(() => {
+    if (!selecting) return;
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      ctl.selectObjects = false;
+      ctl.touch();
+    };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [selecting, ctl]);
 
   useEffect(() => {
     ctl.onDialog = (k, arg) => {
@@ -519,7 +533,11 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
             {!web && ctl.showRuler && <VRuler ctl={ctl} zoom={zoom} />}
             <div
               ref={sheetRef}
-              className={`nw-sheet nw-view-${ctl.viewMode} nw-mk-${ctl.markup}${ctl.showMarks ? ' nw-marks' : ''}${ctl.hfEdit ? ' nw-hf-editing' : ''}`}
+              // en captura, para que el editor no mueva el cursor (y se pierda la selección) cuando el recuadro empieza dentro del texto
+              onMouseDownCapture={(e) => {
+                if (ctl.selectObjects && ctl.mainView && startShapeMarquee(ctl.mainView, e.nativeEvent)) e.stopPropagation();
+              }}
+              className={`nw-sheet nw-view-${ctl.viewMode} nw-mk-${ctl.markup}${ctl.showMarks ? ' nw-marks' : ''}${ctl.selectObjects ? ' nw-selecting' : ''}${ctl.hfEdit ? ' nw-hf-editing' : ''}`}
               style={{ width: web ? undefined : sheetW, height: web ? undefined : total, ...(web ? { zoom: z } : { transform: `scale(${z})` }), ['--nw-gap' as string]: `${PAGE_GAP}px`, ['--nw-sheet-w' as string]: `${sheetW}px` }}
             >
               {!web && <PageOverlay ctl={ctl} />}

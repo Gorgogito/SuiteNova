@@ -469,3 +469,19 @@
   overflow: visible;
   pointer-events: none;
 }
+
+/* ---- modo «Seleccionar objetos» ---- */
+.calc-selectcatch {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  cursor: crosshair;
+}
+.calc-marquee {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed #0f766e;
+  background: rgba(15, 118, 110, 0.1);
+  pointer-events: none;
+  z-index: 6;
+}

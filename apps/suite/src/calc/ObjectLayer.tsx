@@ -330,6 +330,49 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
   const slicers = doc.sheet.slicers;
   const shapes = doc.sheet.shapes;
   const [editingShape, setEditingShape] = useState<string | null>(null);
+  const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const layer = useRef<HTMLDivElement>(null);
+  const mode = doc.x.selectMode;
+  useEffect(() => {
+    if (!mode) return;
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && doc.x.setSelectMode(false);
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [mode, doc]);
+  /** Recuadro: elige las formas que quedan por completo dentro (como Excel); Ctrl o Mayús suman a la selección. */
+  const startMarquee = (e: React.PointerEvent) => {
+    const el = layer.current;
+    if (e.button !== 0 || !el) return;
+    e.preventDefault();
+    const base = el.getBoundingClientRect();
+    const sx = e.clientX - base.left;
+    const sy = e.clientY - base.top;
+    const add = e.ctrlKey || e.shiftKey || e.metaKey;
+    let box = { x: sx, y: sy, w: 0, h: 0 };
+    const move = (ev: PointerEvent) => {
+      const x = ev.clientX - base.left;
+      const y = ev.clientY - base.top;
+      box = { x: Math.min(sx, x), y: Math.min(sy, y), w: Math.abs(x - sx), h: Math.abs(y - sy) };
+      setMarquee(box);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setMarquee(null);
+      const inside = doc.sheet.shapes.filter((s) => {
+        const b = shapesBounds([s]);
+        const p = place(b);
+        return p.x >= box.x && p.y >= box.y && p.x + p.w <= box.x + box.w && p.y + p.h <= box.y + box.h;
+      });
+      if (box.w < 3 && box.h < 3) {
+        if (!add) doc.x.selectObject(null, null);
+        return;
+      }
+      doc.x.selectShapes(inside.map((s) => s.id), add);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const fw = colX(layout, layout.frozenCols);
   const fh = layout.rowAxis.offset(layout.frozenRows) * zoom;
   const place = (r: Rect4) => {
@@ -424,7 +467,9 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
   useEffect(() => undefined, []);
   if (!images.length && !slicers.length && !shapes.length) return null;
   return (
-    <div className="calc-charts" style={{ left: layout.headerW, top: layout.headerH }}>
+    <div ref={layer} className={`calc-charts${mode ? ' is-selecting' : ''}`} style={{ left: layout.headerW, top: layout.headerH }}>
+      {mode && <div className="calc-selectcatch" data-select-objects onPointerDown={startMarquee} />}
+      {marquee && <div className="calc-marquee" data-marquee style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }} />}
       {images.map((img: SheetImage) => {
         const r = imgBox.preview?.id === img.id ? imgBox.preview.r : { x: img.x, y: img.y, width: img.width, height: img.height };
         const p = place(r);

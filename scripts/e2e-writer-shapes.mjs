@@ -350,6 +350,77 @@ await check('el cuadro Formato de forma de un grupo cambia giro y tamaño, y no 
   assert.ok(g.first > 0);
 });
 
+await check('Seleccionar objetos: el recuadro elige las formas que quedan dentro, Ctrl suma, un clic en vacío deselecciona y Esc sale', async () => {
+  await editor.click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.press('Delete');
+  await page.keyboard.type('Texto del documento con formas.');
+  await page.evaluate(() => {
+    const v = window.__novaWriter.ctl.mainView;
+    const type = v.state.schema.nodes.shape;
+    const mk = (id, x, y, w, h) => type.create({ kind: 'rect', width: w, height: h, fill: '#bcd4f0', stroke: '#2b6cb0', strokeWidth: 1, wrap: 'front', x, y, id });
+    let tr = v.state.tr;
+    [mk('mA', 20, 70, 100, 60), mk('mB', 170, 130, 80, 80), mk('mC', 520, 70, 100, 60)].forEach((n) => (tr = tr.insert(1, n))); // siempre en la posición 1: en 2 caería dentro de la primera forma
+    v.dispatch(tr);
+  });
+  await page.waitForTimeout(400);
+  const ids = () => page.evaluate(() => {
+    const v = window.__novaWriter.ctl.mainView;
+    const sel = v.state.selection;
+    const multi = window.__novaWriter.ctl.mainView.state.plugins.find((p) => p.key.startsWith('shapeSelection'))?.getState(v.state) ?? [];
+    const pos = multi.length ? multi : sel.node && sel.node.type.name === 'shape' ? [sel.from] : [];
+    return pos.map((p) => v.state.doc.nodeAt(p).attrs.id).sort();
+  });
+  // las formas se miden justo antes de cada arrastre: al elegir una, la página puede desplazarse unos píxeles
+  const shapeRects = async () => {
+    const r = await page.evaluate(() => [...document.querySelectorAll('.ProseMirror .nw-shape')].map((e) => { const q = e.getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom }; }));
+    return r.sort((p, q) => p.l - q.l);
+  };
+  assert.equal((await shapeRects()).length, 3, 'tres formas');
+  const around = async (i, pad = 12) => {
+    const q = (await shapeRects())[i];
+    return [q.l - pad, q.t - pad, q.r + pad, q.b + pad];
+  };
+  const drag = async (x1, y1, x2, y2, mod) => {
+    if (mod) await page.keyboard.down(mod);
+    await page.mouse.move(x1, y1);
+    await page.mouse.down();
+    await page.mouse.move((x1 + x2) / 2, (y1 + y2) / 2, { steps: 4 });
+    await page.mouse.move(x2, y2, { steps: 4 });
+    await page.mouse.up();
+    if (mod) await page.keyboard.up(mod);
+    await page.waitForTimeout(250);
+  };
+  // se activa con el comando de la cinta (Inicio › Edición › Seleccionar objetos)
+  await page.getByRole('tab', { name: 'Inicio', exact: true }).click();
+  if (!(await page.locator('[data-nv-item="writer.selectObjects"]').count())) await page.getByRole('button', { name: 'Edición', exact: true }).click();
+  await page.locator('[data-nv-item="writer.selectObjects"]').click();
+  await page.waitForTimeout(250);
+  assert.equal(await page.evaluate(() => window.__novaWriter.ctl.selectObjects), true);
+  {
+    const [a1, b1] = [await around(0), await around(1)];
+    await drag(a1[0], a1[1], b1[2], b1[3]);
+  }
+  assert.equal((await ids()).length, 2, 'A y B');
+  await shot('recuadro');
+  {
+    const [x1, y1, x2, y2] = await around(2, 6);
+    await drag(x1, y1, x2 - 26, y2);
+  }
+  assert.equal((await ids()).length, 0, 'un recuadro que no encierra por completo no elige nada');
+  await drag(...(await around(0)));
+  assert.equal((await ids()).length, 1);
+  await drag(...(await around(2)), 'Control');
+  assert.equal((await ids()).length, 2, 'Ctrl suma');
+  {
+    const c = (await shapeRects())[2];
+    await drag(c.l - 250, c.t + 300, c.l - 249, c.t + 301); // dentro de la página, lejos de las formas
+  }
+  assert.equal((await ids()).length, 0, 'un clic en vacío deselecciona');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => window.__novaWriter.ctl.selectObjects), false);
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors, []);
 });

@@ -109,6 +109,26 @@ export class DocObjects {
     return this.selectedShape && exist.has(this.selectedShape) ? [this.selectedShape] : [];
   }
 
+  /** Modo «Seleccionar objetos»: arrastrar sobre la hoja dibuja un recuadro que elige las formas (en vez de elegir celdas). */
+  selectMode = false;
+  setSelectMode(on: boolean): void {
+    if (this.selectMode === on) return;
+    this.selectMode = on;
+    this.d.touch();
+  }
+
+  /** Elige varias formas a la vez (con sus grupos); `add` las suma a las ya elegidas. Una lista vacía sin `add` deselecciona. */
+  selectShapes(ids: string[], add = false): void {
+    const wanted = withGroupMates(this.sheet.shapes, ids);
+    const next = add ? [...this.selectedShapes, ...wanted.filter((i) => !this.selectedShapes.includes(i))] : wanted;
+    this.selectedImage = null;
+    this.selectedSlicer = null;
+    this.multiShapes = next.length > 1 ? next : [];
+    this.selectedShape = next[next.length - 1] ?? null;
+    if (next.length) this.d.selectedChart = null;
+    this.d.touch();
+  }
+
   /** Ctrl/Mayús+clic: añade o quita una forma (con su grupo) de la selección. */
   toggleShapeSelection(id: string): void {
     const current = this.selectedShapes;
