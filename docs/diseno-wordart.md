@@ -1,6 +1,6 @@
 # Diseño: WordArt compartido (Slides, Writer y Calc)
 
-Estado: **propuesta, pendiente de aprobación y de un dato que falta (sección 7)** (2026-11-15). No hay código escrito.
+Estado: **propuesta, pendiente de aprobación** (2026-11-15). El dato que faltaba (sección 7) **ya está en el repositorio y validado**. No hay código escrito.
 Decisiones del usuario (2026-11-15): **motor compartido**, **deformación real de las letras**, orden **motor → Writer → Calc**.
 
 ## 1. Qué es WordArt en Office
@@ -53,12 +53,18 @@ Sin interfaz, como `shapes-core`:
 Sin fuente disponible → transformación sobre trayectoria (la de hoy) y, si es una de las no dibujables, texto sin curvar con
 aviso; el archivo conserva siempre estilo y transformación. Nunca se pierde el texto editable.
 
-## 7. Lo que necesito antes de empezar (bloqueante)
-**`presetTextWarpDefinitions.xml`.** Viene en el mismo paquete de ECMA-376 que `presetShapeDefinitions.xml` (el de las formas, que ya
-está en `packages/slides-core/data/`). Opciones:
-1. **Tú lo copias** a `packages/wordart-core/data/` (recomendado: es la definición oficial, 41 transformaciones con sus ajustes).
-2. **Las escribo yo** a partir de la especificación para las ~20 más usadas y marco el resto como aproximadas. Más rápido, pero
-   no equivale a Office y no podré comprobarlo contra Office real.
+## 7. Definición de las transformaciones (RESUELTO)
+`packages/wordart-core/data/presetTextWarpDefinitions.xml` (51,6 KB, copiado por el usuario desde el paquete de ECMA-376). Validado:
+raíz `presetTextWarpDefinitions`, **40 transformaciones** (textArchDown/Up, textArchDownPour/UpPour, textButton, textButtonPour, textCanDown/Up,
+textCascadeDown/Up, textChevron, textChevronInverted, textCircle, textCirclePour, textCurveDown/Up, textDeflate (+Bottom, Top, Inflate,
+InflateDeflate), textDoubleWave1, textFadeDown/Left/Right/Up, textInflate (+Bottom, Top), textPlain, textRingInside/Outside,
+textSlantDown/Up, textStop, textTriangle, textTriangleInverted, textWave1/2/4). Cada una trae `avLst`, `gdLst`, `ahLst` y `pathLst`.
+Sin `rect` ni `cxnLst`.
+- **Mismo lenguaje que las formas:** las guías usan las mismas fórmulas (`*/`, `+-`, `pin`, `sin`, `cat2`…) y las trayectorias los mismos
+  comandos (`moveTo`, `arcTo`, `cubicBezTo`…). Se **reutiliza el evaluador de `shapes-core`** y su script de compilación (`build-presets.mjs`,
+  que hay que arreglar de paso: apunta a un `data/` que no existe) para generar un JSON de transformaciones.
+- **Dos modelos de curva:** una trayectoria (p. ej. `textArchUp`: el texto sigue un arco, con las letras giradas) o **dos** (p. ej. `textWave1`: curva
+  superior e inferior; el texto se deforma entre ambas = envolvente). Las variantes «Pour» (verter) y los anillos usan arcos.
 
 ## 8. Fases y pruebas
 1. **Motor** (`wordart-core`): extraer el modelo, catálogo, contornos, transformación y dibujo; Slides migra. Pruebas: envolventes
