@@ -5,6 +5,7 @@ import {
   newSparklineGroup,
   newValidation,
   parseA1,
+  suggestChart,
   type ChartDef,
   type Rect,
   type Scalar,
@@ -195,6 +196,72 @@ describe('hyperlinks, comments, pictures', () => {
     expect([...workbook.media.get(imgs[0]!.media)!.data]).toEqual([...png]);
     const zip = await JSZip.loadAsync(bytes);
     expect(Object.keys(zip.files).filter((n) => n.startsWith('xl/media/'))).toEqual(['xl/media/image1.png']);
+  });
+});
+
+describe('gráficos de Office 2016', () => {
+  it('llevan sus partes de estilo y de colores, sin las cuales Excel no abre el libro', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.transact(() => {
+      for (const [a, t] of Object.entries({ A1: 'Mes', B1: 'Ventas', A2: 'Ene', B2: '10', A3: 'Feb', B3: '14', A4: 'Mar', B4: '9' })) {
+        const p = parseA1(a)!;
+        w.setInput(id, p.row, p.col, t);
+      }
+    });
+    const base = suggestChart(w, id, rect('A1:B4'), 'waterfall')!;
+    w.editObjects(id, (s) => void s.charts.push({ ...base, id: 'c1', x: 10, y: 10, width: 300, height: 200 }));
+    const { bytes, workbook } = await roundTrip(w);
+    const zip = await JSZip.loadAsync(bytes);
+    for (const f of ['xl/charts/chartEx1.xml', 'xl/charts/style1.xml', 'xl/charts/colors1.xml', 'xl/charts/_rels/chartEx1.xml.rels']) expect(zip.file(f), f).toBeTruthy();
+    const rels = await zip.file('xl/charts/_rels/chartEx1.xml.rels')!.async('string');
+    expect(rels).toContain('chartStyle');
+    expect(rels).toContain('chartColorStyle');
+    const types = await zip.file('[Content_Types].xml')!.async('string');
+    expect(types).toContain('chartstyle+xml');
+    expect(types).toContain('chartcolorstyle+xml');
+    expect(workbook.sheets[0]!.charts[0]!.type).toBe('waterfall');
+  });
+
+  it('lee los gráficos que crea Excel, cuyas fórmulas son nombres ocultos «_xlchart.v1.N»', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.transact(() => {
+      for (const [a, t] of Object.entries({ A1: 'Mes', B1: 'Ventas', A2: 'Ene', B2: '10', A3: 'Feb', B3: '14' })) {
+        const p = parseA1(a)!;
+        w.setInput(id, p.row, p.col, t);
+      }
+    });
+    w.editObjects(id, (s) => void s.charts.push({ ...suggestChart(w, id, rect('A1:B3'), 'waterfall')!, id: 'c1', x: 10, y: 10, width: 300, height: 200 }));
+    const zip = await JSZip.loadAsync((await roundTrip(w)).bytes);
+    // se reescribe el archivo como lo escribe Excel: sin rangos en el gráfico, con los nombres ocultos en el libro
+    let cx = await zip.file('xl/charts/chartEx1.xml')!.async('string');
+    const names = new Map<string, string>();
+    for (const ref of [...new Set([...cx.matchAll(/<cx:f>([^<]+)<\/cx:f>/g)].map((m) => m[1]!))]) names.set(ref, `_xlchart.v1.${names.size}`);
+    for (const [ref, nm] of names) cx = cx.replaceAll(`<cx:f>${ref}</cx:f>`, `<cx:f>${nm}</cx:f>`);
+    zip.file('xl/charts/chartEx1.xml', cx);
+    const defs = [...names].map(([ref, nm]) => `<definedName name="${nm}" hidden="1">${ref}</definedName>`).join('');
+    zip.file('xl/workbook.xml', (await zip.file('xl/workbook.xml')!.async('string')).replace('</sheets>', `</sheets><definedNames>${defs}</definedNames>`));
+    const back = await readXlsx(await zip.generateAsync({ type: 'uint8array' }));
+    const ch = back.workbook.sheets[0]!.charts[0]!;
+    expect(ch.type).toBe('waterfall');
+    expect(ch.series[0]!.values).toMatch(/\$B\$2:\$B\$3$/);
+    expect(ch.series[0]!.values).not.toContain('_xlchart');
+    expect(ch.series[0]!.categories).not.toContain('_xlchart');
+  });
+
+  it('la cuadrícula de un gráfico clásico va en gris claro', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.transact(() => {
+      for (const [a, t] of Object.entries({ A1: 'x', B1: 'y', A2: 'a', B2: '1', A3: 'b', B3: '2' })) {
+        const p = parseA1(a)!;
+        w.setInput(id, p.row, p.col, t);
+      }
+    });
+    w.editObjects(id, (s) => void s.charts.push({ ...suggestChart(w, id, rect('A1:B3'), 'column')!, id: 'c1', x: 0, y: 0, width: 300, height: 200 }));
+    const zip = await JSZip.loadAsync((await roundTrip(w)).bytes);
+    expect(await zip.file('xl/charts/chart1.xml')!.async('string')).toContain('<c:majorGridlines><c:spPr><a:ln w="9525" cap="flat"><a:solidFill><a:srgbClr val="D9D9D9"/>');
   });
 });
 

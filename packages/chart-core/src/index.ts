@@ -10,7 +10,7 @@ export { chartOption } from './option';
 export { statChartOption } from './statOption';
 export { chart3dFor, chartSvg, echarts, is3D } from './render';
 export { NS_A, NS_C, DEFAULT_CHART_THEME, chartXml, parseChart } from './dml/chartspace';
-export { CT_CHARTEX, EX_TYPES, NS_CX, REL_CHARTEX, chartExXml, isExType, parseChartEx } from './dml/chartex';
+export { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, EX_TYPES, NS_CX, REL_CHARTEX, REL_CHARTEX_COLORS, REL_CHARTEX_STYLE, chartExColorsXml, chartExStyleXml, chartExXml, isExType, parseChartEx } from './dml/chartex';
 export { readChartCaches } from './dml/cache';
 export { readGridWorkbook, writeGridWorkbook } from './dml/workbook';
 export { parser as dmlParser, type XNode } from './dml/xml';

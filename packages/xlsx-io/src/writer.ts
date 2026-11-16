@@ -14,7 +14,7 @@ import {
   type Workbook,
 } from '@suitenova/calc-engine';
 import JSZip from 'jszip';
-import { CT_CHARTEX, REL_CHARTEX, chartExXml, chartXml, isExType } from '@suitenova/chart-core';
+import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, REL_CHARTEX, REL_CHARTEX_COLORS, REL_CHARTEX_STYLE, chartExColorsXml, chartExStyleXml, chartExXml, chartXml, isExType } from '@suitenova/chart-core';
 import { drawingXml, type DrawingItem } from './charts-io';
 import { PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel } from '@suitenova/smartart-core';
 import { commentsXml, hyperlinksXml, pageXml, printNames, sparklinesExtXml, tableXml, validationsXml, vmlXml } from './objects-io';
@@ -383,6 +383,11 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
           drawingRels.push({ id: rid, type: REL_CHARTEX, target: `../charts/chartEx${k}.xml` });
           put(`xl/charts/chartEx${k}.xml`, chartExXml(c, chartSource(wb, sheet.id)));
           types.push(`<Override PartName="/xl/charts/chartEx${k}.xml" ContentType="${CT_CHARTEX}"/>`);
+          // Excel no abre un gráfico de Office 2016 sin sus partes de estilo y de colores
+          put(`xl/charts/style${k}.xml`, chartExStyleXml());
+          put(`xl/charts/colors${k}.xml`, chartExColorsXml());
+          put(`xl/charts/_rels/chartEx${k}.xml.rels`, relsXml([{ id: 'rId1', type: REL_CHARTEX_STYLE, target: `style${k}.xml` }, { id: 'rId2', type: REL_CHARTEX_COLORS, target: `colors${k}.xml` }]));
+          types.push(`<Override PartName="/xl/charts/style${k}.xml" ContentType="${CT_CHARTEX_STYLE}"/>`, `<Override PartName="/xl/charts/colors${k}.xml" ContentType="${CT_CHARTEX_COLORS}"/>`);
         } else {
           drawingRels.push({ id: rid, type: `${NS_REL}/chart`, target: `../charts/chart${k}.xml` });
           put(`xl/charts/chart${k}.xml`, chartXml(c, chartSource(wb, sheet.id)));

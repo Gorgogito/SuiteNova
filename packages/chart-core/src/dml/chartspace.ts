@@ -11,6 +11,9 @@ export const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
 export const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 export const NS_XDR = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
 export const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+/** Líneas de la cuadrícula en gris claro, como las de Excel (sin esto Excel las dibuja negras y gruesas). */
+const GRIDLINES = '<c:majorGridlines><c:spPr><a:ln w="9525" cap="flat"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill><a:round/></a:ln></c:spPr></c:majorGridlines>';
+
 const HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 
 // ------------------------------------------------------------------------------------------------ writing
@@ -106,7 +109,7 @@ const numFmtXml = (a: ChartAxis | undefined) => `<c:numFmt formatCode="${escapeX
 
 function catAxXml(id: number, cross: number, o: { pos: 'b' | 'l' | 'r' | 't'; deleted?: boolean; axis?: ChartAxis; reverse?: boolean; grid?: boolean; rotate?: boolean }): string {
   return (
-    `<c:catAx><c:axId val="${id}"/>${scaling(o.axis, !!o.reverse)}<c:delete val="${o.deleted ? 1 : 0}"/><c:axPos val="${o.pos}"/>${o.axis?.gridlines || o.grid ? '<c:majorGridlines/>' : ''}` +
+    `<c:catAx><c:axId val="${id}"/>${scaling(o.axis, !!o.reverse)}<c:delete val="${o.deleted ? 1 : 0}"/><c:axPos val="${o.pos}"/>${o.axis?.gridlines || o.grid ? GRIDLINES : ''}` +
     `${axisTitle(o.axis, o.rotate)}${numFmtXml(o.axis)}<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>` +
     `<c:crossAx val="${cross}"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>`
   );
@@ -115,7 +118,7 @@ function catAxXml(id: number, cross: number, o: { pos: 'b' | 'l' | 'r' | 't'; de
 function valAxXml(id: number, cross: number, o: { pos: 'b' | 'l' | 'r' | 't'; deleted?: boolean; axis?: ChartAxis; crosses?: 'autoZero' | 'max'; between?: 'between' | 'midCat'; grid?: boolean; reverse?: boolean; rotate?: boolean }): string {
   const grid = o.axis?.gridlines ?? o.grid ?? false;
   return (
-    `<c:valAx><c:axId val="${id}"/>${scaling(o.axis, !!o.reverse)}<c:delete val="${o.deleted ? 1 : 0}"/><c:axPos val="${o.pos}"/>${grid ? '<c:majorGridlines/>' : ''}` +
+    `<c:valAx><c:axId val="${id}"/>${scaling(o.axis, !!o.reverse)}<c:delete val="${o.deleted ? 1 : 0}"/><c:axPos val="${o.pos}"/>${grid ? GRIDLINES : ''}` +
     `${axisTitle(o.axis, o.rotate)}${numFmtXml(o.axis)}<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>` +
     `<c:crossAx val="${cross}"/><c:crosses val="${o.crosses ?? 'autoZero'}"/><c:crossBetween val="${o.between ?? 'between'}"/></c:valAx>`
   );

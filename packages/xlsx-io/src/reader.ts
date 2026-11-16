@@ -428,7 +428,7 @@ async function loadSheetParts(
 }
 
 /** Charts anchored in the sheet's drawing; other drawing objects are reported as unsupported. */
-async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetPart: string, read: Reader, zip: JSZip, warnings: string[], theme: string[]): Promise<void> {
+async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetPart: string, read: Reader, zip: JSZip, warnings: string[], theme: string[], chartNames: Map<string, string> = new Map()): Promise<void> {
   const rels = await relsOf(read, sheetPart);
   const drawingPath = rels.get(attr(drawingRef, 'id') ?? '');
   if (!drawingPath) return;
@@ -518,7 +518,10 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
       warnings.push(`Un gráfico de "${sheet.name}" no se importó: ${parsed.skip}.`);
       continue;
     }
-    sheet.charts.push({ ...parsed.def, id: `chart-imp-${sheet.id}-${++n}`, ...rect });
+    // los nombres ocultos `_xlchart.*` de los gráficos de Office 2016 se sustituyen por el rango que nombran
+    const unname = (t: string | undefined) => (t && chartNames.has(t) ? chartNames.get(t) : t);
+    const def = { ...parsed.def, series: parsed.def.series.map((sr) => ({ ...sr, values: unname(sr.values) ?? sr.values, categories: unname(sr.categories), nameRef: unname(sr.nameRef) })) };
+    sheet.charts.push({ ...def, id: `chart-imp-${sheet.id}-${++n}`, ...rect });
   }
   if (unsupportedShapes) warnings.push(`La hoja "${sheet.name}" tiene ${unsupportedShapes} forma(s) con una geometría que Nova Calc no dibuja (estrellas, llamadas, etc.): se importaron como rectángulos.`);
   if (skippedPictures) warnings.push(`La hoja "${sheet.name}" tiene ${skippedPictures} imagen(es) en un formato que no se puede importar (por ejemplo vectorial).`);
@@ -613,6 +616,12 @@ export async function readXlsx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
   if (wbProt) wb.protection = wbProt;
 
   const sheetDefs = asArray(wbDoc.workbook.sheets?.sheet);
+  // Excel guarda las fórmulas de los gráficos de Office 2016 como nombres ocultos («_xlchart.v1.2» = Hoja1!$B$2:$B$6)
+  const chartNames = new Map<string, string>();
+  for (const dn of asArray(wbDoc.workbook.definedNames?.definedName)) {
+    const nm = attr(dn, 'name') ?? '';
+    if (nm.startsWith('_xlchart.')) chartNames.set(nm, stripXlfn(textOf(dn)));
+  }
   const sheetByIndex: Sheet[] = [];
   const tableCounter = { n: 0 };
   let first = true;
@@ -629,7 +638,7 @@ export async function readXlsx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
     const wsDoc = await read(target);
     loadSheet(wb, sheet, wsDoc, strings, xfs, dxfs, theme, date1904, warnings);
     await loadSheetParts(wb, sheet, wsDoc?.worksheet ?? {}, target, read, zip, persons, warnings, tableCounter);
-    if (wsDoc?.worksheet?.drawing) await loadDrawing(wb, sheet, wsDoc.worksheet.drawing, target, read, zip, warnings, theme);
+    if (wsDoc?.worksheet?.drawing) await loadDrawing(wb, sheet, wsDoc.worksheet.drawing, target, read, zip, warnings, theme, chartNames);
     const unknown = extUnknown.get(sheet.id) ?? [];
     const labelOf = (uri: string) =>
       uri === '{A8765BA9-456A-4dab-B4F3-ACF838C121DE}' || uri === '{3A4CF648-6AED-40f4-86FF-DC5316D8AED3}' ? 'segmentaciones' : uri === '{78C0D931-6437-407d-A8EE-F0AAD7539E65}' ? 'formatos condicionales de Excel 2010 (barras de datos con eje, conjuntos de iconos extra)' : 'extensiones de Excel';

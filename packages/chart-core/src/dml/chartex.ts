@@ -144,3 +144,36 @@ export function parseChartEx(doc: XNode): { def: ChartSpec } | { skip: string } 
   if (title !== undefined) def.title = textOf(title);
   return { def };
 }
+
+// ------------------------------------------------------------------------------------------------ estilo y colores
+/*
+ * Excel no abre un gráfico de Office 2016 si no lleva sus partes de estilo y de colores (comprobado con Excel real: sin ellas el libro
+ * ni se abre). Basta con las mínimas: todas las entradas del estilo con referencias neutras y los seis acentos del tema.
+ */
+export const REL_CHARTEX_STYLE = 'http://schemas.microsoft.com/office/2011/relationships/chartStyle';
+export const REL_CHARTEX_COLORS = 'http://schemas.microsoft.com/office/2011/relationships/chartColorStyle';
+export const CT_CHARTEX_STYLE = 'application/vnd.ms-office.chartstyle+xml';
+export const CT_CHARTEX_COLORS = 'application/vnd.ms-office.chartcolorstyle+xml';
+
+const CS = 'http://schemas.microsoft.com/office/drawing/2012/chartStyle';
+const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+const HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+const STYLE_ENTRIES = ['axisTitle', 'categoryAxis', 'chartArea', 'dataLabel', 'dataLabelCallout', 'dataPoint', 'dataPoint3D', 'dataPointLine', 'dataPointMarker', 'dataPointMarkerLayout', 'dataPointWireframe', 'dataTable', 'downBar', 'dropLine', 'errorBar', 'floor', 'gridlineMajor', 'gridlineMinor', 'hiLoLine', 'leaderLine', 'legend', 'plotArea', 'plotArea3D', 'seriesAxis', 'seriesLine', 'title', 'trendline', 'trendlineLabel', 'upBar', 'valueAxis', 'wall'];
+
+/** La parte `chartStyle` mínima de un gráfico de Office 2016. */
+export function chartExStyleXml(): string {
+  const body = STYLE_ENTRIES.map((n) => {
+    if (n === 'dataPointMarkerLayout') return '<cs:dataPointMarkerLayout symbol="circle" size="5"/>';
+    // los puntos de datos se rellenan con el color de la serie (sin esto, las columnas de una cascada salen sin relleno)
+    if (n === 'dataPoint' || n === 'dataPoint3D') return `<cs:${n}><cs:lnRef idx="0"/><cs:fillRef idx="0"><cs:styleClr val="auto"/></cs:fillRef><cs:effectRef idx="0"/><cs:fontRef idx="minor"><a:schemeClr val="tx1"/></cs:fontRef><cs:spPr><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></cs:spPr></cs:${n}>`;
+    const f = n === 'chartArea' || n === 'plotArea' || n === 'plotArea3D' ? ' format="ignore"' : '';
+    return `<cs:${n}${f}><cs:lnRef idx="0"/><cs:fillRef idx="0"/><cs:effectRef idx="0"/><cs:fontRef idx="minor"/></cs:${n}>`;
+  }).join('');
+  return `${HEAD}<cs:chartStyle xmlns:cs="${CS}" xmlns:a="${A}" id="395">${body}</cs:chartStyle>`;
+}
+
+/** La parte `colorStyle` mínima: los seis acentos del tema en ciclo. */
+export function chartExColorsXml(): string {
+  const acc = [1, 2, 3, 4, 5, 6].map((i) => `<a:schemeClr val="accent${i}"/>`).join('');
+  return `${HEAD}<cs:colorStyle xmlns:cs="${CS}" xmlns:a="${A}" meth="cycle" id="10">${acc}</cs:colorStyle>`;
+}
