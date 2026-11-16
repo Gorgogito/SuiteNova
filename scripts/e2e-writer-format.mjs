@@ -136,6 +136,7 @@ await check('Copiar formato: el formato de una palabra pasa a otra con un clic e
     const mt = v.state.schema.marks.color;
     v.dispatch(v.state.tr.addMark(v.state.selection.from, v.state.selection.to, mt.create({ value: '#ff0000' })));
   });
+  await page.waitForTimeout(400);
   await page.getByRole('button', { name: 'Copiar formato' }).click();
   assert.equal(await ev(() => !!window.__novaWriter.ctl.painter), true);
   // selecciona «plana» (las últimas 5 letras)
@@ -160,7 +161,12 @@ await check('Símbolo…: inserta con doble clic y con el botón; espacio de no 
   await page.waitForTimeout(500);
   await editor.click();
   await page.getByRole('tab', { name: 'Insertar', exact: true }).click();
-  await page.getByRole('button', { name: 'Símbolo…' }).click();
+  // a este ancho el grupo «Texto» de Insertar se pliega en un desplegable: se abre si hace falta
+  const sym = page.getByRole('button', { name: 'Símbolo…' });
+  if (!(await sym.first().isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Texto', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Símbolo…' }).click();
+  } else await sym.click();
   await page.waitForTimeout(300);
   await shot('dialogo-simbolo');
   await page.getByRole('button', { name: 'Copyright', exact: true }).dblclick();

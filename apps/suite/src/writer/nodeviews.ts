@@ -1,8 +1,14 @@
 import { adjustHandles, dragAdjust, isLineKind, resolveKind, shapeSvg } from '@suitenova/shapes-core';
-import { parseMath, toMathML } from '@suitenova/writer-core';
+import { parseMath, scaleGroupContent, toMathML } from '@suitenova/writer-core';
 import type { Node as PMNode } from 'prosemirror-model';
-import { NodeSelection, TextSelection } from 'prosemirror-state';
+import { NodeSelection, TextSelection, type Transaction } from 'prosemirror-state';
 import type { Decoration, EditorView, NodeView } from 'prosemirror-view';
+import { outerGroupPos, placeCaretFromClick, selectShapeOnly, toggleShapeSelection } from './shape-selection';
+
+/** `setNodeMarkup` turns a node selection into a text selection; the gestures that change a shape in several steps keep it selected. */
+function keepNodeSelected(tr: Transaction, pos: number): Transaction {
+  return tr.setSelection(NodeSelection.create(tr.doc, pos));
+}
 
 export interface NodeViewHost {
   /** Open a dialog of the application (equation editor, shape format…). */
@@ -157,7 +163,7 @@ export class ShapeView implements NodeView {
       const x = dx * Math.cos(rot) + dy * Math.sin(rot) + a0.width / 2;
       const y = -dx * Math.sin(rot) + dy * Math.cos(rot) + a0.height / 2;
       const adj = dragAdjust(a0.kind, a0.width, a0.height, a0.adj ?? {}, index, x, y) ?? null;
-      this.view.dispatch(this.view.state.tr.setNodeMarkup(p, undefined, { ...this.node.attrs, adj }).setMeta('nw-no-track', true));
+      this.view.dispatch(keepNodeSelected(this.view.state.tr.setNodeMarkup(p, undefined, { ...this.node.attrs, adj }), p).setMeta('nw-no-track', true));
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -166,7 +172,14 @@ export class ShapeView implements NodeView {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   }
-  private setSelected(on: boolean) {
+  /** Position of the outermost group this shape is inside (`null` when it is not in a group). */
+  private groupPos(): number | null {
+    const p = this.getPos();
+    return p === undefined ? null : outerGroupPos(this.view.state, p);
+  }
+  private setSelected(on0: boolean) {
+    // a shape inside a group has no frame of its own: the group is what gets selected
+    const on = on0 && this.groupPos() === null;
     this.dom.classList.toggle('is-selected', on);
     this.selected = on;
     this.renderAdjust();
@@ -181,22 +194,41 @@ export class ShapeView implements NodeView {
       if (t.dataset?.handle || t.dataset?.adj !== undefined || t.classList?.contains('nw-grip')) return;
       const pos = this.getPos();
       if (pos === undefined) return;
+      // inside a group the whole group is picked; Ctrl/Shift+click adds or removes it from the selection
+      const target = this.groupPos() ?? pos;
+      if (e.ctrlKey || e.shiftKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleShapeSelection(this.view, target);
+        return;
+      }
       if (t === this.dom || t === this.contentDOM || t.closest('svg')) {
         const rect = this.dom.getBoundingClientRect();
         const edge = 8;
         const onEdge = e.clientX - rect.left < edge || rect.right - e.clientX < edge || e.clientY - rect.top < edge || rect.bottom - e.clientY < edge;
         if (onEdge || t.closest('svg')) {
           e.preventDefault();
-          this.view.dispatch(this.view.state.tr.setSelection(NodeSelection.create(this.view.state.doc, pos)));
-          this.view.focus();
+          if (target !== pos) e.stopPropagation();
+          selectShapeOnly(this.view, target);
         }
+      }
+    });
+    // a click in the text of a text box while an object is selected puts the caret there (ProseMirror would leave it outside)
+    this.dom.addEventListener('mousedown', (e) => {
+      if (e.defaultPrevented || e.button !== 0) return;
+      const t = e.target as HTMLElement;
+      if (!this.contentDOM.contains(t) || !(this.view.state.selection instanceof NodeSelection)) return;
+      const at = this.getPos();
+      if (at !== undefined && placeCaretFromClick(this.view, e, at, this.node)) {
+        e.preventDefault();
+        e.stopPropagation();
       }
     });
     this.dom.addEventListener('dblclick', (e) => {
       const t = e.target as HTMLElement;
       if (t.dataset?.handle) return;
       const pos = this.getPos();
-      if (pos !== undefined && (e.target === this.dom || (e.target as HTMLElement).closest('svg')) && !this.host.readOnly()) this.host.openDialog('shape', { pos });
+      if (pos !== undefined && this.groupPos() === null && (e.target === this.dom || (e.target as HTMLElement).closest('svg')) && !this.host.readOnly()) this.host.openDialog('shape', { pos });
     });
     const drag = (e: PointerEvent, mode: string) => {
       e.preventDefault();
@@ -218,7 +250,7 @@ export class ShapeView implements NodeView {
           if (mode.includes('e')) patch.width = Math.max(16, Math.round(start.w + dx));
           if (mode.includes('s')) patch.height = Math.max(16, Math.round(start.h + dy));
         }
-        this.view.dispatch(this.view.state.tr.setNodeMarkup(p, undefined, { ...this.node.attrs, ...patch }).setMeta('nw-no-track', true));
+        this.view.dispatch(keepNodeSelected(this.view.state.tr.setNodeMarkup(p, undefined, { ...this.node.attrs, ...patch }), p).setMeta('nw-no-track', true));
       };
       const up = () => {
         window.removeEventListener('pointermove', move);
@@ -253,6 +285,172 @@ export class ShapeView implements NodeView {
     if (m.type === 'selection') return false;
     const target = (m as MutationRecord).target as Node;
     return !this.contentDOM.contains(target) || target === this.contentDOM && false;
+  }
+}
+
+// ------------------------------------------------------------------------------------------------ groups of shapes
+
+/**
+ * A group of shapes: one object with a frame (resize, move if it floats, turn) whose children are ordinary shapes drawn inside it.
+ * Clicking a child picks the group; the text of a child text box stays editable. Resizing rewrites the children in proportion.
+ */
+export class GroupView implements NodeView {
+  dom: HTMLElement;
+  contentDOM: HTMLElement;
+  private handles: HTMLElement[] = [];
+  private grip: HTMLElement;
+  private rot: HTMLElement;
+  private selected = false;
+  constructor(private node: PMNode, private view: EditorView, private getPos: () => number | undefined, private host: NodeViewHost) {
+    this.dom = document.createElement('span');
+    this.contentDOM = document.createElement('span');
+    this.contentDOM.className = 'nw-group-content';
+    this.dom.appendChild(this.contentDOM);
+    this.grip = document.createElement('span');
+    this.grip.className = 'nw-handle nw-grip';
+    this.grip.contentEditable = 'false';
+    this.grip.title = 'Mover';
+    this.grip.style.cssText = 'left:-5px;top:-5px;cursor:move;display:none';
+    this.dom.appendChild(this.grip);
+    const corners: [string, string, string][] = [['se', 'right:-5px;bottom:-5px', 'nwse-resize'], ['e', 'right:-5px;top:calc(50% - 4px)', 'ew-resize'], ['s', 'left:calc(50% - 4px);bottom:-5px', 'ns-resize']];
+    for (const [id, pos, cursor] of corners) {
+      const h = document.createElement('span');
+      h.className = 'nw-handle';
+      h.contentEditable = 'false';
+      h.dataset.handle = id;
+      h.style.cssText = `${pos};cursor:${cursor};display:none`;
+      this.dom.appendChild(h);
+      this.handles.push(h);
+    }
+    this.rot = document.createElement('span');
+    this.rot.className = 'nw-handle nw-rot';
+    this.rot.contentEditable = 'false';
+    this.rot.title = 'Girar';
+    this.rot.style.cssText = 'left:calc(50% - 5px);top:-26px;cursor:grab;display:none';
+    this.dom.appendChild(this.rot);
+    this.apply();
+    this.bind();
+  }
+  private apply() {
+    const a = this.node.attrs;
+    this.dom.className = `nw-shape nw-shape-group${this.selected ? ' is-selected' : ''}`;
+    this.dom.dataset.wrap = a.wrap;
+    this.dom.setAttribute('style', shapeCss(a));
+    this.dom.title = a.alt || '';
+  }
+  private setSelected(on: boolean) {
+    this.selected = on;
+    this.dom.classList.toggle('is-selected', on);
+    const movable = this.node.attrs.wrap === 'front' || this.node.attrs.wrap === 'behind';
+    for (const h of this.handles) h.style.display = on ? 'block' : 'none';
+    this.grip.style.display = on && movable ? 'block' : 'none';
+    this.rot.style.display = on ? 'block' : 'none';
+  }
+  private isOwn(t: HTMLElement): boolean {
+    return !!(t.dataset?.handle || t.classList?.contains('nw-grip') || t.classList?.contains('nw-rot'));
+  }
+  private bind() {
+    this.dom.addEventListener('mousedown', (e) => {
+      const t = e.target as HTMLElement;
+      if (this.isOwn(t)) return;
+      const pos = this.getPos();
+      if (pos === undefined) return;
+      // dentro de otro grupo se elige el grupo más externo
+      const top = outerGroupPos(this.view.state, pos) ?? pos;
+      if (e.ctrlKey || e.shiftKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleShapeSelection(this.view, top);
+        return;
+      }
+      if (t === this.dom) {
+        e.preventDefault();
+        if (top !== pos) e.stopPropagation();
+        selectShapeOnly(this.view, top);
+      }
+    });
+    this.dom.addEventListener('dblclick', (e) => {
+      const pos = this.getPos();
+      if (pos !== undefined && e.target === this.dom && outerGroupPos(this.view.state, pos) === null && !this.host.readOnly()) this.host.openDialog('shape', { pos });
+    });
+    const drag = (e: PointerEvent, mode: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = this.getPos();
+      if (pos === undefined) return;
+      const startNode = this.node;
+      const start = { x: e.clientX, y: e.clientY, w: startNode.attrs.width as number, h: startNode.attrs.height as number, px: startNode.attrs.x as number, py: startNode.attrs.y as number };
+      const scale = this.dom.offsetWidth ? this.dom.getBoundingClientRect().width / this.dom.offsetWidth : 1;
+      const move = (ev: PointerEvent) => {
+        const p = this.getPos();
+        if (p === undefined) return;
+        const dx = (ev.clientX - start.x) / scale;
+        const dy = (ev.clientY - start.y) / scale;
+        if (mode === 'move') {
+          this.view.dispatch(keepNodeSelected(this.view.state.tr.setNodeMarkup(p, undefined, { ...this.node.attrs, x: Math.round(start.px + dx), y: Math.round(start.py + dy) }), p).setMeta('nw-no-track', true));
+          return;
+        }
+        const w = mode.includes('e') ? Math.max(16, Math.round(start.w + dx)) : start.w;
+        const h = mode.includes('s') ? Math.max(16, Math.round(start.h + dy)) : start.h;
+        // siempre se escala desde el grupo del principio del gesto, para no acumular redondeos
+        const next = scaleGroupContent(startNode, w, h);
+        const tr = this.view.state.tr.replaceWith(p, p + this.node.nodeSize, next);
+        tr.setSelection(NodeSelection.create(tr.doc, p)).setMeta('nw-no-track', true);
+        this.view.dispatch(tr);
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    };
+    this.grip.addEventListener('pointerdown', (e) => drag(e, 'move'));
+    for (const h of this.handles) h.addEventListener('pointerdown', (e) => drag(e, h.dataset.handle!));
+    this.rot.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const r = this.dom.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const move = (ev: PointerEvent) => {
+        const p = this.getPos();
+        if (p === undefined) return;
+        let a = (Math.atan2(ev.clientX - cx, -(ev.clientY - cy)) * 180) / Math.PI;
+        if (ev.shiftKey) a = Math.round(a / 15) * 15;
+        const rotation = Math.round((((a % 360) + 360) % 360) * 10) / 10;
+        this.view.dispatch(keepNodeSelected(this.view.state.tr.setNodeMarkup(p, undefined, { ...this.node.attrs, rotation }), p).setMeta('nw-no-track', true));
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+  update(node: PMNode): boolean {
+    if (node.type !== this.node.type) return false;
+    this.node = node;
+    this.apply();
+    return true;
+  }
+  selectNode() {
+    this.setSelected(true);
+  }
+  deselectNode() {
+    this.setSelected(false);
+  }
+  stopEvent(e: Event): boolean {
+    const t = e.target as HTMLElement | null;
+    if (!t) return false;
+    if (this.isOwn(t)) return true;
+    if (e.type === 'dblclick' && t === this.dom) return true;
+    return false;
+  }
+  ignoreMutation(m: MutationRecord | { type: 'selection' }): boolean {
+    if (m.type === 'selection') return false;
+    return !this.contentDOM.contains((m as MutationRecord).target as Node);
   }
 }
 

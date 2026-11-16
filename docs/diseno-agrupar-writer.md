@@ -1,6 +1,6 @@
 # Diseño: agrupar formas en Nova Writer
 
-Estado: **aprobado tal cual por el usuario (2026-11-15); fase 1 (núcleo) HECHA, fases 2 y 3 pendientes.** Decisiones: imágenes en grupos después, anidar desde ya, comandos en la pestaña contextual e Insertar. Continúa el trabajo de Formas
+Estado: **aprobado tal cual por el usuario (2026-11-15); fases 1 (núcleo) y 2 (interfaz) HECHAS; la 3 (e2e y docs finales) queda cubierta en lo esencial, ver sección 13.** Decisiones: imágenes en grupos después, anidar desde ya, comandos en la pestaña contextual e Insertar. Continúa el trabajo de Formas
 (`docs/PROGRESO.md`, punto 3b). Calc ya agrupa (`3f3540e`); aquí se parte de lo aprendido allí.
 
 ## 1. Por qué Writer es distinto de Calc
@@ -115,3 +115,14 @@ Cada fase termina con typecheck, `pnpm test`, e2e y captura real antes de seguir
 - `notes.ts`, `refs.ts`, `formats/odt.ts`, `formats/rtf.ts` y `apps/suite/src/writer/story.ts` tratan `shape_group` como `shape`.
 - Pruebas: 3 en `docx-features.test.ts` (ida y vuelta con anidado, giro, ajuste y texto; escalado por `chExt` con comprobación de que el XML cambió; imagen omitida con aviso) y 4 en `shape-group.test.ts` (contenido del nodo, DOM, ODT/RTF, sin aviso al escribir). writer-core 152, shapes-core 17.
 - Comprobado en la app real: un grupo insertado se dibuja con sus hijas giradas juntas y sobrevive a guardar y releer el .docx, sin errores de consola. Todavía **no hay** asas, selección múltiple ni comandos (fase 2): un grupo abierto desde un .docx se ve pero no se puede mover ni redimensionar como bloque.
+
+## 13. Registro de la fase 2 (hecha, 2026-11-15)
+- `writer-core/src/shape-group.ts` (`scaleGroupContent`, con 2 pruebas): escala un grupo y, de forma recursiva, sus hijas. Una prueba cazó un error propio (el anidado se escalaba desde el tamaño ya nuevo).
+- `apps/suite/src/writer/shape-selection.ts`: plugin de selección múltiple (posiciones mapeadas con cada transacción, contorno discontinuo en las elegidas), `toggleShapeSelection` (Ctrl/Mayús+clic), `selectShapeOnly`, `outerGroupPos`, `placeCaretFromClick`.
+- `shape-group-ops.ts`: `groupSelectedShapes` y `ungroupSelectedShapes`. Miden el DOM **antes** de cambiar el documento (el bloque contenedor es el primer antecesor con `position`, con el zoom dividido) y hacen todo en una transacción. **Sin `scrollIntoView`**: al principio la vista se desplazaba 16 px y parecía que las formas se movían.
+- `nodeviews.ts`: `GroupView` (asas de tamaño, de mover si flota y de giro; escalado desde el grupo del inicio del gesto) y cambios en `ShapeView` (una hija no tiene marco propio y al pulsarla se elige el grupo más externo; Ctrl/Mayús+clic; `dblclick` solo fuera de grupos).
+- Comandos `writer.shape.group` / `writer.shape.ungroup`; pestaña contextual **Formato de forma** (Formato de forma…, Agrupar, Desagrupar) y dos botones solo con icono en Insertar › Ilustraciones. El cuadro Formato de forma de un grupo no ofrece relleno ni contorno y, si cambia el tamaño, escala las hijas.
+- **Dos defectos que ya existían y se corrigieron por el camino:** (1) `setNodeMarkup` convierte la selección de nodo en selección de texto, así que las asas de una forma desaparecían al primer movimiento; ahora los gestos de `ShapeView` y `GroupView` restauran la selección. (2) Con un cuadro de texto seleccionado como objeto, un clic en su texto dejaba el cursor fuera y lo escrito iba al párrafo; ahora el cursor entra en la caja (en la zona vacía, al final de su último párrafo).
+- e2e (`e2e-writer-shapes.mjs`, 10 comprobaciones): Ctrl+clic con 3 formas, agrupar **sin que ninguna se mueva a la vista**, clic en una hija = grupo, escribir en el cuadro de texto de una hija, mover, redimensionar (hijas escaladas), girar 90°, guardar y releer .docx, desagrupar **sin que se mueva nada aun con el grupo girado**, deshacer en un paso, y el cuadro de formato del grupo.
+- Verificado: typecheck limpio; `pnpm test` en verde (writer-core 154); e2e de Writer (19 + shapes + image + page + tables + styles + review + autocorrect), Calc y Slides en verde.
+- **Conocido, anterior a esta fase:** `e2e-writer-format` («Copiar formato») falla de forma intermitente (≈1 de 4 también sin estos cambios); y a 1400 px el grupo «Texto» de Insertar se pliega, así que el e2e de «Símbolo…» abre el desplegable si hace falta.

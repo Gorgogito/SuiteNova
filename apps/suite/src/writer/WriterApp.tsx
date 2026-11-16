@@ -23,6 +23,7 @@ import './messages-format';
 import './messages-review';
 import './messages-image';
 import { selectedImage } from './commands-image';
+import { selectedShapePositions } from './shape-selection';
 import { PageOverlay } from './PageOverlay';
 import { LineNumbersLayer } from './LineNumbers';
 import { ZonesLayer } from './ZonesLayer';
@@ -456,7 +457,8 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
   const hfEditing = !!ctl.hfEdit;
   const outlineOn = ctl.viewMode === 'outline';
   const imageOn = !!selectedImage(ctl.mainState);
-  const tabs = useMemo(() => writerTabs(ui, { inTable, hf: hfEditing, outline: outlineOn, image: imageOn }), [ui, inTable, hfEditing, outlineOn, imageOn]);
+  const shapeOn = selectedShapePositions(ctl.mainState).length > 0;
+  const tabs = useMemo(() => writerTabs(ui, { inTable, hf: hfEditing, outline: outlineOn, image: imageOn, shape: shapeOn }), [ui, inTable, hfEditing, outlineOn, imageOn, shapeOn]);
   const backstage: BackstageEntry[] = useMemo(() => {
     const pages = backstageEntries(module.name).filter((e) => e.kind === 'page');
     return [

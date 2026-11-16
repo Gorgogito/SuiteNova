@@ -1,4 +1,6 @@
 import { isLineKind, resolveKind } from '@suitenova/shapes-core';
+import { groupSelectedShapes, ungroupSelectedShapes } from './shape-group-ops';
+import { selectedShapePositions } from './shape-selection';
 import type { CommandDef } from '@suitenova/core-ui';
 import { nodeTypes } from '@suitenova/writer-core';
 import { NodeSelection } from 'prosemirror-state';
@@ -65,7 +67,7 @@ export function objectCommands(ui: WriterUI): CommandDef[] {
   const ready = () => !!c.mainView && !c.readOnly;
   const selectedShape = (): { pos: number } | null => {
     const s = c.mainState?.selection;
-    return s instanceof NodeSelection && s.node.type.name === 'shape' ? { pos: s.from } : null;
+    return s instanceof NodeSelection && (s.node.type.name === 'shape' || s.node.type.name === 'shape_group') ? { pos: s.from } : null;
   };
   const selectedControl = (): { pos: number } | null => {
     const st = c.mainState;
@@ -116,6 +118,9 @@ export function objectCommands(ui: WriterUI): CommandDef[] {
   const insertShape = (kind: string) => insertShapeKind(ui, kind);
   add({ id: 'writer.shape.textbox', label: 'Cuadro de texto', icon: 'textbox', description: 'Dibuja un cuadro donde se puede escribir texto.', enabled: ready, run: () => insertShape('textbox') });
   for (const s of SHAPE_KINDS) add({ id: `writer.shape.${s.id}`, label: s.label, icon: 'shapes', enabled: ready, run: () => insertShape(s.id) });
+  const picked = () => selectedShapePositions(c.mainState);
+  add({ id: 'writer.shape.group', label: 'Agrupar', icon: 'shapes', description: 'Une las formas seleccionadas (Ctrl+clic para elegir varias) para moverlas, cambiar su tamaño y girarlas como un bloque.', enabled: () => ready() && picked().length > 1, run: () => { const v = c.mainView; if (v) groupSelectedShapes(v); } });
+  add({ id: 'writer.shape.ungroup', label: 'Desagrupar', icon: 'shapes', description: 'Separa el grupo de formas seleccionado en formas independientes.', enabled: () => ready() && picked().some((p) => c.mainState?.doc.nodeAt(p)?.type.name === 'shape_group'), run: () => { const v = c.mainView; if (v) ungroupSelectedShapes(v); } });
   add({ id: 'writer.shape.format', label: 'Formato de forma…', icon: 'settings', enabled: () => ready() && !!selectedShape(), run: () => { const s = selectedShape(); if (s) ui.openDialog('shape', s); } });
   const wrapCmd = (id: string, label: string, wrap: string) =>
     add({

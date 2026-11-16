@@ -285,10 +285,11 @@ export interface RibbonFlags {
   hf: boolean;
   outline: boolean;
   image: boolean;
+  shape: boolean;
 }
 
 export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>): RibbonTab[] {
-  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
+  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, shape: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
   const inTable = flags.inTable;
   const home: RibbonTab = {
     id: 'home',
@@ -406,6 +407,8 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           { kind: 'button', command: 'writer.image', size: 'large', keytip: 'IM' },
           { kind: 'custom', id: 'shapesGallery', label: 'Formas', keytip: 'SH', render: () => <ShapeGallery onPick={(k) => insertShapeKind(ui, k)} /> },
           { kind: 'button', command: 'writer.shape.textbox', size: 'small', iconOnly: true, keytip: 'CX' },
+          { kind: 'button', command: 'writer.shape.group', size: 'small', iconOnly: true, keytip: 'AG' },
+          { kind: 'button', command: 'writer.shape.ungroup', size: 'small', iconOnly: true, keytip: 'DG' },
           {
             kind: 'dropdown',
             id: 'equationMenu',
@@ -890,6 +893,17 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
+  const shapeTab: RibbonTab = {
+    id: 'shapeTools',
+    label: 'Formato de forma',
+    keytip: 'JF',
+    contextual: { label: 'Herramientas de dibujo', color: '#0f766e', visible: flags.shape },
+    groups: [
+      { id: 'shapeFormat', label: 'Estilos de forma', icon: 'settings', items: [{ kind: 'button', command: 'writer.shape.format', size: 'large', keytip: 'FO' }] },
+      { id: 'shapeArrange', label: 'Organizar', icon: 'shapes', items: [{ kind: 'button', command: 'writer.shape.group', size: 'small', keytip: 'AG' }, { kind: 'button', command: 'writer.shape.ungroup', size: 'small', keytip: 'DG' }] },
+    ],
+  };
+
   const hf: RibbonTab = {
     id: 'hfTools',
     label: 'Encabezado y pie',
@@ -1125,5 +1139,5 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
-  return [home, insert, layout, refs, mailings, review, view, developer, table, imageTab, hf, outlineTab, helpTab()];
+  return [home, insert, layout, refs, mailings, review, view, developer, table, imageTab, shapeTab, hf, outlineTab, helpTab()];
 }

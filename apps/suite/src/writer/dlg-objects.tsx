@@ -1,6 +1,7 @@
 import { Button, Checkbox, Input, Select } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { nodeTypes, parseMath, toMathML } from '@suitenova/writer-core';
+import { nodeTypes, parseMath, scaleGroupContent, toMathML } from '@suitenova/writer-core';
+import { NodeSelection } from 'prosemirror-state';
 import { useMemo, useRef, useState } from 'react';
 import type { WriterUI } from './commands';
 import { Modal, field, focusDocSoon } from './dialogs';
@@ -153,7 +154,8 @@ export function EquationDialog({ ui, pos, onClose }: { ui: WriterUI; pos?: numbe
 export function ShapeDialog({ ui, pos, onClose }: { ui: WriterUI; pos: number; onClose: () => void }) {
   const ctl = ui.ctl;
   const node = ctl.mainView?.state.doc.nodeAt(pos);
-  const a = node?.type.name === 'shape' ? node.attrs : null;
+  const isGroup = node?.type.name === 'shape_group';
+  const a = node?.type.name === 'shape' || isGroup ? node!.attrs : null;
   const [fill, setFill] = useState<string>(a?.fill ?? '#ffffff');
   const [noFill, setNoFill] = useState(a?.kind === 'textbox' && a.fill === '#ffffff');
   const [stroke, setStroke] = useState<string>(a?.stroke ?? '#000000');
@@ -176,7 +178,14 @@ export function ShapeDialog({ ui, pos, onClose }: { ui: WriterUI; pos: number; o
             disabled={w < 8 || h < 8}
             onClick={() => {
               const v = ctl.mainView;
-              if (v) v.dispatch(v.state.tr.setNodeMarkup(pos, undefined, { ...a, fill: noFill ? '#ffffff' : fill, stroke, strokeWidth: sw, width: w, height: h, rotation: rot, wrap, alt }).setMeta('nw-no-track', true));
+              if (v && isGroup && node) {
+                // un grupo no tiene relleno ni contorno propios; si cambia de tamaño, sus hijas lo siguen
+                const resized = w !== a.width || h !== a.height ? scaleGroupContent(node, w, h) : node;
+                const next = resized.type.create({ ...resized.attrs, rotation: rot, wrap, alt }, resized.content, resized.marks);
+                const tr = v.state.tr.replaceWith(pos, pos + node.nodeSize, next);
+                tr.setSelection(NodeSelection.create(tr.doc, pos)).setMeta('nw-no-track', true);
+                v.dispatch(tr);
+              } else if (v) v.dispatch(v.state.tr.setNodeMarkup(pos, undefined, { ...a, fill: noFill ? '#ffffff' : fill, stroke, strokeWidth: sw, width: w, height: h, rotation: rot, wrap, alt }).setMeta('nw-no-track', true));
               onClose();
               focusDocSoon(ui);
             }}
@@ -187,19 +196,25 @@ export function ShapeDialog({ ui, pos, onClose }: { ui: WriterUI; pos: number; o
       }
     >
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 12px' }}>
+        {!isGroup && (
         <div style={field}>
           <label htmlFor="nw-sh-fill">{t('Relleno')}</label>
           <input id="nw-sh-fill" type="color" value={fill} disabled={noFill} onChange={(e) => setFill(e.target.value)} />
           <Checkbox checked={noFill} onChange={(_e, d) => setNoFill(!!d.checked)} label={t('Sin relleno')} />
         </div>
+        )}
+        {!isGroup && (
         <div style={field}>
           <label htmlFor="nw-sh-stroke">{t('Contorno')}</label>
           <input id="nw-sh-stroke" type="color" value={stroke} onChange={(e) => setStroke(e.target.value)} />
         </div>
+        )}
+        {!isGroup && (
         <div style={field}>
           <label htmlFor="nw-sh-sw">{t('Grosor del contorno (px, 0 = sin contorno)')}</label>
           <Input id="nw-sh-sw" type="number" min={0} max={20} value={String(sw)} onChange={(_e, d) => setSw(Math.max(0, Number(d.value) || 0))} />
         </div>
+        )}
         <div style={field}>
           <label htmlFor="nw-sh-rot">{t('Rotación (grados)')}</label>
           <Input id="nw-sh-rot" type="number" value={String(rot)} onChange={(_e, d) => setRot(Number(d.value) || 0)} />

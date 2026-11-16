@@ -63,7 +63,8 @@ import { formsPlugin } from './forms';
 import { WriterRuntime } from './macros';
 import { loadSpeller, misspellingAt, setSpell, spellPlugin, type SpellLang } from './spell';
 import { getLocale } from '@suitenova/core-ui';
-import { ControlView, FieldView, MathView, ShapeView, type NodeViewHost } from './nodeviews';
+import { ControlView, FieldView, GroupView, MathView, ShapeView, type NodeViewHost } from './nodeviews';
+import { shapeSelectionPlugin } from './shape-selection';
 import { commentRanges, getUser, protectionPlugin, trackTransaction } from './review';
 import { outlinePlugin, setOutlineActive } from './outline';
 import { joinSectionBackward, joinSectionForward } from './sections-edit';
@@ -406,6 +407,7 @@ export class WriterCtl {
       notesPlugin(() => this.notesOptions),
       tabsPlugin(),
       formsPlugin(),
+      shapeSelectionPlugin(),
       spellPlugin(),
       outlinePlugin(),
       protectionPlugin(() => this.protection?.mode ?? null),
@@ -443,6 +445,7 @@ export class WriterCtl {
       nodeViews: {
         math: (n, v, g) => new MathView(n, v, g as () => number | undefined, this.nodeHost),
         shape: (n, v, g) => new ShapeView(n, v, g as () => number | undefined, this.nodeHost),
+        shape_group: (n, v, g) => new GroupView(n, v, g as () => number | undefined, this.nodeHost),
         content_control: (n, v, g) => new ControlView(n, v, g as () => number | undefined, this.nodeHost),
         field: (n, _v, _g, d) => new FieldView(n, d),
       },
