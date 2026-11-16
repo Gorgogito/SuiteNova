@@ -1,0 +1,24 @@
+{
+  "name": "@suitenova/wordart-core",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MPL-2.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "build:warps": "node scripts/build-textwarps.mjs"
+  },
+  "dependencies": {
+    "@suitenova/shapes-core": "workspace:*",
+    "opentype.js": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/opentype.js": "^1.3.10",
+    "fast-xml-parser": "^5.2.0",
+    "vitest": "^3.2.0"
+  }
+}

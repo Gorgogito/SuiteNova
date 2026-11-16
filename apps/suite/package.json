@@ -24,6 +24,7 @@
     "@suitenova/notes-core": "workspace:*",
     "@suitenova/plan-core": "workspace:*",
     "@suitenova/slides-core": "workspace:*",
+    "@suitenova/wordart-core": "workspace:*",
     "@suitenova/writer-core": "workspace:*",
     "@suitenova/xlsx-io": "workspace:*",
     "@tauri-apps/api": "^2.12.0",

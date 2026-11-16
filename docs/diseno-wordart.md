@@ -1,6 +1,6 @@
 # Diseño: WordArt compartido (Slides, Writer y Calc)
 
-Estado: **propuesta, pendiente de aprobación** (2026-11-15). El dato que faltaba (sección 7) **ya está en el repositorio y validado**. No hay código escrito.
+Estado: **aprobado por el usuario (2026-11-15); fase 1 (motor + Slides) HECHA, fases 2 (Writer) y 3 (Calc) pendientes** (2026-11-15). El dato que faltaba (sección 7) **ya está en el repositorio y validado**. No hay código escrito.
 Decisiones del usuario (2026-11-15): **motor compartido**, **deformación real de las letras**, orden **motor → Writer → Calc**.
 
 ## 1. Qué es WordArt en Office
@@ -84,3 +84,26 @@ Cada fase termina con typecheck, `pnpm test`, e2e y captura; commit al terminar 
 ## 10. Hallazgo aparte
 `packages/shapes-core/scripts/build-presets.mjs` lee `../data/presetShapeDefinitions.xml`, pero el XML sigue en `packages/slides-core/data/`:
 el script quedó roto al extraer `shapes-core`. No se ha tocado.
+
+## 11. Registro de la fase 1 (hecha, 2026-11-15): motor + Slides
+Aprobado por el usuario: el diseño tal cual y la dependencia **opentype.js 2.0.0** (MIT, instalada solo en `wordart-core`).
+- `packages/wordart-core`: `types`, `geometry` (aplanado, subdivisión, `Curve` por fracción de longitud con prolongación tangente), `layout`
+  (`layoutText`: líneas, avance, kerning, espaciado, alineación), `warpdefs` + `textwarps.json` (las 40 definiciones compiladas con
+  `scripts/build-textwarps.mjs` y evaluadas con el evaluador de guías de `shapes-core`, que ahora exporta `baseEnv/formula/val/rad/ellipsePoint`),
+  `warp` (`warpText`), `fonts` (`fontFromBytes` con opentype.js y `LocalFontSource` sobre `queryLocalFonts()`), `render` (`wordArtSvg`:
+  relleno sólido o degradado, contorno, sombra, resplandor y reflejo) y `catalog` (22 estilos y los 40 nombres en español). 20 pruebas.
+- **Cómo se deforma:** *envolvente* (30 transformaciones con dos curvas): el bloque de texto se estira entre la curva superior y la inferior y
+  llena la forma; *trayectoria* (`textArchUp`, `textArchDown`, `textCircle`, `textButton`): el texto recorre la curva a todo lo largo, con las
+  letras giradas (arco hacia abajo: la línea base sobre la curva; las demás: las letras cuelgan hacia dentro para que el texto quede dentro de
+  la forma). Se comprueba que el texto no salga reflejado (se intercambian las curvas si hace falta).
+- **Desviación del diseño:** el modelo de estilo del motor es **neutral y ya resuelto** (`WordArtFx`: colores css), no los tipos de `slides-core`
+  movidos. Evita acoplar Writer y Calc a Slides; cada producto convierte su estilo (Slides lo hace en `render/warp.tsx`, `toFx`).
+- **Slides:** `WarpedText` usa el motor cuando hay fuente y la transformación está en la norma; si no, `PathWarpedText` (el dibujo anterior,
+  texto sobre trayectoria). `scripts/e2e-slides-wordart.mjs` (3 comprobaciones, con y sin permiso de fuentes) y capturas revisadas.
+- **Verificado a ojo con Calibri real** (banco temporal con las 40): ondas, inflar/desinflar, curvas, cilindros, cascadas, inclinaciones,
+  desvanecer, arcos, círculos y anillos. El arco por defecto abarca media circunferencia, así que las letras de los extremos quedan casi verticales
+  (es lo que define la norma). **No se ha comparado con Office real.**
+- **Simplificaciones:** las transformaciones con varios grupos de curvas (`textDeflateInflate`, `textDeflateInflateDeflate`, `textButtonPour`)
+  usan solo el primer grupo para todo el texto (Office reparte las líneas entre grupos); sin ligaduras ni escrituras complejas; sin relieve 3D;
+  sin asas de ajuste todavía (los valores de `adj` sí se respetan).
+- **No verificado:** el permiso de fuentes locales en la app de escritorio (WebView2 en Tauri); plan B en la sección 3.

@@ -37,11 +37,11 @@ export function presetDefaults(name: string): Record<string, number> {
 }
 
 const DEG = Math.PI / 180 / 60000;
-const rad = (a: number) => a * DEG;
+export const rad = (a: number) => a * DEG;
 
-type Env = Map<string, number>;
+export type Env = Map<string, number>;
 
-function val(tok: string | undefined, env: Env): number {
+export function val(tok: string | undefined, env: Env): number {
   if (tok === undefined) return 0;
   const n = Number(tok);
   if (!Number.isNaN(n)) return n;
@@ -50,7 +50,7 @@ function val(tok: string | undefined, env: Env): number {
   return v;
 }
 
-function formula(fm: string, env: Env): number {
+export function formula(fm: string, env: Env): number {
   const [op, ...rest] = fm.trim().split(/\s+/);
   const x = val(rest[0], env);
   const y = val(rest[1], env);
@@ -95,7 +95,7 @@ function formula(fm: string, env: Env): number {
   }
 }
 
-function baseEnv(w: number, h: number): Env {
+export function baseEnv(w: number, h: number): Env {
   const e: Env = new Map();
   const ss = Math.min(w, h);
   const ls = Math.max(w, h);
@@ -155,7 +155,7 @@ export interface PresetGeometry {
 const f = (n: number) => (Math.round(n * 1000) / 1000).toString();
 
 /** Visual-angle point on an ellipse of radii (wr, hr), relative to its centre. */
-function ellipsePoint(wr: number, hr: number, ang: number): [number, number] {
+export function ellipsePoint(wr: number, hr: number, ang: number): [number, number] {
   const c = Math.cos(ang);
   const s = Math.sin(ang);
   const d = Math.sqrt((hr * c) ** 2 + (wr * s) ** 2);

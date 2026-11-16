@@ -1,5 +1,6 @@
 import { docNode, levelStyle, mergeR, themeFont, clrCss, type RunProps, type TextBody, type TextContext, type TextWarp } from '@suitenova/slides-core';
-import type { ReactNode } from 'react';
+import { LocalFontSource, hasWarp, layoutText, warpText, wordArtSvg, type FontLike, type FxColor, type FxFill, type WordArtFx } from '@suitenova/wordart-core';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { TextEnv } from './TextView';
 
 /*
@@ -44,7 +45,84 @@ export function warpPath(prst: string, w: number, h: number, adj: Record<string,
   }
 }
 
-export function WarpedText({ warp, width, height, text, tc, env }: { warp: TextWarp; width: number; height: number; text: TextBody | undefined; tc: TextContext; env: TextEnv }): ReactNode {
+/** Las fuentes del sistema se piden una sola vez por página; si el navegador no las deja leer, se dibuja con trayectorias (más abajo). */
+const fonts = new LocalFontSource();
+
+/** El texto de un cuadro con transformación, por párrafos, con las propiedades de la primera letra de cada uno. */
+function warpLines(text: TextBody | undefined, tc: TextContext): { text: string; r: RunProps }[] {
+  const doc = docNode(text?.doc);
+  const lines: { text: string; r: RunProps }[] = [];
+  doc.forEach((para) => {
+    const ls = levelStyle(tc, para.attrs.lvl);
+    let t = '';
+    let r: RunProps = ls.rPr;
+    para.forEach((c) => {
+      if (c.type.name === 'text') {
+        t += c.text;
+        const m = c.marks.find((x) => x.type.name === 'run')?.attrs.r as RunProps | undefined;
+        r = mergeR(r, m);
+      }
+    });
+    lines.push({ text: t, r });
+  });
+  return lines;
+}
+
+/** El estilo de texto de una letra de Slides (relleno, contorno y efectos) en el modelo neutral del motor. */
+function toFx(r: RunProps, env: TextEnv): WordArtFx {
+  const fx = r.fx;
+  const col = (c: Parameters<typeof clrCss>[0]): FxColor => ({ color: clrCss(c, env.cc), alpha: 1 });
+  let fill: FxFill;
+  if (fx?.fill?.t === 'none') fill = { type: 'none' };
+  else if (fx?.fill?.t === 'grad') fill = { type: 'gradient', angle: fx.fill.lin?.ang ?? 90, stops: [...fx.fill.stops].sort((a, b) => a.pos - b.pos).map((s) => ({ pos: s.pos / 100000, ...col(s.c) })) };
+  else if (fx?.fill?.t === 'solid') fill = { type: 'solid', ...col(fx.fill.c) };
+  else fill = { type: 'solid', ...(r.color ? col(r.color) : { color: '#000000' }) };
+  const out: WordArtFx = { fill };
+  if (fx?.ln?.fill?.t === 'solid' && (fx.ln.w ?? 0) > 0) out.outline = { ...col(fx.ln.fill.c), width: fx.ln.w ?? 1 };
+  const e = fx?.effects;
+  if (e?.outer) out.shadow = { ...col(e.outer.c), blur: e.outer.blur, dx: e.outer.dist * Math.cos((e.outer.dir * Math.PI) / 180), dy: e.outer.dist * Math.sin((e.outer.dir * Math.PI) / 180) };
+  if (e?.glow) out.glow = { ...col(e.glow.c), radius: e.glow.rad };
+  if (e?.reflection) out.reflection = { alpha: e.reflection.stA / 100 || 0.5, size: Math.max(0.05, e.reflection.endPos / 100), gap: e.reflection.dist };
+  return out;
+}
+
+/**
+ * Texto con transformación. Con la fuente del sistema disponible se deforman **los contornos de las letras** (como Office, motor
+ * `wordart-core`); si no, o si la transformación no está en la norma, se dibuja con texto sobre trayectoria (`PathWarpedText`).
+ */
+export function WarpedText(props: { warp: TextWarp; width: number; height: number; text: TextBody | undefined; tc: TextContext; env: TextEnv }): ReactNode {
+  const { warp, width, height, text, tc, env } = props;
+  const lines = warpLines(text, tc);
+  const first = lines[0]?.r;
+  const family = themeFont(env.chain.theme, first?.latin) ?? 'Calibri';
+  const bold = !!first?.b;
+  const italic = !!first?.i;
+  const engine = hasWarp(warp.prst);
+  const [font, setFont] = useState<FontLike | null>(null);
+  useEffect(() => {
+    let live = true;
+    if (!engine) return;
+    void fonts.load(family, bold, italic).then((f) => live && setFont(f));
+    return () => {
+      live = false;
+    };
+  }, [engine, family, bold, italic]);
+  const joined = lines.map((l) => l.text).join('\n');
+  const size = Math.max(...lines.map((l) => l.r.sz ?? 18), 10);
+  const adjKey = JSON.stringify(warp.adj ?? {});
+  const svg = useMemo(() => {
+    if (!font || !engine || !joined.trim() || width < 4 || height < 4) return null;
+    const block = layoutText(joined, font, { size, align: 'center' });
+    const out = warpText(block, warp.prst, width, height, warp.adj);
+    return out && first ? wordArtSvg(out, toFx(first, env), `wa${Math.abs(hash(joined + warp.prst + adjKey))}`) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [font, engine, joined, size, width, height, warp.prst, adjKey, first, env]);
+  if (svg) return <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible', display: 'block' }} dangerouslySetInnerHTML={{ __html: svg }} />;
+  return <PathWarpedText {...props} />;
+}
+
+/** Respaldo: el texto recorre una curva (aproximado: no deforma las letras). */
+export function PathWarpedText({ warp, width, height, text, tc, env }: { warp: TextWarp; width: number; height: number; text: TextBody | undefined; tc: TextContext; env: TextEnv }): ReactNode {
   const doc = docNode(text?.doc);
   const lines: { text: string; r: RunProps }[] = [];
   doc.forEach((para) => {
