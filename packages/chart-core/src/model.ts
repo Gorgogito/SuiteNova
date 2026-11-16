@@ -23,6 +23,30 @@ export interface ChartAxis {
   gridlines?: boolean;
   /** Show the largest values first. */
   reverse?: boolean;
+  /** Draw the minor grid lines of this axis (Excel's "Minor gridlines"). */
+  minorGridlines?: boolean;
+  /** The axis is not shown (Excel's "Axes" element switched off); its scale still applies. */
+  hidden?: boolean;
+}
+
+/** Where the legend goes (Excel's "Legend" element): bottom, top, left, right or top right. */
+export type LegendPos = 'b' | 't' | 'l' | 'r' | 'tr';
+
+/** Where a data label sits; the ones that apply depend on the kind of chart (Excel offers a different list for each). */
+export type LabelPos = 'ctr' | 'inEnd' | 'inBase' | 'outEnd' | 't' | 'b' | 'l' | 'r' | 'bestFit';
+
+/** Excel's "Data labels" of one series: what they say and where they go. */
+export interface DataLabels {
+  value?: boolean;
+  category?: boolean;
+  series?: boolean;
+  /** Share of the whole; only in pie and doughnut charts. */
+  percent?: boolean;
+  pos?: LabelPos;
+  /** Text between the parts of a label; ", " when empty. */
+  separator?: string;
+  /** Number format of the values; the data's own when empty. */
+  format?: string;
 }
 
 /** The viewing position of a 3-D chart (Excel's "Format chart area > 3-D rotation"). */
@@ -69,6 +93,8 @@ export interface ChartSeries {
   color?: string;
   /** Trendlines fitted to this series (not for stacked, pie, radar, stock, surface or 3-D charts). */
   trendlines?: Trendline[];
+  /** Data labels of this series (none when empty). */
+  labels?: DataLabels;
   /** Error bars along Y (and along X in scatter charts). */
   errY?: ErrorBars;
   errX?: ErrorBars;
@@ -78,6 +104,10 @@ export interface ChartSpec {
   type: ChartType;
   title?: string;
   legend: boolean;
+  /** Where the legend goes; the bottom when empty. */
+  legendPos?: LegendPos;
+  /** Excel's "Data table" under the plot (column, bar-less category charts); `keys` shows the legend keys in it. */
+  dataTable?: { keys?: boolean };
   stacked?: boolean;
   /** With `stacked`: every column adds up to 100%. */
   percent?: boolean;

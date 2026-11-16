@@ -37,3 +37,41 @@ describe('chart-core sin libro de cálculo', () => {
     expect(formatChartNumber(3)).toBe('3');
   });
 });
+
+describe('elementos del gráfico', () => {
+  type Opt = { legend?: Record<string, unknown>; grid: Record<string, number | boolean>; series: Record<string, unknown>[]; yAxis: Record<string, unknown>; xAxis: Record<string, unknown> };
+  const opt = (s: ChartSpec) => chartOption(s, data, 'es', palette) as unknown as Opt;
+
+  it('la leyenda va donde se pide y deja sitio al trazado', () => {
+    expect(opt(spec()).legend).toMatchObject({ bottom: 4 });
+    expect(opt(spec({ legendPos: 't' })).legend).toMatchObject({ top: 30 });
+    expect(opt(spec({ legendPos: 'r' })).legend).toMatchObject({ right: 6, orient: 'vertical' });
+    expect(opt(spec({ legendPos: 'r' })).grid.right).toBeGreaterThan(opt(spec()).grid.right as number);
+    expect(opt(spec({ legendPos: 'l' })).grid.left).toBeGreaterThan(opt(spec()).grid.left as number);
+    expect(opt(spec({ legend: false })).legend).toBeUndefined();
+  });
+
+  it('las etiquetas de datos salen por serie, con su posición y su texto', () => {
+    const o = opt(spec({ series: [{ values: 'A', labels: { value: true, pos: 'inEnd' } }, { values: 'B', labels: { value: true, category: true, separator: ' - ' } }] }));
+    expect(o.series[0]!.label).toMatchObject({ show: true, position: 'insideTop', formatter: '{c}' });
+    expect(o.series[1]!.label).toMatchObject({ show: true, position: 'top', formatter: '{b} - {c}' });
+    expect(opt(spec()).series[0]!.label).toEqual({ show: false });
+    const pie = chartOption(spec({ type: 'pie', series: [{ values: 'A', labels: { percent: true, category: true, pos: 'outEnd' } }] }), data, 'es', palette) as unknown as Opt;
+    expect(pie.series[0]!.label).toMatchObject({ show: true, position: 'outside', formatter: '{b}, {d}%' });
+  });
+
+  it('las cuadrículas menores y los ejes ocultos', () => {
+    const o = opt(spec({ axisY: { minorGridlines: true } }));
+    expect(o.yAxis.minorSplitLine).toMatchObject({ show: true });
+    expect(opt(spec({ axisY: { hidden: true } })).yAxis.show).toBe(false);
+  });
+
+  it('la tabla de datos dibuja los nombres y los valores bajo el trazado', () => {
+    const svg = chartSvg(spec({ dataTable: { keys: true } }), data, 'es', palette, 600, 360);
+    expect(svg).toContain('Ventas');
+    expect(svg).toContain('Gastos');
+    expect(svg).toContain('>20<');
+    expect(opt(spec({ dataTable: {} })).series.some((x) => x.type === 'custom')).toBe(true);
+    expect(opt(spec({ type: 'bar', dataTable: {} })).series.some((x) => x.type === 'custom')).toBe(false);
+  });
+});

@@ -265,7 +265,7 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
         const JSZip = (await import('jszip')).default;
         const zip = await JSZip.loadAsync(bytes);
         const drawing = await zip.file(/^xl\/drawings\/drawing\d+\.xml$/)[0]?.async('string');
-        return { shapes: back.workbook.sheets[0]!.shapes, images: back.workbook.sheets[0]!.images.map((i) => ({ ...i })), drawing: drawing ?? '' };
+        return { charts: back.workbook.sheets[0]!.charts.map((c) => ({ ...c })), shapes: back.workbook.sheets[0]!.shapes, images: back.workbook.sheets[0]!.images.map((i) => ({ ...i })), drawing: drawing ?? '' };
       },
       doc,
     };

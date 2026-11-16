@@ -4,6 +4,7 @@ import { ChevronDown } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { helpTab, viewTab } from '../common';
 import { FONT_NAMES, FONT_SIZES, PALETTE, formatLabel, numberFormats, type CalcUI } from './commands';
+import { CHART_ELEMENTS, ELEMENT_GROUPS } from '../chart/elements';
 import { chartEntries, contextualTabs, developerTab, insertGroups, pageTab, reviewTab, type ContextFlags } from './ribbonObjects';
 
 type Leaf = Exclude<RibbonItem, { kind: 'separator' }>;
@@ -646,8 +647,19 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
         label: 'Elementos del gráfico',
         icon: 'list',
         items: [
-          { kind: 'button', command: 'calc.chartTitle', size: 'small', keytip: 'TI' },
-          { kind: 'button', command: 'calc.chartLegend', size: 'small', keytip: 'LE' },
+          {
+            kind: 'dropdown',
+            id: 'addElement',
+            label: 'Agregar elemento de gráfico',
+            icon: 'chart',
+            size: 'large',
+            keytip: 'AE',
+            entries: ELEMENT_GROUPS.flatMap((g, i) => [
+              ...(i ? [{ kind: 'separator' as const }] : []),
+              { kind: 'header' as const, label: g },
+              ...CHART_ELEMENTS.filter((e) => e.group === g).map((e) => ({ kind: 'command' as const, command: `calc.el.${e.id}` })),
+            ]),
+          },
           { kind: 'button', command: 'calc.chartStacked', size: 'small', keytip: 'AP' },
           { kind: 'button', command: 'calc.chartSmooth', size: 'small', keytip: 'SU' },
           {

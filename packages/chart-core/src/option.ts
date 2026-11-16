@@ -1,4 +1,4 @@
-import type { ChartAxis, ChartSpec } from './model';
+import type { ChartAxis, ChartSpec, DataLabels } from './model';
 import type { ErrorBars, Trendline } from './fit';
 import { fitTrend, trendName, trendPath } from './fit';
 import { formatChartNumber } from './format';
@@ -23,8 +23,135 @@ function valueAxis(a: ChartAxis | undefined, palette: ChartPalette, o: { opposit
     axisLine: { show: false },
     axisLabel: { color: palette.text, formatter: a?.format ? (v: number) => formatChartNumber(v, a.format) : o.percent ? '{value}%' : undefined },
     splitLine: { show: grid, lineStyle: { color: palette.grid } },
+    minorTick: { show: !!a?.minorGridlines },
+    minorSplitLine: { show: !!a?.minorGridlines, lineStyle: { color: palette.grid, opacity: 0.5 } },
+    ...(a?.hidden ? { show: false } : {}),
   };
 }
+
+/** The legend of a chart where Excel's "Legend" element puts it (`data` restricts the entries). */
+function legendOf(def: ChartSpec, palette: ChartPalette, data?: string[]): Record<string, unknown> | undefined {
+  if (!def.legend) return undefined;
+  const text = { textStyle: { color: palette.text }, type: 'scroll', ...(data ? { data } : {}) };
+  switch (def.legendPos) {
+    case 't':
+      return { ...text, top: def.title ? 30 : 6, left: 'center' };
+    case 'l':
+      return { ...text, left: 6, top: 'middle', orient: 'vertical' };
+    case 'r':
+      return { ...text, right: 6, top: 'middle', orient: 'vertical' };
+    case 'tr':
+      return { ...text, right: 6, top: def.title ? 30 : 6, orient: 'vertical' };
+    default:
+      return { ...text, bottom: 4, left: 'center' };
+  }
+}
+
+const LEGEND_W = 110;
+const ROW_H = 22;
+const hasTable = (def: ChartSpec): boolean => !!def.dataTable && def.type !== 'bar' && (def.type === 'column' || def.type === 'line' || def.type === 'area');
+
+/** The room the plot leaves around it for the title, the legend, the axis titles and the data table. */
+function gridOf(def: ChartSpec, secondary: boolean, rows: number, tableLeft: number): Record<string, unknown> {
+  const horizontal = def.type === 'bar';
+  const side = def.legendPos;
+  const leftTitle = horizontal ? def.axisX?.title : def.axisY?.title;
+  const bottomTitle = horizontal ? def.axisY?.title : def.axisX?.title;
+  const table = hasTable(def);
+  return {
+    left: table ? tableLeft : 52 + (leftTitle ? 18 : 0) + (def.legend && side === 'l' ? LEGEND_W : 0),
+    right: (secondary ? 56 : 20) + (def.legend && (side === 'r' || side === 'tr') ? LEGEND_W : 0),
+    top: (def.title ? 44 : 20) + (def.legend && side === 't' ? 26 : 0),
+    bottom: table ? ROW_H * (rows + 1) + 14 + (def.legend && (!side || side === 'b') ? 28 : 0) : 28 + (def.legend && (!side || side === 'b') ? 28 : 0) + (bottomTitle ? 18 : 0),
+    containLabel: !table,
+  };
+}
+
+/** Where the circle of a pie, doughnut or radar goes, leaving room for the legend and the title. */
+function roundCenter(def: ChartSpec): [string, string] {
+  const side = def.legendPos;
+  const x = !def.legend ? 50 : side === 'l' ? 58 : side === 'r' || side === 'tr' ? 42 : 50;
+  const y = (def.title ? 54 : 50) + (def.legend && side === 't' ? 4 : 0) + (def.legend && (!side || side === 'b') ? -3 : 0);
+  return [`${x}%`, `${y}%`];
+}
+
+type LabelKind = 'bar' | 'line' | 'area' | 'pie' | 'scatter';
+
+/** The data labels of a series (Excel's "Data labels") as an ECharts label; hidden when the series has none. */
+function labelOf(l: DataLabels | undefined, kind: LabelKind, o: { horizontal?: boolean; stacked?: boolean } = {}): Record<string, unknown> {
+  if (!l || !(l.value || l.category || l.series || l.percent)) return { show: false };
+  const pos = l.pos;
+  let position: string | undefined;
+  if (kind === 'bar') {
+    const h = !!o.horizontal;
+    const p = pos ?? (o.stacked ? 'ctr' : 'outEnd');
+    position = p === 'outEnd' && !o.stacked ? (h ? 'right' : 'top') : p === 'inEnd' ? (h ? 'insideRight' : 'insideTop') : p === 'inBase' ? (h ? 'insideLeft' : 'insideBottom') : 'inside';
+  } else if (kind === 'line' || kind === 'scatter') {
+    position = pos === 'b' ? 'bottom' : pos === 'l' ? 'left' : pos === 'r' || (!pos && kind === 'scatter') ? 'right' : pos === 'ctr' ? 'inside' : 'top';
+  } else if (kind === 'pie') {
+    position = pos === 'ctr' || pos === 'inEnd' ? 'inside' : 'outside';
+  }
+  const sep = l.separator ?? ', ';
+  const parts: string[] = [];
+  if (l.series) parts.push('{a}');
+  if (l.category) parts.push('{b}');
+  if (l.value) parts.push('{c}');
+  if (l.percent && kind === 'pie') parts.push('{d}%');
+  const out: Record<string, unknown> = { show: true, ...(position ? { position } : {}) };
+  if (l.format && l.value) {
+    const fmt = l.format;
+    out.__fmt = fmt;
+    out.formatter = (p: { value?: unknown; name?: string; seriesName?: string; percent?: number }) => {
+      const raw = Array.isArray(p.value) ? p.value[1] : p.value;
+      const out2: string[] = [];
+      if (l.series) out2.push(p.seriesName ?? '');
+      if (l.category) out2.push(p.name ?? '');
+      out2.push(typeof raw === 'number' ? formatChartNumber(raw, fmt) : String(raw ?? ''));
+      if (l.percent && kind === 'pie') out2.push(`${p.percent ?? 0}%`);
+      return out2.join(sep);
+    };
+  } else out.formatter = parts.join(sep);
+  return out;
+}
+
+/** Excel's "Data table": the categories and the values of every series in a table under the plot. */
+function dataTableSeries(def: ChartSpec, categories: string[], series: ChartSeriesData[], palette: ChartPalette): Record<string, unknown> {
+  const keys = !!def.dataTable?.keys;
+  return {
+    type: 'custom',
+    silent: true,
+    z: 1,
+    data: categories.map((_c, i) => [i, 0]),
+    encode: { x: 0, y: 1 },
+    tooltip: { show: false },
+    renderItem: (params: { coordSys: { x: number; y: number; width: number; height: number } }, api: Record<string, (...a: unknown[]) => unknown>) => {
+      const i = api.value!(0) as number;
+      const cs = params.coordSys;
+      const x = (api.coord!([i, 0]) as number[])[0]!;
+      const band = (api.size!([1, 0]) as number[])[0]!;
+      const top = cs.y + cs.height + 4;
+      const bottom = top + ROW_H * (series.length + 1);
+      const style = { stroke: palette.grid, lineWidth: 1 };
+      const text = (t: string, tx: number, ty: number, align: string) => ({ type: 'text', style: { text: t, x: tx, y: ty, fill: palette.text, textAlign: align, textVerticalAlign: 'middle', fontSize: 12 } });
+      const children: Record<string, unknown>[] = [
+        text(categories[i] ?? '', x, top + ROW_H / 2, 'center'),
+        ...series.map((s, k) => text(s.values[i] === null || s.values[i] === undefined ? '' : formatChartNumber(s.values[i] as number), x, top + ROW_H * (k + 1) + ROW_H / 2, 'center')),
+        { type: 'line', shape: { x1: x - band / 2, y1: top, x2: x - band / 2, y2: bottom }, style },
+      ];
+      if (i === categories.length - 1) children.push({ type: 'line', shape: { x1: x + band / 2, y1: top, x2: x + band / 2, y2: bottom }, style });
+      if (i === 0) {
+        for (let r = 0; r <= series.length + 1; r++) children.push({ type: 'line', shape: { x1: cs.x, y1: top + ROW_H * r, x2: cs.x + cs.width, y2: top + ROW_H * r }, style });
+        series.forEach((s, k) => {
+          const y = top + ROW_H * (k + 1) + ROW_H / 2;
+          children.push(text(s.name, cs.x - 8 - (keys ? 14 : 0), y, 'right'));
+          if (keys) children.push({ type: 'rect', shape: { x: cs.x - 18, y: y - 4, width: 8, height: 8 }, style: { fill: s.color } });
+        });
+      }
+      return { type: 'group', children };
+    },
+  };
+}
+
 
 const SUPERSCRIPT_R2 = 'R\u00b2';
 
@@ -169,9 +296,9 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
     backgroundColor: palette.bg,
     textStyle: { color: palette.text, fontFamily: 'Calibri, Carlito, "Segoe UI", sans-serif' },
     title: def.title ? { text: def.title, left: 'center', top: 6, textStyle: { color: palette.text, fontSize: 15, fontWeight: 600 } } : undefined,
-    legend: def.legend ? { bottom: 4, textStyle: { color: palette.text }, type: 'scroll' } : undefined,
+    legend: legendOf(def, palette),
     tooltip: { trigger: def.type === 'pie' || def.type === 'doughnut' || def.type === 'scatter' || def.type === 'radar' ? 'item' : 'axis', confine: true },
-    grid: { left: 52, right: def.series.some((s) => s.secondary) ? 56 : 20, top: def.title ? 44 : 20, bottom: def.legend ? 44 : 28 + (def.axisX?.title ? 18 : 0), containLabel: true },
+    grid: gridOf(def, def.series.some((s) => s.secondary), series.length, 20 + Math.min(150, 14 + 7 * Math.max(4, ...series.map((s) => s.name.length)))),
   };
 
   const statistical = statChartOption(def, categories, series, base, palette, locale);
@@ -184,8 +311,8 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
       ...base,
       color: undefined,
       grid: undefined,
-      legend: { bottom: 4, textStyle: { color: palette.text }, type: 'scroll' },
-      series: [{ type: 'pie', name: s?.name, radius: def.type === 'doughnut' ? ['38%', '68%'] : ['0%', '68%'], center: ['50%', def.title ? '54%' : '48%'], data, label: { color: palette.text, formatter: '{b}: {d}%' }, itemStyle: { borderColor: palette.bg, borderWidth: 1 } }],
+      legend: legendOf(def, palette, data.map((d) => d.name)),
+      series: [{ type: 'pie', name: s?.name, radius: def.type === 'doughnut' ? ['38%', '68%'] : ['0%', '68%'], center: roundCenter(def), data, label: { color: palette.text, ...labelOf(def.series[0]?.labels, 'pie') }, itemStyle: { borderColor: palette.bg, borderWidth: 1 } }],
     };
   }
 
@@ -197,7 +324,7 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
       grid: undefined,
       radar: {
         indicator: categories.slice(0, Math.max(n, 3)).map((name) => ({ name, max: def.axisY?.max ?? top * 1.1, min: def.axisY?.min ?? 0 })),
-        center: ['50%', def.title ? '54%' : '50%'],
+        center: roundCenter(def),
         radius: '62%',
         axisName: { color: palette.text },
         splitLine: { lineStyle: { color: palette.grid } },
@@ -229,7 +356,7 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
     const out: Record<string, unknown> = {
       ...base,
       color: undefined,
-      legend: def.legend ? { bottom: 4, textStyle: { color: palette.text }, data: [volume ? series[0]!.name : '', def.title ?? ''].filter(Boolean) } : undefined,
+      legend: legendOf(def, palette, [volume ? series[0]!.name : '', def.title ?? ''].filter(Boolean)),
       tooltip: { trigger: 'axis', confine: true, axisPointer: { type: 'cross' } },
       xAxis: { type: 'category', data: categories, boundaryGap: true, ...axisBase(palette) },
       yAxis: volume ? [valueAxis(def.axisY, palette, { scale: true, grid: false }), { ...valueAxis(def.axisY2, palette, { opposite: true, scale: true }), splitLine: { show: true, lineStyle: { color: palette.grid } } }] : valueAxis(def.axisY, palette, { scale: true }),
@@ -247,15 +374,16 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
     const bars = errorSeries(def, series, palette, { horizontal: false, scatter: true });
     return {
       ...base,
-      legend: def.legend ? { bottom: 4, textStyle: { color: palette.text }, type: 'scroll', data: [...series.map((s) => s.name), ...trends.names] } : undefined,
+      legend: legendOf(def, palette, [...series.map((s) => s.name), ...trends.names]),
       tooltip: { trigger: 'item', confine: true },
       graphic: trendGraphic(trends.labels, palette, def.title ? 40 : 14),
       xAxis: { ...valueAxis(def.axisX, palette, { scale: true, grid: false }), position: undefined, nameGap: 28 },
       yAxis: hasSecondary ? [valueAxis(def.axisY, palette, { scale: true }), valueAxis(def.axisY2, palette, { opposite: true, scale: true, grid: false })] : valueAxis(def.axisY, palette, { scale: true }),
       series: [
-        ...series.map((s) => ({
+        ...series.map((s, si) => ({
           type: 'scatter',
           name: s.name,
+          label: labelOf(def.series[si]?.labels, 'scatter'),
           symbolSize: 8,
           yAxisIndex: s.secondary ? 1 : 0,
           data: s.values.map((y, i) => [s.x[i] ?? i + 1, y]).filter((p) => p[0] !== null && p[1] !== null),
@@ -271,7 +399,8 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
   const percent = !!def.stacked && !!def.percent;
   const totals = percent ? categories.map((_c, i) => series.filter((s) => s.type !== 'line' || def.stacked).reduce((a, s) => a + Math.abs(s.values[i] ?? 0), 0) || 1) : [];
   const hasSecondary = series.some((s) => s.secondary);
-  const catAxis = { type: 'category', data: categories, name: def.axisX?.title, nameLocation: 'middle', nameGap: 30, inverse: horizontal !== !!def.axisX?.reverse, ...axisBase(palette), splitLine: { show: !!def.axisX?.gridlines, lineStyle: { color: palette.grid } } };
+  const table = hasTable(def);
+  const catAxis = { type: 'category', data: categories, name: def.axisX?.title, nameLocation: 'middle', nameGap: 30, inverse: horizontal !== !!def.axisX?.reverse, ...axisBase(palette), ...(table ? { axisLabel: { show: false } } : {}), ...(def.axisX?.hidden ? { show: false } : {}), splitLine: { show: !!def.axisX?.gridlines, lineStyle: { color: palette.grid } } };
   const primary = valueAxis(def.axisY, palette, { percent, grid: def.axisY?.gridlines ?? true });
   const yAxis = hasSecondary ? [primary, valueAxis(def.axisY2, palette, { opposite: true, grid: false })] : primary;
   const maxForward = Math.max(0, ...def.series.flatMap((s) => (s.trendlines ?? []).map((tl) => Math.round(tl.forward ?? 0))));
@@ -285,14 +414,15 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
     yAxis: horizontal ? catAxisFull : yAxis,
     ...(trends.names.length || bars.length
       ? {
-          legend: def.legend ? { bottom: 4, textStyle: { color: palette.text }, type: 'scroll', data: [...series.map((s) => s.name), ...trends.names] } : undefined,
+          legend: legendOf(def, palette, [...series.map((s) => s.name), ...trends.names]),
           tooltip: axisTooltip(),
           graphic: trendGraphic(trends.labels, palette, def.title ? 40 : 14),
         }
       : {}),
-    series: [...series.map((s) => {
+    series: [...series.map((s, si) => {
+      const label = labelOf(def.series[si]?.labels, s.type === 'column' ? 'bar' : s.type === 'area' ? 'area' : s.type === 'scatter' ? 'scatter' : 'line', { horizontal, stacked: !!def.stacked });
       const data = percent && s.type !== 'line' ? s.values.map((v, i) => (v === null ? null : Math.round((v / totals[i]!) * 10000) / 100)) : s.values;
-      const common = { name: s.name, data, yAxisIndex: s.secondary && !horizontal ? 1 : 0, itemStyle: { color: s.color } };
+      const common = { name: s.name, data, yAxisIndex: s.secondary && !horizontal ? 1 : 0, itemStyle: { color: s.color }, label };
       switch (s.type) {
         case 'column':
           return { ...common, type: 'bar', barMaxWidth: 48, ...(def.stacked ? { stack: s.secondary ? 'secondary' : 'total' } : {}) };
@@ -303,7 +433,7 @@ export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale
         default:
           return { ...common, type: 'line', smooth: !!def.smooth, symbolSize: 6, showSymbol: n < 40, lineStyle: { color: s.color }, ...(def.stacked && def.type === 'line' ? { stack: s.secondary ? 'secondary' : 'total' } : {}) };
       }
-    }), ...trends.series, ...bars],
+    }), ...trends.series, ...bars, ...(table ? [dataTableSeries(def, categories, series, palette)] : [])],
   };
   return out;
 }

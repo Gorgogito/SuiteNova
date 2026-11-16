@@ -67,3 +67,7 @@ Decisiones del usuario: motor compartido `chart-core` (Slides y Calc migran), da
 - [x] **Fase 4 HECHA (Slides):** `ChartEl` = `ChartSpec` + rejilla; `.pptx` con caché y libro mínimo incrustado (PowerPoint real: 10 tipos abren, «Editar datos» abre el libro; gráficos de PowerPoint se leen); cuadro compartido `apps/suite/src/chart/` con todos los tipos; borrados `chartxml/chartw/render/chart` propios. Pendiente: Fase 5 (Writer) y 6 (cierre).
 - [x] **Fase 5 HECHA (Writer):** nodo `chart`, `.docx` con parte, libro incrustado y caché; cuadro compartido; Word real abre los 9 tipos probados y edita los datos; e2e nueva. `readChartPart`/`chartParts` pasaron a `chart-core`.
 - [x] **Fase 6 HECHA (cierre):** documentación y límites (`LIMITACIONES.md`, `diseno-graficos.md`), regresión completa (typecheck, todas las pruebas y las e2e de Calc, Slides y Writer). **Subproducto Gráficos terminado.**
+
+### Gráficos, segunda ronda: igualar a Office (plan en `docs/diseno-graficos.md` §8)
+- [x] **Fase 1 HECHA:** elementos del gráfico (leyenda en 4 posiciones, etiquetas de datos, títulos de ejes, cuadrículas secundarias, ejes, tabla de datos) en motor, DrawingML y Calc; menú «Agregar elemento de gráfico»; Excel real lo abre.
+- [ ] Fase 2: formato de serie y de punto. · [ ] Fase 3: estilos y colores. · [ ] Fase 4: Slides y Writer con los mismos elementos, ratón y tooltips. · [ ] Fase 5: fidelidad de archivo. · [ ] Fase 6: portapapeles y ODF. · [ ] Fase 7: cierre.

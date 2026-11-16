@@ -82,3 +82,39 @@ describe('gráficos de Office 2016 sin fórmulas (PowerPoint y Word)', () => {
     expect(r.literals?.get('Sheet1!$A$2:$A$4')).toEqual(['a', 'b', 'c']);
   });
 });
+
+describe('elementos del gráfico en DrawingML', () => {
+  it('leyenda, etiquetas, cuadrículas menores, ejes ocultos y tabla de datos hacen la ida y la vuelta', () => {
+    const g = sampleGrid();
+    const base = specFromGrid('column', g, { title: 'Ventas' });
+    base.legendPos = 'r';
+    base.axisY = { title: 'Euros', minorGridlines: true, gridlines: true };
+    base.axisX = { title: 'Mes', hidden: true };
+    base.dataTable = { keys: true };
+    base.series[0]!.labels = { value: true, category: true, pos: 'inEnd', separator: ' / ', format: '0.0' };
+    base.series[1]!.labels = { value: true };
+    const xml = chartXml(base, gridSource(g));
+    expect(xml).toContain('<c:legendPos val="r"/>');
+    expect(xml).toContain('<c:minorGridlines>');
+    expect(xml).toContain('<c:dTable>');
+    expect(xml).toContain('<c:dLblPos val="inEnd"/>');
+    const back = parseChart(dmlParser.parse(xml));
+    if (!('def' in back)) throw new Error('skip');
+    expect(back.def.legendPos).toBe('r');
+    expect(back.def.dataTable).toEqual({ keys: true });
+    expect(back.def.axisY).toMatchObject({ title: 'Euros', minorGridlines: true, gridlines: true });
+    expect(back.def.axisX).toMatchObject({ title: 'Mes', hidden: true });
+    expect(back.def.series[0]!.labels).toEqual({ value: true, category: true, pos: 'inEnd', separator: ' / ', format: '0.0' });
+    expect(back.def.series[1]!.labels).toEqual({ value: true });
+  });
+
+  it('una posición de etiqueta que Excel no admite se omite (si no, Excel rechaza el archivo)', () => {
+    const g = sampleGrid();
+    const area = specFromGrid('area', g, {});
+    area.series[0]!.labels = { value: true, pos: 'outEnd' };
+    expect(chartXml(area, gridSource(g))).not.toContain('<c:dLblPos');
+    const stacked = specFromGrid('column', g, { stacked: true });
+    stacked.series[0]!.labels = { value: true, pos: 'outEnd' };
+    expect(chartXml(stacked, gridSource(g))).not.toContain('<c:dLblPos');
+  });
+});

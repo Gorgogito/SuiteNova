@@ -1,4 +1,4 @@
-import { DEFAULT_3D, STOCK_SERIES, type Chart3D, type ChartAxis, type ChartSeries, type ChartSpec, type ChartType, type SeriesType, type StockKind } from '../model';
+import { DEFAULT_3D, STOCK_SERIES, type Chart3D, type ChartAxis, type ChartSeries, type ChartSpec, type DataLabels, type LabelPos, type LegendPos, type ChartType, type SeriesType, type StockKind } from '../model';
 import { formatChartNumber } from '../format';
 import type { ChartCell, ChartSource } from '../source';
 import { errBarsXml, parseErrBars, parseTrendlines, trendlinesXml } from './fitio';
@@ -13,6 +13,73 @@ export const NS_XDR = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsh
 export const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 /** Líneas de la cuadrícula en gris claro, como las de Excel (sin esto Excel las dibuja negras y gruesas). */
 const GRIDLINES = '<c:majorGridlines><c:spPr><a:ln w="9525" cap="flat"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill><a:round/></a:ln></c:spPr></c:majorGridlines>';
+
+
+const MINOR_GRIDLINES = '<c:minorGridlines><c:spPr><a:ln w="9525" cap="flat"><a:solidFill><a:srgbClr val="F2F2F2"/></a:solidFill><a:round/></a:ln></c:spPr></c:minorGridlines>';
+
+/** The label positions Excel accepts for each kind of chart (a wrong one makes Excel refuse the file). */
+function labelPositions(kind: GroupKind, def: ChartSpec): LabelPos[] {
+  if (def.threeD) return kind === 'pie' ? ['bestFit', 'ctr', 'inEnd', 'outEnd'] : [];
+  switch (kind) {
+    case 'bar':
+      return def.stacked ? ['ctr', 'inEnd', 'inBase'] : ['ctr', 'inEnd', 'inBase', 'outEnd'];
+    case 'line':
+    case 'scatter':
+      return ['t', 'b', 'l', 'r', 'ctr'];
+    case 'pie':
+      return ['bestFit', 'ctr', 'inEnd', 'outEnd'];
+    default:
+      return [];
+  }
+}
+
+/** `c:dLbls` of a series: what its data labels say and where they go. */
+function labelsXml(s: ChartSeries, kind: GroupKind, def: ChartSpec): string {
+  const l = s.labels;
+  if (!l || !(l.value || l.category || l.series || l.percent)) return '';
+  const pos = l.pos && labelPositions(kind, def).includes(l.pos) ? `<c:dLblPos val="${l.pos}"/>` : '';
+  const flag = (n: string, v: boolean | undefined) => `<c:${n} val="${v ? 1 : 0}"/>`;
+  return (
+    '<c:dLbls>' +
+    (l.format ? `<c:numFmt formatCode="${escapeXml(l.format)}" sourceLinked="0"/>` : '') +
+    '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' +
+    pos +
+    flag('showLegendKey', false) +
+    flag('showVal', l.value) +
+    flag('showCatName', l.category) +
+    flag('showSerName', l.series) +
+    flag('showPercent', l.percent && (kind === 'pie' || kind === 'doughnut')) +
+    flag('showBubbleSize', false) +
+    (l.separator !== undefined && l.separator !== ', ' ? `<c:separator>${escapeXml(l.separator)}</c:separator>` : '') +
+    (kind === 'pie' || kind === 'doughnut' ? '<c:showLeaderLines val="1"/>' : '') +
+    '</c:dLbls>'
+  );
+}
+
+/** `c:dTable` (Excel's "Data table"), only where Excel allows it: column, line and area charts. */
+function dataTableXml(def: ChartSpec, kinds: Set<GroupKind>): string {
+  if (!def.dataTable || def.type === 'bar') return '';
+  if (![...kinds].every((k) => k === 'bar' || k === 'line' || k === 'area')) return '';
+  return `<c:dTable><c:showHorzBorder val="1"/><c:showVertBorder val="1"/><c:showOutline val="1"/><c:showKeys val="${def.dataTable.keys ? 1 : 0}"/></c:dTable>`;
+}
+
+function readLabels(s: XNode): DataLabels | undefined {
+  const d = s?.dLbls;
+  if (!d || d.delete !== undefined) return undefined;
+  const on = (k: string) => ['1', 'true'].includes(attr(d[k], 'val') ?? '');
+  const out: DataLabels = {};
+  if (on('showVal')) out.value = true;
+  if (on('showCatName')) out.category = true;
+  if (on('showSerName')) out.series = true;
+  if (on('showPercent')) out.percent = true;
+  if (!out.value && !out.category && !out.series && !out.percent) return undefined;
+  const pos = attr(d.dLblPos, 'val');
+  if (pos && ['ctr', 'inEnd', 'inBase', 'outEnd', 't', 'b', 'l', 'r', 'bestFit'].includes(pos)) out.pos = pos as LabelPos;
+  if (d.separator !== undefined) out.separator = textOf(d.separator);
+  const nf = asArray(d.numFmt)[0];
+  if (nf && attr(nf, 'sourceLinked') !== '1' && attr(nf, 'formatCode') && attr(nf, 'formatCode') !== 'General') out.format = attr(nf, 'formatCode');
+  return out;
+}
 
 const HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 
@@ -63,25 +130,25 @@ function serXml(item: { s: ChartSeries; index: number }, g: Group, def: ChartSpe
       const x = s.categories ? `<c:xVal><c:numRef><c:f>${escapeXml(s.categories)}</c:f>${numCache(catVals)}</c:numRef></c:xVal>` : '';
       const sp = `<c:spPr><a:ln w="19050"><a:noFill/></a:ln></c:spPr>`;
       const marker = color ? `<c:marker><c:symbol val="circle"/><c:size val="7"/><c:spPr>${solid(color)}</c:spPr></c:marker>` : '';
-      return `<c:ser>${head}${sp}${marker}${analysis('scatter')}${x}<c:yVal><c:numRef><c:f>${escapeXml(s.values)}</c:f>${numCache(vals)}</c:numRef></c:yVal><c:smooth val="0"/></c:ser>`;
+      return `<c:ser>${head}${sp}${marker}${labelsXml(s, 'scatter', def)}${analysis('scatter')}${x}<c:yVal><c:numRef><c:f>${escapeXml(s.values)}</c:f>${numCache(vals)}</c:numRef></c:yVal><c:smooth val="0"/></c:ser>`;
     }
     case 'bar': {
       const sp = color ? `<c:spPr>${solid(color)}</c:spPr>` : '';
-      return `<c:ser>${head}${sp}<c:invertIfNegative val="0"/>${analysis('other')}${cat}${val}</c:ser>`;
+      return `<c:ser>${head}${sp}<c:invertIfNegative val="0"/>${labelsXml(s, 'bar', def)}${analysis('other')}${cat}${val}</c:ser>`;
     }
     case 'line': {
       const sp = `<c:spPr><a:ln w="28575" cap="rnd">${color ? solid(color) : ''}<a:round/></a:ln></c:spPr>`;
-      return `<c:ser>${head}${sp}<c:marker><c:symbol val="${def.type === 'line' || s.type === 'line' ? 'circle' : 'none'}"/></c:marker>${analysis('line')}${cat}${val}<c:smooth val="${def.smooth ? 1 : 0}"/></c:ser>`;
+      return `<c:ser>${head}${sp}<c:marker><c:symbol val="${def.type === 'line' || s.type === 'line' ? 'circle' : 'none'}"/></c:marker>${labelsXml(s, 'line', def)}${analysis('line')}${cat}${val}<c:smooth val="${def.smooth ? 1 : 0}"/></c:ser>`;
     }
     case 'area': {
       const sp = color ? `<c:spPr>${solid(color)}</c:spPr>` : '';
-      return `<c:ser>${head}${sp}${analysis('other')}${cat}${val}</c:ser>`;
+      return `<c:ser>${head}${sp}${labelsXml(s, 'area', def)}${analysis('other')}${cat}${val}</c:ser>`;
     }
     case 'radar': {
       const filled = !!def.radar?.filled;
       const sp = filled ? (color ? `<c:spPr>${solid(color)}</c:spPr>` : '') : `<c:spPr><a:ln w="28575">${color ? solid(color) : ''}</a:ln></c:spPr>`;
       const marker = filled ? '' : `<c:marker><c:symbol val="${def.radar?.markers ? 'circle' : 'none'}"/></c:marker>`;
-      return `<c:ser>${head}${sp}${marker}${cat}${val}</c:ser>`;
+      return `<c:ser>${head}${sp}${marker}${labelsXml(s, 'radar', def)}${cat}${val}</c:ser>`;
     }
     case 'stock': {
       return `<c:ser>${head}<c:spPr><a:ln w="19050"><a:noFill/></a:ln></c:spPr><c:marker><c:symbol val="none"/></c:marker>${cat}${val}<c:smooth val="0"/></c:ser>`;
@@ -90,7 +157,7 @@ function serXml(item: { s: ChartSeries; index: number }, g: Group, def: ChartSpe
       return `<c:ser>${head}${cat}${val}</c:ser>`;
     default: {
       const sp = color ? `<c:spPr>${solid(color)}</c:spPr>` : '';
-      return `<c:ser>${head}${sp}${cat}${val}</c:ser>`;
+      return `<c:ser>${head}${sp}${labelsXml(s, g.kind, def)}${cat}${val}</c:ser>`;
     }
   }
 }
@@ -109,7 +176,7 @@ const numFmtXml = (a: ChartAxis | undefined) => `<c:numFmt formatCode="${escapeX
 
 function catAxXml(id: number, cross: number, o: { pos: 'b' | 'l' | 'r' | 't'; deleted?: boolean; axis?: ChartAxis; reverse?: boolean; grid?: boolean; rotate?: boolean }): string {
   return (
-    `<c:catAx><c:axId val="${id}"/>${scaling(o.axis, !!o.reverse)}<c:delete val="${o.deleted ? 1 : 0}"/><c:axPos val="${o.pos}"/>${o.axis?.gridlines || o.grid ? GRIDLINES : ''}` +
+    `<c:catAx><c:axId val="${id}"/>${scaling(o.axis, !!o.reverse)}<c:delete val="${o.deleted || o.axis?.hidden ? 1 : 0}"/><c:axPos val="${o.pos}"/>${o.axis?.gridlines || o.grid ? GRIDLINES : ''}${o.axis?.minorGridlines ? MINOR_GRIDLINES : ''}` +
     `${axisTitle(o.axis, o.rotate)}${numFmtXml(o.axis)}<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>` +
     `<c:crossAx val="${cross}"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>`
   );
@@ -118,7 +185,7 @@ function catAxXml(id: number, cross: number, o: { pos: 'b' | 'l' | 'r' | 't'; de
 function valAxXml(id: number, cross: number, o: { pos: 'b' | 'l' | 'r' | 't'; deleted?: boolean; axis?: ChartAxis; crosses?: 'autoZero' | 'max'; between?: 'between' | 'midCat'; grid?: boolean; reverse?: boolean; rotate?: boolean }): string {
   const grid = o.axis?.gridlines ?? o.grid ?? false;
   return (
-    `<c:valAx><c:axId val="${id}"/>${scaling(o.axis, !!o.reverse)}<c:delete val="${o.deleted ? 1 : 0}"/><c:axPos val="${o.pos}"/>${grid ? GRIDLINES : ''}` +
+    `<c:valAx><c:axId val="${id}"/>${scaling(o.axis, !!o.reverse)}<c:delete val="${o.deleted || o.axis?.hidden ? 1 : 0}"/><c:axPos val="${o.pos}"/>${grid ? GRIDLINES : ''}${o.axis?.minorGridlines ? MINOR_GRIDLINES : ''}` +
     `${axisTitle(o.axis, o.rotate)}${numFmtXml(o.axis)}<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>` +
     `<c:crossAx val="${cross}"/><c:crosses val="${o.crosses ?? 'autoZero'}"/><c:crossBetween val="${o.between ?? 'between'}"/></c:valAx>`
   );
@@ -250,11 +317,11 @@ export function chartXml(def: ChartSpec, src: ChartSource, workbookRid?: string)
   const view3D = threeD && v
     ? `<c:view3D><c:rotX val="${contour ? 90 : Math.round(v.rotX)}"/><c:rotY val="${contour ? 0 : Math.round(v.rotY)}"/><c:depthPercent val="${Math.round(v.depth)}"/><c:rAngAx val="${v.rightAngle && !contour ? 1 : 0}"/>${v.rightAngle ? '' : `<c:perspective val="${Math.round(v.perspective * 2)}"/>`}</c:view3D>`
     : '';
-  const legend = def.legend ? '<c:legend><c:legendPos val="b"/><c:overlay val="0"/></c:legend>' : '';
+  const legend = def.legend ? `<c:legend><c:legendPos val="${def.legendPos ?? 'b'}"/><c:overlay val="0"/></c:legend>` : '';
   return (
     HEAD +
     `<c:chartSpace xmlns:c="${NS_C}" xmlns:a="${NS_A}" xmlns:r="${NS_R}"><c:roundedCorners val="0"/>` +
-    `<c:chart>${title}${view3D}<c:plotArea><c:layout/>${plotGroups}${axes}</c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>` +
+    `<c:chart>${title}${view3D}<c:plotArea><c:layout/>${plotGroups}${axes}${dataTableXml(def, kinds)}</c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>` +
     (workbookRid ? `<c:externalData r:id="${workbookRid}"><c:autoUpdate val="0"/></c:externalData>` : '') +
     '</c:chartSpace>'
   );
@@ -325,6 +392,8 @@ function readAxis(ax: XNode): ChartAxis | undefined {
   const fmt = attr(nf, 'formatCode');
   if (fmt && attr(nf, 'sourceLinked') !== '1' && fmt !== 'General') out.format = fmt;
   if (ax.majorGridlines !== undefined) out.gridlines = true;
+  if (ax.minorGridlines !== undefined) out.minorGridlines = true;
+  if (['1', 'true'].includes(attr(ax.delete, 'val') ?? '')) out.hidden = true;
   if (attr(sc?.orientation, 'val') === 'maxMin') out.reverse = true;
   return Object.keys(out).length ? out : undefined;
 }
@@ -388,6 +457,8 @@ export function parseChart(doc: XNode, theme: string[] = DEFAULT_CHART_THEME): {
       if (cats) ser.categories = cats.replace(/^=/, '');
       const color = fillColor(s.spPr, theme);
       if (color && g.kind !== 'stock') ser.color = color;
+      const lbl = g.kind === 'stock' || g.kind === 'surface' ? undefined : readLabels(s);
+      if (lbl) ser.labels = lbl;
       if (isSecondary(g)) ser.secondary = true;
       const t = groupType(g);
       if (t) ser.type = t;
@@ -427,6 +498,9 @@ export function parseChart(doc: XNode, theme: string[] = DEFAULT_CHART_THEME): {
   const def: Omit<ChartSpec, 'id' | 'x' | 'y' | 'width' | 'height'> = { type, legend: chart.legend !== undefined, series };
   const t = richText(chart.title);
   if (t) def.title = t;
+  const lp = attr(chart.legend?.legendPos, 'val');
+  if (def.legend && lp && lp !== 'b' && ['t', 'l', 'r', 'tr'].includes(lp)) def.legendPos = lp as LegendPos;
+  if (plot.dTable !== undefined) def.dataTable = ['1', 'true'].includes(attr(plot.dTable.showKeys, 'val') ?? '') ? { keys: true } : {};
   const grouping = attr(first.node.grouping, 'val');
   if (grouping === 'stacked' || grouping === 'percentStacked') {
     def.stacked = true;

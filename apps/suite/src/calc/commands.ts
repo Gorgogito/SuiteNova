@@ -1,5 +1,6 @@
 import { ICON_COUNTS, defaultIconThresholds, formatValue, isDateFormat, normRect, type CFKind, type CFRule, type IconSetName, type Rect, type Style } from '@suitenova/calc-engine';
 import type { CommandDef } from '@suitenova/core-ui';
+import { CHART_ELEMENTS } from '../chart/elements';
 import { ICON_LABELS, SCALE_PRESETS } from './cfDialogs';
 import { objectCommands } from './commands-objects';
 import type { CalcDoc } from './doc';
@@ -359,6 +360,20 @@ export function calcCommands(ui: CalcUI): CommandDef[] {
     if (title !== null) d.updateChart(c.id, { title: title.trim() || undefined }, 'Título del gráfico');
   } });
   add({ id: 'calc.chartLegend', label: 'Leyenda', icon: 'list', enabled: () => !!chart(), checked: () => !!chart()?.legend, run: () => chart() && d.updateChart(chart()!.id, { legend: !chart()!.legend }, 'Leyenda') });
+  // «Agregar elemento de gráfico» (los mismos elementos y textos que Slides y Writer)
+  for (const el of CHART_ELEMENTS) {
+    add({
+      id: `calc.el.${el.id}`,
+      label: el.label,
+      icon: 'chart',
+      enabled: () => !!chart() && el.enabled(chart()!),
+      checked: () => !!chart() && el.checked(chart()!),
+      run: () => {
+        const c = chart();
+        if (c) d.updateChart(c.id, el.apply(c) as Parameters<typeof d.updateChart>[1], el.group);
+      },
+    });
+  }
   add({ id: 'calc.chartStacked', label: 'Apilado', icon: 'rows', enabled: () => !!chart() && ['column', 'bar', 'line', 'area'].includes(chart()!.type), checked: () => !!chart()?.stacked, run: () => chart() && d.updateChart(chart()!.id, { stacked: !chart()!.stacked }, 'Apilar series') });
   add({ id: 'calc.chartSmooth', label: 'Líneas suavizadas', icon: 'chartLine', enabled: () => !!chart() && ['line', 'area'].includes(chart()!.type), checked: () => !!chart()?.smooth, run: () => chart() && d.updateChart(chart()!.id, { smooth: !chart()!.smooth }, 'Suavizar líneas') });
   add({ id: 'calc.chartData', label: 'Seleccionar datos…', icon: 'tableGrid', enabled: () => !!chart(), run: () => ui.openDialog('chartData') });
