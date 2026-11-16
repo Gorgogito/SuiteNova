@@ -1,11 +1,13 @@
 import { presetDefaults, presetGeometry } from '@suitenova/shapes-core';
 import type { DrawnShape } from '../drawing';
 import type { LayoutDef } from '../layoutdef';
-import type { SmartTree } from '../model';
+import { dataModelToTree, treeToDataModel, type SmartTree } from '../model';
+import type { SmartArt } from '../parts';
 import { el, txt, type El } from '../xml';
 import type { DNode } from './data';
 import { allNodes, type PNode } from './present';
 import { layout, type EngineOptions, type TextMetrics } from './layout';
+import { indexStyles, styleShape } from './style';
 
 /*
  * De los nodos colocados a las formas dibujadas: posición absoluta en EMU, geometría (con los ajustes del diseño), giro y texto con el
@@ -108,9 +110,14 @@ function fit(p: PNode, paras: Para[], max: number, min: number, m: TextMetrics):
 function body(p: PNode, paras: Para[], size: number): El {
   const mg = (t: string) => Math.round(marginFactor(p, t) * size * EMU);
   const ps = (paras.length ? paras : [{ text: '', level: 0 }]).map((x) => {
-    const ppr = x.level > 0 ? [el('a:pPr', { marL: String(114300 * x.level), lvl: String(x.level), indent: '-114300' }, [el('a:buChar', { char: '•' })])] : [el('a:pPr', { algn: 'ctr' })];
+    const tab = String(Math.round(size * 44450));
+    const spacing = [el('a:lnSpc', {}, [el('a:spcPct', { val: '90000' })]), el('a:spcBef', {}, [el('a:spcPct', { val: '0' })]), el('a:spcAft', {}, [el('a:spcPct', { val: '35000' })])];
+    const ppr =
+      x.level > 0
+        ? [el('a:pPr', { marL: String(171450 * x.level), lvl: String(x.level), indent: '-171450', algn: 'l', defTabSz: tab }, [...spacing, el('a:buFont', { typeface: 'Arial', panose: '020B0604020202020204', pitchFamily: '34', charset: '0' }), el('a:buChar', { char: '•' })])]
+        : [el('a:pPr', { marL: '0', lvl: '0', indent: '0', algn: 'ctr', defTabSz: tab }, [...spacing, el('a:buNone')])];
     if (x.text === '') return el('a:p', {}, [...ppr, el('a:endParaRPr', { lang: 'es-ES', sz: String(Math.round(size * 100)) })]);
-    return el('a:p', {}, [...ppr, el('a:r', {}, [el('a:rPr', { lang: 'es-ES', sz: String(Math.round(size * 100)) }), el('a:t', {}, [txt(x.text)])])]);
+    return el('a:p', {}, [...ppr, el('a:r', {}, [el('a:rPr', { lang: 'es-ES', sz: String(Math.round(size * 100)), kern: '1200' }), el('a:t', {}, [txt(x.text)])])]);
   });
   return el('dsp:txBody', {}, [
     el('a:bodyPr', { spcFirstLastPara: '0', vert: 'horz', wrap: 'square', lIns: String(mg('lMarg')), tIns: String(mg('tMarg')), rIns: String(mg('rMarg')), bIns: String(mg('bMarg')), numCol: '1', spcCol: '1270', anchor: 'ctr', anchorCtr: '0' }, [el('a:noAutofit')]),
@@ -124,6 +131,15 @@ export function render(def: LayoutDef, tree: SmartTree, o: EngineOptions): Drawn
   const laid = layout(def, tree, o);
   const metrics = laid.ctx.o.metrics;
   const nodes = allNodes(laid.root);
+  const styles = o.style && o.colors ? indexStyles(nodes) : undefined;
+  const look = (p: PNode, s: DrawnShape) => {
+    const si = styles?.get(p);
+    const st = si && o.style && o.colors ? styleShape(o.style, o.colors, si) : undefined;
+    if (st) {
+      s.spPr = st.spPr;
+      if (st.style) s.style = st.style;
+    }
+  };
   const sizeOf = new Map<PNode, number>();
   // grupos de letra igual: el menor de los tamaños que caben
   for (const g of laid.ctx.groups) {
@@ -182,7 +198,9 @@ export function render(def: LayoutDef, tree: SmartTree, o: EngineOptions): Drawn
           el('a:lnTo', {}, [el('a:pt', { x: String(Math.round(bw)), y: String(Math.round(bh)) })]),
         ]);
         const custGeom = el('a:custGeom', {}, [el('a:avLst'), el('a:gdLst'), el('a:ahLst'), el('a:cxnLst'), el('a:rect', { l: '0', t: '0', r: '0', b: '0' }), el('a:pathLst', {}, [path])]);
-        shapes.push({ s: { modelId: p.id, x: Math.round(((sx + dx) / 2 - wide / 2) * EMU), y: Math.round(sy * EMU), w: Math.round(bw), h: Math.round(bh), rot: 0, flipH: dx < sx, flipV: false, adj: {}, custGeom, spPr: [] }, z: p.shape.zOrderOff, key: p.id });
+        const conn: DrawnShape = { modelId: p.id, x: Math.round(((sx + dx) / 2 - wide / 2) * EMU), y: Math.round(sy * EMU), w: Math.round(bw), h: Math.round(bh), rot: 0, flipH: dx < sx, flipV: false, adj: {}, custGeom, spPr: [] };
+        look(p, conn);
+        shapes.push({ s: conn, z: p.shape.zOrderOff, key: p.id });
       }
       continue;
     }
@@ -225,6 +243,7 @@ export function render(def: LayoutDef, tree: SmartTree, o: EngineOptions): Drawn
       const tr = textRect(p);
       if (!swap) shape.txXfrm = { x: Math.round((a.x + tr.l) * EMU), y: Math.round((a.y + tr.t) * EMU), w: Math.round((tr.r - tr.l) * EMU), h: Math.round((tr.b - tr.t) * EMU), rot: 0 };
     }
+    look(p, shape);
     byData.set(key, shape);
     shapes.push({ s: shape, z: p.shape.zOrderOff, key });
   }
@@ -235,3 +254,16 @@ export function render(def: LayoutDef, tree: SmartTree, o: EngineOptions): Drawn
 }
 
 void MARGIN;
+
+/**
+ * Pone al día un SmartArt tras editar su árbol: el modelo de datos se rehace con el árbol (conservando ids) y el dibujo en caché se
+ * vuelve a calcular con su diseño, estilo y colores. El anfitrión debe declarar de nuevo el dibujo (`setDrawingRelId`) al guardar.
+ */
+export function updateSmartArt(sa: SmartArt, tree: SmartTree, o: Omit<EngineOptions, 'style' | 'colors'>, ids?: () => string): SmartArt {
+  return { ...sa, data: treeToDataModel(tree, sa.data, ids), drawing: render(sa.layout, tree, { ...o, style: sa.style, colors: sa.colors }) };
+}
+
+/** El dibujo de un SmartArt tal como está, a partir de sus datos (sin tocarlos). */
+export function renderSmartArt(sa: SmartArt, o: Omit<EngineOptions, 'style' | 'colors'>): DrawnShape[] {
+  return render(sa.layout, dataModelToTree(sa.data), { ...o, style: sa.style, colors: sa.colors });
+}

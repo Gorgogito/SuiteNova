@@ -2,6 +2,7 @@ import { presetDefaults, presetGeometry } from '@suitenova/shapes-core';
 import type { Constr } from '../layoutdef';
 import { present, allNodes, type PNode } from './present';
 import type { LayoutDef } from '../layoutdef';
+import type { ColorsDef, StyleDef } from '../styles';
 import type { SmartTree } from '../model';
 
 /*
@@ -38,10 +39,13 @@ export interface EngineOptions {
   metrics?: TextMetrics;
   /** Variables de diseño que vienen de los datos (`dir`: `norm` o `rev`, `orgChart`, `chMax`…). */
   vars?: Record<string, string>;
+  /** Estilo rápido y colores: con ellos las formas salen con su relleno, su línea y su `dsp:style`. */
+  style?: StyleDef;
+  colors?: ColorsDef;
 }
 
 interface Ctx {
-  o: Required<EngineOptions>;
+  o: EngineOptions & { metrics: TextMetrics };
   /** Grupos de tamaño de letra iguales (`op="equ"`): los miembros acaban con el mismo tamaño. */
   groups: { prop: string; members: PNode[]; max: number }[];
 }

@@ -54,7 +54,7 @@ Se abordan de uno en uno; registrar aquí cada uno al empezarlo.
 Decisiones del usuario: motor compartido `smartart-core`, vinculado a los datos, intérprete completo de `layoutDef`, orden motor → Slides → Writer → Calc. Diseño y fases en `docs/diseno-smartart.md`. **Punto abierto:** de dónde sale el catálogo de diseños para crear SmartArt nuevos (propio / exportado de Office con riesgo de licencia / mixto); no bloquea las fases 1-3.
 - [x] **Fase 1 HECHA:** `packages/smartart-core` (XML ordenado, `dgm:dataModel`, árbol editable y operaciones, panel de texto, `layoutDef` tipado, estilos, colores, `dsp:drawing`, 5 partes). 27 pruebas, validado con 8 SmartArt reales generados con PowerPoint (`SMARTART_FILES`). Catálogo propio decidido. Detalle en la sección 8 del diseño.
 - [x] **Fase 2 HECHA:** motor (`smartart-core/src/engine`): ejes y selectores, árbol de presentación, restricciones y algoritmos `composite snake lin cycle pyra hierRoot hierChild conn sp tx`, texto con ajuste de letra. 45 pruebas; contra 16 SmartArt reales de PowerPoint: coincide dentro de 1,5 pt salvo `vList2` (12-23 pt). Detalle y límites en la sección 8 del diseño.
-- [ ] Fase 3: estilos y colores.
+- [x] **Fase 3 HECHA:** `engine/style.ts` (etiquetas automáticas por nivel, `presStyleIdx/Cnt`, relleno, línea, efectos, `dsp:style`), `renderSmartArt`/`updateSmartArt`. 51 pruebas; el aspecto de los 24 SmartArt reales de PowerPoint coincide exactamente. Límites (degradados, efectos, `span` con >2 colores) en la sección 8 del diseño.
 - [ ] Fase 4: Slides (migrar el actual, panel de texto, cambiar diseño).
 - [ ] Fase 5: Writer.
 - [ ] Fase 6: Calc.

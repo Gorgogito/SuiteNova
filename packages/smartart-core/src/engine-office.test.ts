@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { dataModelToTree, parseSmartArt, render } from './index';
+import { dataModelToTree, parseSmartArt, render, serializeXml } from './index';
 
 /*
  * El motor contra Office: se ejecuta el diseño que trae un archivo real sobre sus datos y se compara la geometría con el dibujo que
@@ -34,7 +34,7 @@ describe.skipIf(!files.length)('motor contra el dibujo de Office', () => {
         const ref = sa.drawing ?? [];
         let mine;
         try {
-          const raw = render(sa.layout, dataModelToTree(sa.data), { width: frame[0], height: frame[1] });
+          const raw = render(sa.layout, dataModelToTree(sa.data), { width: frame[0], height: frame[1], style: sa.style, colors: sa.colors });
           // cada forma mía se empareja con la más parecida de Office (el orden de los conectores no importa)
           const free = [...ref];
           const dist = (a: (typeof raw)[number], b: (typeof raw)[number]) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.w - b.w) + Math.abs(a.h - b.h);
@@ -52,6 +52,7 @@ describe.skipIf(!files.length)('motor contra el dibujo de Office', () => {
         }
         lines.push(`### ${id}: ${mine.length} formas (Office ${ref.length})`);
         let worst = 0;
+        let looks = 0;
         const n = Math.max(mine.length, ref.length);
         for (let i = 0; i < n; i++) {
           const a = mine[i];
@@ -59,8 +60,17 @@ describe.skipIf(!files.length)('motor contra el dibujo de Office', () => {
           const fmt = (s?: typeof a) => (s ? `${s.prst} ${pt(s.x)},${pt(s.y)} ${pt(s.w)}x${pt(s.h)} r${s.rot / 60000}` : '—');
           const d = a && b ? Math.max(Math.abs(pt(a.x) - pt(b.x)), Math.abs(pt(a.y) - pt(b.y)), Math.abs(pt(a.w) - pt(b.w)), Math.abs(pt(a.h) - pt(b.h))) : Infinity;
           worst = Math.max(worst, d);
+          if (a && b) {
+            const sa1 = a.spPr.map(serializeXml).join('') + (a.style ? serializeXml(a.style) : '');
+            const sb1 = b.spPr.map(serializeXml).join('') + (b.style ? serializeXml(b.style) : '');
+            if (sa1 !== sb1) {
+              looks++;
+              lines.push(`  aspecto distinto en la forma ${i}:`, `     mio:    ${sa1.slice(0, 260)}`, `     office: ${sb1.slice(0, 260)}`);
+            }
+          }
           lines.push(`  ${d <= tol ? 'ok ' : 'XX '} mío: ${fmt(a)}   office: ${fmt(b)}`);
         }
+        if (looks) bad.push(id + ' (aspecto distinto en ' + looks + ' formas)');
         if (mine.length !== ref.length || worst > tol) bad.push(`${id} (peor diferencia ${worst === Infinity ? 'forma que falta' : worst.toFixed(1) + ' pt'})`);
       }
     }

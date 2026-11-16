@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LAYOUT, LAYOUT_PROCESS } from './fixtures';
-import { approxMetrics, buildGraph, layout, outlineToTree, parseDrawing, parseLayoutDef, present, render, select, writeDrawing, type DrawnShape, type SmartTree } from './index';
+import { COLORS, DATA, DRAWING, LAYOUT, LAYOUT_PROCESS, STYLE } from './fixtures';
+import { dataModelToTree, parseSmartArt, updateSmartArt, writeDataModel, writeSmartArt, addChild, allNodes, approxMetrics, buildGraph, indexStyles, layout, outlineToTree, parseColorsDef, parseDrawing, parseLayoutDef, parseStyleDef, present, render, select, serializeXml, styleLabelOf, writeDrawing, type DrawnShape, type SmartTree } from './index';
 import { counterIds } from './model';
 
 const empty: SmartTree = { docId: '{D}', docPr: {}, roots: [] };
@@ -176,5 +176,71 @@ describe('robustez', () => {
     const big = render(parseLayoutDef(LAYOUT), treeOf('A\nB\nC'), frame);
     const small = render(parseLayoutDef(LAYOUT), treeOf('A\nB\nC'), { width: 320, height: 190 });
     near(pt(small[0]!.w), pt(big[0]!.w) / 2, 0.5, 'la mitad');
+  });
+});
+
+describe('estilos y colores (fase 3)', () => {
+  const style = parseStyleDef(STYLE);
+  const colors = parseColorsDef(COLORS);
+  const xml = (s: DrawnShape) => s.spPr.map(serializeXml).join('');
+  const OFFS = '<a:hueOff val="0"/><a:satOff val="0"/><a:lumOff val="0"/><a:alphaOff val="0"/>';
+
+  it('una forma de nodo lleva el relleno y la línea de su etiqueta, con los desplazamientos a cero y el estilo rápido', () => {
+    const s = render(parseLayoutDef(LAYOUT), treeOf('A\nB'), { ...frame, style, colors });
+    expect(xml(s[0]!)).toBe(
+      `<a:solidFill><a:schemeClr val="accent1">${OFFS}</a:schemeClr></a:solidFill><a:ln w="12700" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="lt1">${OFFS}</a:schemeClr></a:solidFill><a:prstDash val="solid"/><a:miter lim="800000"/></a:ln><a:effectLst/>`,
+    );
+    expect(s[0]!.style!.name).toBe('dsp:style');
+    expect(serializeXml(s[0]!.style!)).toContain('<a:lnRef idx="2">');
+  });
+
+  it('una flecha de proceso es sibTrans2D1: relleno aclarado, sin línea, y el color se reparte entre las flechas (span)', () => {
+    const s = render(parseLayoutDef(LAYOUT_PROCESS), treeOf('A\nB\nC'), { ...frame, style, colors });
+    const arrows = s.filter((x) => x.prst === 'rightArrow');
+    expect(arrows).toHaveLength(2);
+    expect(xml(arrows[0]!)).toBe(`<a:solidFill><a:schemeClr val="accent1"><a:tint val="60000"/>${OFFS}</a:schemeClr></a:solidFill><a:ln><a:noFill/></a:ln><a:effectLst/>`);
+    // la segunda flecha toma el otro extremo de la lista
+    expect(xml(arrows[1]!)).toBe(`<a:solidFill><a:schemeClr val="accent1">${OFFS}</a:schemeClr></a:solidFill><a:ln><a:noFill/></a:ln><a:effectLst/>`);
+  });
+
+  it('sin estilo y colores las formas salen sin aspecto, y con una etiqueta que no existe también', () => {
+    const plain = render(parseLayoutDef(LAYOUT), treeOf('A'), frame);
+    expect(plain[0]!.spPr).toEqual([]);
+    const missing = render(parseLayoutDef(LAYOUT), treeOf('A'), { ...frame, style: { ...style, styleLbls: [] }, colors });
+    expect(missing[0]!.spPr).toEqual([]);
+  });
+
+  it('etiquetas automáticas: node + nivel, y sibTrans2D / parChTrans1D + nivel para los conectores', () => {
+    const root = present(parseLayoutDef(LAYOUT_PROCESS), treeOf('A\n\tA1\nB'));
+    const nodes = allNodes(root);
+    expect(nodes.filter((n) => n.name === 'node').map(styleLabelOf)).toEqual(['node1', 'node1']);
+    expect(nodes.filter((n) => n.name === 'arrow').map(styleLabelOf)).toEqual(['sibTrans2D1']);
+    // el diseño puede fijar la etiqueta
+    const fixed = parseLayoutDef(LAYOUT_PROCESS.replace('<dgm:layoutNode name="node">', '<dgm:layoutNode name="node" styleLbl="fgShp">'));
+    expect(allNodes(present(fixed, treeOf('A'))).filter((n) => n.name === 'node').map(styleLabelOf)).toEqual(['fgShp']);
+  });
+
+  it('presStyleIdx/presStyleCnt: posición entre las formas con la misma etiqueta, contando una vez lo que presentan juntas', () => {
+    const nodes = allNodes(present(parseLayoutDef(LAYOUT_PROCESS), treeOf('A\nB\nC')));
+    const idx = indexStyles(nodes);
+    const of = (name: string) => nodes.filter((n) => n.name === name).map((n) => `${idx.get(n)!.idx}/${idx.get(n)!.cnt}`);
+    expect(of('node')).toEqual(['0/3', '1/3', '2/3']);
+    expect(of('arrow')).toEqual(['0/2', '1/2']);
+  });
+});
+
+describe('actualizar un SmartArt tras editarlo', () => {
+  it('el árbol editado rehace los datos y el dibujo; escribir y leer da lo mismo y el dibujo ya no depende del anterior', () => {
+    const sa = parseSmartArt({ data: DATA, layout: LAYOUT, style: STYLE, colors: COLORS, drawing: DRAWING });
+    const tree = dataModelToTree(sa.data);
+    const bigger = addChild(tree, '{N1}', 'nuevo', counterIds('n')).tree;
+    const up = updateSmartArt(sa, bigger, frame, counterIds('m'));
+    expect(up.drawing!).toHaveLength(2); // los ayudantes no son nodos de este diseño
+    expect(JSON.stringify(up.drawing![0]!.txBody)).toContain('nuevo'); // el hijo sale como viñeta del nodo
+    expect(JSON.stringify(up.data.pts)).toContain('nuevo');
+    expect(up.data.extLst).toBeUndefined(); // el dibujo anterior ya no vale
+    const again = parseSmartArt(writeSmartArt(up));
+    expect(again.drawing).toEqual(up.drawing);
+    expect(writeDataModel(again.data)).toBe(writeDataModel(up.data)); // iguales una vez escritas (al leer aparecen los dgm:spPr vacíos)
   });
 });
