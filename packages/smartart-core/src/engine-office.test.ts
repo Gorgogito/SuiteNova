@@ -61,11 +61,14 @@ describe.skipIf(!files.length)('motor contra el dibujo de Office', () => {
           const d = a && b ? Math.max(Math.abs(pt(a.x) - pt(b.x)), Math.abs(pt(a.y) - pt(b.y)), Math.abs(pt(a.w) - pt(b.w)), Math.abs(pt(a.h) - pt(b.h))) : Infinity;
           worst = Math.max(worst, d);
           if (a && b) {
-            const sa1 = a.spPr.map(serializeXml).join('') + (a.style ? serializeXml(a.style) : '');
-            const sb1 = b.spPr.map(serializeXml).join('') + (b.style ? serializeXml(b.style) : '');
-            if (sa1 !== sb1) {
+            const sa1 = a.spPr.map(serializeXml).join('') + (a.style ? serializeXml(a.style) : '') + (a.custGeom ? serializeXml(a.custGeom) : '');
+            const sb1 = b.spPr.map(serializeXml).join('') + (b.style ? serializeXml(b.style) : '') + (b.custGeom ? serializeXml(b.custGeom) : '');
+            // las coordenadas de las rutas de los conectores pueden diferir unas milésimas de punto por el redondeo
+            const num = (t: string) => (t.match(/\d+/g) ?? []).map(Number);
+            const same = sa1 === sb1 || (sa1.replace(/\d+/g, '#') === sb1.replace(/\d+/g, '#') && num(sa1).every((v, i) => Math.abs(v - num(sb1)[i]!) <= 2000));
+            if (!same) {
               looks++;
-              lines.push(`  aspecto distinto en la forma ${i}:`, `     mio:    ${sa1.slice(0, 260)}`, `     office: ${sb1.slice(0, 260)}`);
+              lines.push(`  aspecto distinto en la forma ${i}:`, `     mio:    ${sa1.slice(-330)}`, `     office: ${sb1.slice(-330)}`);
             }
           }
           lines.push(`  ${d <= tol ? 'ok ' : 'XX '} mío: ${fmt(a)}   office: ${fmt(b)}`);

@@ -191,14 +191,24 @@ export function render(def: LayoutDef, tree: SmartTree, o: EngineOptions): Drawn
         const wide = Math.max(Math.abs(dx - sx), 7.2);
         const bw = wide * EMU;
         const bh = Math.max(0, dy - sy) * EMU;
-        const path = el('a:path', { w: String(Math.round(bw)), h: String(Math.round(bh)), fill: 'none' }, [
-          el('a:moveTo', {}, [el('a:pt', { x: '0', y: '0' })]),
-          el('a:lnTo', {}, [el('a:pt', { x: '0', y: String(Math.round(bh / 2)) })]),
-          el('a:lnTo', {}, [el('a:pt', { x: String(Math.round(bw)), y: String(Math.round(bh / 2)) })]),
-          el('a:lnTo', {}, [el('a:pt', { x: String(Math.round(bw)), y: String(Math.round(bh)) })]),
-        ]);
+        // el tramo horizontal queda a `bendDist` del hijo (la mitad de la separación entre niveles, ya reducida a escala)
+        let hr: PNode | undefined = p.parent;
+        while (hr && hr.alg?.type !== 'hierRoot') hr = hr.parent;
+        const bendFact = hr?.constrs.find((x) => x.type === 'bendDist')?.fact ?? 0.5;
+        const bendPt = (hr?.props.get('sp') ?? 0) * bendFact;
+        const bendY = bendPt > 0 && bendPt * EMU < bh ? bh - bendPt * EMU : bh / 2;
+        const pt = (x: number, y: number) => el('a:pt', { x: String(Math.round(x)), y: String(Math.round(y)) });
+        const straight = Math.abs(dx - sx) < 7.2;
+        // la ruta va sin atributos propios y en las coordenadas de la forma, como la escribe Office
+        const path = el(
+          'a:path',
+          {},
+          straight
+            ? [el('a:moveTo', {}, [pt(bw / 2, 0)]), el('a:lnTo', {}, [pt(bw / 2, bh)])]
+            : [el('a:moveTo', {}, [pt(dx < sx ? bw : 0, 0)]), el('a:lnTo', {}, [pt(dx < sx ? bw : 0, bendY)]), el('a:lnTo', {}, [pt(dx < sx ? 0 : bw, bendY)]), el('a:lnTo', {}, [pt(dx < sx ? 0 : bw, bh)])],
+        );
         const custGeom = el('a:custGeom', {}, [el('a:avLst'), el('a:gdLst'), el('a:ahLst'), el('a:cxnLst'), el('a:rect', { l: '0', t: '0', r: '0', b: '0' }), el('a:pathLst', {}, [path])]);
-        const conn: DrawnShape = { modelId: p.id, x: Math.round(((sx + dx) / 2 - wide / 2) * EMU), y: Math.round(sy * EMU), w: Math.round(bw), h: Math.round(bh), rot: 0, flipH: dx < sx, flipV: false, adj: {}, custGeom, spPr: [] };
+        const conn: DrawnShape = { modelId: p.id, x: Math.round(((sx + dx) / 2 - wide / 2) * EMU), y: Math.round(sy * EMU), w: Math.round(bw), h: Math.round(bh), rot: 0, flipH: false, flipV: false, adj: {}, custGeom, spPr: [] };
         look(p, conn);
         shapes.push({ s: conn, z: p.shape.zOrderOff, key: p.id });
       }

@@ -418,3 +418,23 @@ export function readTree(tree: XNode, ctx: ElementCtx): SlideElement[] {
   for (const k of kidsOf(tree)) handle(k);
   return out;
 }
+
+/** Contexto mínimo para leer formas sueltas de un dibujo de SmartArt (sin imágenes ni relaciones). */
+const BARE_CTX: ElementCtx = {
+  blip: () => undefined,
+  link: () => undefined,
+  warn: () => undefined,
+  part: () => null,
+  bytes: () => null,
+  rels: () => new Map(),
+  resolve: (t) => t,
+  forPart: () => BARE_CTX,
+  path: '',
+  asset: () => undefined,
+};
+
+/** Las formas de un `dsp:drawing` (el dibujo en caché de un SmartArt) como elementos de diapositiva. */
+export function readDrawingXml(xml: string): SlideElement[] {
+  const tree = findKid(rootOf(parseXml(xml), 'drawing'), 'spTree');
+  return findKids(tree, 'sp').map((sp) => readSp(sp, BARE_CTX));
+}

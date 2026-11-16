@@ -27,3 +27,4 @@ export * from './pixels';
 export * from './connectors';
 export * from './wav';
 export * from './review';
+export * from './smartart-art';
