@@ -30,6 +30,7 @@ import { applySuitePart } from './suite-part';
 import { parseAutoFilter, parseConditionalFormatting, parseDxfs } from './filter-cf-io';
 import { parseComments, parseHyperlinks, parseSparklines, parseTable, parseThreaded, parseValidations, readPage, parseX14Validations } from './objects-io';
 import { asArray, attr, parser, textOf, toggle, type XNode } from './xml';
+import { drawingRelId, drawingSvg, parseDataModel, partsShapes, type SmartArtParts } from '@suitenova/smartart-core';
 
 export interface ReadResult {
   workbook: Workbook;
@@ -462,6 +463,35 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
         sheet.shapes.push({ ...parsed.shape, id: `shape-imp-${sheet.id}-${++s}`, ...rect });
         if (parsed.unsupported) unsupportedShapes++;
       }
+      continue;
+    }
+    const dgm = frame?.graphic?.graphicData?.relIds;
+    if (!chartRef && dgm !== undefined) {
+      const rect = anchorToRect(sheet, a);
+      const text = async (id: string | undefined): Promise<string | undefined> => {
+        const path = id ? drawingRels.get(id) : undefined;
+        return path ? await zip.file(path)?.async('string') : undefined;
+      };
+      const data = await text(attr(dgm, 'dm'));
+      const layout = await text(attr(dgm, 'lo'));
+      const style = await text(attr(dgm, 'qs'));
+      const colors = await text(attr(dgm, 'cs'));
+      if (!rect || !data || !layout || !style || !colors) {
+        warnings.push(`Un SmartArt de "${sheet.name}" está incompleto y no se importó.`);
+        continue;
+      }
+      const parts: SmartArtParts = { data, layout, style, colors };
+      try {
+        const drawing = await text(drawingRelId(parseDataModel(data)));
+        if (drawing) parts.drawing = drawing;
+      } catch {
+        warnings.push(`Un SmartArt de "${sheet.name}" tiene datos que Nova Calc no entiende y no se importó.`);
+        continue;
+      }
+      const svg = drawingSvg(partsShapes(parts), rect.width * 0.75, rect.height * 0.75, { width: rect.width, height: rect.height });
+      const cNv = frame?.nvGraphicFramePr?.cNvPr;
+      sheet.images.push({ id: `img-imp-${sheet.id}-${++p}`, media: wb.addMedia('image/svg+xml', new TextEncoder().encode(svg)), name: attr(cNv, 'name'), alt: attr(cNv, 'descr'), ...rect, smartart: parts });
+      if (!parts.drawing) warnings.push(`Un SmartArt de "${sheet.name}" no trae su dibujo guardado y aparece vacío hasta que se edite.`);
       continue;
     }
     if (!chartRef) {

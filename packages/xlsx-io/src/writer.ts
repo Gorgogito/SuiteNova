@@ -15,6 +15,7 @@ import {
 import JSZip from 'jszip';
 import { CT_CHARTEX, REL_CHARTEX, chartExXml, isExType } from './chartex-io';
 import { chartXml, drawingXml, type DrawingItem } from './charts-io';
+import { PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel } from '@suitenova/smartart-core';
 import { commentsXml, hyperlinksXml, pageXml, printNames, sparklinesExtXml, tableXml, validationsXml, vmlXml } from './objects-io';
 import { toFileFormula } from './fileformula';
 import { quoteSheetName } from './sheetname';
@@ -355,6 +356,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
   const types: string[] = [];
   const mediaExts = new Set<string>();
   let drawingCount = 0;
+  let diagramCount = 0;
   let chartCount = 0;
   let commentCount = 0;
   let tableCount = 0;
@@ -388,6 +390,30 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
         items.push({ kind: 'chart', ex: isExType(c.type), rId: rid, x: c.x, y: c.y, width: c.width, height: c.height, name: `Gráfico ${i + 1}` });
       });
       sheet.images.forEach((img, i) => {
+        if (img.smartart) {
+          const p = img.smartart;
+          const n = ++diagramCount;
+          const slot = (key: 'data' | 'layout' | 'style' | 'colors' | 'drawing', xml: string): string => {
+            const t = PART_TYPES[key];
+            const rid = `rId${drawingRels.length + 1}`;
+            drawingRels.push({ id: rid, type: t.rel, target: `../${t.dir}${n}.xml` });
+            put(`xl/${t.dir}${n}.xml`, xml);
+            types.push(`<Override PartName="/xl/${t.dir}${n}.xml" ContentType="${t.content}"/>`);
+            return rid;
+          };
+          let dataXml = p.data;
+          const drawingRid = p.drawing ? slot('drawing', p.drawing) : null;
+          try {
+            const dm = parseDataModel(p.data);
+            setDrawingRelId(dm, drawingRid);
+            dataXml = writeDataModel(dm);
+          } catch {
+            /* los datos se guardan tal cual */
+          }
+          const dgm = { dm: slot('data', dataXml), lo: slot('layout', p.layout), qs: slot('style', p.style), cs: slot('colors', p.colors) };
+          items.push({ kind: 'smartart', dgm, rId: '', x: img.x, y: img.y, width: img.width, height: img.height, name: img.name ?? `Diagrama ${n}`, alt: img.alt });
+          return;
+        }
         const media = wb.media.get(img.media);
         const ext = media ? EXT[media.mime] : undefined;
         if (!media || !ext) return;

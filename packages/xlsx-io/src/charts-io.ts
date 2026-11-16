@@ -19,6 +19,7 @@ import {
   type StockKind,
   type Workbook,
 } from '@suitenova/calc-engine';
+import { DIAGRAM_URI } from '@suitenova/smartart-core';
 import { NS_CX } from './chartex-io';
 import { groupBodyXml, shapeBodyXml } from './shapes-io';
 import { errBarsXml, parseErrBars, parseTrendlines, trendlinesXml } from './chart-fit-io';
@@ -274,7 +275,9 @@ export function chartXml(def: ChartDef, wb: Workbook, sheetId: number): string {
 
 // ------------------------------------------------------------------------------------------------ drawings
 export interface DrawingItem {
-  kind: 'chart' | 'pic' | 'shape' | 'group';
+  kind: 'chart' | 'pic' | 'shape' | 'group' | 'smartart';
+  /** Para un SmartArt: los identificadores de relación de sus cuatro partes. */
+  dgm?: { dm: string; lo: string; qs: string; cs: string };
   /** For shapes: the shape itself. */
   shape?: import('@suitenova/calc-engine').SheetShape;
   /** For groups: the shapes of the group. */
@@ -301,7 +304,10 @@ export function drawingXml(sheet: Sheet, items: DrawingItem[]): string {
         `<xdr:col>${p.col.col}</xdr:col><xdr:colOff>${Math.round(p.col.offset * EMU)}</xdr:colOff><xdr:row>${p.row.row}</xdr:row><xdr:rowOff>${Math.round(p.row.offset * EMU)}</xdr:rowOff>`;
       const id = i + 2;
       const body =
-        c.kind === 'group'
+        c.kind === 'smartart'
+          ? `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"${c.alt ? ` descr="${escapeXml(c.alt)}"` : ''}/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +
+            `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="${DIAGRAM_URI}"><dgm:relIds xmlns:dgm="${DIAGRAM_URI}" r:dm="${c.dgm!.dm}" r:lo="${c.dgm!.lo}" r:qs="${c.dgm!.qs}" r:cs="${c.dgm!.cs}"/></a:graphicData></a:graphic></xdr:graphicFrame>`
+          : c.kind === 'group'
           ? groupBodyXml(c.group!, id, c.name)
           : c.kind === 'shape'
           ? shapeBodyXml(c.shape!, id)
@@ -318,7 +324,7 @@ export function drawingXml(sheet: Sheet, items: DrawingItem[]): string {
           : `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"${c.alt ? ` descr="${escapeXml(c.alt)}"` : ''}/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
             `<xdr:blipFill><a:blip xmlns:r="${NS_R}" r:embed="${c.rId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
             `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.round(c.width * EMU)}" cy="${Math.round(c.height * EMU)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>`;
-      return `<xdr:twoCellAnchor${c.kind === 'pic' || c.kind === 'shape' || c.kind === 'group' ? ' editAs="oneCell"' : ''}><xdr:from>${pt(from)}</xdr:from><xdr:to>${pt(to)}</xdr:to>${body}<xdr:clientData/></xdr:twoCellAnchor>`;
+      return `<xdr:twoCellAnchor${c.kind === 'pic' || c.kind === 'shape' || c.kind === 'group' || c.kind === 'smartart' ? ' editAs="oneCell"' : ''}><xdr:from>${pt(from)}</xdr:from><xdr:to>${pt(to)}</xdr:to>${body}<xdr:clientData/></xdr:twoCellAnchor>`;
     })
     .join('');
   void colOffsetPx;

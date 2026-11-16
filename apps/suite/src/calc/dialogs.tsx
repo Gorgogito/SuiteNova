@@ -12,6 +12,7 @@ import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
 import { PageSetupDialog, PrintPreviewDialog } from './dlg-page';
 import { ShapeFormatDialog } from './dlg-shape';
 import { WordArtFormatDialog } from './dlg-wordart';
+import { SmartArtDialog } from './dlg-smartart';
 import { ProtectBookDialog, ProtectSheetDialog, UnprotectDialog } from './dlg-protect';
 import { PivotCreateDialog, PivotFieldDialog, PivotOptionsDialog, ValueFieldDialog } from './dlg-pivot';
 import { SlicerDialog, SparklineDialog, TableCreateDialog, TableResizeDialog } from './dlg-table';
@@ -636,6 +637,8 @@ export function DialogHost({ ui, registry, kind, arg, onClose }: { ui: CalcUI; r
       return <ShapeFormatDialog ui={ui} onClose={close} />;
     case 'wordartFormat':
       return <WordArtFormatDialog ui={ui} onClose={close} />;
+    case 'smartart':
+      return <SmartArtDialog ui={ui} onClose={close} />;
     case 'protectSheet':
       return <ProtectSheetDialog ui={ui} onClose={close} />;
     case 'protectBook':

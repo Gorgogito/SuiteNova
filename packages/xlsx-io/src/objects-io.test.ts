@@ -12,6 +12,7 @@ import {
 import JSZip from 'jszip';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { describe, expect, it } from 'vitest';
+import { drawingSvg, newParts, partsShapes, partsText } from '@suitenova/smartart-core';
 import { readXlsx, writeXlsx } from './index';
 
 const rect = (a: string): Rect => {
@@ -194,6 +195,54 @@ describe('hyperlinks, comments, pictures', () => {
     expect([...workbook.media.get(imgs[0]!.media)!.data]).toEqual([...png]);
     const zip = await JSZip.loadAsync(bytes);
     expect(Object.keys(zip.files).filter((n) => n.startsWith('xl/media/'))).toEqual(['xl/media/image1.png']);
+  });
+});
+
+describe('SmartArt', () => {
+  const art = (text: string, layout = 'process') => {
+    const parts = newParts({ layout: `urn:suitenova/layout/${layout}`, text, width: 300, height: 150 });
+    return { parts, svg: drawingSvg(partsShapes(parts), 300, 150, { width: 400, height: 200 }) };
+  };
+
+  it('se guarda con sus cinco partes en xl/diagrams y vuelve con su texto y su dibujo', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    const a = art('Uno\nDos\nTres');
+    const key = w.addMedia('image/svg+xml', new TextEncoder().encode(a.svg));
+    w.editObjects(id, (s) => void s.images.push({ id: 'sa1', media: key, x: 40, y: 60, width: 400, height: 200, name: 'Mi diagrama', alt: 'Proceso', smartart: a.parts }));
+    const { workbook, bytes } = await roundTrip(w);
+    const zip = await JSZip.loadAsync(bytes);
+    for (const f of ['data1', 'layout1', 'quickStyle1', 'colors1', 'drawing1']) expect(zip.file(`xl/diagrams/${f}.xml`), f).toBeTruthy();
+    const sheetDrawing = await zip.file('xl/drawings/drawing1.xml')!.async('string');
+    expect(sheetDrawing).toMatch(/<dgm:relIds[^>]* r:dm="rId\d+"[^>]* r:cs="rId\d+"/);
+    expect(sheetDrawing).not.toContain('<xdr:pic>');
+    const imgs = workbook.sheets[0]!.images;
+    expect(imgs).toHaveLength(1);
+    const back = imgs[0]!;
+    expect(back).toMatchObject({ x: 40, y: 60, width: 400, height: 200, name: 'Mi diagrama', alt: 'Proceso' });
+    expect(back.smartart).toBeTruthy();
+    expect(partsText(back.smartart!)).toBe('Uno\nDos\nTres');
+    expect(back.smartart!.drawing).toBeTruthy();
+    expect(workbook.media.get(back.media)!.mime).toBe('image/svg+xml');
+  });
+
+  it('dos SmartArt en una hoja y una imagen normal conviven', async () => {
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    const a = art('A\nB');
+    const b = art('X\nY\nZ', 'cycle');
+    const png = w.addMedia('image/png', new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]));
+    w.editObjects(id, (s) => {
+      s.images.push({ id: 'p', media: png, x: 0, y: 0, width: 50, height: 50 });
+      s.images.push({ id: 'a', media: w.addMedia('image/svg+xml', new TextEncoder().encode(a.svg)), x: 100, y: 0, width: 300, height: 150, smartart: a.parts });
+      s.images.push({ id: 'b', media: w.addMedia('image/svg+xml', new TextEncoder().encode(b.svg + ' ')), x: 100, y: 200, width: 300, height: 150, smartart: b.parts });
+    });
+    const { workbook } = await roundTrip(w);
+    const imgs = workbook.sheets[0]!.images;
+    expect(imgs).toHaveLength(3);
+    const arts = imgs.filter((i) => i.smartart);
+    expect(arts.map((i) => partsText(i.smartart!))).toEqual(['A\nB', 'X\nY\nZ']);
+    expect(imgs.filter((i) => !i.smartart)).toHaveLength(1);
   });
 });
 

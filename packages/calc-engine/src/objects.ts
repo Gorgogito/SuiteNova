@@ -284,6 +284,11 @@ export interface SheetImage {
   height: number;
   name?: string;
   alt?: string;
+  /**
+   * Si la imagen es un SmartArt: las cinco partes del paquete de Office (cada una, el texto XML). `media` guarda entonces el dibujo
+   * del SmartArt como SVG, que se vuelve a generar al editarlo; en el archivo se escribe como SmartArt y no como imagen.
+   */
+  smartart?: { data: string; layout: string; style: string; colors: string; drawing?: string };
 }
 
 // ------------------------------------------------------------------------------------------------ shapes and text boxes

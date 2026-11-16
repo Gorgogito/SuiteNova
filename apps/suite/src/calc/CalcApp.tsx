@@ -144,6 +144,18 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
     [doc],
   );
 
+  // doble clic en un SmartArt (lo dibuja ObjectLayer, que no conoce los cuadros): abre su edición
+  useEffect(() => {
+    const open = () => {
+      if (doc.x.selectedSmartArt) {
+        setDialogArg(undefined);
+        setDialog('smartart');
+      }
+    };
+    window.addEventListener('nova-calc-smartart-edit', open);
+    return () => window.removeEventListener('nova-calc-smartart-edit', open);
+  }, [doc]);
+
   const ui: CalcUI = useMemo(
     () => ({
       doc,
@@ -253,7 +265,7 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
         const JSZip = (await import('jszip')).default;
         const zip = await JSZip.loadAsync(bytes);
         const drawing = await zip.file(/^xl\/drawings\/drawing\d+\.xml$/)[0]?.async('string');
-        return { shapes: back.workbook.sheets[0]!.shapes, drawing: drawing ?? '' };
+        return { shapes: back.workbook.sheets[0]!.shapes, images: back.workbook.sheets[0]!.images.map((i) => ({ ...i })), drawing: drawing ?? '' };
       },
       doc,
     };
@@ -307,7 +319,8 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
     table: !!doc.sheet.tables.some((tb) => active.row >= tb.ref.r1 && active.row <= tb.ref.r2 && active.col >= tb.ref.c1 && active.col <= tb.ref.c2) && !doc.x.selectedImage && !doc.x.selectedSlicer && !doc.x.selectedShape && !chartSelected,
     pivot: !!doc.wb.pivotAt(doc.activeSheetId, active.row, active.col) && !chartSelected,
     sparkline: doc.sheet.sparklines.some((g) => g.items.some((i) => i.row === active.row && i.col === active.col)),
-    picture: !!doc.x.selectedImage,
+    picture: !!doc.x.selectedImage && !doc.x.selectedSmartArt,
+    smartart: !!doc.x.selectedSmartArt,
     shape: !!doc.x.selectedShape,
     slicer: !!doc.x.selectedSlicer,
   };

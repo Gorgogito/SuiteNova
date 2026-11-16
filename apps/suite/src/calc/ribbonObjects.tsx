@@ -2,6 +2,7 @@ import type { RibbonGroup, RibbonItem, RibbonTab } from '@suitenova/core-ui';
 import { ShapeGallery } from '../shapes/ShapeGallery';
 import { WarpGallery, WordArtStyleGallery } from '../wordart/WordArtUi';
 import { wordArtStyle } from '@suitenova/wordart-core';
+import { COLORS_CATALOG, LAYOUT_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
 import { CHART_PRESETS } from './chartPresets';
 import type { CalcUI } from './commands';
 import { TableNameField } from './dlg-table';
@@ -54,6 +55,7 @@ export function insertGroups(ui: CalcUI): RibbonGroup[] {
         { kind: 'button', command: 'calc.picture', size: 'large', keytip: 'IM' },
         { kind: 'custom', id: 'shapesGallery', label: 'Formas', keytip: 'OF', render: () => <ShapeGallery onPick={(k) => void ui.doc.x.insertShape(k)} /> },
         { kind: 'button', command: 'calc.textbox', size: 'large', keytip: 'QT' },
+        { kind: 'button', command: 'calc.insert.smartart', size: 'large', keytip: 'SA' },
         { kind: 'custom', id: 'wordartGallery', label: 'WordArt', keytip: 'WA', render: () => <WordArtStyleGallery onPick={(id) => void ui.doc.x.insertWordArt(id)} /> },
       ],
     },
@@ -208,6 +210,7 @@ export interface ContextFlags {
   pivot: boolean;
   sparkline: boolean;
   picture: boolean;
+  smartart: boolean;
   shape: boolean;
   slicer: boolean;
 }
@@ -376,6 +379,25 @@ export function contextualTabs(ui: CalcUI, f: ContextFlags): RibbonTab[] {
     ],
   };
 
+  const dd = (id: string, label: string, icon: string, keytip: string, cmds: string[]): RibbonItem => ({ kind: 'dropdown', id, label, icon, size: 'small', iconOnly: true, keytip, entries: cmds.map((c) => ({ kind: 'command' as const, command: c })) });
+  const smartart: RibbonTab = {
+    id: 'smartart',
+    label: 'Diseño de SmartArt',
+    keytip: 'DS',
+    contextual: { label: 'Herramientas de SmartArt', color: '#0e7c86', visible: f.smartart },
+    groups: [
+      { id: 'saText', label: 'Texto', icon: 'smartart', items: [{ kind: 'button', command: 'calc.smartart.edit', size: 'large', keytip: 'ES' }] },
+      { id: 'saLayout', label: 'Diseño', icon: 'smartart', items: [dd('saLayouts', 'Cambiar diseño', 'smartart', 'CD', LAYOUT_CATALOG.map((l) => `calc.smartart.layout.${l.id.split('/').pop()}`))] },
+      {
+        id: 'saStyle',
+        label: 'Estilos de SmartArt',
+        icon: 'palette',
+        items: [dd('saColors', 'Cambiar colores', 'palette', 'CC', COLORS_CATALOG.map((k) => `calc.smartart.colors.${k.id.split('/').pop()}`)), dd('saStyles', 'Estilos rápidos', 'smartart', 'ER', STYLE_CATALOG.map((k) => `calc.smartart.style.${k.id.split('/').pop()}`))],
+      },
+      { id: 'saReset', label: 'Restablecer', icon: 'smartart', items: [{ kind: 'button', command: 'calc.smartart.reflow', size: 'small', keytip: 'AJ' }] },
+      { id: 'saActions', label: 'Acciones', icon: 'trash', items: [{ kind: 'button', command: 'calc.picture.delete', size: 'large', keytip: 'EL' }] },
+    ],
+  };
   const picture: RibbonTab = {
     id: 'picture',
     label: 'Formato de imagen',
@@ -440,5 +462,5 @@ export function contextualTabs(ui: CalcUI, f: ContextFlags): RibbonTab[] {
       { id: 'slActions', label: 'Acciones', icon: 'trash', items: [{ kind: 'button', command: 'calc.slicer.delete', size: 'large', keytip: 'EL' }] },
     ],
   };
-  return [table, pivot, spark, picture, shape, slicer];
+  return [table, pivot, spark, picture, smartart, shape, slicer];
 }

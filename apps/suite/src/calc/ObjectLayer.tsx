@@ -4,7 +4,7 @@ import { t } from '@suitenova/core-ui';
 import { Check, FilterX, ListChecks } from 'lucide-react';
 import { dragWarpAdjust, warpAdjustHandles } from '@suitenova/wordart-core';
 import { renderWordArt } from '../wordart/engine';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CalcDoc } from './doc';
 import { colX, screenX, screenY, type Layout, type Viewport } from './render';
 
@@ -464,7 +464,6 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
-  const urlsFor = useMemo(() => new Map(images.map((i) => [i.id, mediaUrl(doc, i.media)])), [images, doc]);
   useEffect(() => undefined, []);
   if (!images.length && !slicers.length && !shapes.length) return null;
   return (
@@ -476,9 +475,9 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
         const p = place(r);
         const selected = doc.x.selectedImage === img.id;
         return (
-          <div key={img.id} className={`calc-picture ${selected ? 'is-selected' : ''}`} style={{ left: p.x, top: p.y, width: p.w, height: p.h }} data-image-id={img.id} onPointerDown={(e) => imgBox.begin(img.id, { x: img.x, y: img.y, width: img.width, height: img.height }, e, 'move')}>
-            <img src={urlsFor.get(img.id)} alt={img.alt ?? img.name ?? ''} draggable={false} />
-            {selected && <Handles onDown={(e, h) => imgBox.begin(img.id, { x: img.x, y: img.y, width: img.width, height: img.height }, e, h, true)} />}
+          <div key={img.id} className={`calc-picture ${selected ? 'is-selected' : ''}`} style={{ left: p.x, top: p.y, width: p.w, height: p.h }} data-image-id={img.id} onDoubleClick={() => img.smartart && window.dispatchEvent(new CustomEvent('nova-calc-smartart-edit'))} onPointerDown={(e) => imgBox.begin(img.id, { x: img.x, y: img.y, width: img.width, height: img.height }, e, 'move')}>
+            <img src={mediaUrl(doc, img.media)} alt={img.alt ?? img.name ?? ''} draggable={false} />
+            {selected && <Handles onDown={(e, h) => imgBox.begin(img.id, { x: img.x, y: img.y, width: img.width, height: img.height }, e, h, !img.smartart)} />}
           </div>
         );
       })}

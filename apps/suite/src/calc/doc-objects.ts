@@ -1,4 +1,6 @@
 import { wordArtStyle, type WordArtFx } from '@suitenova/wordart-core';
+import { newParts, partsChange, partsReflow, partsSetText, type SmartArtParts } from '@suitenova/smartart-core';
+import { ptSizeOf, smartArtSvgBytes } from './smartart';
 import {
   MAX_COLS,
   colOffsetPx,
@@ -477,9 +479,58 @@ export class DocObjects {
     this.d.run(label, () =>
       this.wb.editObjects(this.id, (s) => {
         const i = s.images.findIndex((x) => x.id === id);
-        if (i >= 0) s.images[i] = { ...s.images[i]!, ...patch };
+        if (i < 0) return;
+        const cur = s.images[i]!;
+        let next = { ...cur, ...patch };
+        // un SmartArt vuelve a distribuirse con su tamaño nuevo
+        if (cur.smartart && !patch.smartart && (Math.abs(next.width - cur.width) > 0.5 || Math.abs(next.height - cur.height) > 0.5)) {
+          const parts = partsReflow(cur.smartart, ptSizeOf(next));
+          if (parts) next = { ...next, smartart: parts, media: this.wb.addMedia('image/svg+xml', smartArtSvgBytes(parts, next.width, next.height)) };
+        }
+        s.images[i] = next;
       }),
     );
+  }
+
+  /** Pone un SmartArt nuevo del catálogo en la celda activa; queda elegido. */
+  insertSmartArt(o: { layout: string; text: string; style: string; colors: string }, width = 480, height = 300): string {
+    if (!this.d.prot.allowed('objects')) return '';
+    this.d.commitIfEditing();
+    const parts = newParts({ ...o, width: width * 0.75, height: height * 0.75 });
+    const { row, col } = this.d.sel.active;
+    const img: SheetImage = { id: uid('img'), media: this.wb.addMedia('image/svg+xml', smartArtSvgBytes(parts, width, height)), x: colOffsetPx(this.sheet, col), y: rowOffsetPx(this.sheet, row), width, height, name: 'SmartArt', smartart: parts };
+    this.d.run('Insertar SmartArt', () => this.wb.editObjects(this.id, (s) => void s.images.push(img)));
+    this.selectObject('image', img.id);
+    return img.id;
+  }
+
+  /** Cambia el texto, el diseño, los colores, el estilo o el tamaño de un SmartArt (un solo paso de deshacer). */
+  editSmartArt(id: string, change: { text?: string; layout?: string; style?: string; colors?: string; width?: number; height?: number }, label = 'Editar SmartArt'): void {
+    if (!this.d.prot.allowed('objects')) return;
+    const cur = this.sheet.images.find((x) => x.id === id);
+    if (!cur?.smartart) return;
+    const width = change.width ?? cur.width;
+    const height = change.height ?? cur.height;
+    const size = ptSizeOf({ width, height });
+    let parts: SmartArtParts | null = cur.smartart;
+    let touched = false;
+    if (change.text !== undefined) (parts = partsSetText(parts, change.text, size)), (touched = true);
+    if (parts && (change.layout || change.style || change.colors)) (parts = partsChange(parts, { layout: change.layout, style: change.style, colors: change.colors }, size)), (touched = true);
+    if (parts && !touched) parts = partsReflow(parts, size);
+    if (!parts) return;
+    const next = parts;
+    this.d.run(label, () =>
+      this.wb.editObjects(this.id, (s) => {
+        const i = s.images.findIndex((x) => x.id === id);
+        if (i >= 0) s.images[i] = { ...s.images[i]!, width, height, smartart: next, media: this.wb.addMedia('image/svg+xml', smartArtSvgBytes(next, width, height)) };
+      }),
+    );
+  }
+
+  /** El SmartArt elegido, o undefined. */
+  get selectedSmartArt(): SheetImage | undefined {
+    const img = this.selectedImage ? this.sheet.images.find((i) => i.id === this.selectedImage) : undefined;
+    return img?.smartart ? img : undefined;
   }
 
   deleteImage(id: string): void {

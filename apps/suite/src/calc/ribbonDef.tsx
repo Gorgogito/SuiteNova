@@ -216,7 +216,7 @@ function NumberGroup({ ui }: { ui: CalcUI }) {
 
 /** The ribbon of Nova Calc. Every control maps to a registered command or a self-contained widget. */
 export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = false): RibbonTab[] {
-  const flags: ContextFlags = { chart: false, table: false, pivot: false, sparkline: false, picture: false, shape: false, slicer: false, ...(typeof context === 'boolean' ? { chart: context } : context) };
+  const flags: ContextFlags = { chart: false, table: false, pivot: false, sparkline: false, picture: false, smartart: false, shape: false, slicer: false, ...(typeof context === 'boolean' ? { chart: context } : context) };
   const chartSelected = flags.chart;
   const home: RibbonTab = {
     id: 'home',

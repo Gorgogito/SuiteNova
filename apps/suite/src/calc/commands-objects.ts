@@ -5,6 +5,8 @@ import type { CommandDef } from '@suitenova/core-ui';
 import { CHART_PRESETS, presetOf } from './chartPresets';
 import type { CalcUI } from './commands';
 import { slicerSource } from './dlg-table';
+import { COLORS_CATALOG, LAYOUT_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
+import '../smartart/messages';
 
 /** Commands of the objects a sheet can hold: validation, links, notes, pictures, tables, sparklines, pivots, slicers, printing, macros. */
 export function objectCommands(ui: CalcUI): CommandDef[] {
@@ -111,6 +113,20 @@ export function objectCommands(ui: CalcUI): CommandDef[] {
   add({ id: 'calc.selectObjects', label: 'Seleccionar objetos', icon: 'shapes', description: 'Arrastra sobre la hoja para elegir con un recuadro las formas que quedan dentro (Ctrl o Mayús suman). Esc o este mismo comando vuelven a elegir celdas.', enabled: () => !editing(), checked: () => x.selectMode, run: () => x.setSelectMode(!x.selectMode) });
   add({ id: 'calc.wordart.format', label: 'Formato de WordArt…', icon: 'wordart', description: 'Cambia el relleno, el contorno, la sombra, el resplandor, el reflejo y la transformación del texto de la forma.', enabled: () => !!x.selectedShape && !editing(), run: () => ui.openDialog('wordartFormat') });
   add({ id: 'calc.wordart.clear', label: 'Quitar WordArt', icon: 'close', description: 'Devuelve el texto de la forma a su aspecto normal.', enabled: () => !!x.selectedShape && !!d.sheet.shapes.find((o) => o.id === x.selectedShape)?.wordart, run: () => x.setWordArt(null) });
+
+  // ---- SmartArt
+  const art = () => x.selectedSmartArt;
+  const idOf = (xml: string) => /uniqueId="([^"]+)"/.exec(xml)?.[1] ?? '';
+  const artIds = () => {
+    const sa = art()?.smartart;
+    return sa ? { layout: idOf(sa.layout), style: idOf(sa.style), colors: idOf(sa.colors) } : null;
+  };
+  add({ id: 'calc.insert.smartart', label: 'SmartArt…', icon: 'smartart', description: 'Inserta un diagrama (lista, proceso, ciclo, organigrama, pirámide, Venn o matriz) que guarda su texto y su diseño.', enabled: () => !editing(), run: () => ui.openDialog('smartart') });
+  add({ id: 'calc.smartart.edit', label: 'Editar SmartArt…', icon: 'smartart', description: 'Cambia el texto, el diseño, los colores y el estilo del SmartArt elegido.', enabled: () => !!art() && !editing(), run: () => ui.openDialog('smartart') });
+  add({ id: 'calc.smartart.reflow', label: 'Ajustar al tamaño', icon: 'smartart', description: 'Vuelve a distribuir el SmartArt con el tamaño que tiene ahora.', enabled: () => !!art(), run: () => art() && x.editSmartArt(art()!.id, {}, 'Ajustar el SmartArt') });
+  for (const l of LAYOUT_CATALOG) add({ id: `calc.smartart.layout.${l.id.split('/').pop()}`, label: l.name, icon: 'smartart', description: l.description, enabled: () => !!art(), checked: () => artIds()?.layout === l.id, run: () => art() && x.editSmartArt(art()!.id, { layout: l.id }, 'Cambiar diseño del SmartArt') });
+  for (const k of COLORS_CATALOG) add({ id: `calc.smartart.colors.${k.id.split('/').pop()}`, label: k.name, icon: 'palette', enabled: () => !!art(), checked: () => artIds()?.colors === k.id, run: () => art() && x.editSmartArt(art()!.id, { colors: k.id }, 'Cambiar colores del SmartArt') });
+  for (const k of STYLE_CATALOG) add({ id: `calc.smartart.style.${k.id.split('/').pop()}`, label: k.name, icon: 'smartart', enabled: () => !!art(), checked: () => artIds()?.style === k.id, run: () => art() && x.editSmartArt(art()!.id, { style: k.id }, 'Cambiar estilo del SmartArt') });
 
   // ---- pictures
   add({ id: 'calc.picture', label: 'Imagen…', icon: 'picture', description: 'Inserta una imagen (PNG, JPG, GIF, BMP, WebP o SVG) de un archivo.', enabled: () => !editing(), run: () => void ui.insertPicture() });

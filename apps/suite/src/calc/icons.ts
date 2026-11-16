@@ -82,6 +82,8 @@ import {
   Boxes,
   Shapes,
   TextCursorInput,
+  Network,
+  Palette,
 } from 'lucide-react';
 
 const icons = {
@@ -167,6 +169,8 @@ const icons = {
   chartBox: Boxes,
   shapes: Shapes,
   textbox: TextCursorInput,
+  smartart: Network,
+  palette: Palette,
 };
 
 for (const [name, comp] of Object.entries(icons)) registerIcon(name, comp);
