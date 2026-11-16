@@ -49,3 +49,12 @@ Se abordan de uno en uno; registrar aquí cada uno al empezarlo.
 - [x] **Fuentes en Tauri HECHO (2026-11-16):** probado en la app real (WebView2 por CDP): `queryLocalFonts()` no responde (permiso en «prompt»). Plan B implementado: `src-tauri/src/fonts.rs` (`system_fonts`, `system_font_bytes`), `LocalFontSource` con proveedor inyectable, `scripts/probe-tauri-fonts.mjs` (OK: 275 fuentes, Writer dibuja WordArt).
 - [x] **Selección por recuadro HECHA (2026-11-16)** en Calc y Writer: modo «Seleccionar objetos» (ver sección 14 de `docs/diseno-agrupar-writer.md`). Pendiente de Formas: imágenes dentro de grupos de Writer (necesita diseño y aprobación), editar relleno de una hija sin desagrupar.
 - [ ] **Formas: imágenes en grupos de Writer (opción B) y editar una hija sin desagrupar.** Diseño en la sección 15 de `docs/diseno-agrupar-writer.md`. Fases: B1 modelo+DOCX · B2 interfaz · C editar hija (Calc y Writer). B1 y B2 HECHAS (ver 15.1 del diseño; `e2e-writer-image-groups.mjs`). C HECHA (editar una hija sin desagrupar, Calc y Writer; 15.2 del diseño). **Formas: sin pendientes pedidos.**
+
+## Subproducto SmartArt (2026-11-16)
+Decisiones del usuario: motor compartido `smartart-core`, vinculado a los datos, intérprete completo de `layoutDef`, orden motor → Slides → Writer → Calc. Diseño y fases en `docs/diseno-smartart.md`. **Punto abierto:** de dónde sale el catálogo de diseños para crear SmartArt nuevos (propio / exportado de Office con riesgo de licencia / mixto); no bloquea las fases 1-3.
+- [ ] Fase 1: modelo y archivos (`model`, `layoutdef`, `io` de las 5 partes).
+- [ ] Fase 2: motor de diseño y dibujo a formas neutras.
+- [ ] Fase 3: estilos y colores.
+- [ ] Fase 4: Slides (migrar el actual, panel de texto, cambiar diseño).
+- [ ] Fase 5: Writer.
+- [ ] Fase 6: Calc.
