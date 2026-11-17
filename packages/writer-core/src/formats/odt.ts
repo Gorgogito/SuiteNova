@@ -1,3 +1,4 @@
+import { fromMathML, parseMath, texOfMathML, toMathML, toTex } from '@suitenova/math-core';
 import { CHART_COLORS, ODF_CHART_MIME, chartData, chartSvg, gridSource, odfChartXml, parseOdfChart, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 import JSZip from 'jszip';
 import { Fragment, type Mark, type Node as PMNode } from 'prosemirror-model';
@@ -66,10 +67,19 @@ export async function readOdt(data: Uint8Array): Promise<ReadResult> {
 
   // los gráficos del documento (`draw:object` con su `Object N/content.xml`), leídos antes de recorrer el texto
   const charts = new Map<string, { spec: ChartSpec; grid: ChartGrid }>();
+  const formulas = new Map<string, string>();
   for (const m of contentXml.matchAll(/<draw:object\b[^>]*xlink:href="([^"]+)"/g)) {
     const href = m[1]!.replace(/^\.\//, '').replace(/\/$/, '');
     const xml = await zip.file(`${href}/content.xml`)?.async('string');
     if (!xml) continue;
+    // una fórmula (MathML): se importa como ecuación
+    if (/<(?:\w+:)?math[\s>]/.test(xml) && !/<office:chart\b/.test(xml)) {
+      const tree = fromMathML(xml);
+      const tex = texOfMathML(xml) ?? (tree ? toTex(tree).trim() : '');
+      if (tex) formulas.set(href, tex);
+      else warnings.push('Una fórmula no se pudo interpretar y se omite.');
+      continue;
+    }
     const read = parseOdfChart(xml);
     if ('skip' in read) warnings.push(`Un gráfico no se pudo interpretar (${read.skip}); se importa como imagen.`);
     else charts.set(href, read);
@@ -228,6 +238,8 @@ export async function readOdt(data: Uint8Array): Promise<ReadResult> {
         const body = findKid(k, 'note-body');
         const paras = body ? blocks(kidsOf(body)) : [];
         out.push(nodeTypes.footnote!.create({ kind: attrOf(k, 'note-class') === 'endnote' ? 'endnote' : 'footnote', id: `fn${Math.random().toString(36).slice(2, 8)}`, body: noteBodyOf(paras) }));
+      } else if (t === 'frame' && findKid(k, 'object') && formulas.has((attrOf(findKid(k, 'object')!, 'href') ?? '').replace(/^\.\//, '').replace(/\/$/, ''))) {
+        out.push(nodeTypes.math!.create({ tex: formulas.get((attrOf(findKid(k, 'object')!, 'href') ?? '').replace(/^\.\//, '').replace(/\/$/, ''))!, display: false }));
       } else if (t === 'frame' && findKid(k, 'object') && charts.has((attrOf(findKid(k, 'object')!, 'href') ?? '').replace(/^\.\//, '').replace(/\/$/, ''))) {
         const c = charts.get((attrOf(findKid(k, 'object')!, 'href') ?? '').replace(/^\.\//, '').replace(/\/$/, ''))!;
         const w = parseLength(attrOf(k, 'width'));
@@ -485,7 +497,7 @@ export async function writeOdt(d: WriterDoc): Promise<WriteResult> {
   zip.file('mimetype', MIME, { compression: 'STORE' });
   const pictures: { name: string; data: Uint8Array; mime: string }[] = [];
   /** Los objetos de gráfico (`Object N/content.xml`), para el manifiesto. */
-  const objects: [string, string][] = [];
+  const objects: [string, string, string][] = [];
 
   const textStyles = new Map<string, string>();
   const textStyleXml: string[] = [];
@@ -617,7 +629,7 @@ export async function writeOdt(d: WriterDoc): Promise<WriteResult> {
         const svg = chartSvg(colored, chartData(colored, gridSource(grid), 'es'), 'es', { text: '#333333', grid: '#dddddd', bg: '#ffffff' }, wpx, hpx);
         const pic = `Pictures/chart${pictures.length + 1}.svg`;
         pictures.push({ name: pic, data: new TextEncoder().encode(svg), mime: 'image/svg+xml' });
-        if (xml) objects.push([`Object ${k}`, xml]);
+        if (xml) objects.push([`Object ${k}`, xml, ODF_CHART_MIME]);
         else warnings.push('Los gráficos que OpenDocument no tiene (3D, cascada, cotizaciones…) se guardan como imagen.');
         const w = pt((wpx * 72) / 96);
         const h = pt((hpx * 72) / 96);
@@ -633,7 +645,17 @@ export async function writeOdt(d: WriterDoc): Promise<WriteResult> {
         noteN++;
         return `<text:note text:id="ftn${noteN}" text:note-class="${n.attrs.kind === 'endnote' ? 'endnote' : 'footnote'}"><text:note-citation>${noteN}</text:note-citation><text:note-body>${body}</text:note-body></text:note>`;
       }
-      case 'math': return esc(String(n.attrs.tex));
+      case 'math': {
+        const tex = String(n.attrs.tex ?? '').trim();
+        if (!tex) return '';
+        const k = objects.length + 1;
+        // MathML con el código TeX de origen como anotación (así se vuelve a leer igual)
+        const inner = toMathML(parseMath(tex), !!n.attrs.display).replace(/^<math[^>]*>/, '').replace(/<\/math>$/, '');
+        const ml = `<math xmlns="http://www.w3.org/1998/Math/MathML"${n.attrs.display ? ' display="block"' : ''}><semantics><mrow>${inner}</mrow><annotation encoding="application/x-tex">${esc(tex)}</annotation></semantics></math>`;
+        objects.push([`Object ${k}`, `<?xml version="1.0" encoding="UTF-8"?>${ml}`, 'application/vnd.oasis.opendocument.formula']);
+        const approx = Math.max(24, tex.length * 7);
+        return `<draw:frame draw:name="Ecuación${k}" text:anchor-type="as-char" svg:width="${pt((approx * 72) / 96)}" svg:height="${pt((36 * 72) / 96)}"><draw:object xlink:href="./Object ${k}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>`;
+      }
       case 'shape': case 'shape_group': case 'content_control': {
         let out = '';
         n.forEach((c) => (out += c.isBlock ? `${inlineOf(c)}<text:line-break/>` : inline(c)));
@@ -767,7 +789,7 @@ export async function writeOdt(d: WriterDoc): Promise<WriteResult> {
   zip.file('content.xml', contentXml);
   zip.file('styles.xml', stylesXml);
   zip.file('meta.xml', meta);
-  zip.file('META-INF/manifest.xml', manifest.replace('</manifest:manifest>', `${objects.map(([dir]) => `<manifest:file-entry manifest:full-path="${dir}/" manifest:media-type="${ODF_CHART_MIME}"/><manifest:file-entry manifest:full-path="${dir}/content.xml" manifest:media-type="text/xml"/>`).join('')}</manifest:manifest>`));
+  zip.file('META-INF/manifest.xml', manifest.replace('</manifest:manifest>', `${objects.map(([dir, , mime]) => `<manifest:file-entry manifest:full-path="${dir}/" manifest:media-type="${mime}"/><manifest:file-entry manifest:full-path="${dir}/content.xml" manifest:media-type="text/xml"/>`).join('')}</manifest:manifest>`));
   for (const [dir, xml] of objects) zip.file(`${dir}/content.xml`, xml);
   for (const p of pictures) zip.file(p.name, p.data);
   if (d.comments.length) warnings.push('Los comentarios no se guardan en ODT.');

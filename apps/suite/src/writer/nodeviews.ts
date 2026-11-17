@@ -1,5 +1,7 @@
 import { adjustHandles, dragAdjust, isLineKind, resolveKind, shapeSvg } from '@suitenova/shapes-core';
-import { parseMath, scaleGroupContent, toMathML } from '@suitenova/writer-core';
+import { parseMath, scaleGroupContent, toMathML, toTex } from '@suitenova/writer-core';
+import type { Command } from 'prosemirror-state';
+import { MathEditing } from '../math/core';
 import type { Node as PMNode } from 'prosemirror-model';
 import { NodeSelection, TextSelection, type Transaction } from 'prosemirror-state';
 import type { Decoration, EditorView, NodeView } from 'prosemirror-view';
@@ -26,17 +28,40 @@ export interface NodeViewHost {
 
 // ------------------------------------------------------------------------------------------------ equations
 
+/** La ecuación que se está editando dentro del documento (para la cinta «Ecuación»). */
+let activeMath: MathView | null = null;
+export const activeMathEditing = (): MathEditing | null => activeMath?.core ?? null;
+
+/** Empieza a editar la ecuación de `pos` dentro del documento. */
+export function startMathEdit(view: EditorView, pos: number): boolean {
+  const dom = view.nodeDOM(pos) as (HTMLElement & { __mathView?: MathView }) | null;
+  const mv = dom?.__mathView;
+  if (!mv) return false;
+  mv.startEdit();
+  return true;
+}
+
+/** Intro sobre una ecuación elegida: se pasa a editarla. */
+export const editSelectedMath: Command = (state, _dispatch, view) => {
+  const sel = state.selection;
+  if (!(sel instanceof NodeSelection) || sel.node.type.name !== 'math' || !view) return false;
+  return startMathEdit(view, sel.from);
+};
+
 export class MathView implements NodeView {
   dom: HTMLElement;
-  constructor(private node: PMNode, _view: EditorView, private getPos: () => number | undefined, private host: NodeViewHost) {
+  core: MathEditing | null = null;
+  private focused = false;
+  private abort: AbortController | null = null;
+  constructor(private node: PMNode, private view: EditorView, private getPos: () => number | undefined, private host: NodeViewHost) {
     this.dom = document.createElement('span');
     this.dom.className = 'nw-math';
     this.dom.contentEditable = 'false';
+    (this.dom as HTMLElement & { __mathView?: MathView }).__mathView = this;
     this.render();
     this.dom.addEventListener('dblclick', (e) => {
       e.preventDefault();
-      const pos = this.getPos();
-      if (pos !== undefined && !this.host.readOnly()) this.host.openDialog('equation', { pos });
+      if (!this.core && !this.host.readOnly()) this.startEdit();
     });
   }
   private render() {
@@ -46,10 +71,76 @@ export class MathView implements NodeView {
     this.dom.title = tex;
     this.dom.innerHTML = tex.trim() ? toMathML(parseMath(tex), !!display) : '<span style="color:#888">[ecuación]</span>';
   }
+
+  /** Edita la ecuación en el sitio: el mismo editor del cuadro, pero sobre el documento. */
+  startEdit() {
+    if (this.core || this.host.readOnly()) return;
+    const pos = this.getPos();
+    if (pos === undefined) return;
+    if (!(this.view.state.selection instanceof NodeSelection && this.view.state.selection.from === pos)) this.view.dispatch(this.view.state.tr.setSelection(NodeSelection.create(this.view.state.doc, pos)));
+    // cuando la cinta actúa sobre la ecuación, el foco vuelve a ella para seguir escribiendo
+    this.core = new MathEditing(parseMath(this.node.attrs.tex), () => {}, () => (this.draw(), !this.focused && this.dom.focus()), () => this.finish(true), () => this.finish(true));
+    activeMath = this;
+    this.abort = new AbortController();
+    const o = { signal: this.abort.signal };
+    const d = this.dom;
+    d.classList.add('nw-math-editing');
+    d.tabIndex = 0;
+    d.setAttribute('role', 'textbox');
+    d.setAttribute('aria-label', 'Ecuación');
+    d.addEventListener('keydown', (e) => void (this.core?.key(e) && (e.preventDefault(), e.stopPropagation())), o);
+    d.addEventListener('mousedown', (e) => {
+      this.core?.mouseDown(e, d);
+      requestAnimationFrame(() => d.focus());
+    }, o);
+    d.addEventListener('mousemove', (e) => this.core?.mouseMove(e, d), o);
+    d.addEventListener('copy', (e) => void (e.preventDefault(), e.clipboardData?.setData('text/plain', this.core?.copyText() ?? '')), o);
+    d.addEventListener('cut', (e) => void (e.preventDefault(), e.clipboardData?.setData('text/plain', this.core?.cut() ?? '')), o);
+    d.addEventListener('paste', (e) => void (e.preventDefault(), this.core?.paste(e.clipboardData?.getData('text/plain') ?? '')), o);
+    d.addEventListener('focus', () => ((this.focused = true), this.draw()), o);
+    d.addEventListener('blur', () => ((this.focused = false), this.draw()), o);
+    this.draw();
+    d.focus();
+  }
+  private draw() {
+    if (!this.core) return;
+    this.dom.innerHTML = this.core.html(this.focused);
+    this.dom.title = '';
+  }
+
+  /** Termina de editar y guarda la ecuación en el documento. `focusDoc`: devolver el cursor al texto (Intro o Esc). */
+  finish(focusDoc: boolean) {
+    const core = this.core;
+    if (!core) return;
+    this.core = null;
+    this.abort?.abort();
+    this.abort = null;
+    if (activeMath === this) activeMath = null;
+    this.dom.classList.remove('nw-math-editing');
+    this.dom.removeAttribute('tabindex');
+    this.dom.removeAttribute('role');
+    this.dom.removeAttribute('aria-label');
+    const pos = this.getPos();
+    const tex = toTex(core.tree).trim();
+    if (pos !== undefined) {
+      const cur = this.view.state.doc.nodeAt(pos);
+      if (cur && cur.type.name === 'math') {
+        let tr = this.view.state.tr;
+        if (!tex) tr = tr.delete(pos, pos + 1);
+        else if (tex !== cur.attrs.tex) tr = tr.setNodeMarkup(pos, undefined, { ...cur.attrs, tex });
+        if (focusDoc && tex) tr = keepNodeSelected(tr, pos);
+        if (tr.docChanged || focusDoc) this.view.dispatch(tr);
+      }
+    }
+    this.render();
+    if (focusDoc) this.view.focus();
+  }
+
   update(node: PMNode): boolean {
     if (node.type !== this.node.type) return false;
     this.node = node;
-    this.render();
+    this.dom.dataset.display = node.attrs.display ? '1' : '0';
+    if (!this.core) this.render();
     return true;
   }
   selectNode() {
@@ -57,12 +148,18 @@ export class MathView implements NodeView {
   }
   deselectNode() {
     this.dom.classList.remove('ProseMirror-selectednode');
+    // el cursor pasó a otro sitio del documento: la ecuación se guarda tal como está
+    if (this.core) this.finish(false);
   }
   stopEvent(e: Event) {
-    return e.type === 'dblclick';
+    return !!this.core || e.type === 'dblclick';
   }
   ignoreMutation() {
     return true;
+  }
+  destroy() {
+    this.abort?.abort();
+    if (activeMath === this) activeMath = null;
   }
 }
 

@@ -483,7 +483,9 @@ function inlineXml(parent: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): stri
       const style = child.attrs.kind === 'endnote' ? 'EndnoteReference' : 'FootnoteReference';
       xml = wrapRev(`<w:r><w:rPr><w:rStyle w:val="${style}"/></w:rPr><w:${child.attrs.kind === 'endnote' ? 'endnoteReference' : 'footnoteReference'} w:id="${id}"/></w:r>`, rev, ctx);
     } else if (tn === 'math') {
-      const o = `<m:oMath>${toOMML(parseMath(child.attrs.tex))}</m:oMath>`;
+      // si el código no cambió desde que se leyó, se guarda el OMML original (fuentes, tamaños y propiedades incluidos)
+      const keep = child.attrs.omml && child.attrs.ommlTex === child.attrs.tex;
+      const o = keep ? String(child.attrs.omml) : `<m:oMath>${toOMML(parseMath(child.attrs.tex))}</m:oMath>`;
       xml = child.attrs.display ? `<m:oMathPara>${o}</m:oMathPara>` : o;
     } else if (tn === 'shape') xml = shapeXml(child, ctx, part, rels);
     else if (tn === 'shape_group') xml = groupXml(child, ctx, part, rels);

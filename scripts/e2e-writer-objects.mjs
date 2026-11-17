@@ -71,7 +71,9 @@ await check('equation: insert from the dialog, preview, MathML drawn, edit by do
   await settle();
   assert.equal(await page.locator('.ProseMirror .nw-math math').count(), 1);
   await shot('equation-inserted');
-  await page.locator('.ProseMirror .nw-math').dblclick();
+  // el doble clic edita en el documento; el cuadro sigue disponible con «Editar ecuación…»
+  const mpos = await findPos({ name: 'math' });
+  await ev((pos) => window.__novaWriter.ctl.onDialog('equation', { pos }), mpos);
   await page.locator('#nw-eq-src').waitFor();
   assert.match(await page.locator('#nw-eq-src').inputValue(), /frac/);
   await page.locator('#nw-eq-src').fill('x^{2}');

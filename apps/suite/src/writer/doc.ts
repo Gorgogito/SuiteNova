@@ -63,7 +63,7 @@ import { formsPlugin } from './forms';
 import { WriterRuntime } from './macros';
 import { loadSpeller, misspellingAt, setSpell, spellPlugin, type SpellLang } from './spell';
 import { getLocale } from '@suitenova/core-ui';
-import { ControlView, FieldView, GroupView, MathView, ShapeView, type NodeViewHost } from './nodeviews';
+import { ControlView, FieldView, GroupView, MathView, ShapeView, editSelectedMath, type NodeViewHost } from './nodeviews';
 import { ObjectView } from './objectview';
 import { shapeSelectionPlugin } from './shape-selection';
 import { imageObjectsPlugin } from './image-objects';
@@ -394,6 +394,7 @@ export class WriterCtl {
       history(),
       autoListRules(() => this.autoCorrect),
       autoCorrectPlugin(() => this.autoCorrect),
+      keymap({ Enter: editSelectedMath }),
       keymap({
         Enter: enterCommand,
         Tab: tabCommand,

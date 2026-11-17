@@ -142,7 +142,12 @@ await check('Aceptar guarda la ecuación en el documento y se vuelve a abrir en 
   await page.getByRole('button', { name: 'Aceptar' }).click();
   await settle(400);
   assert.match(await savedTex(), /\\sum/);
-  await page.locator('.ProseMirror .nw-math').dblclick();
+  // el doble clic edita en el documento; el cuadro se abre con «Editar ecuación…»
+  await page.evaluate(() => {
+    let pos = -1;
+    window.__novaWriter.ctl.mainView.state.doc.descendants((n, q) => void (n.type.name === 'math' && (pos = q)));
+    window.__novaWriter.ctl.onDialog('equation', { pos });
+  });
   await editor().waitFor();
   assert.equal(await page.locator('[data-testid=equation-editor] munderover').count(), 1);
   await shot('reabierta');

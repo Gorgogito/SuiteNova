@@ -12,6 +12,8 @@ import { ShapeGallery } from '../shapes/ShapeGallery';
 import { WarpGallery, WordArtStyleGallery } from '../wordart/WordArtUi';
 import { COLORS_CATALOG, LAYOUT_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
 import { chartFormatRibbon } from '../chart/commands';
+import { STRUCTURES, STRUCTURE_GROUPS, SYMBOL_GROUPS } from '@suitenova/math-core';
+import { SYMBOL_COMMANDS } from './commands-math';
 import { applyWordArtStyle, applyWordArtWarp, insertWordArt, wordArtTarget } from './commands-wordart';
 import { insertShapeKind } from './commands-objects';
 import { FONT_NAMES, FONT_SIZES, type WriterUI } from './commands';
@@ -292,10 +294,11 @@ export interface RibbonFlags {
   shape: boolean;
   smartart: boolean;
   chart: boolean;
+  math: boolean;
 }
 
 export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>): RibbonTab[] {
-  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, shape: false, smartart: false, chart: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
+  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, shape: false, smartart: false, chart: false, math: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
   const inTable = flags.inTable;
   const home: RibbonTab = {
     id: 'home',
@@ -422,9 +425,10 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
             label: 'Ecuación',
             icon: 'sigma',
             size: 'large',
-            primaryCommand: 'writer.equation.insert',
+            primaryCommand: 'writer.equation.new',
             keytip: 'EQ',
             entries: [
+              { kind: 'command', command: 'writer.equation.new' },
               { kind: 'command', command: 'writer.equation.insert' },
               { kind: 'separator' },
               { kind: 'command', command: 'writer.equation.sample.0' },
@@ -960,6 +964,42 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
+  // «Ecuación»: estructuras y símbolos como la cinta de Word; las órdenes actúan sobre la ecuación que se edita en el documento
+  const mathDd = (id: string, label: string, keytip: string, cmds: string[]): RibbonItem => ({ kind: 'dropdown', id, label, icon: 'sigma', size: 'small', keytip, entries: cmds.map((c) => ({ kind: 'command' as const, command: c })) });
+  const mathTab: RibbonTab = {
+    id: 'mathTools',
+    label: 'Ecuación',
+    keytip: 'EC',
+    contextual: { label: 'Herramientas de ecuación', color: '#8e44ad', visible: flags.math },
+    groups: [
+      {
+        id: 'mathTools',
+        label: 'Herramientas',
+        icon: 'sigma',
+        items: [
+          { kind: 'button', command: 'writer.equation.new', size: 'large', keytip: 'NE' },
+          { kind: 'button', command: 'writer.equation.editInline', size: 'small', keytip: 'EE' },
+          { kind: 'button', command: 'writer.equation.edit', size: 'small', keytip: 'EC' },
+          { kind: 'button', command: 'writer.equation.display', size: 'small', keytip: 'EL' },
+        ],
+      },
+      {
+        id: 'mathStructures',
+        label: 'Estructuras',
+        icon: 'sigma',
+        items: STRUCTURE_GROUPS.map((g, i) =>
+          mathDd(`mathStruct${i}`, g, `E${i}`, STRUCTURES.filter((d) => d.group === g).map((d) => `writer.math.struct.${d.id}`)),
+        ),
+      },
+      {
+        id: 'mathSymbols',
+        label: 'Símbolos',
+        icon: 'sigma',
+        items: SYMBOL_GROUPS.map((g, gi) => mathDd(`mathSym${gi}`, g.name, `S${gi}`, SYMBOL_COMMANDS.filter((s) => s.id.startsWith(`writer.math.sym.${gi}.`)).map((s) => s.id))),
+      },
+    ],
+  };
+
   const hf: RibbonTab = {
     id: 'hfTools',
     label: 'Encabezado y pie',
@@ -1195,5 +1235,5 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
-  return [home, insert, layout, refs, mailings, review, view, developer, table, imageTab, shapeTab, smartTab, chartTab, hf, outlineTab, helpTab()];
+  return [home, insert, layout, refs, mailings, review, view, developer, table, imageTab, shapeTab, smartTab, chartTab, mathTab, hf, outlineTab, helpTab()];
 }

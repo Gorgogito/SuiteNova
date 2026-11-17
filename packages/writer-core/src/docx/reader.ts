@@ -4,7 +4,7 @@ import { PARAGRAPH_STYLES, markTypes, nodeTypes, writerSchema, type Align, type 
 import { DEFAULT_DOC_DEFAULTS, type DocDefaults } from '../styles';
 import { EMU_PER_PX, emptyWriterDoc, makeSection, twipsToPt, type CommentData, type NotesOptions, type Protection, type ReadResult, type Source, type Watermark, type WriterDoc } from './model';
 import { defaultSection, newSectionId, noRefs, oneColumn, type Columns, type HFRefs, type SectionProps } from '../sections';
-import { fromOMML, toTex } from '@suitenova/math-core';
+import { fromOMML, ommlString, toTex } from '@suitenova/math-core';
 import { noteBodyOf } from '../notes';
 import { cleanAdjust, hasPreset, parseGuide } from '@suitenova/shapes-core';
 import { emuToPx, type FxColor, type FxFill, type WordArtFx } from '@suitenova/wordart-core';
@@ -627,7 +627,7 @@ class Converter {
     if (this.suppressed()) return;
     const tree = fromOMML(kidsOf(m), tagOf, kidsOf, (n, a) => attrOf(n, a), textOfNode);
     const tex = toTex(tree).trim();
-    if (tex) cur().push(nodeTypes.math!.create({ tex, display }));
+    if (tex) cur().push(nodeTypes.math!.create({ tex, display, omml: ommlString(m), ommlTex: tex }));
   }
 
   private inlineSdt(sdt: XNode, link: string | null, rc: { base: RP; builtin: boolean }, cur: () => PMNode[], onPageBreak: () => void) {

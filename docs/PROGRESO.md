@@ -81,7 +81,7 @@ Decisiones del usuario: motor compartido `chart-core` (Slides y Calc migran), da
 En Office es un componente compartido (OMML, el mismo motor en Word, PowerPoint, Excel, Outlook y OneNote). Diseño y fases en `docs/diseno-ecuaciones.md`.
 - [x] **Fase 1 HECHA:** paquete compartido `packages/math-core` (modelo ampliado con estilos de letra, fracciones lineal y sesgada, prefijos, ecuaciones alineadas y recuadros; **formato lineal de Word**; OMML como texto con propiedades por producto); `writer-core` lo reexporta; 14 pruebas.
 - [x] **Fase 2 HECHA:** editor estructurado compartido (`math-core/edit.ts` + `apps/suite/src/math/EquationEditor.tsx`): teclado como Word (`/`, `^`, `_`, `\alpha` + espacio), flechas por casillas, galerías de 103 estructuras y símbolos, ratón, deshacer, copiar y pegar; integrado en Writer y Slides, sincronizado con el código LaTeX; e2e nueva. La cinta contextual «Ecuación» pasa a la fase 3 (edición en el documento).
-- [ ] Fase 3: Writer (nodo con árbol y OMML original, `.docx` fiel, `.odt`).
+- [x] **Fase 3 HECHA (Writer):** edición de la ecuación en el documento (doble clic, Intro o *Nueva ecuación*), pestaña contextual «Ecuación» con 103 estructuras y los símbolos, OMML original conservado en `.docx` (Word real abre lo reescrito idéntico), `.odt` con fórmulas (MathML) y lector de MathML; e2e nueva.
 - [ ] Fase 4: Slides (ecuación editable en `.pptx`, no imagen).
 - [ ] Fase 5: Calc (ecuación flotante, `.xlsx`).
 - [ ] Fase 6: Notes, Mail y portapapeles entre productos.

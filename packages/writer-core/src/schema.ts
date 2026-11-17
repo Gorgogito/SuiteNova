@@ -394,9 +394,18 @@ const nodes: Record<string, NodeSpec> = {
     inline: true,
     group: 'inline',
     atom: true,
-    attrs: { tex: { default: '' }, display: { default: false } },
-    parseDOM: [{ tag: 'span.nw-math', getAttrs: (dom) => ({ tex: (dom as HTMLElement).dataset.tex ?? '', display: (dom as HTMLElement).dataset.display === '1' }) }],
-    toDOM: (node) => ['span', { class: 'nw-math', 'data-tex': node.attrs.tex, 'data-display': node.attrs.display ? '1' : '0' }, node.attrs.tex],
+    // `omml` es el OMML original (con sus fuentes y propiedades) y `ommlTex` el código con el que se leyó: si el código no cambió, se guarda el original
+    attrs: { tex: { default: '' }, display: { default: false }, omml: { default: null }, ommlTex: { default: null } },
+    parseDOM: [
+      {
+        tag: 'span.nw-math',
+        getAttrs: (dom) => {
+          const d = (dom as HTMLElement).dataset;
+          return { tex: d.tex ?? '', display: d.display === '1', omml: d.omml ? decodeURIComponent(d.omml) : null, ommlTex: d.ommlTex ?? null };
+        },
+      },
+    ],
+    toDOM: (node) => ['span', { class: 'nw-math', 'data-tex': node.attrs.tex, 'data-display': node.attrs.display ? '1' : '0', ...(node.attrs.omml ? { 'data-omml': encodeURIComponent(node.attrs.omml), 'data-omml-tex': node.attrs.ommlTex ?? '' } : {}) }, node.attrs.tex],
   },
   /** A shape or text box. Anchored in a paragraph; `wrap` decides how the text flows around it. */
   shape: {

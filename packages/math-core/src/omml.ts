@@ -28,3 +28,38 @@ export function ommlXml(node: MNode, display = false, opts: OmmlOptions = {}): s
   const inner = `<m:oMath>${toOMML(node, opts)}</m:oMath>`;
   return display ? `<m:oMathPara ${OMML_NS}>${inner}</m:oMathPara>` : inner.replace('<m:oMath>', `<m:oMath ${OMML_NS}>`);
 }
+
+// ------------------------------------------------------------------------------------------ OMML original como texto
+
+/** Los elementos del espacio de nombres `m:` (el análisis quita los prefijos; se vuelven a poner por el nombre). */
+const M_NAMES = new Set(
+  'acc accPr aln alnScr argPr argSz bar barPr baseJc begChr borderBox borderBoxPr box boxPr brk chr count cGp cGpRule cSp ctrlPr d defJc deg degHide den diff dispDef dPr e endChr eqArr eqArrPr f fName fPr func funcPr gc groupChr groupChrPr grow hideBot hideLeft hideRight hideTop interSp intLim intraSp lim limLoc limLow limLowPr limUpp limUppPr lit lMargin m maxDist mc mcJc mcPr mcs mPr mr nary naryLim naryPr noBreak nor num oMath oMathPara oMathParaPr opEmu phant phantPr plcHide pos postSp preSp r rad radPr rMargin rPr rSp rSpRule rSty scr sepChr show shp smallFrac sPre sPrePr sSub sSubPr sSubSup sSubSupPr sSup sSupPr strikeBLTR strikeH strikeTLBR strikeV sty sub subHide sup supHide t transp type vertJc wrapIndent wrapRight zeroAsc zeroDesc zeroWid'.split(' '),
+);
+const M_RPR = new Set(['lit', 'nor', 'scr', 'sty', 'brk', 'aln']);
+
+const xesc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const aesc = (s: string) => xesc(s).replace(/"/g, '&quot;');
+
+/** Escribe un nodo de OMML tal como estaba (con sus propiedades de texto, fuentes y tamaños), devolviendo los prefijos `m:` y `w:`. */
+export function ommlString(n: XNode): string {
+  if (n['#text'] !== undefined) return xesc(String(n['#text']));
+  const tag = tagOf(n);
+  const kids = kidsOf(n);
+  // `rPr` existe en los dos espacios: el de matemáticas solo lleva sty, scr, nor, lit, brk y aln
+  const prefix = M_NAMES.has(tag) && !(tag === 'rPr' && kids.some((k) => !M_RPR.has(tagOf(k)))) ? 'm' : 'w';
+  const attrs = Object.entries((n[':@'] ?? {}) as Record<string, string>)
+    .map(([k, v]) => ` ${k.slice(2) === 'space' ? 'xml:space' : `${prefix}:${k.slice(2)}`}="${aesc(String(v))}"`)
+    .join('');
+  const inner = kids.map((k) => (prefix === 'w' && k['#text'] === undefined ? wString(k) : ommlString(k))).join('');
+  return inner ? `<${prefix}:${tag}${attrs}>${inner}</${prefix}:${tag}>` : `<${prefix}:${tag}${attrs}/>`;
+}
+
+/** Dentro de un elemento de Word, todo es de Word. */
+function wString(n: XNode): string {
+  const tag = tagOf(n);
+  const attrs = Object.entries((n[':@'] ?? {}) as Record<string, string>)
+    .map(([k, v]) => ` ${k.slice(2) === 'space' ? 'xml:space' : `w:${k.slice(2)}`}="${aesc(String(v))}"`)
+    .join('');
+  const inner = kidsOf(n).map((k) => (k['#text'] !== undefined ? xesc(String(k['#text'])) : wString(k))).join('');
+  return inner ? `<w:${tag}${attrs}>${inner}</w:${tag}>` : `<w:${tag}${attrs}/>`;
+}

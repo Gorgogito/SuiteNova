@@ -34,7 +34,7 @@ export function EquationDialog({ ui, pos, onClose }: { ui: WriterUI; pos?: numbe
   const accept = () => {
     const v = ctl.mainView;
     if (v) {
-      const node = nodeTypes.math!.create({ tex: tex.trim(), display });
+      const node = nodeTypes.math!.create({ tex: tex.trim(), display, ...(existing && existing.type.name === 'math' ? { omml: existing.attrs.omml, ommlTex: existing.attrs.ommlTex } : {}) });
       if (existing && pos !== undefined) v.dispatch(v.state.tr.setNodeMarkup(pos, undefined, node.attrs));
       else v.dispatch(v.state.tr.replaceSelectionWith(node, false).scrollIntoView());
     }

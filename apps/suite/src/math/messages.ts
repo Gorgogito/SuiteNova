@@ -1,4 +1,5 @@
 import { registerMessages } from '@suitenova/core-ui';
+import { STRUCTURES } from '@suitenova/math-core';
 
 // English text of the equation editor (shared by Writer, Slides, Calc and Notes).
 registerMessages('en', {
@@ -78,4 +79,22 @@ registerMessages('en', {
   'Ecuaciones alineadas': 'Aligned equations',
   'Ecuación': 'Equation',
   'Escriba con el teclado: «/» fracción, «^» y «_» índices, «\\alpha» y espacio una letra griega, «\\sqrt» y espacio una raíz. Tabulador pasa a la casilla siguiente.': 'Type with the keyboard: “/” fraction, “^” and “_” scripts, “\\alpha” and space a Greek letter, “\\sqrt” and space a root. Tab moves to the next box.',
+});
+
+// Las estructuras que se generan a partir de tablas (operadores grandes, funciones) se traducen por reglas.
+const WORDS: Record<string, string> = {
+  Suma: 'Summation', Producto: 'Product', Coproducto: 'Coproduct', 'Unión': 'Union', 'Intersección': 'Intersection', 'O lógico': 'Logical OR', 'Y lógico': 'Logical AND',
+  'Suma directa': 'Direct sum', 'Producto tensorial': 'Tensor product', Integral: 'Integral', 'Integral doble': 'Double integral', 'Integral triple': 'Triple integral', 'Integral de contorno': 'Contour integral', Operador: 'Operator',
+};
+const generated: Record<string, string> = {};
+for (const d of STRUCTURES) {
+  const m = /^(.*) (con|sin) límites$/.exec(d.label);
+  if (m) generated[d.label] = `${WORDS[m[1]!] ?? m[1]}${m[2] === 'con' ? ' with limits' : ''}`;
+  else if (d.label.startsWith('Función ')) generated[d.label] = `Function ${d.label.slice(8)}`;
+}
+registerMessages('en', {
+  ...generated,
+  'Nueva ecuación': 'New equation',
+  'Editar en el documento': 'Edit in the document',
+  'Ecuación en su propia línea': 'Equation on its own line',
 });

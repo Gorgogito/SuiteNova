@@ -22,6 +22,7 @@ import './messages-objects';
 import '../wordart/messages';
 import { smartArtTarget } from './commands-smartart';
 import { chartTarget } from './commands-chart';
+import { mathTarget } from './commands-math';
 import './messages-format';
 import './messages-review';
 import './messages-image';
@@ -477,7 +478,8 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
   const shapeOn = selectedShapePositions(ctl.mainState).length > 0;
   const smartOn = !!smartArtTarget(ctl.mainState);
   const chartOn = !!chartTarget(ctl.mainState);
-  const tabs = useMemo(() => writerTabs(ui, { inTable, hf: hfEditing, outline: outlineOn, image: imageOn, shape: shapeOn, smartart: smartOn, chart: chartOn }), [ui, inTable, hfEditing, outlineOn, imageOn, shapeOn, smartOn, chartOn]);
+  const mathOn = !!mathTarget(ctl.mainState);
+  const tabs = useMemo(() => writerTabs(ui, { inTable, hf: hfEditing, outline: outlineOn, image: imageOn, shape: shapeOn, smartart: smartOn, chart: chartOn, math: mathOn }), [ui, inTable, hfEditing, outlineOn, imageOn, shapeOn, smartOn, chartOn, mathOn]);
   const backstage: BackstageEntry[] = useMemo(() => {
     const pages = backstageEntries(module.name).filter((e) => e.kind === 'page');
     return [

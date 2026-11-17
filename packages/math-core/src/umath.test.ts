@@ -117,3 +117,36 @@ describe('estilos y nodos nuevos', () => {
     expect(toMathML(parseMath(r`\boxed{x}`))).toContain('nm-box');
   });
 });
+
+import { fromMathML, ommlString, toOMML, OMML_NS, texOfMathML } from './index';
+import { kidsOf, rootOf } from './xml';
+
+describe('OMML original y MathML', () => {
+  const CASES = [r`\frac{a+b}{c}`, r`x^2+y_i`, r`\sum_{i=1}^{n} i^2`, r`\begin{pmatrix} a & b \ c & d \end{pmatrix}`, r`\mathbb{R}\sin x`, r`\sqrt[3]{x}`];
+
+  it('ommlString devuelve el OMML tal como estaba (prefijos m: y w:, propiedades de texto)', () => {
+    for (const src of CASES) {
+      const body = `<m:oMath>${toOMML(parseMath(src))}</m:oMath>`;
+      const wrapped = `<x ${OMML_NS} xmlns:w="w">${body}</x>`;
+      const oMath = rootOf(kidsOf(rootOf(parseXml(wrapped), 'x')!), 'oMath')!;
+      const empty = (x: string) => x.replace(/<([\w:]+)><\/\1>/g, '<$1/>');
+      expect(empty(ommlString(oMath)), src).toBe(empty(body));
+    }
+  });
+
+  it('MathML se lee de vuelta: lo que genera toMathML da la misma ecuación', () => {
+    const norm = (n: MNode) => toTex(n).replace(/\[,:;!]/g, '').replace(/\s+/g, '');
+    for (const src of CASES) {
+      const back = fromMathML(toMathML(parseMath(src)))!;
+      expect(norm(back), src).toBe(norm(parseMath(src)));
+    }
+  });
+
+  it('el código TeX de la anotación se prefiere; MathML de otro programa se entiende', () => {
+    expect(texOfMathML('<math><semantics><mrow/><annotation encoding="application/x-tex">a^{2}</annotation></semantics></math>')).toBe('a^{2}');
+    expect(toTex(fromMathML('<math><semantics><mrow/><annotation encoding="application/x-tex">a^{2}</annotation></semantics></math>')!).trim()).toBe('a^2');
+    const lo = fromMathML('<math xmlns="http://www.w3.org/1998/Math/MathML"><mrow><mi>x</mi><mo>=</mo><mfrac><mrow><mo>-</mo><mi>b</mi></mrow><mrow><mn>2</mn><mi>a</mi></mrow></mfrac></mrow></math>')!;
+    expect(toTex(lo).replace(/\s+/g, '')).toBe(r`x=\frac{-b}{2a}`);
+    expect(fromMathML('<a/>')).toBeNull();
+  });
+});

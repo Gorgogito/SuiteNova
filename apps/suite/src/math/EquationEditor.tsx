@@ -1,36 +1,7 @@
 import { t } from '@suitenova/core-ui';
-import {
-  asList,
-  backspace,
-  del,
-  end,
-  fromTree,
-  home,
-  insertNodes,
-  insertStructure,
-  mkRow,
-  moveLeft,
-  moveRight,
-  moveVertical,
-  nextSlot,
-  parseMath,
-  parsePathKey,
-  parseUnicodeMath,
-  placeCursor,
-  renderEdit,
-  selectAll,
-  selectedNodes,
-  STRUCTURES,
-  STRUCTURE_GROUPS,
-  SYMBOL_GROUPS,
-  toTree,
-  toUnicodeMath,
-  typeChar,
-  typeText,
-  type EditState,
-  type MNode,
-} from '@suitenova/math-core';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { insertStructure, STRUCTURES, STRUCTURE_GROUPS, SYMBOL_GROUPS, typeText, type MNode } from '@suitenova/math-core';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { MathEditing } from './core';
 import './messages';
 import './math.css';
 
@@ -45,172 +16,35 @@ interface Props {
   onEnter?: () => void;
 }
 
-const FUNCTION_GROUPS = new Set<string>(STRUCTURE_GROUPS);
-
-/** ¿Parece LaTeX lo que se pega? (barra invertida con letras, llaves o `^{`). */
-const looksLikeTex = (s: string) => /\\[A-Za-z]+|[{}]/.test(s);
+const STRUCTURE_SET = new Set<string>(STRUCTURE_GROUPS);
 
 /**
- * Editor de ecuaciones de SuiteNova (compartido por Writer, Slides, Calc y Notes): el cursor recorre la ecuación por sus
- * casillas, `/` hace una fracción, `^` y `_` escrituras, `\alpha` + espacio una letra; la galería inserta estructuras y símbolos.
+ * Editor de ecuaciones de SuiteNova en un cuadro (compartido por Writer, Slides, Calc y Notes): el cursor recorre la ecuación por
+ * sus casillas, `/` hace una fracción, `^` y `_` escrituras, `\alpha` + espacio una letra; la galería inserta estructuras y símbolos.
+ * El comportamiento es el de `MathEditing`, el mismo que usa la edición dentro del documento.
  */
 export function EquationEditor({ value, onChange, autoFocus, label, onEnter }: Props) {
-  const [st, setSt] = useState<EditState>(() => fromTree(value));
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [focused, setFocused] = useState(false);
   const [group, setGroup] = useState<string>(STRUCTURE_GROUPS[0]);
   const surface = useRef<HTMLDivElement>(null);
-  const last = useRef<MNode>(value);
-  const past = useRef<EditState[]>([]);
-  const future = useRef<EditState[]>([]);
+  const cb = useRef({ onChange, onEnter });
+  cb.current = { onChange, onEnter };
+  const core = useMemo(() => new MathEditing(value, (n) => cb.current.onChange(n), redraw, () => cb.current.onEnter?.()), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // el padre cambió la ecuación (p. ej. se escribió el código): se adopta
-  useEffect(() => {
-    if (value !== last.current) {
-      last.current = value;
-      past.current = [];
-      future.current = [];
-      setSt(fromTree(value));
-    }
-  }, [value]);
+  useEffect(() => core.adopt(value), [value, core]);
   useEffect(() => {
     if (autoFocus) surface.current?.focus();
   }, [autoFocus]);
 
-  /** Aplica un cambio: guarda el estado para deshacer y avisa al padre. */
-  const apply = (next: EditState, record = true) => {
-    if (next === st) return;
-    if (record && next.root !== st.root) {
-      past.current.push(st);
-      if (past.current.length > 200) past.current.shift();
-      future.current = [];
-    }
-    setSt(next);
-    if (next.root !== st.root) {
-      const tree = toTree(next);
-      last.current = tree;
-      onChange(tree);
-    }
-  };
-  const undo = () => {
-    const prev = past.current.pop();
-    if (!prev) return;
-    future.current.push(st);
-    setSt(prev);
-    const tree = toTree(prev);
-    last.current = tree;
-    onChange(tree);
-  };
-  const redo = () => {
-    const nxt = future.current.pop();
-    if (!nxt) return;
-    past.current.push(st);
-    setSt(nxt);
-    const tree = toTree(nxt);
-    last.current = tree;
-    onChange(tree);
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    const mod = e.ctrlKey || e.metaKey;
-    const k = e.key;
-    if (mod && !e.altKey) {
-      if (k === 'z' || k === 'Z') return void (e.preventDefault(), e.shiftKey ? redo() : undo());
-      if (k === 'y' || k === 'Y') return void (e.preventDefault(), redo());
-      if (k === 'a' || k === 'A') return void (e.preventDefault(), apply(selectAll(st), false));
-      return; // copiar, cortar y pegar los atienden sus eventos
-    }
-    const go = (n: EditState, record = true) => {
-      e.preventDefault();
-      apply(n, record);
-    };
-    switch (k) {
-      case 'ArrowLeft': return go(moveLeft(st, e.shiftKey), false);
-      case 'ArrowRight': return go(moveRight(st, e.shiftKey), false);
-      case 'ArrowUp': return go(moveVertical(st, 'up'), false);
-      case 'ArrowDown': return go(moveVertical(st, 'down'), false);
-      case 'Home': return go(home(st, e.shiftKey), false);
-      case 'End': return go(end(st, e.shiftKey), false);
-      case 'Backspace': return go(backspace(st));
-      case 'Delete': return go(del(st));
-      case 'Tab':
-        if (!e.shiftKey && st.path.length) return go(nextSlot(st), false);
-        return; // fuera de las estructuras el tabulador sale del editor
-      case 'Enter':
-        if (st.esc !== undefined) return go(typeChar(st, ' '));
-        if (onEnter) {
-          e.preventDefault();
-          onEnter();
-        }
-        return;
-      case 'Escape':
-        if (st.esc !== undefined) {
-          e.stopPropagation();
-          return go({ ...st, esc: undefined }, false);
-        }
-        if (st.anchor !== undefined) {
-          e.stopPropagation();
-          return go({ ...st, anchor: undefined }, false);
-        }
-        return;
-      default:
-    }
-    if (k.length === 1 && !e.metaKey && (!e.ctrlKey || e.altKey)) go(typeChar(st, k));
-  };
-
-  const text = () => {
-    const sel = selectedNodes(st);
-    return toUnicodeMath(sel.length ? mkRow(sel) : toTree(st));
-  };
-  const onCopy = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    e.clipboardData.setData('text/plain', text());
-  };
-  const onCut = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    e.clipboardData.setData('text/plain', text());
-    apply(backspace(st));
-  };
-  const onPaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const s = e.clipboardData.getData('text/plain').trim();
-    if (!s) return;
-    const tree = looksLikeTex(s) ? parseMath(s) : parseUnicodeMath(s);
-    apply(insertNodes(st, asList(tree)));
-  };
-
-  /** Dónde cae un clic: la fila del nodo tocado y, según el lado, antes o después de él. */
-  const locate = (e: React.MouseEvent): { path: ReturnType<typeof parsePathKey>; at: number } | null => {
-    const el = (e.target as Element).closest('[data-r]') as HTMLElement | null;
-    if (!el || !surface.current?.contains(el)) return null;
-    const i = +(el.getAttribute('data-i') ?? 0);
-    const r = el.getBoundingClientRect();
-    const after = el.classList.contains('nm-ph') ? 0 : e.clientX > r.left + r.width / 2 ? 1 : 0;
-    return { path: parsePathKey(el.getAttribute('data-r') ?? ''), at: i + after };
-  };
-  const onMouseDown = (e: React.MouseEvent) => {
-    const hit = locate(e);
-    if (hit) apply(placeCursor(st, hit.path, hit.at, e.shiftKey), false);
-    else apply(end({ ...st, path: [] }), false);
-    // el foco lo toma el cuadro (no el elemento MathML)
-    requestAnimationFrame(() => surface.current?.focus());
-  };
-  const onMouseMove = (e: React.MouseEvent) => {
-    if (e.buttons !== 1) return;
-    const hit = locate(e);
-    if (hit) apply(placeCursor({ ...st, anchor: st.anchor ?? st.at }, hit.path, hit.at, true), false);
-  };
-
-  const html = useMemo(() => renderEdit(st, focused), [st, focused]);
-  const items = useMemo(() => {
-    if (FUNCTION_GROUPS.has(group)) return STRUCTURES.filter((d) => d.group === group);
-    return [];
-  }, [group]);
+  const html = core.html(focused);
+  const items = STRUCTURE_SET.has(group) ? STRUCTURES.filter((d) => d.group === group) : [];
   const symbols = SYMBOL_GROUPS.find((g) => g.name === group);
-  const apply2 = (n: EditState) => {
-    apply(n);
+  const run = (fn: Parameters<MathEditing['run']>[0]) => {
+    core.run(fn);
     surface.current?.focus();
   };
-  const linear = useMemo(() => toUnicodeMath(toTree(st)), [st]);
 
   return (
     <div className="nm-editor">
@@ -229,12 +63,12 @@ export function EquationEditor({ value, onChange, autoFocus, label, onEnter }: P
         </select>
         <div className="nm-items" role="group" aria-label={t(group)}>
           {items.map((d) => (
-            <button key={d.id} type="button" className="nm-btn" title={t(d.label)} aria-label={t(d.label)} data-structure={d.id} onMouseDown={(e) => e.preventDefault()} onClick={() => apply2(insertStructure(st, d.id))}>
+            <button key={d.id} type="button" className="nm-btn" title={t(d.label)} aria-label={t(d.label)} data-structure={d.id} onMouseDown={(e) => e.preventDefault()} onClick={() => run((st) => insertStructure(st, d.id))}>
               {d.glyph}
             </button>
           ))}
           {symbols?.items.map((s) => (
-            <button key={s.ch} type="button" className="nm-btn" title={s.title ? `${s.title}` : s.ch} aria-label={s.ch} data-symbol={s.ch} onMouseDown={(e) => e.preventDefault()} onClick={() => apply2(typeText(st, s.ch))}>
+            <button key={s.ch} type="button" className="nm-btn" title={s.title ? `${s.title}` : s.ch} aria-label={s.ch} data-symbol={s.ch} onMouseDown={(e) => e.preventDefault()} onClick={() => run((st) => typeText(st, s.ch))}>
               {s.ch}
             </button>
           ))}
@@ -244,16 +78,33 @@ export function EquationEditor({ value, onChange, autoFocus, label, onEnter }: P
         ref={surface}
         className={`nm-surface${focused ? ' nm-focus' : ''}`}
         role="textbox"
-        aria-label={`${label ?? t('Ecuación')}: ${linear}`}
+        aria-label={`${label ?? t('Ecuación')}: ${core.linear}`}
         tabIndex={0}
         spellCheck={false}
         data-testid="equation-editor"
-        onKeyDown={onKeyDown}
-        onCopy={onCopy}
-        onCut={onCut}
-        onPaste={onPaste}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
+        onKeyDown={(e) => {
+          if (core.key(e)) e.preventDefault();
+        }}
+        onCopy={(e) => {
+          e.preventDefault();
+          e.clipboardData.setData('text/plain', core.copyText());
+        }}
+        onCut={(e) => {
+          e.preventDefault();
+          e.clipboardData.setData('text/plain', core.cut());
+        }}
+        onPaste={(e) => {
+          e.preventDefault();
+          core.paste(e.clipboardData.getData('text/plain'));
+        }}
+        onMouseDown={(e) => {
+          if (surface.current) core.mouseDown(e, surface.current);
+          // el foco lo toma el cuadro (no el elemento MathML)
+          requestAnimationFrame(() => surface.current?.focus());
+        }}
+        onMouseMove={(e) => {
+          if (surface.current) core.mouseMove(e, surface.current);
+        }}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         dangerouslySetInnerHTML={{ __html: html }}

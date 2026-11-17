@@ -11,6 +11,7 @@ import { objectCommands } from './commands-objects';
 import { wordArtCommands } from './commands-wordart';
 import { smartArtCommands } from './commands-smartart';
 import { chartCommands } from './commands-chart';
+import { mathCommands } from './commands-math';
 import { mailCommands } from './commands-mail';
 import { spellCommands } from './commands-spell';
 import { securityCommands } from './commands-security';
@@ -278,6 +279,7 @@ export function writerCommands(ui: WriterUI): CommandDef[] {
   defs.push(...wordArtCommands(ui));
   defs.push(...smartArtCommands(ui));
   defs.push(...chartCommands(ui));
+  defs.push(...mathCommands(ui));
   defs.push(...mailCommands(ui));
   defs.push(...spellCommands(ui));
   defs.push(...securityCommands(ui));
