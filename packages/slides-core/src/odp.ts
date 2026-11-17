@@ -2,7 +2,8 @@ import { attrOf, esc, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOf
 import JSZip from 'jszip';
 import { parseHex, resolveClr, toHex, type ColorContext } from './color';
 import { newId, newDeck } from './defaults';
-import { newPicture, newShape, newTextBox, newLine } from './factory';
+import { CHART_COLORS, ODF_CHART_MIME, chartData, chartSvg, gridSource, odfChartXml, parseOdfChart } from '@suitenova/chart-core';
+import { newChart, newPicture, newShape, newTextBox, newLine } from './factory';
 import { geometryToPaths, pathsToCust, pathsToSvg, svgToPaths } from './freeform';
 import { chainFor, colorContext, effectiveXfrm, levelStyle, mergeR, resolveLook, textContext } from './resolve';
 import { docNode, makeDoc, type ParaSpec } from './text';
@@ -51,6 +52,9 @@ export async function writeOdp(deck: Deck): Promise<{ data: Uint8Array; warnings
   const st = new Styles();
   const zip = new JSZip();
   const pics: [string, Uint8Array][] = [];
+  /** Los objetos de gráfico (`Object N/content.xml`) y sus carpetas, para el manifiesto. */
+  const objects: [string, string][] = [];
+  let chartSeq = 0;
   zip.file('mimetype', MIME, { compression: 'STORE' });
 
   const slidesXml = deck.slides.map((slide, si) => {
@@ -201,7 +205,20 @@ export async function writeOdp(deck: Deck): Promise<{ data: Uint8Array; warnings
         };
         return el.children.map((c) => element(c, (q) => inner(q))).join('');
       }
-      warnings.add(el.kind === 'chart' ? 'Los gráficos no se guardan en OpenDocument.' : el.kind === 'media' ? 'El vídeo y el audio no se guardan en OpenDocument.' : 'Algunos objetos (OLE) no se guardan en OpenDocument.');
+      if (el.kind === 'chart') {
+        // un objeto de gráfico de OpenDocument (los tipos que tiene) y, siempre, su imagen de respaldo
+        const n = ++chartSeq;
+        const xml = odfChartXml(el.chart, el.grid, { w: x.w, h: x.h });
+        const colored = { ...el.chart, series: el.chart.series.map((s, i) => ({ ...s, color: s.color ?? CHART_COLORS[i % CHART_COLORS.length] })) };
+        const svg = chartSvg(colored, chartData(colored, gridSource(el.grid), 'es'), 'es', { text: '#333333', grid: '#dddddd', bg: '#ffffff' }, Math.max(20, x.w), Math.max(20, x.h));
+        const path = `Pictures/chart${n}.svg`;
+        pics.push([path, new TextEncoder().encode(svg)]);
+        if (xml) objects.push([`Object ${n}`, xml]);
+        else warnings.add('Los gráficos que OpenDocument no tiene (3D, cascada, cotizaciones…) se guardan como imagen.');
+        const alt = el.descr ? `<svg:desc>${esc(el.descr)}</svg:desc>` : '';
+        return `<draw:frame draw:name="${esc(el.name ?? 'Gráfico')}" ${pos}${transform}>${xml ? `<draw:object xlink:href="./Object ${n}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>` : ''}<draw:image xlink:href="${path}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>${alt}</draw:frame>`;
+      }
+      warnings.add(el.kind === 'media' ? 'El vídeo y el audio no se guardan en OpenDocument.' : 'Algunos objetos (OLE) no se guardan en OpenDocument.');
       return '';
     };
 
@@ -237,7 +254,8 @@ export async function writeOdp(deck: Deck): Promise<{ data: Uint8Array; warnings
   zip.file('content.xml', content);
   zip.file('styles.xml', styles);
   zip.file('meta.xml', meta);
-  zip.file('META-INF/manifest.xml', manifest);
+  zip.file('META-INF/manifest.xml', manifest.replace('</manifest:manifest>', `${objects.map(([dir]) => `<manifest:file-entry manifest:full-path="${dir}/" manifest:media-type="${ODF_CHART_MIME}"/><manifest:file-entry manifest:full-path="${dir}/content.xml" manifest:media-type="text/xml"/>`).join('')}</manifest:manifest>`));
+  for (const [dir, xml] of objects) zip.file(`${dir}/content.xml`, xml);
   for (const [p, d] of pics) zip.file(p, d);
   return { data: await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }), warnings: [...warnings] };
 }
@@ -483,6 +501,23 @@ export async function readOdp(data: Uint8Array): Promise<{ deck: Deck; warnings:
     return b;
   };
 
+  /** Un gráfico de OpenDocument (`draw:object` con su `Object N/content.xml`): lo añade a `out`, o devuelve false si no se puede leer. */
+  const chartObject = async (n: XNode, a: Props, out: SlideElement[]): Promise<boolean> => {
+    const href = attrsOf(findKid(n, 'object')!).href;
+    const xml = href ? await zip.file(`${href.replace(/^\.\//, '').replace(/\/$/, '')}/content.xml`)?.async('string') : undefined;
+    if (!xml) return false;
+    const read = parseOdfChart(xml);
+    if ('skip' in read) {
+      warnings.add(`Un gráfico no se pudo interpretar (${read.skip}); se importa como imagen.`);
+      return false;
+    }
+    const x = pos(a);
+    const el = newChart(read.spec, read.grid, x.x, x.y, x.w, x.h);
+    el.xfrm = x;
+    el.name = a.name || el.name;
+    out.push(el);
+    return true;
+  };
   const readShapes = async (kids: XNode[]): Promise<SlideElement[]> => {
     const out: SlideElement[] = [];
     for (const n of kids) {
@@ -501,6 +536,8 @@ export async function readOdp(data: Uint8Array): Promise<{ deck: Deck; warnings:
           el.text = readText(tb, bodyOf(gs));
           if (a.class === 'title' || a['presentation:class'] === 'title') el.name = a.name ?? 'Título';
           out.push(el);
+        } else if (findKid(n, 'object') && (await chartObject(n, a, out))) {
+          // un gráfico de OpenDocument: ya añadido
         } else if (im) {
           const href = attrsOf(im).href;
           const id = href ? await addImage(href) : null;

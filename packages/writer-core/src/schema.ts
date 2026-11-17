@@ -1,7 +1,7 @@
 import { Schema, type DOMOutputSpec, type MarkSpec, type Node as PMNode, type NodeSpec } from 'prosemirror-model';
 import { tableNodes } from 'prosemirror-tables';
 import { drawingSvg, partsShapes, type SmartArtParts } from '@suitenova/smartart-core';
-import { CHART_COLORS, chartData, chartSvg, gridSource, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
+import { CHART_COLORS, CLIP_ATTR, chartData, chartSvg, decodeChartClip, encodeChartClip, gridSource, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 
 const svgCache = new WeakMap<object, { w: number; h: number; uri: string }>();
 
@@ -527,7 +527,21 @@ const nodes: Record<string, NodeSpec> = {
       /** The parts of the chart as another program saved them (path → bytes), written back with the changes merged in. */
       raw: { default: null },
     },
-    parseDOM: [{ tag: 'span.nw-chart', priority: 70 }],
+    // el gráfico que llevan el portapapeles de Writer, Slides y Calc (`data-nova-chart`), también si viene dentro de una tabla
+    parseDOM: [
+      {
+        tag: `[${CLIP_ATTR}]`,
+        priority: 90,
+        getAttrs: (dom) => {
+          const el = dom as HTMLElement;
+          const clip = decodeChartClip(el.getAttribute(CLIP_ATTR) ?? '');
+          if (!clip) return false;
+          const px = (v: string) => (/^(\d+(?:\.\d+)?)px$/.test(v) ? Number(v.replace('px', '')) : undefined);
+          return { chart: clip.chart, grid: clip.grid, width: px(el.style?.width ?? '') ?? 480, height: px(el.style?.height ?? '') ?? 288, wrap: el.dataset?.wrap ?? 'inline' };
+        },
+      },
+      { tag: 'span.nw-chart', priority: 70 },
+    ],
     toDOM: (node) => {
       const a = node.attrs;
       const css = [`width:${a.width}px`, `height:${a.height}px`];
@@ -535,7 +549,8 @@ const nodes: Record<string, NodeSpec> = {
       else if (a.wrap === 'right') css.push('float:right', 'margin:0 0 6px 10px');
       else if (a.wrap === 'front' || a.wrap === 'behind') css.push('position:absolute', `left:${a.x}px`, `top:${a.y}px`, `z-index:${a.wrap === 'behind' ? 0 : 3}`);
       else if (a.wrap === 'topBottom') css.push('display:block', 'margin:6px auto');
-      return ['span', { class: 'nw-chart', 'data-wrap': a.wrap, title: a.alt || 'Gráfico', style: css.join(';') }, ['img', { src: chartImage(node), alt: a.alt || 'Gráfico', draggable: 'false', style: 'width:100%;height:100%;display:block' }]];
+      const clip = a.chart && a.grid ? { [CLIP_ATTR]: encodeChartClip({ chart: a.chart as ChartSpec, grid: a.grid as ChartGrid }) } : {};
+      return ['span', { class: 'nw-chart', ...clip, 'data-wrap': a.wrap, title: a.alt || 'Gráfico', style: css.join(';') }, ['img', { src: chartImage(node), alt: a.alt || 'Gráfico', draggable: 'false', style: 'width:100%;height:100%;display:block' }]];
     },
   },
   /** A content control (Word's structured document tag) inside a paragraph: text, drop-down, date, check box. */

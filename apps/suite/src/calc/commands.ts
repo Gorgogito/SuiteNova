@@ -1,6 +1,7 @@
 import { ICON_COUNTS, defaultIconThresholds, formatValue, isDateFormat, normRect, type CFKind, type CFRule, type IconSetName, type Rect, type Style } from '@suitenova/calc-engine';
 import type { CommandDef } from '@suitenova/core-ui';
 import { chartFormatCommands } from '../chart/commands';
+import { readChart, writeChart } from '../chart/clipboard';
 import { chartData } from './chartOption';
 import { ICON_LABELS, SCALE_PRESETS } from './cfDialogs';
 import { objectCommands } from './commands-objects';
@@ -147,10 +148,25 @@ export function calcCommands(ui: CalcUI): CommandDef[] {
   add({ id: 'calc.redo', label: 'Rehacer', icon: 'redo', shortcut: ['Ctrl+Y', 'Ctrl+Shift+Z'], enabled: () => !editing() && d.canRedo, run: () => d.redo() });
 
   const copyToSystem = (cut: boolean) => {
+    // con un gráfico elegido se copia (o corta) el gráfico, con sus datos
+    const clip = d.selectedChart ? d.chartClip() : null;
+    if (clip) {
+      void writeChart(clip);
+      if (cut && d.selectedChart) d.deleteChart(d.selectedChart);
+      return;
+    }
     const tsv = d.copy(cut);
     void navigator.clipboard?.writeText(tsv).catch(() => undefined);
   };
   const pasteFromSystem = async (mode: Parameters<CalcDoc['paste']>[1]) => {
+    if (mode === 'all') {
+      const clip = await readChart();
+      if (clip) {
+        const e = d.pasteChartClip(clip);
+        if (e) window.alert(e);
+        return;
+      }
+    }
     let text: string | null = null;
     try {
       text = (await navigator.clipboard?.readText()) ?? null;

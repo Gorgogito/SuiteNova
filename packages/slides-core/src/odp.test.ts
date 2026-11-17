@@ -1,3 +1,4 @@
+import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 import { newDeck } from './defaults';
 import { newLine, newPicture, newShape, newTable, newTextBox } from './factory';
@@ -51,5 +52,48 @@ describe('odp', () => {
     const t = s.shapes.find((e): e is TableEl => e.kind === 'table')!;
     expect(t.rows.length).toBe(2);
     expect(docText(t.rows[0]!.cells[0]!.text!.doc)).toBe('A1');
+  });
+});
+
+describe('gráficos en .odp', () => {
+  it('un gráfico se guarda como objeto de OpenDocument con su imagen de respaldo y se vuelve a leer con sus datos y su formato', async () => {
+    const { sampleGrid, specFromGrid } = await import('@suitenova/chart-core');
+    const { newChart } = await import('./factory');
+    const grid = sampleGrid();
+    const spec = specFromGrid('column', grid, { title: 'Ventas', legend: true, legendPos: 'r' });
+    spec.series[0]!.color = '#c00000';
+    const d0 = newDeck();
+    const d = addElements(d0, d0.slides[0]!.id, [newChart(spec, grid, 100, 100, 600, 400)]);
+    const out = await writeOdp(d);
+    const zip = await JSZip.loadAsync(out.data);
+    expect(zip.file('Object 1/content.xml')).toBeTruthy();
+    expect(await zip.file('META-INF/manifest.xml')!.async('string')).toContain('application/vnd.oasis.opendocument.chart');
+    expect(zip.file('Pictures/chart1.svg')).toBeTruthy();
+    const content = await zip.file('content.xml')!.async('string');
+    expect(content).toContain('<draw:object xlink:href="./Object 1"');
+    expect(out.warnings.join(' ')).not.toContain('Los gráficos no se guardan');
+    const back = (await readOdp(out.data)).deck.slides[0]!.shapes.filter((e) => e.kind === 'chart');
+    expect(back.length).toBe(1);
+    const c = back[0] as import('./types').ChartEl;
+    expect(c.chart.type).toBe('column');
+    expect(c.chart.title).toBe('Ventas');
+    expect(c.chart.legendPos).toBe('r');
+    expect(c.chart.series[0]!.color).toBe('#c00000');
+    expect(c.grid[1]![1]).toBe(4.3);
+    // el respaldo no se importa además como imagen
+    expect((await readOdp(out.data)).deck.slides[0]!.shapes.filter((e) => e.kind === 'pic').length).toBe(0);
+  });
+
+  it('un gráfico que OpenDocument no tiene (cascada) se guarda como imagen y avisa', async () => {
+    const { sampleGrid, specFromGrid } = await import('@suitenova/chart-core');
+    const { newChart } = await import('./factory');
+    const grid = sampleGrid();
+    const d0 = newDeck();
+    const d = addElements(d0, d0.slides[0]!.id, [newChart(specFromGrid('waterfall', grid, {}), grid, 0, 0, 400, 300)]);
+    const out = await writeOdp(d);
+    const zip = await JSZip.loadAsync(out.data);
+    expect(zip.file('Object 1/content.xml')).toBeNull();
+    expect(zip.file('Pictures/chart1.svg')).toBeTruthy();
+    expect(out.warnings.join(' ')).toContain('se guardan como imagen');
   });
 });

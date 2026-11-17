@@ -1,3 +1,4 @@
+import { CHART_COLORS, ODF_CHART_MIME, chartData, chartSvg, gridSource, odfChartXml, parseOdfChart, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 import JSZip from 'jszip';
 import { Fragment, type Mark, type Node as PMNode } from 'prosemirror-model';
 import { attrOf, esc, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOfNode, type XNode } from '../docx/xml';
@@ -62,6 +63,17 @@ export async function readOdt(data: Uint8Array): Promise<ReadResult> {
   const metaXml = (await zip.file('meta.xml')?.async('string')) ?? '';
   const warnings: string[] = [];
   const doc = emptyWriterDoc({ ...DEFAULT_DOC_DEFAULTS });
+
+  // los gráficos del documento (`draw:object` con su `Object N/content.xml`), leídos antes de recorrer el texto
+  const charts = new Map<string, { spec: ChartSpec; grid: ChartGrid }>();
+  for (const m of contentXml.matchAll(/<draw:object\b[^>]*xlink:href="([^"]+)"/g)) {
+    const href = m[1]!.replace(/^\.\//, '').replace(/\/$/, '');
+    const xml = await zip.file(`${href}/content.xml`)?.async('string');
+    if (!xml) continue;
+    const read = parseOdfChart(xml);
+    if ('skip' in read) warnings.push(`Un gráfico no se pudo interpretar (${read.skip}); se importa como imagen.`);
+    else charts.set(href, read);
+  }
 
   const styles = new Map<string, StyleDef>();
   const listStyles = new Map<string, (ListFormat | 'bullet')[]>();
@@ -216,6 +228,11 @@ export async function readOdt(data: Uint8Array): Promise<ReadResult> {
         const body = findKid(k, 'note-body');
         const paras = body ? blocks(kidsOf(body)) : [];
         out.push(nodeTypes.footnote!.create({ kind: attrOf(k, 'note-class') === 'endnote' ? 'endnote' : 'footnote', id: `fn${Math.random().toString(36).slice(2, 8)}`, body: noteBodyOf(paras) }));
+      } else if (t === 'frame' && findKid(k, 'object') && charts.has((attrOf(findKid(k, 'object')!, 'href') ?? '').replace(/^\.\//, '').replace(/\/$/, ''))) {
+        const c = charts.get((attrOf(findKid(k, 'object')!, 'href') ?? '').replace(/^\.\//, '').replace(/\/$/, ''))!;
+        const w = parseLength(attrOf(k, 'width'));
+        const h = parseLength(attrOf(k, 'height'));
+        out.push(nodeTypes.chart!.create({ chart: c.spec, grid: c.grid, width: w ? Math.round((w * 96) / 72) : 480, height: h ? Math.round((h * 96) / 72) : 288 }));
       } else if (t === 'frame') {
         const img = findKid(k, 'image');
         const href = img ? attrOf(img, 'href') : undefined;
@@ -467,6 +484,8 @@ export async function writeOdt(d: WriterDoc): Promise<WriteResult> {
   const zip = new JSZip();
   zip.file('mimetype', MIME, { compression: 'STORE' });
   const pictures: { name: string; data: Uint8Array; mime: string }[] = [];
+  /** Los objetos de gráfico (`Object N/content.xml`), para el manifiesto. */
+  const objects: [string, string][] = [];
 
   const textStyles = new Map<string, string>();
   const textStyleXml: string[] = [];
@@ -585,6 +604,24 @@ export async function writeOdt(d: WriterDoc): Promise<WriteResult> {
         const w = pt(((n.attrs.width ?? 100) * 72) / 96);
         const h = pt(((n.attrs.height ?? 100) * 72) / 96);
         return `<draw:frame draw:name="Imagen${pictures.length}" text:anchor-type="as-char" svg:width="${w}" svg:height="${h}"><draw:image xlink:href="${name}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>`;
+      }
+      case 'chart': {
+        const spec = n.attrs.chart as ChartSpec | null;
+        const grid = n.attrs.grid as ChartGrid | null;
+        if (!spec || !grid) return '';
+        const wpx = Number(n.attrs.width) || 480;
+        const hpx = Number(n.attrs.height) || 288;
+        const k = objects.length + 1;
+        const xml = odfChartXml(spec, grid, { w: wpx, h: hpx });
+        const colored = { ...spec, series: spec.series.map((s, i) => ({ ...s, color: s.color ?? CHART_COLORS[i % CHART_COLORS.length] })) };
+        const svg = chartSvg(colored, chartData(colored, gridSource(grid), 'es'), 'es', { text: '#333333', grid: '#dddddd', bg: '#ffffff' }, wpx, hpx);
+        const pic = `Pictures/chart${pictures.length + 1}.svg`;
+        pictures.push({ name: pic, data: new TextEncoder().encode(svg), mime: 'image/svg+xml' });
+        if (xml) objects.push([`Object ${k}`, xml]);
+        else warnings.push('Los gráficos que OpenDocument no tiene (3D, cascada, cotizaciones…) se guardan como imagen.');
+        const w = pt((wpx * 72) / 96);
+        const h = pt((hpx * 72) / 96);
+        return `<draw:frame draw:name="Gráfico${pictures.length}" text:anchor-type="as-char" svg:width="${w}" svg:height="${h}">${xml ? `<draw:object xlink:href="./Object ${k}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>` : ''}<draw:image xlink:href="${pic}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>`;
       }
       case 'footnote': {
         let body = '';
@@ -730,7 +767,8 @@ export async function writeOdt(d: WriterDoc): Promise<WriteResult> {
   zip.file('content.xml', contentXml);
   zip.file('styles.xml', stylesXml);
   zip.file('meta.xml', meta);
-  zip.file('META-INF/manifest.xml', manifest);
+  zip.file('META-INF/manifest.xml', manifest.replace('</manifest:manifest>', `${objects.map(([dir]) => `<manifest:file-entry manifest:full-path="${dir}/" manifest:media-type="${ODF_CHART_MIME}"/><manifest:file-entry manifest:full-path="${dir}/content.xml" manifest:media-type="text/xml"/>`).join('')}</manifest:manifest>`));
+  for (const [dir, xml] of objects) zip.file(`${dir}/content.xml`, xml);
   for (const p of pictures) zip.file(p.name, p.data);
   if (d.comments.length) warnings.push('Los comentarios no se guardan en ODT.');
   if (d.watermark) warnings.push('La marca de agua no se guarda en ODT.');

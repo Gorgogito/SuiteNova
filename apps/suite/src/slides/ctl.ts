@@ -57,12 +57,15 @@ import {
   type ShapeEl,
   type Layout,
   type MasterTarget,
+  newChart,
   type Slide,
   type SlideElement,
   type TableEl,
   type Xfrm,
   type ZMove,
 } from '@suitenova/slides-core';
+import { gridToTsv, type ChartClip } from '@suitenova/chart-core';
+import { writeChart } from '../chart/clipboard';
 import type { EditorView } from 'prosemirror-view';
 import { AssetUrls } from './render/assets';
 
@@ -741,13 +744,24 @@ export class SlidesCtl {
     if (!els.length) return;
     this.apply('Duplicar', (d) => addElements(d, this.slide.id, els), { selection: els.map((e) => e.id) });
   }
+  /** Pega un gráfico que viene de otro producto (Calc o Writer) o de otro documento, con su rejilla y su formato. */
+  pasteChart(clip: ChartClip): void {
+    const w = this.deck.size.w * 0.7;
+    const h = this.deck.size.h * 0.65;
+    this.addElement(newChart(clip.chart, clip.grid, (this.deck.size.w - w) / 2, this.deck.size.h * 0.25, w, h));
+  }
   copy(): void {
     if (this.selection.length) this.clip = { els: this.selected };
     else this.clip = { els: [], slides: this.deck.slides.filter((s) => this.selSlides.includes(s.id)) };
     // the text also goes to the system clipboard, so it can be pasted in other programs
     const parts = (this.clip.els.length ? this.clip.els : this.clip.slides?.flatMap((s) => s.shapes) ?? []).flatMap((e) => (e.kind === 'shape' && e.text ? [docText(e.text.doc)] : []));
     this.clipText = parts.join('\n');
-    void navigator.clipboard?.writeText(this.clipText).catch(() => undefined);
+    // un gráfico elegido va también al portapapeles del sistema (con sus datos), para pegarlo en Calc o en Writer
+    const only = this.clip.els.length === 1 && this.clip.els[0]!.kind === 'chart' ? (this.clip.els[0] as Extract<SlideElement, { kind: 'chart' }>) : null;
+    if (only) {
+      this.clipText = gridToTsv(only.grid);
+      void writeChart({ chart: only.chart, grid: only.grid });
+    } else void navigator.clipboard?.writeText(this.clipText).catch(() => undefined);
     this.touch();
   }
   /** Pastes text that comes from outside as a new text box. */

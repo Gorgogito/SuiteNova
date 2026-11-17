@@ -3,6 +3,7 @@ import {
   MAX_COLS,
   MAX_ROWS,
   Workbook,
+  rangeText,
   applyAutoFilter,
   canonicalFormula,
   cellKey,
@@ -45,6 +46,8 @@ import {
   type Sheet,
   type Style,
 } from '@suitenova/calc-engine';
+import { parseRef, standaloneChart, type ChartClip } from '@suitenova/chart-core';
+import { chartData } from './chartOption';
 import { applyPreset, presetById } from '../chart/presets';
 import { CalcRuntime } from './macros';
 import { DocObjects, ENTRY_PENDING, overlaps } from './doc-objects';
@@ -1436,6 +1439,51 @@ export class CalcDoc {
     if (typeof applied === 'string') return applied;
     const chart = applied;
     this.run('Insertar gráfico', () => this.wb.editCharts(id, (cs) => cs.push(chart)));
+    this.selectedChart = chart.id;
+    this.touch();
+    return null;
+  }
+
+  /** El gráfico elegido con sus propios datos (rejilla y gráfico), para el portapapeles. */
+  chartClip(): ChartClip | null {
+    const c = this.chartById(this.selectedChart);
+    return c ? standaloneChart(c, chartData(c, this.wb, this.activeSheetId, this.locale)) : null;
+  }
+
+  /** Pega un gráfico de otro documento: sus datos van a la hoja desde la celda activa y el gráfico apunta a ellos. */
+  pasteChartClip(clip: ChartClip): string | null {
+    if (!this.prot.allowed('objects')) return this.notice;
+    const rows = clip.grid.length;
+    const cols = Math.max(0, ...clip.grid.map((r) => r.length));
+    if (!rows || !cols) return 'El gráfico no trae datos.';
+    const id = this.activeSheetId;
+    const sheet = this.sheet;
+    const at = normRect(this.activeRange);
+    const r0 = at.r1;
+    const c0 = at.c1;
+    const shift = (ref: string | undefined): string | undefined => {
+      const p = ref ? parseRef(ref) : null;
+      if (!p) return ref;
+      return rangeText(sheet.name, { r1: p.rect.r1 + r0, c1: p.rect.c1 + c0, r2: p.rect.r2 + r0, c2: p.rect.c2 + c0 });
+    };
+    const rect: Rect = { r1: r0, c1: c0, r2: r0 + rows - 1, c2: c0 + cols - 1 };
+    const chart: ChartDef = {
+      ...clip.chart,
+      series: clip.chart.series.map((s) => ({ ...s, values: shift(s.values) ?? s.values, categories: shift(s.categories), nameRef: shift(s.nameRef) })),
+      id: `chart-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e4).toString(36)}`,
+      x: colOffsetPx(sheet, Math.min(rect.c2 + 2, MAX_COLS - 1)),
+      y: rowOffsetPx(sheet, rect.r1),
+      width: 480,
+      height: 288,
+    };
+    this.run('Pegar gráfico', () => {
+      clip.grid.forEach((row, r) =>
+        row.forEach((v, c) => {
+          if (v !== null && v !== undefined && v !== '') this.wb.setInput(id, r0 + r, c0 + c, String(v));
+        }),
+      );
+      this.wb.editCharts(id, (cs) => cs.push(chart));
+    });
     this.selectedChart = chart.id;
     this.touch();
     return null;

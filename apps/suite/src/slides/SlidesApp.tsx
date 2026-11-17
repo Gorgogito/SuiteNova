@@ -17,6 +17,8 @@ import { SelectionPane } from './SelectionPane';
 import { NotesPane } from './NotesPane';
 import { slidesTabs } from './ribbonDef';
 import { chainFor, newId, newShape } from '@suitenova/slides-core';
+import { chartFromHtml } from '@suitenova/chart-core';
+import { chartOfPaste } from '../chart/clipboard';
 import { colorContext } from '@suitenova/slides-core';
 import type { CanvasCtx } from './render/SlideCanvas';
 import { Stage } from './Stage';
@@ -177,6 +179,15 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
         try {
           const items = await navigator.clipboard.read();
           for (const it of items) {
+            if (!textOnly && it.types.includes('text/html')) {
+              const chart = chartFromHtml(await (await it.getType('text/html')).text());
+              if (chart) {
+                const own = ctl.clip?.els.some((x) => x.kind === 'chart') && it.types.includes('text/plain') && (await (await it.getType('text/plain')).text()) === ctl.clipText;
+                if (own) ctl.paste();
+                else ctl.pasteChart(chart);
+                return;
+              }
+            }
             const img = it.types.find((x) => x.startsWith('image/'));
             if (img && !textOnly) {
               const blob = await it.getType(img);
@@ -265,7 +276,12 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
       e.preventDefault();
       const imgs = [...cd.files].filter((f) => f.type.startsWith('image/'));
       const txt = cd.getData('text/plain');
-      if (imgs.length) ctl.emit('files', imgs);
+      const chart = chartOfPaste(cd);
+      // un gráfico copiado en Slides se pega como copia exacta; el que viene de Calc, Writer u otro documento, con su rejilla
+      if (chart) {
+        if (txt === ctl.clipText && ctl.clip?.els.some((x) => x.kind === 'chart')) ctl.paste();
+        else ctl.pasteChart(chart);
+      } else if (imgs.length) ctl.emit('files', imgs);
       else if (txt && txt !== ctl.clipText) ctl.pasteText(txt);
       else ctl.paste();
     };

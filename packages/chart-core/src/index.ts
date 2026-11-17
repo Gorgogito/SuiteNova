@@ -16,3 +16,5 @@ export { patchGridWorkbook, readGridWorkbook, writeGridWorkbook } from './dml/wo
 export { parser as dmlParser, type XNode } from './dml/xml';
 export { chartParts, mainChartPath, readChartPart, renameBundle, rewriteChart, rewriteChartFromGrid, rewriteRawChart, workbookRidOf } from './dml/part';
 export { mergeChartXml, sameXml } from './dml/merge';
+export { CLIP_ATTR, chartClipHtml, chartFromHtml, decodeChartClip, encodeChartClip, gridToTsv, standaloneChart, type ChartClip } from './clip';
+export { ODF_CHART_MIME, odfChartXml, odfSupports, parseOdfChart } from './odf';

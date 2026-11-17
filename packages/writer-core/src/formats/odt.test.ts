@@ -165,3 +165,46 @@ describe('ODT writer', () => {
     expect(plainText(back.doc.body)).toContain('Capítulo uno');
   });
 });
+
+describe('gráficos en .odt', () => {
+  const build = async (type: 'column' | 'waterfall') => {
+    const { sampleGrid, specFromGrid } = await import('@suitenova/chart-core');
+    const { DEFAULT_DOC_DEFAULTS, defaultSection, emptyWriterDoc, makeSection, nodeTypes, writerSchema } = await import('../index');
+    const grid = sampleGrid();
+    const spec = specFromGrid(type, grid, { title: 'Ventas', legend: true, legendPos: 'r' });
+    spec.series[0]!.color = '#c00000';
+    const chart = nodeTypes.chart!.create({ width: 480, height: 288, chart: spec, grid });
+    return { ...emptyWriterDoc({ ...DEFAULT_DOC_DEFAULTS }), body: nodeTypes.doc!.create(null, [makeSection([nodeTypes.paragraph!.create(null, [writerSchema.text('Antes '), chart])], defaultSection())]) };
+  };
+  const charts = (d: import('prosemirror-model').Node) => {
+    const out: import('prosemirror-model').Node[] = [];
+    d.descendants((n) => void (n.type.name === 'chart' && out.push(n)));
+    return out;
+  };
+
+  it('un gráfico se guarda como objeto de OpenDocument con su imagen de respaldo y se vuelve a leer con sus datos y su formato', async () => {
+    const out = await writeOdt(await build('column'));
+    const zip = await JSZip.loadAsync(out.data);
+    expect(zip.file('Object 1/content.xml')).toBeTruthy();
+    expect(await zip.file('META-INF/manifest.xml')!.async('string')).toContain('application/vnd.oasis.opendocument.chart');
+    expect(await zip.file('content.xml')!.async('string')).toContain('<draw:object xlink:href="./Object 1"');
+    const back = charts((await readOdt(out.data)).doc.body);
+    expect(back.length).toBe(1);
+    expect(back[0]!.attrs.chart.type).toBe('column');
+    expect(back[0]!.attrs.chart.title).toBe('Ventas');
+    expect(back[0]!.attrs.chart.legendPos).toBe('r');
+    expect(back[0]!.attrs.chart.series[0].color).toBe('#c00000');
+    expect(back[0]!.attrs.grid[1][1]).toBe(4.3);
+    let images = 0;
+    (await readOdt(out.data)).doc.body.descendants((n) => void (n.type.name === 'image' && images++));
+    expect(images).toBe(0);
+  });
+
+  it('un gráfico que OpenDocument no tiene se guarda como imagen y avisa', async () => {
+    const out = await writeOdt(await build('waterfall'));
+    const zip = await JSZip.loadAsync(out.data);
+    expect(zip.file('Object 1/content.xml')).toBeNull();
+    expect(zip.file('Pictures/chart1.svg')).toBeTruthy();
+    expect(out.warnings.join(' ')).toContain('se guardan como imagen');
+  });
+});
