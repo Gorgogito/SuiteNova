@@ -26,6 +26,7 @@ import {
   type Xfrm,
 } from '@suitenova/slides-core';
 import { clrCss } from '@suitenova/slides-core';
+import { EQUATION_SIZE, mathBoxHtml } from './mathbox';
 import { Children, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { onImageDims, type AssetUrls } from './assets';
 import { ChartView } from './chart';
@@ -192,6 +193,20 @@ export function ElementView({ el, ctx }: { el: SlideElement; ctx: CanvasCtx }): 
   }
 }
 
+/** The formula of an equation box, laid out by the browser's MathML and centred in its frame. */
+function MathContent({ el, ctx }: { el: ShapeEl; ctx: CanvasCtx }) {
+  const m = el.math!;
+  const html = useMemo(() => mathBoxHtml(m.tex, !!m.display), [m.tex, m.display]);
+  return (
+    <div
+      className="sl-math"
+      data-testid="slide-math"
+      style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: m.size ?? EQUATION_SIZE, fontFamily: "'Cambria Math','STIX Two Math','Latin Modern Math',serif", color: clrCss({ scheme: 'tx1' }, ctx.env.cc), whiteSpace: 'nowrap', pointerEvents: 'none' }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+
 function ShapeView({ el, ctx }: { el: ShapeEl; ctx: CanvasCtx }) {
   const { deck, chain, env, onSlide } = ctx;
   const x = xfOf(ctx, el);
@@ -246,6 +261,7 @@ function ShapeView({ el, ctx }: { el: ShapeEl; ctx: CanvasCtx }) {
           </g>
         </svg>
       )}
+      {el.math && <MathContent el={el} ctx={ctx} />}
       {showText && !editing && tc && body && (
         <TextBox el={el} ctx={ctx} x={x} geom={g.textRect} body={body} tc={tc} text={el.text} prompt={prompt} look={look} />
       )}

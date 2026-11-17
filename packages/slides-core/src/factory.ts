@@ -1,7 +1,7 @@
 import { newId } from './defaults';
 import { emptyDocJson, makeDoc } from './text';
 import { sampleGrid, specFromGrid, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
-import type { ChartEl, ConnEl, MediaEl, PicEl, ShapeEl, StyleRef, TableCell, TableEl, TextBody } from './types';
+import type { ChartEl, ConnEl, MathBox, MediaEl, PicEl, ShapeEl, StyleRef, TableCell, TableEl, TextBody } from './types';
 
 /** The style PowerPoint gives a new shape: accent 1 fill, darker outline, white text. */
 export const SHAPE_STYLE: StyleRef = {
@@ -25,6 +25,11 @@ export function newShape(prst: string, x: number, y: number, w: number, h: numbe
 
 export function newTextBox(x: number, y: number, w: number, h: number): ShapeEl {
   return { kind: 'shape', id: newId(), name: 'Cuadro de texto', isTextBox: true, geom: { prst: 'rect' }, xfrm: { x, y, w, h }, fill: { t: 'none' }, text: emptyText({ wrap: 'square', fit: { t: 'shape' } }) };
+}
+
+/** An equation box: a text box whose content is the formula (PowerPoint's `a14:m`), with the picture of the formula as fallback. */
+export function newMathBox(math: MathBox, x: number, y: number, w: number, h: number): ShapeEl {
+  return { kind: 'shape', id: newId(), name: 'Ecuación', descr: math.tex, isTextBox: true, geom: { prst: 'rect' }, xfrm: { x, y, w, h }, fill: { t: 'none' }, math };
 }
 
 export function newLine(prst: string, x1: number, y1: number, x2: number, y2: number): ConnEl {

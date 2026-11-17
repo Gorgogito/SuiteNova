@@ -626,6 +626,26 @@ interface X {
 }
 
 /** Read OMML (an `m:oMath` node parsed with preserveOrder, namespace prefixes removed) back to the tree. */
+/**
+ * Las letras en cursiva matemática de Unicode (𝑥, 𝛼…) vuelven a letras normales: PowerPoint guarda así el texto de una ecuación,
+ * y la cursiva ya es la de las variables (un estilo de letra pedido se lee del `m:rPr`, no del carácter).
+ */
+export function unItalic(s: string): string {
+  let out = '';
+  for (const ch of s) {
+    const c = ch.codePointAt(0)!;
+    if (c === 0x210e) out += 'h';
+    else if (c >= 0x1d434 && c <= 0x1d44d) out += String.fromCharCode(65 + c - 0x1d434);
+    else if (c >= 0x1d44e && c <= 0x1d467) out += String.fromCharCode(97 + c - 0x1d44e);
+    else if (c >= 0x1d6e2 && c <= 0x1d6fa) {
+      const i = c - 0x1d6e2;
+      out += String.fromCodePoint(i <= 16 ? 0x391 + i : i === 17 ? 0x3f4 : 0x3a3 + (i - 18));
+    } else if (c >= 0x1d6fc && c <= 0x1d714) out += String.fromCodePoint(0x3b1 + (c - 0x1d6fc));
+    else out += ch;
+  }
+  return out;
+}
+
 export function fromOMML(kids: X[], tagOf: (n: X) => string, kidsOf: (n: X) => X[], attrOf: (n: X, a: string) => string | undefined, textOf: (n: X) => string): MNode {
   const find = (n: X, tag: string): X | undefined => kidsOf(n).find((k) => tagOf(k) === tag);
   const seq = (list: X[]): MNode => row(list.map(one).filter((x): x is MNode => !!x));
@@ -634,7 +654,7 @@ export function fromOMML(kids: X[], tagOf: (n: X) => string, kidsOf: (n: X) => X
     switch (tagOf(n)) {
       case 'r': {
         const t = find(n, 't');
-        const txt = t ? textOf(t) : '';
+        const txt = t ? unItalic(textOf(t)) : '';
         if (!txt) return null;
         const rpr = find(n, 'rPr') ?? {};
         const stv = attrOf(find(rpr, 'sty') ?? {}, 'val');

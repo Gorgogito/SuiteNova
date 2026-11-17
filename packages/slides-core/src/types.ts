@@ -278,6 +278,21 @@ interface Common {
   locked?: boolean;
 }
 
+/** An equation box: the formula is the content of the shape (PowerPoint's `a14:m`), not a picture. */
+export interface MathBox {
+  /** the formula in LaTeX (the model of the shared math engine reads it) */
+  tex: string;
+  /** on its own line (`m:oMathPara`) or inline */
+  display?: boolean;
+  /** size of the characters, points */
+  size?: number;
+  /** the original `m:oMath`/`m:oMathPara` as read from the file, written back while `tex` is not edited */
+  omml?: string;
+  ommlTex?: string;
+  /** picture of the formula (asset id): what PowerPoint shows in older versions and other programs */
+  fallback?: string;
+}
+
 export interface ShapeEl extends Common {
   kind: 'shape';
   geom?: Geometry;
@@ -290,6 +305,8 @@ export interface ShapeEl extends Common {
   isTextBox?: boolean;
   /** 3-D properties exist in the original and are not drawn */
   has3d?: boolean;
+  /** an equation box: the text is the formula */
+  math?: MathBox;
 }
 export interface PicEl extends Common {
   kind: 'pic';

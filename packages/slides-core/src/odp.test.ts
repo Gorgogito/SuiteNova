@@ -96,4 +96,19 @@ describe('gráficos en .odp', () => {
     expect(zip.file('Pictures/chart1.svg')).toBeTruthy();
     expect(out.warnings.join(' ')).toContain('se guardan como imagen');
   });
+  it('una ecuación se guarda como fórmula de OpenDocument (MathML con el TeX) y se vuelve a leer como ecuación', async () => {
+    const d0 = newDeck();
+    const box = newTextBox(100, 120, 300, 60);
+    box.name = 'Ecuación';
+    box.math = { tex: String.raw`\sum_{i=1}^{n} i=\frac{n(n+1)}{2}`, display: true, size: 28 };
+    const d = addElements(d0, d0.slides[0]!.id, [box]);
+    const out = await writeOdp(d);
+    const zip = await JSZip.loadAsync(out.data);
+    expect(await zip.file('Object 1/content.xml')!.async('string')).toContain('application/x-tex');
+    expect(await zip.file('META-INF/manifest.xml')!.async('string')).toContain('application/vnd.oasis.opendocument.formula');
+    const back = (await readOdp(out.data)).deck.slides[0]!.shapes.filter((e): e is ShapeEl => e.kind === 'shape' && !!e.math);
+    expect(back.length).toBe(1);
+    expect(back[0]!.math!.tex).toContain(String.raw`\sum`);
+    expect(back[0]!.math!.display).toBe(true);
+  });
 });

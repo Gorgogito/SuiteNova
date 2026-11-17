@@ -1,8 +1,11 @@
 import katex from 'katex';
+import { EQUATION_SIZE } from './render/mathbox';
+
+export { EQUATION_SIZE };
 
 /*
- * Equations. The formula is written in LaTeX, turned into MathML (KaTeX) and drawn by the engine's own MathML support, then kept as
- * a picture with the formula as its alternative text so that it can be edited again. In PowerPoint it is an ordinary picture.
+ * Equations. An equation is a box whose content is the formula (`ShapeEl.math`, PowerPoint's `a14:m`), drawn by the engine's own MathML
+ * support. The picture made here is only its fallback for programs that do not know equations, and it gives the box its natural size.
  */
 
 export const EQUATION_NAME = 'Ecuación';
@@ -18,8 +21,8 @@ export function mathml(latex: string): string {
   return m[0].replace('<math', '<math xmlns="http://www.w3.org/1998/Math/MathML"').replace('xmlns="http://www.w3.org/1998/Math/MathML" xmlns="http://www.w3.org/1998/Math/MathML"', 'xmlns="http://www.w3.org/1998/Math/MathML"');
 }
 
-/** Draws the formula to a transparent PNG; sizes are in points for a 28 pt formula. */
-export async function renderEquation(latex: string, color = '#000000'): Promise<{ bytes: Uint8Array; w: number; h: number }> {
+/** Draws the formula to a transparent PNG; `w` and `h` are the size in points the formula takes at `size` pt. */
+export async function renderEquation(latex: string, color = '#000000', size = EQUATION_SIZE): Promise<{ bytes: Uint8Array; w: number; h: number }> {
   const ml = mathml(latex);
   const host = document.createElement('div');
   host.style.cssText = `position:fixed;left:-9999px;top:0;font:${SIZE}px ${FONT};display:inline-block;padding:6px;color:${color}`;
@@ -46,7 +49,7 @@ export async function renderEquation(latex: string, color = '#000000'): Promise<
   g.scale(k, k);
   g.drawImage(img, 0, 0, w, h);
   const blob: Blob = await new Promise((ok, bad) => canvas.toBlob((b) => (b ? ok(b) : bad(new Error('No se pudo crear la imagen.'))), 'image/png'));
-  return { bytes: new Uint8Array(await blob.arrayBuffer()), w: (w * 28) / SIZE, h: (h * 28) / SIZE };
+  return { bytes: new Uint8Array(await blob.arrayBuffer()), w: (w * size) / SIZE, h: (h * size) / SIZE };
 }
 
 export const EQUATION_EXAMPLES: { name: string; latex: string }[] = [

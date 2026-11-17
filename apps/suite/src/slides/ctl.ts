@@ -322,6 +322,14 @@ export class SlidesCtl {
 
   beginEdit(id: string): void {
     if (this.editing === id) return;
+    // una ecuación se edita en su cuadro, no como texto
+    const el = this.element(id);
+    if (el?.kind === 'shape' && el.math) {
+      this.selection = [id];
+      this.touch();
+      this.emit('equation', id);
+      return;
+    }
     this.endEdit();
     this.editing = id;
     this.selection = [id];

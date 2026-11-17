@@ -1,4 +1,4 @@
-import { attrOf, esc, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOfNode, type XNode } from '@suitenova/writer-core';
+import { attrOf, esc, findKid, findKids, fromMathML, kidsOf, parseMath, parseXml, rootOf, tagOf, textOfNode, texOfMathML, toMathML, toTex, type XNode } from '@suitenova/writer-core';
 import JSZip from 'jszip';
 import { parseHex, resolveClr, toHex, type ColorContext } from './color';
 import { newId, newDeck } from './defaults';
@@ -53,7 +53,7 @@ export async function writeOdp(deck: Deck): Promise<{ data: Uint8Array; warnings
   const zip = new JSZip();
   const pics: [string, Uint8Array][] = [];
   /** Los objetos de gráfico (`Object N/content.xml`) y sus carpetas, para el manifiesto. */
-  const objects: [string, string][] = [];
+  const objects: [string, string, string?][] = [];
   let chartSeq = 0;
   zip.file('mimetype', MIME, { compression: 'STORE' });
 
@@ -150,6 +150,22 @@ export async function writeOdp(deck: Deck): Promise<{ data: Uint8Array; warnings
       const x = map ? map(raw) : raw;
       const { pos, transform } = place(x);
       if (x.flipH || x.flipV) if (el.kind !== 'cxn') warnings.add('Los volteos de formas no se conservan.');
+      if (el.kind === 'shape' && el.math) {
+        // una fórmula de OpenDocument (MathML con el código TeX como anotación) y, si hay, su imagen de respaldo
+        const m = el.math;
+        const n = ++chartSeq;
+        const inner = toMathML(parseMath(m.tex), !!m.display).replace(/^<math[^>]*>/, '').replace(/<\/math>$/, '');
+        const ml = `<?xml version="1.0" encoding="UTF-8"?><math xmlns="http://www.w3.org/1998/Math/MathML"${m.display ? ' display="block"' : ''}><semantics><mrow>${inner}</mrow><annotation encoding="application/x-tex">${esc(m.tex)}</annotation></semantics></math>`;
+        objects.push([`Object ${n}`, ml, 'application/vnd.oasis.opendocument.formula']);
+        const a = m.fallback ? deck.assets[m.fallback] : undefined;
+        let img = '';
+        if (a) {
+          const path = `Pictures/${m.fallback}.png`;
+          if (!pics.some(([p]) => p === path)) pics.push([path, a.data]);
+          img = `<draw:image xlink:href="${path}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>`;
+        }
+        return `<draw:frame draw:name="${esc(el.name ?? 'Ecuación')}" ${pos}${transform}><draw:object xlink:href="./Object ${n}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/>${img}</draw:frame>`;
+      }
       if (el.kind === 'shape') {
         const empty = !el.text || !/"text"/.test(JSON.stringify(el.text.doc));
         if (el.ph && empty) return '';
@@ -254,7 +270,7 @@ export async function writeOdp(deck: Deck): Promise<{ data: Uint8Array; warnings
   zip.file('content.xml', content);
   zip.file('styles.xml', styles);
   zip.file('meta.xml', meta);
-  zip.file('META-INF/manifest.xml', manifest.replace('</manifest:manifest>', `${objects.map(([dir]) => `<manifest:file-entry manifest:full-path="${dir}/" manifest:media-type="${ODF_CHART_MIME}"/><manifest:file-entry manifest:full-path="${dir}/content.xml" manifest:media-type="text/xml"/>`).join('')}</manifest:manifest>`));
+  zip.file('META-INF/manifest.xml', manifest.replace('</manifest:manifest>', `${objects.map(([dir, , mime]) => `<manifest:file-entry manifest:full-path="${dir}/" manifest:media-type="${mime ?? ODF_CHART_MIME}"/><manifest:file-entry manifest:full-path="${dir}/content.xml" manifest:media-type="text/xml"/>`).join('')}</manifest:manifest>`));
   for (const [dir, xml] of objects) zip.file(`${dir}/content.xml`, xml);
   for (const [p, d] of pics) zip.file(p, d);
   return { data: await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }), warnings: [...warnings] };
@@ -506,6 +522,22 @@ export async function readOdp(data: Uint8Array): Promise<{ deck: Deck; warnings:
     const href = attrsOf(findKid(n, 'object')!).href;
     const xml = href ? await zip.file(`${href.replace(/^\.\//, '').replace(/\/$/, '')}/content.xml`)?.async('string') : undefined;
     if (!xml) return false;
+    // una fórmula (MathML): una ecuación en un cuadro, no un gráfico
+    if (/<(?:\w+:)?math[\s>]/.test(xml) && !/<office:chart\b/.test(xml)) {
+      const tree = fromMathML(xml);
+      const tex = texOfMathML(xml) ?? (tree ? toTex(tree).trim() : '');
+      if (!tex) {
+        warnings.add('Una fórmula no se pudo interpretar y se omite.');
+        return true;
+      }
+      const x = pos(a);
+      const el = newTextBox(0, 0, 0, 0);
+      el.xfrm = x;
+      el.name = a.name || 'Ecuación';
+      el.math = { tex, display: /display=["']block["']/.test(xml), size: 28 };
+      out.push(el);
+      return true;
+    }
     const read = parseOdfChart(xml);
     if ('skip' in read) {
       warnings.add(`Un gráfico no se pudo interpretar (${read.skip}); se importa como imagen.`);

@@ -149,4 +149,8 @@ describe('OMML original y MathML', () => {
     expect(toTex(lo).replace(/\s+/g, '')).toBe(r`x=\frac{-b}{2a}`);
     expect(fromMathML('<a/>')).toBeNull();
   });
+  it('lee las letras en cursiva matemática de Unicode (como las guarda PowerPoint) como letras normales', () => {
+    const xml = '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:r><m:t>𝑥=𝛼+𝐴+ℎ</m:t></m:r></m:oMath>';
+    expect(toTex(parseOmmlXml(xml)!.node)).toBe(String.raw`x=\alpha +A+h`);
+  });
 });

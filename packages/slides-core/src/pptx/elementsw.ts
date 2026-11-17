@@ -1,4 +1,4 @@
-import { esc } from '@suitenova/writer-core';
+import { esc, OMML_NS, ommlXml, parseMath } from '@suitenova/writer-core';
 import { NS_CX, REL_CHARTEX } from '@suitenova/chart-core';
 import type { ChartEl, ConnEl, GroupEl, MediaEl, OleEl, PicEl, ShapeEl, SlideElement, StyleRef, TableCell, TableEl, TableStyleDef } from '../types';
 import { clrXml, effectsXml, fillXml, geomXml, lnXml, txBodyXml, xfrmXml, EMU, type WriteCtx } from './dmlw';
@@ -57,7 +57,27 @@ function spPr(el: { xfrm?: ShapeEl['xfrm']; geom?: ShapeEl['geom']; fill?: Shape
 
 // ------------------------------------------------------------------------------------------------ elements
 
+/**
+ * An equation box as PowerPoint writes it: the shape with the formula (`a14:m`) as the choice and, when there is one, the picture of
+ * the formula as the fallback for versions that do not know equations.
+ */
+function mathShapeXml(el: ShapeEl, w: PartWriter): string {
+  const m = el.math!;
+  const size = Math.round((m.size ?? 18) * 100);
+  const display = m.display ?? false;
+  let omml: string;
+  if (m.omml && m.ommlTex === m.tex) omml = m.omml.replace(/^<m:(oMathPara|oMath)\b/, `<m:$1 ${OMML_NS}`);
+  else omml = ommlXml(parseMath(m.tex), display, { rPr: `<a:rPr lang="es-ES" sz="${size}" i="1"><a:latin typeface="Cambria Math" panose="02040503050406030204" pitchFamily="18" charset="0"/></a:rPr>` });
+  const x = el.xfrm;
+  const sp = `<p:sp><p:nvSpPr>${cNvPr(el, w)}<p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>${spPr({ ...el, geom: el.geom ?? { prst: 'rect' }, fill: el.fill ?? { t: 'none' } }, w)}<p:txBody><a:bodyPr wrap="none" rtlCol="0"><a:spAutoFit/></a:bodyPr><a:lstStyle/><a:p><a14:m>${omml}</a14:m><a:endParaRPr lang="es-ES" sz="${size}"/></a:p></p:txBody></p:sp>`;
+  const rid = m.fallback ? w.image(m.fallback) : undefined;
+  if (!rid) return `<mc:AlternateContent><mc:Choice Requires="a14">${sp}</mc:Choice><mc:Fallback/></mc:AlternateContent>`;
+  const pic = `<p:pic><p:nvPicPr><p:cNvPr id="${w.shapeId(el)}" name="${esc(el.name ?? 'Ecuación')}"${attr('descr', el.descr ?? m.tex)}/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrmXml(x)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+  return `<mc:AlternateContent><mc:Choice Requires="a14">${sp}</mc:Choice><mc:Fallback>${pic}</mc:Fallback></mc:AlternateContent>`;
+}
+
 function shapeXml(el: ShapeEl, w: PartWriter): string {
+  if (el.math) return mathShapeXml(el, w);
   const hasGeomNeeded = !el.ph || el.geom;
   return `<p:sp><p:nvSpPr>${cNvPr(el, w)}<p:cNvSpPr${el.isTextBox ? ' txBox="1"' : ''}>${el.ph ? '<a:spLocks noGrp="1"/>' : ''}</p:cNvSpPr><p:nvPr>${phXml(el.ph)}</p:nvPr></p:nvSpPr>${spPr({ ...el, geom: el.geom ?? (hasGeomNeeded ? { prst: 'rect' } : undefined) }, w)}${styleXml(el.style)}${txBodyXml(el.text ?? (el.ph || el.isTextBox ? undefined : undefined), w)}</p:sp>`;
 }

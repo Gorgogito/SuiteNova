@@ -1,6 +1,6 @@
-import { attrOf, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, type XNode } from '@suitenova/writer-core';
+import { attrOf, findKid, findKids, fromOMML, kidsOf, ommlString, parseXml, rootOf, tagOf, textOfNode, toTex, type XNode } from '@suitenova/writer-core';
 import { newId } from '../defaults';
-import type { ChartEl, ConnEl, GroupEl, MediaEl, OleEl, PicEl, Placeholder, ShapeEl, SlideElement, StyleRef, TableCell, TableEl, Xfrm } from '../types';
+import type { ChartEl, ConnEl, GroupEl, MathBox, MediaEl, OleEl, PicEl, Placeholder, ShapeEl, SlideElement, StyleRef, TableCell, TableEl, Xfrm } from '../types';
 import { readChartPart } from './chartio';
 import { EMU, boolAttr, numAttr, readClr, readEffects, readFill, readGeometry, readHyperlink, readLn, readTextBody, readXfrm, type DmlCtx } from './dml';
 
@@ -387,6 +387,55 @@ function readGraphicFrame(n: XNode, ctx: ElementCtx): SlideElement | undefined {
   return undefined;
 }
 
+// ------------------------------------------------------------------------------------------------ equations
+
+/** The size (points) of the first character run of an equation: `a:rPr sz` inside `m:r`. */
+function mathSize(n: XNode): number | undefined {
+  if (tagOf(n) === 'r') {
+    const sz = Number(attrOf(findKid(n, 'rPr') ?? {}, 'sz'));
+    if (sz > 0) return sz / 100;
+  }
+  for (const k of kidsOf(n)) {
+    const s = mathSize(k);
+    if (s) return s;
+  }
+  return undefined;
+}
+
+/**
+ * PowerPoint writes an equation box as `mc:Choice Requires="a14"` with a shape whose only paragraph holds `a14:m`, and a picture as
+ * fallback. A box like that becomes an equation shape; any other mix of text and equations keeps reading the fallback.
+ */
+function readMathChoice(ch: XNode, fb: XNode | undefined, ctx: ElementCtx): ShapeEl | undefined {
+  const sp = findKid(ch, 'sp');
+  const tx = sp ? findKid(sp, 'txBody') : undefined;
+  if (!sp || !tx) return undefined;
+  const paras = findKids(tx, 'p');
+  if (paras.length !== 1) return undefined;
+  const kids = kidsOf(paras[0]!);
+  if (kids.some((k) => tagOf(k) === 'r' || tagOf(k) === 'fld' || tagOf(k) === 'br')) return undefined;
+  const holders = kids.filter((k) => tagOf(k) === 'm');
+  if (holders.length !== 1) return undefined;
+  const container = kidsOf(holders[0]!).find((k) => tagOf(k) === 'oMathPara' || tagOf(k) === 'oMath');
+  if (!container) return undefined;
+  const display = tagOf(container) === 'oMathPara';
+  const maths = display ? kidsOf(container).filter((k) => tagOf(k) === 'oMath') : [container];
+  if (!maths.length) return undefined;
+  const tex = toTex(fromOMML(maths.flatMap((m) => kidsOf(m)), tagOf, kidsOf, (x, a) => attrOf(x, a), textOfNode)).trim();
+  if (!tex) return undefined;
+  const el = readSp(sp, ctx);
+  delete el.text;
+  const math: MathBox = { tex, display, omml: ommlString(container, 'a'), ommlTex: tex };
+  const size = mathSize(container) ?? Number(attrOf(findKid(paras[0]!, 'endParaRPr') ?? {}, 'sz')) / 100;
+  if (size > 0) math.size = size;
+  const pic = fb ? findKid(fb, 'pic') : undefined;
+  const blip = pic ? findKid(findKid(pic, 'blipFill'), 'blip') : undefined;
+  const fallback = blip ? ctx.blip(attrOf(blip, 'embed')) : undefined;
+  if (fallback) math.fallback = fallback;
+  el.math = math;
+  return el;
+}
+
 // ------------------------------------------------------------------------------------------------ tree
 
 const KNOWN_REQUIRES = new Set(['p14', 'a14', 'p15', 'p16', 'adec', 'cx', 'cx1', 'a16', 'ahyp']);
@@ -407,6 +456,11 @@ export function readTree(tree: XNode, ctx: ElementCtx): SlideElement[] {
       } else if (t === 'AlternateContent') {
         const fb = findKid(n, 'Fallback');
         const ch = findKid(n, 'Choice');
+        const mathBox = ch ? readMathChoice(ch, fb, ctx) : undefined;
+        if (mathBox) {
+          out.push(mathBox);
+          return;
+        }
         const req = attrOf(ch ?? {}, 'Requires') ?? '';
         // un gráfico de Office 2016 (cascada, embudo…) solo está en la opción; la alternativa es un rectángulo con un aviso
         const gf = ch ? findKid(ch, 'graphicFrame') : undefined;

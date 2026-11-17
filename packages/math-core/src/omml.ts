@@ -38,28 +38,30 @@ const M_NAMES = new Set(
 const M_RPR = new Set(['lit', 'nor', 'scr', 'sty', 'brk', 'aln']);
 
 const xesc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+/** Los atributos de DrawingML (`a:`) no llevan prefijo; los de Word y de matemáticas sí. */
+const aq = (prefix: string) => (prefix === 'a' ? '' : `${prefix}:`);
 const aesc = (s: string) => xesc(s).replace(/"/g, '&quot;');
 
 /** Escribe un nodo de OMML tal como estaba (con sus propiedades de texto, fuentes y tamaños), devolviendo los prefijos `m:` y `w:`. */
-export function ommlString(n: XNode): string {
+export function ommlString(n: XNode, other: 'w' | 'a' = 'w'): string {
   if (n['#text'] !== undefined) return xesc(String(n['#text']));
   const tag = tagOf(n);
   const kids = kidsOf(n);
   // `rPr` existe en los dos espacios: el de matemáticas solo lleva sty, scr, nor, lit, brk y aln
-  const prefix = M_NAMES.has(tag) && !(tag === 'rPr' && kids.some((k) => !M_RPR.has(tagOf(k)))) ? 'm' : 'w';
+  const prefix = M_NAMES.has(tag) && !(tag === 'rPr' && kids.some((k) => !M_RPR.has(tagOf(k)))) ? 'm' : other;
   const attrs = Object.entries((n[':@'] ?? {}) as Record<string, string>)
-    .map(([k, v]) => ` ${k.slice(2) === 'space' ? 'xml:space' : `${prefix}:${k.slice(2)}`}="${aesc(String(v))}"`)
+    .map(([k, v]) => ` ${k.slice(2) === 'space' ? 'xml:space' : `${aq(prefix)}${k.slice(2)}`}="${aesc(String(v))}"`)
     .join('');
-  const inner = kids.map((k) => (prefix === 'w' && k['#text'] === undefined ? wString(k) : ommlString(k))).join('');
+  const inner = kids.map((k) => (prefix !== 'm' && k['#text'] === undefined ? wString(k, other) : ommlString(k, other))).join('');
   return inner ? `<${prefix}:${tag}${attrs}>${inner}</${prefix}:${tag}>` : `<${prefix}:${tag}${attrs}/>`;
 }
 
-/** Dentro de un elemento de Word, todo es de Word. */
-function wString(n: XNode): string {
+/** Dentro de un elemento de Word (o de PowerPoint con `other = 'a'`), todo es de ese producto. */
+function wString(n: XNode, other: 'w' | 'a'): string {
   const tag = tagOf(n);
   const attrs = Object.entries((n[':@'] ?? {}) as Record<string, string>)
-    .map(([k, v]) => ` ${k.slice(2) === 'space' ? 'xml:space' : `w:${k.slice(2)}`}="${aesc(String(v))}"`)
+    .map(([k, v]) => ` ${k.slice(2) === 'space' ? 'xml:space' : `${aq(other)}${k.slice(2)}`}="${aesc(String(v))}"`)
     .join('');
-  const inner = kidsOf(n).map((k) => (k['#text'] !== undefined ? xesc(String(k['#text'])) : wString(k))).join('');
-  return inner ? `<w:${tag}${attrs}>${inner}</w:${tag}>` : `<w:${tag}${attrs}/>`;
+  const inner = kidsOf(n).map((k) => (k['#text'] !== undefined ? xesc(String(k['#text'])) : wString(k, other))).join('');
+  return inner ? `<${other}:${tag}${attrs}>${inner}</${other}:${tag}>` : `<${other}:${tag}${attrs}/>`;
 }

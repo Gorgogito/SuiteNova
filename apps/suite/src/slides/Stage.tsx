@@ -136,7 +136,7 @@ export function Stage({ ctl, onContext }: { ctl: SlidesCtl; onContext?: (e: Reac
         } else if (el.kind === 'shape') {
           const filled = !!((el.fill && el.fill.t !== 'none') || el.style?.fill?.idx || (!el.isTextBox && !el.ph));
           const hasText = !!el.text && JSON.stringify(el.text.doc).includes('"text"');
-          if (!filled && !hasText && !el.ph) {
+          if (!filled && !hasText && !el.ph && !el.math) {
             // an unfilled shape without text is selected by its outline
             const near = q.x <= x.x + tol * 2 || q.x >= x.x + x.w - tol * 2 || q.y <= x.y + tol * 2 || q.y >= x.y + x.h - tol * 2;
             if (!near) continue;

@@ -1096,9 +1096,9 @@ await check('tables: cells (click, type, Tab, drag-select), merge/split, rows an
   assert.ok(back.borders && back.fill);
 });
 
-await check('equations (LaTeX → picture, edit again) and picture tools (crop, pan, fill/fit, recolor, corrections, shape, reset, saved)', async () => {
+await check('equations (a box with the formula, edit again) and picture tools (crop, pan, fill/fit, recolor, corrections, shape, reset, saved)', async () => {
   await ev(() => { const c = window.__novaSlides.ctl; c.newDoc(); c.goTo(0); });
-  const P = () => ev(() => { const c = window.__novaSlides.ctl; const p = c.selected[0]; return p && { name: p.name, descr: p.descr, src: p.src, x: { ...c.xfrmOf(p) }, sr: p.srcRect, adj: p.adjust, geom: p.geom }; });
+  const P = () => ev(() => { const c = window.__novaSlides.ctl; const p = c.selected[0]; return p && { name: p.name, descr: p.descr, src: p.src, math: p.math && { ...p.math }, x: { ...c.xfrmOf(p) }, sr: p.srcRect, adj: p.adjust, geom: p.geom }; });
   // equation
   await tab('Insertar');
   await btn('Ecuación…');
@@ -1113,10 +1113,13 @@ await check('equations (LaTeX → picture, edit again) and picture tools (crop, 
   await page.waitForFunction(() => window.__novaSlides.ctl.selected[0]?.name === 'Ecuación');
   const eq = await P();
   assert.match(eq.descr, /sqrt/);
-  const png = await ev(() => { const c = window.__novaSlides.ctl; const a = c.deck.assets[c.selected[0].src]; return a && [a.mime, a.data.length, [...a.data.slice(0, 4)]]; });
+  assert.equal(eq.src, undefined, 'a box with the formula, not a picture');
+  assert.match(eq.math.tex, /sqrt/);
+  const png = await ev(() => { const c = window.__novaSlides.ctl; const a = c.deck.assets[c.selected[0].math.fallback]; return a && [a.mime, a.data.length, [...a.data.slice(0, 4)]]; });
   assert.equal(png[0], 'image/png');
   assert.deepEqual(png[2], [137, 80, 78, 71]);
-  assert.ok(png[1] > 1000, 'a real picture of the formula');
+  assert.ok(png[1] > 1000, 'the fallback is a real picture of the formula');
+  assert.ok(await page.locator('[data-testid=slide-math] math').count(), 'the canvas draws the formula as MathML');
   await shot('equation-inserted');
   // double click edits it again
   const sb = await surface().boundingBox();
@@ -1124,9 +1127,25 @@ await check('equations (LaTeX → picture, edit again) and picture tools (crop, 
   await page.mouse.dblclick(sb.x + (eq.x.x + eq.x.w / 2) * z, sb.y + (eq.x.y + eq.x.h / 2) * z);
   await page.getByRole('dialog').getByLabel('Fórmula en LaTeX').fill('a^2+b^2=c^2');
   await page.getByRole('button', { name: 'Aplicar', exact: true }).click();
-  await page.waitForFunction((old) => window.__novaSlides.ctl.selected[0]?.src !== old, eq.src);
+  await page.waitForFunction((old) => window.__novaSlides.ctl.selected[0]?.math?.fallback !== old, eq.math.fallback);
   assert.equal((await P()).descr, 'a^2+b^2=c^2');
-  await ev(() => { const c = window.__novaSlides.ctl; c.deleteSelected(); });
+  assert.equal((await P()).math.tex, 'a^2+b^2=c^2');
+  // saved in the file as an equation (a14:m) with the picture as fallback, and reopened as an equation box
+  {
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.keyboard.press('Control+S')]);
+    const file = path.join(tmp, dl.suggestedFilename());
+    await dl.saveAs(file);
+    const zip = await JSZip.loadAsync(fs.readFileSync(file));
+    const xml = await zip.file('ppt/slides/slide1.xml').async('string');
+    assert.match(xml, /<mc:Choice Requires="a14">[\s\S]*<a14:m>[\s\S]*<m:oMathPara/, 'the equation is text, not a picture');
+    assert.match(xml, /<mc:Fallback><p:pic>/, 'the picture of the formula is the fallback');
+    await ev(() => window.__novaSlides.ctl.newDoc());
+    await ev((b) => window.__novaSlides.load(b, 'ecuacion.pptx'), [...fs.readFileSync(file)]);
+    const back = await ev(() => window.__novaSlides.ctl.deck.slides[0].shapes.filter((e) => e.math).map((e) => e.math.tex));
+    assert.deepEqual(back, ['a^2+b^2=c^2']);
+    assert.ok(await page.locator('[data-testid=slide-math] math').count(), 'the reopened equation is drawn');
+  }
+  await ev(() => { const c = window.__novaSlides.ctl; c.goTo(0); c.select(c.deck.slides[0].shapes.filter((e) => e.math).map((e) => e.id)); c.deleteSelected(); });
 
   // picture
   await ev(() => {
