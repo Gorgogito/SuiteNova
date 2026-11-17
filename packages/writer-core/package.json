@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@suitenova/chart-core": "workspace:*",
+    "@suitenova/math-core": "workspace:*",
     "@suitenova/shapes-core": "workspace:*",
     "@suitenova/smartart-core": "workspace:*",
     "@suitenova/wordart-core": "workspace:*",

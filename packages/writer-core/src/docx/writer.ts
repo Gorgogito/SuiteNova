@@ -6,7 +6,7 @@ import { esc } from './xml';
 import { EMU_PER_PX, ptToTwips, sectionPropsOf, type CommentData, type WriteResult, type WriterDoc } from './model';
 import { columnWidths, noRefs, type SectionProps } from '../sections';
 import { resolvePart } from '../layout';
-import { parseMath, toOMML } from '../math';
+import { parseMath, toOMML } from '@suitenova/math-core';
 import { avLstXml, presetOf, resolveKind } from '@suitenova/shapes-core';
 import { prstTxWarpXml, w14Fx, type WordArtFx } from '@suitenova/wordart-core';
 import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, NS_CX, REL_CHARTEX, chartParts, mainChartPath, renameBundle, rewriteRawChart, writeGridWorkbook, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';

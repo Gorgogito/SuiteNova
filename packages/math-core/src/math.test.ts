@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attrOf, kidsOf, parseXml, tagOf, textOfNode, rootOf } from './docx/xml';
+import { attrOf, kidsOf, parseXml, tagOf, textOfNode, rootOf } from './xml';
 import { fromOMML, OMML_NS, parseMath, toMathML, toOMML, toTex, type MNode } from './math';
 
 const r = String.raw;

@@ -3,42 +3,45 @@
  * MathML and converted to and from Word's OMML.
  */
 
+/** Estilo de un carácter: normal (recto), negrita, cursiva o ambas. */
+export type RunSty = 'p' | 'b' | 'i' | 'bi';
+/** Alfabeto de un carácter (lo que Word llama «escritura»). */
+export type RunScr = 'script' | 'fraktur' | 'double-struck' | 'sans-serif' | 'monospace';
+export interface RunFmt {
+  sty?: RunSty;
+  scr?: RunScr;
+}
+
 export type MNode =
   | { t: 'row'; c: MNode[] }
-  | { t: 'num'; v: string }
-  | { t: 'id'; v: string }
-  | { t: 'op'; v: string }
-  | { t: 'text'; v: string }
+  | ({ t: 'num'; v: string } & RunFmt)
+  | ({ t: 'id'; v: string } & RunFmt)
+  | ({ t: 'op'; v: string } & RunFmt)
+  | ({ t: 'text'; v: string } & RunFmt)
   | { t: 'space'; v: number }
-  | { t: 'frac'; n: MNode; d: MNode; bar: boolean }
+  /** `kind`: barra horizontal (por omisión), sin barra, lineal (a/b) o sesgada (a⁄b). */
+  | { t: 'frac'; n: MNode; d: MNode; bar: boolean; kind?: 'bar' | 'noBar' | 'lin' | 'skw' }
   | { t: 'sup'; b: MNode; s: MNode }
   | { t: 'sub'; b: MNode; s: MNode }
   | { t: 'subsup'; b: MNode; sub: MNode; sup: MNode }
+  /** Subíndice y superíndice antes de la base (`m:sPre`). */
+  | { t: 'pre'; b: MNode; sub: MNode; sup: MNode }
   | { t: 'sqrt'; c: MNode; deg: MNode | null }
   | { t: 'nary'; op: string; sub: MNode | null; sup: MNode | null; c: MNode; limits: boolean }
   | { t: 'fenced'; open: string; close: string; sep: string; c: MNode[] }
-  | { t: 'func'; name: string; c: MNode }
+  | { t: 'func'; name: string; c: MNode; sub?: MNode }
   | { t: 'acc'; ch: string; c: MNode }
   | { t: 'bar'; c: MNode; top: boolean }
   | { t: 'limit'; b: MNode; lim: MNode; top: boolean }
-  | { t: 'matrix'; rows: MNode[][]; open: string; close: string };
+  | { t: 'matrix'; rows: MNode[][]; open: string; close: string }
+  /** Matriz de ecuaciones alineadas (`m:eqArr`): una fila por línea, con `&` como punto de alineación. */
+  | { t: 'eqarr'; rows: MNode[] }
+  /** Recuadro (`m:box` o `m:borderBox`). */
+  | { t: 'box'; c: MNode; border: boolean };
 
 export const row = (c: MNode[]): MNode => (c.length === 1 ? c[0]! : { t: 'row', c });
 
-const GREEK: Record<string, string> = {
-  alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ϵ', varepsilon: 'ε', zeta: 'ζ', eta: 'η', theta: 'θ', vartheta: 'ϑ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', varpi: 'ϖ', rho: 'ρ', varrho: 'ϱ', sigma: 'σ', varsigma: 'ς', tau: 'τ', upsilon: 'υ', phi: 'ϕ', varphi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω',
-  Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Upsilon: 'Υ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
-};
-const SYMBOLS: Record<string, string> = {
-  pm: '±', mp: '∓', times: '×', div: '÷', cdot: '⋅', ast: '∗', star: '⋆', circ: '∘', bullet: '∙', leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', approx: '≈', equiv: '≡', sim: '∼', simeq: '≃', cong: '≅', propto: '∝', ll: '≪', gg: '≫',
-  infty: '∞', partial: '∂', nabla: '∇', forall: '∀', exists: '∃', nexists: '∄', emptyset: '∅', varnothing: '∅', in: '∈', notin: '∉', ni: '∋', subset: '⊂', supset: '⊃', subseteq: '⊆', supseteq: '⊇', cup: '∪', cap: '∩', setminus: '∖',
-  to: '→', rightarrow: '→', leftarrow: '←', leftrightarrow: '↔', Rightarrow: '⇒', Leftarrow: '⇐', Leftrightarrow: '⇔', mapsto: '↦', uparrow: '↑', downarrow: '↓', implies: '⟹', iff: '⟺',
-  ldots: '…', cdots: '⋯', vdots: '⋮', ddots: '⋱', dots: '…', angle: '∠', perp: '⊥', parallel: '∥', neg: '¬', land: '∧', lor: '∨', wedge: '∧', vee: '∨', oplus: '⊕', otimes: '⊗', prime: '′', degree: '°', hbar: 'ℏ', ell: 'ℓ', Re: 'ℜ', Im: 'ℑ', aleph: 'ℵ', therefore: '∴', because: '∵',
-  lfloor: '⌊', rfloor: '⌋', lceil: '⌈', rceil: '⌉', langle: '⟨', rangle: '⟩', '|': '‖',
-};
-const NARY: Record<string, string> = { sum: '∑', prod: '∏', coprod: '∐', int: '∫', iint: '∬', iiint: '∭', oint: '∮', bigcup: '⋃', bigcap: '⋂', bigoplus: '⨁', bigotimes: '⨂', bigvee: '⋁', bigwedge: '⋀' };
-const FUNCS = new Set(['sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh', 'coth', 'log', 'ln', 'lg', 'exp', 'lim', 'liminf', 'limsup', 'max', 'min', 'sup', 'inf', 'det', 'dim', 'ker', 'gcd', 'deg', 'arg', 'mod', 'Pr', 'hom']);
-const ACCENTS: Record<string, string> = { hat: '̂', bar: '̅', vec: '⃗', dot: '̇', ddot: '̈', tilde: '̃', widehat: '̂', widetilde: '̃', acute: '́', grave: '̀', breve: '̆', check: '̌' };
+import { ACCENTS, FUNCS, GREEK, NARY, SYMBOLS } from './tables';
 
 /** Characters that need a backslash to be written in the source. */
 const ESCAPE_TO_CMD: Record<string, string> = Object.fromEntries([...Object.entries(GREEK), ...Object.entries(SYMBOLS)].map(([k, v]) => [v, k]));
@@ -228,11 +231,29 @@ class Parser {
         const envName = env.t === 'row' ? env.c.map((x) => (x.t === 'id' || x.t === 'op' ? x.v : '')).join('') : '';
         return this.matrix(envName);
       }
-      case 'text':
-      case 'mathrm':
-      case 'textrm':
       case 'mathbf':
+      case 'boldsymbol':
+      case 'bm':
+        return styled(this.group(), { sty: 'b' });
+      case 'mathrm':
+        return styled(this.group(), { sty: 'p' });
       case 'mathit':
+        return styled(this.group(), { sty: 'i' });
+      case 'mathbb':
+        return styled(this.group(), { scr: 'double-struck' });
+      case 'mathcal':
+      case 'mathscr':
+        return styled(this.group(), { scr: 'script' });
+      case 'mathfrak':
+        return styled(this.group(), { scr: 'fraktur' });
+      case 'mathsf':
+        return styled(this.group(), { scr: 'sans-serif' });
+      case 'mathtt':
+        return styled(this.group(), { scr: 'monospace' });
+      case 'boxed':
+        return { t: 'box', c: this.group(), border: true };
+      case 'text':
+      case 'textrm':
       case 'operatorname': {
         this.ws();
         let txt = '';
@@ -328,8 +349,32 @@ class Parser {
     flushCell();
     if (rows.length && rows[rows.length - 1]!.every((c) => c.t === 'row' && !c.c.length)) rows.pop();
     const delims: Record<string, [string, string]> = { matrix: ['', ''], pmatrix: ['(', ')'], bmatrix: ['[', ']'], Bmatrix: ['{', '}'], vmatrix: ['|', '|'], Vmatrix: ['‖', '‖'], cases: ['{', ''], array: ['', ''] };
+    if (/^(aligned|align|align\*|alignedat|split|gather|gathered|eqnarray)$/.test(env)) {
+      return { t: 'eqarr', rows: rows.map((r) => row(r.flatMap((c, i) => (i ? [{ t: 'op', v: '&' } as MNode, c] : [c])))) };
+    }
     const [open, close] = delims[env] ?? ['', ''];
     return { t: 'matrix', rows, open, close };
+  }
+}
+
+/** Aplica un estilo a todos los caracteres de un grupo. */
+function styled(n: MNode, f: RunFmt): MNode {
+  switch (n.t) {
+    case 'id':
+    case 'num':
+    case 'op':
+    case 'text':
+      return n.t === 'op' && !/[\p{L}\p{N}]/u.test(n.v) ? n : { ...n, ...f };
+    case 'row':
+      return { ...n, c: n.c.map((x) => styled(x, f)) };
+    case 'sup':
+      return { ...n, b: styled(n.b, f), s: styled(n.s, f) };
+    case 'sub':
+      return { ...n, b: styled(n.b, f), s: styled(n.s, f) };
+    case 'subsup':
+      return { ...n, b: styled(n.b, f), sub: styled(n.sub, f), sup: styled(n.sup, f) };
+    default:
+      return n;
   }
 }
 
@@ -374,6 +419,9 @@ function finish(n: MNode): MNode {
     case 'bar': return { ...n, c: finish(n.c) };
     case 'limit': return { ...n, b: finish(n.b), lim: finish(n.lim) };
     case 'matrix': return { ...n, rows: n.rows.map((r) => r.map(finish)) };
+    case 'pre': return { ...n, b: finish(n.b), sub: finish(n.sub), sup: finish(n.sup) };
+    case 'eqarr': return { ...n, rows: n.rows.map(finish) };
+    case 'box': return { ...n, c: finish(n.c) };
     default: return n;
   }
 }
@@ -401,12 +449,15 @@ const opTex = (v: string): string => (ESCAPE_TO_CMD[v] ? `\\${ESCAPE_TO_CMD[v]} 
 export function toTex(n: MNode): string {
   switch (n.t) {
     case 'row': return n.c.map(toTex).join('').replace(/ +(?=[\s}\]^_)])/g, ' ');
-    case 'num': return n.v;
-    case 'id': return ESCAPE_TO_CMD[n.v] ? `\\${ESCAPE_TO_CMD[n.v]} ` : n.v;
+    case 'num': return styTex(n, n.v);
+    case 'id': return styTex(n, ESCAPE_TO_CMD[n.v] ? `\\${ESCAPE_TO_CMD[n.v]} ` : n.v);
     case 'op': return opTex(n.v);
-    case 'text': return `\\text{${n.v}}`;
+    case 'text': return n.sty || n.scr ? styTex(n, n.v) : `\\text{${n.v}}`;
     case 'space': return n.v >= 36 ? '\\qquad ' : n.v >= 18 ? '\\quad ' : n.v === 5 ? '\\; ' : n.v === 4 ? '\\: ' : n.v < 0 ? '\\! ' : '\\, ';
-    case 'frac': return n.bar ? `\\frac{${toTex(n.n)}}{${toTex(n.d)}}` : `\\binom{${toTex(n.n)}}{${toTex(n.d)}}`;
+    case 'frac': return n.kind === 'lin' || n.kind === 'skw' ? `{${toTex(n.n)}}/{${toTex(n.d)}}` : n.bar ? `\\frac{${toTex(n.n)}}{${toTex(n.d)}}` : `\\binom{${toTex(n.n)}}{${toTex(n.d)}}`;
+    case 'pre': return `{}_${grp(n.sub)}^${grp(n.sup)} ${toTex(n.b)}`;
+    case 'eqarr': return `\\begin{aligned} ${n.rows.map((r) => toTex(r).replace(/\\&/g, '&')).join(' \\\\ ')} \\end{aligned}`;
+    case 'box': return n.border ? `\\boxed{${toTex(n.c)}}` : toTex(n.c);
     case 'sup': return `${scriptBase(n.b)}^${grp(n.s)}`;
     case 'sub': return `${scriptBase(n.b)}_${grp(n.s)}`;
     case 'subsup': return `${scriptBase(n.b)}_${grp(n.sub)}^${grp(n.sup)}`;
@@ -421,7 +472,7 @@ export function toTex(n: MNode): string {
       return `\\left${d(n.open)} ${inner} \\right${d(n.close)}`;
     }
     case 'func': {
-      const sub = (n as unknown as { sub?: MNode }).sub;
+      const sub = n.sub;
       return `\\${FUNCS.has(n.name) ? n.name : `operatorname{${n.name}}`}${sub ? `_${grp(sub)}` : ''} ${toTex(n.c)}`;
     }
     case 'acc': {
@@ -436,6 +487,15 @@ export function toTex(n: MNode): string {
     }
   }
 }
+const SCR_CMD: Record<string, string> = { script: 'mathcal', fraktur: 'mathfrak', 'double-struck': 'mathbb', 'sans-serif': 'mathsf', monospace: 'mathtt' };
+/** Un carácter con su estilo en LaTeX (`\\mathbf{x}`, `\\mathbb{R}`...). */
+function styTex(n: RunFmt, body: string): string {
+  const b = body.trim();
+  if (n.scr) return `\\${SCR_CMD[n.scr]}{${b}}`;
+  if (n.sty === 'b' || n.sty === 'bi') return `\\mathbf{${b}}`;
+  if (n.sty === 'p') return /^[A-Za-z]$/.test(b) ? `\\mathrm{${b}}` : body;
+  return body;
+}
 const scriptBase = (n: MNode): string => (n.t === 'row' || n.t === 'frac' || n.t === 'fenced' ? `{${toTex(n)}}` : toTex(n));
 
 // ------------------------------------------------------------------------------------------------ MathML
@@ -447,15 +507,26 @@ export function toMathML(n: MNode, display = false): string {
   return `<math xmlns="http://www.w3.org/1998/Math/MathML"${display ? ' display="block"' : ''}>${mm(n)}</math>`;
 }
 
+/** El atributo `mathvariant` de un carácter con estilo. */
+function variant(n: RunFmt): string {
+  if (n.scr) return ` mathvariant="${n.scr}"`;
+  return n.sty === 'b' ? ' mathvariant="bold"' : n.sty === 'bi' ? ' mathvariant="bold-italic"' : n.sty === 'p' ? ' mathvariant="normal"' : n.sty === 'i' ? ' mathvariant="italic"' : '';
+}
+
 function mm(n: MNode): string {
   switch (n.t) {
     case 'row': return n.c.length === 1 ? mm(n.c[0]!) : `<mrow>${n.c.map(mm).join('')}</mrow>`;
-    case 'num': return `<mn>${esc(n.v)}</mn>`;
-    case 'id': return `<mi>${esc(n.v)}</mi>`;
-    case 'op': return `<mo>${esc(n.v)}</mo>`;
-    case 'text': return `<mtext>${esc(n.v)}</mtext>`;
+    case 'num': return `<mn${variant(n)}>${esc(n.v)}</mn>`;
+    case 'id': return `<mi${variant(n)}>${esc(n.v)}</mi>`;
+    case 'op': return `<mo${variant(n)}>${esc(n.v)}</mo>`;
+    case 'text': return `<mtext${variant(n)}>${esc(n.v)}</mtext>`;
     case 'space': return `<mspace width="${(n.v / 18).toFixed(3)}em"/>`;
-    case 'frac': return `<mfrac${n.bar ? '' : ' linethickness="0"'}>${mm(n.n)}${mm(n.d)}</mfrac>`;
+    case 'frac':
+      if (n.kind === 'lin') return `<mrow>${mm(n.n)}<mo>/</mo>${mm(n.d)}</mrow>`;
+      return `<mfrac${n.bar ? '' : ' linethickness="0"'}${n.kind === 'skw' ? ' bevelled="true"' : ''}>${mm(n.n)}${mm(n.d)}</mfrac>`;
+    case 'pre': return `<mmultiscripts>${mm(n.b)}<mprescripts/>${mm(n.sub)}${mm(n.sup)}</mmultiscripts>`;
+    case 'eqarr': return `<mtable columnalign="left">${n.rows.map((r) => `<mtr><mtd>${mm(r)}</mtd></mtr>`).join('')}</mtable>`;
+    case 'box': return n.border ? `<menclose notation="box">${mm(n.c)}</menclose>` : mm(n.c);
     case 'sup': return `<msup>${mm(n.b)}${mm(n.s)}</msup>`;
     case 'sub': return `<msub>${mm(n.b)}${mm(n.s)}</msub>`;
     case 'subsup': return `<msubsup>${mm(n.b)}${mm(n.sub)}${mm(n.sup)}</msubsup>`;
@@ -474,7 +545,7 @@ function mm(n: MNode): string {
       return `<mrow>${n.open && n.open !== '.' ? `<mo>${esc(n.open)}</mo>` : ''}${body}${n.close && n.close !== '.' ? `<mo>${esc(n.close)}</mo>` : ''}</mrow>`;
     }
     case 'func': {
-      const sub = (n as unknown as { sub?: MNode }).sub;
+      const sub = n.sub;
       const name = `<mi mathvariant="normal">${esc(n.name)}</mi>`;
       return `<mrow>${sub ? `<munder>${name}${mm(sub)}</munder>` : name}<mo>&#x2061;</mo>${mm(n.c)}</mrow>`;
     }
@@ -493,31 +564,50 @@ function mm(n: MNode): string {
 const M_NS = 'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"';
 export const OMML_NS = M_NS;
 
-const mr = (text: string, plain = false): string => `<m:r>${plain ? '<m:rPr><m:sty m:val="p"/></m:rPr>' : ''}<w:rPr><w:rFonts w:ascii="Cambria Math" w:hAnsi="Cambria Math"/></w:rPr><m:t xml:space="preserve">${esc(text)}</m:t></m:r>`;
+/** Propiedades del texto de cada carácter: las de Word por omisión; PowerPoint usa `a:rPr`. */
+export interface OmmlOptions {
+  /** XML de las propiedades de texto (`<w:rPr>`, `<a:rPr>`), o '' para no escribirlas. */
+  rPr?: string;
+}
+const WORD_RPR = '<w:rPr><w:rFonts w:ascii="Cambria Math" w:hAnsi="Cambria Math"/></w:rPr>';
+let RPR = WORD_RPR;
+const mr = (text: string, fmt: RunFmt | boolean = false): string => {
+  const f: RunFmt = fmt === true ? { sty: 'p' } : fmt === false ? {} : fmt;
+  const pr = (f.scr ? `<m:scr m:val="${f.scr}"/>` : '') + (f.sty ? `<m:sty m:val="${f.sty}"/>` : '');
+  return `<m:r>${pr ? `<m:rPr>${pr}</m:rPr>` : ''}${RPR}<m:t xml:space="preserve">${esc(text)}</m:t></m:r>`;
+};
 const me = (n: MNode): string => `<m:e>${om(n)}</m:e>`;
 
 /** OMML for an equation (the children of `m:oMath`). Needs the `w` and `m` namespaces around it. */
-export function toOMML(n: MNode): string {
-  return om(n);
+export function toOMML(n: MNode, opts: OmmlOptions = {}): string {
+  RPR = opts.rPr ?? WORD_RPR;
+  try {
+    return om(n);
+  } finally {
+    RPR = WORD_RPR;
+  }
 }
 
 function om(n: MNode): string {
   switch (n.t) {
     case 'row': return n.c.map(om).join('');
-    case 'num': return mr(n.v);
-    case 'id': return mr(n.v);
-    case 'op': return mr(n.v);
-    case 'text': return mr(n.v, true);
+    case 'num': return mr(n.v, n);
+    case 'id': return mr(n.v, n);
+    case 'op': return mr(n.v, n);
+    case 'text': return mr(n.v, n.sty || n.scr ? n : true);
     case 'space': return mr(n.v >= 18 ? '  ' : ' ');
-    case 'frac': return `<m:f>${n.bar ? '' : '<m:fPr><m:type m:val="noBar"/></m:fPr>'}<m:num>${om(n.n)}</m:num><m:den>${om(n.d)}</m:den></m:f>`;
+    case 'frac': return `<m:f>${n.kind === 'lin' || n.kind === 'skw' ? `<m:fPr><m:type m:val="${n.kind}"/></m:fPr>` : n.bar ? '' : '<m:fPr><m:type m:val="noBar"/></m:fPr>'}<m:num>${om(n.n)}</m:num><m:den>${om(n.d)}</m:den></m:f>`;
     case 'sup': return `<m:sSup><m:e>${om(n.b)}</m:e><m:sup>${om(n.s)}</m:sup></m:sSup>`;
     case 'sub': return `<m:sSub><m:e>${om(n.b)}</m:e><m:sub>${om(n.s)}</m:sub></m:sSub>`;
     case 'subsup': return `<m:sSubSup><m:e>${om(n.b)}</m:e><m:sub>${om(n.sub)}</m:sub><m:sup>${om(n.sup)}</m:sup></m:sSubSup>`;
+    case 'pre': return `<m:sPre><m:sub>${om(n.sub)}</m:sub><m:sup>${om(n.sup)}</m:sup>${me(n.b)}</m:sPre>`;
+    case 'eqarr': return `<m:eqArr>${n.rows.map(me).join('')}</m:eqArr>`;
+    case 'box': return n.border ? `<m:borderBox>${me(n.c)}</m:borderBox>` : `<m:box>${me(n.c)}</m:box>`;
     case 'sqrt': return `<m:rad><m:radPr>${n.deg ? '' : '<m:degHide m:val="1"/>'}</m:radPr><m:deg>${n.deg ? om(n.deg) : ''}</m:deg>${me(n.c)}</m:rad>`;
     case 'nary': return `<m:nary><m:naryPr><m:chr m:val="${esc(n.op)}"/><m:limLoc m:val="${n.limits ? 'undOvr' : 'subSup'}"/>${n.sub ? '' : '<m:subHide m:val="1"/>'}${n.sup ? '' : '<m:supHide m:val="1"/>'}</m:naryPr><m:sub>${n.sub ? om(n.sub) : ''}</m:sub><m:sup>${n.sup ? om(n.sup) : ''}</m:sup>${me(n.c)}</m:nary>`;
     case 'fenced': return `<m:d><m:dPr><m:begChr m:val="${esc(n.open === '.' ? '' : n.open)}"/>${n.sep ? `<m:sepChr m:val="${esc(n.sep)}"/>` : ''}<m:endChr m:val="${esc(n.close === '.' ? '' : n.close)}"/></m:dPr>${n.c.map(me).join('')}</m:d>`;
     case 'func': {
-      const sub = (n as unknown as { sub?: MNode }).sub;
+      const sub = n.sub;
       const name = `<m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>${esc(n.name)}</m:t></m:r>`;
       return `<m:func><m:fName>${sub ? `<m:limLow><m:e>${name}</m:e><m:lim>${om(sub)}</m:lim></m:limLow>` : name}</m:fName>${me(n.c)}</m:func>`;
     }
@@ -546,16 +636,23 @@ export function fromOMML(kids: X[], tagOf: (n: X) => string, kidsOf: (n: X) => X
         const t = find(n, 't');
         const txt = t ? textOf(t) : '';
         if (!txt) return null;
-        const plain = attrOf(find(find(n, 'rPr') ?? {}, 'sty') ?? {}, 'val') === 'p';
+        const rpr = find(n, 'rPr') ?? {};
+        const stv = attrOf(find(rpr, 'sty') ?? {}, 'val');
+        const scv = attrOf(find(rpr, 'scr') ?? {}, 'val');
+        const plain = stv === 'p' && !scv;
+        const fmt: RunFmt = {};
+        if (stv === 'b' || stv === 'bi' || stv === 'i') fmt.sty = stv;
+        if (stv === 'p' && scv) fmt.sty = 'p';
+        if (scv === 'script' || scv === 'fraktur' || scv === 'double-struck' || scv === 'sans-serif' || scv === 'monospace') fmt.scr = scv;
         const parts: MNode[] = [];
         for (const ch of txt) {
           if (/[0-9.]/.test(ch)) {
             const last = parts[parts.length - 1];
             if (last && last.t === 'num') last.v += ch;
-            else parts.push({ t: 'num', v: ch });
-          } else if (/\p{L}/u.test(ch)) parts.push(plain ? { t: 'text', v: ch } : { t: 'id', v: ch });
+            else parts.push({ t: 'num', v: ch, ...fmt });
+          } else if (/\p{L}/u.test(ch)) parts.push(plain ? { t: 'text', v: ch } : { t: 'id', v: ch, ...fmt });
           else if (/\s/.test(ch)) parts.push({ t: 'space', v: 4 });
-          else parts.push({ t: 'op', v: ch });
+          else parts.push({ t: 'op', v: ch, ...fmt });
         }
         if (plain) {
           const merged = parts.every((p) => p.t === 'text') ? [{ t: 'text', v: txt } as MNode] : parts;
@@ -564,8 +661,8 @@ export function fromOMML(kids: X[], tagOf: (n: X) => string, kidsOf: (n: X) => X
         return row(parts);
       }
       case 'f': {
-        const noBar = attrOf(find(find(n, 'fPr') ?? {}, 'type') ?? {}, 'val') === 'noBar';
-        return { t: 'frac', n: body(find(n, 'num')), d: body(find(n, 'den')), bar: !noBar };
+        const ty = attrOf(find(find(n, 'fPr') ?? {}, 'type') ?? {}, 'val');
+        return { t: 'frac', n: body(find(n, 'num')), d: body(find(n, 'den')), bar: ty !== 'noBar', ...(ty === 'lin' || ty === 'skw' ? { kind: ty } : {}) };
       }
       case 'sSup': return { t: 'sup', b: body(find(n, 'e')), s: body(find(n, 'sup')) };
       case 'sSub': return { t: 'sub', b: body(find(n, 'e')), s: body(find(n, 'sub')) };
@@ -612,7 +709,7 @@ export function fromOMML(kids: X[], tagOf: (n: X) => string, kidsOf: (n: X) => X
         const name = fname ? textOf(fname) : '';
         const lim = fname ? find(fname, 'limLow') : undefined;
         const out: MNode = { t: 'func', name: lim ? textOf(find(lim, 'e') ?? {}) : name, c: body(find(n, 'e')) };
-        if (lim) (out as unknown as { sub: MNode }).sub = body(find(lim, 'lim'));
+        if (lim) out.sub = body(find(lim, 'lim'));
         return out;
       }
       case 'acc': return { t: 'acc', ch: attrOf(find(find(n, 'accPr') ?? {}, 'chr') ?? {}, 'val') ?? '̂', c: body(find(n, 'e')) };
@@ -621,11 +718,11 @@ export function fromOMML(kids: X[], tagOf: (n: X) => string, kidsOf: (n: X) => X
       case 'limLow': return { t: 'limit', b: body(find(n, 'e')), lim: body(find(n, 'lim')), top: false };
       case 'm': return { t: 'matrix', rows: kidsOf(n).filter((k) => tagOf(k) === 'mr').map((r) => kidsOf(r).filter((k) => tagOf(k) === 'e').map((e) => body(e))), open: '', close: '' };
       case 'groupChr': return body(find(n, 'e'));
-      case 'box':
-      case 'phant':
-      case 'borderBox': return body(find(n, 'e'));
-      case 'sPre': return { t: 'subsup', b: { t: 'row', c: [] }, sub: body(find(n, 'sub')), sup: body(find(n, 'sup')) };
-      case 'eqArr': return { t: 'matrix', rows: kidsOf(n).filter((k) => tagOf(k) === 'e').map((e) => [body(e)]), open: '', close: '' };
+      case 'box': return { t: 'box', c: body(find(n, 'e')), border: false };
+      case 'borderBox': return { t: 'box', c: body(find(n, 'e')), border: true };
+      case 'phant': return body(find(n, 'e'));
+      case 'sPre': return { t: 'pre', b: body(find(n, 'e')), sub: body(find(n, 'sub')), sup: body(find(n, 'sup')) };
+      case 'eqArr': return { t: 'eqarr', rows: kidsOf(n).filter((k) => tagOf(k) === 'e').map((e) => body(e)) };
       case 'oMath': return seq(kidsOf(n));
       default: return null;
     }
