@@ -1233,3 +1233,8 @@
 .nw-chart { display: inline-block; vertical-align: bottom; max-width: 100%; }
 .nw-chart img { pointer-events: auto; }
 .nw-chart.ProseMirror-selectednode { outline: 2px solid var(--colorBrandStroke1, #0f6cbd); }
+.nw-doc .nw-chart .nw-handle, .nw-doc .nw-smartart .nw-handle { position: absolute; width: 8px; height: 8px; background: #fff; border: 1px solid #2b6cb0; z-index: 5; }
+.nw-doc .nw-chart.ProseMirror-selectednode, .nw-doc .nw-smartart.ProseMirror-selectednode { outline: 2px solid #2b6cb0; }
+.nw-chart { position: relative; }
+.nw-smartart { position: relative; }
+.nw-chart canvas { display: block; }

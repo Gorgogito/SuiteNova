@@ -11,6 +11,7 @@ import { helpTab, viewTab } from '../common';
 import { ShapeGallery } from '../shapes/ShapeGallery';
 import { WarpGallery, WordArtStyleGallery } from '../wordart/WordArtUi';
 import { COLORS_CATALOG, LAYOUT_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
+import { chartFormatRibbon } from '../chart/commands';
 import { applyWordArtStyle, applyWordArtWarp, insertWordArt, wordArtTarget } from './commands-wordart';
 import { insertShapeKind } from './commands-objects';
 import { FONT_NAMES, FONT_SIZES, type WriterUI } from './commands';
@@ -946,12 +947,17 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     ],
   };
 
+  const chartMenus = chartFormatRibbon({ element: 'writer.chart.el', colors: 'writer.chart.colors', style: 'writer.chart.style' });
   const chartTab: RibbonTab = {
     id: 'chartTools',
     label: 'Diseño de gráfico',
     keytip: 'DG',
     contextual: { label: 'Herramientas de gráfico', color: '#2e7d32', visible: flags.chart },
-    groups: [{ id: 'chartData', label: 'Datos', icon: 'chart', items: [{ kind: 'button', command: 'writer.chart.edit', size: 'large', keytip: 'ED' }] }],
+    groups: [
+      { id: 'chartData', label: 'Datos', icon: 'chart', items: [{ kind: 'button', command: 'writer.chart.edit', size: 'large', keytip: 'ED' }] },
+      { id: 'chartElements', label: 'Diseños de gráfico', icon: 'chart', items: [chartMenus.element] },
+      { id: 'chartStyles', label: 'Estilos de gráfico', icon: 'palette', items: [chartMenus.colors, chartMenus.styles] },
+    ],
   };
 
   const hf: RibbonTab = {

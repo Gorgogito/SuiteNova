@@ -64,6 +64,7 @@ import { WriterRuntime } from './macros';
 import { loadSpeller, misspellingAt, setSpell, spellPlugin, type SpellLang } from './spell';
 import { getLocale } from '@suitenova/core-ui';
 import { ControlView, FieldView, GroupView, MathView, ShapeView, type NodeViewHost } from './nodeviews';
+import { ObjectView } from './objectview';
 import { shapeSelectionPlugin } from './shape-selection';
 import { imageObjectsPlugin } from './image-objects';
 import { wordArtEditingPlugin } from './wordart-editing';
@@ -454,6 +455,8 @@ export class WriterCtl {
         shape_group: (n, v, g) => new GroupView(n, v, g as () => number | undefined, this.nodeHost),
         content_control: (n, v, g) => new ControlView(n, v, g as () => number | undefined, this.nodeHost),
         field: (n, _v, _g, d) => new FieldView(n, d),
+        chart: (n, v, g) => new ObjectView(n, v, g as () => number | undefined),
+        smartart: (n, v, g) => new ObjectView(n, v, g as () => number | undefined),
       },
       attributes: () => ({ class: `nw-doc${this.autoHyphenate ? ' nw-hyphens' : ''}`, lang: this.hyphenLang(), spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Documento' }),
       dispatchTransaction: (tr: Transaction) => {

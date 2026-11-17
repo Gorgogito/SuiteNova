@@ -1,6 +1,7 @@
 import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
 import { applyHeaderFooter, chainFor, clrCss, colorContext, docText, headerFooterOf, newChart, newTable, sampleChart, updateElement, type Hyperlink, type HeaderFooterSpec, type SlideElement } from '@suitenova/slides-core';
+import type { ChartSpec } from '@suitenova/chart-core';
 import { ChartEditor, useBuilt } from '../chart/ChartEditor';
 import { draftOf, type ChartDraft } from '../chart/draft';
 import { useMemo, useState } from 'react';
@@ -206,7 +207,8 @@ export function ChartDialog({ ui, onClose, arg }: P) {
   const sample = useMemo(() => sampleChart(), []);
   const base = existing?.chart ?? sample.chart;
   const [draft, setDraft] = useState<ChartDraft>(() => draftOf(base, existing?.grid ?? sample.grid));
-  const built = useBuilt(draft, existing?.chart);
+  const [fmt, setFmt] = useState<ChartSpec | undefined>(existing?.chart);
+  const built = useBuilt(draft, fmt);
   const accents = useMemo(() => ACCENTS.map((k) => clrCss({ scheme: k }, colorContext(chainFor(c.deck, c.slide)))), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const commit = () => {
@@ -232,7 +234,7 @@ export function ChartDialog({ ui, onClose, arg }: P) {
         </>
       }
     >
-      <ChartEditor draft={draft} onChange={setDraft} base={existing?.chart} accents={accents} />
+      <ChartEditor draft={draft} onChange={setDraft} base={fmt} onBase={setFmt} accents={accents} />
     </Modal>
   );
 }

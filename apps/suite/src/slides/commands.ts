@@ -9,6 +9,8 @@ import { fitCrop, cellsOf, deleteCols, deleteRows, distributeCols, distributeRow
 import { imageDims } from './render/assets';
 import { textCommands2 } from './commands-text2';
 import { smartArtCommands } from './commands-smartart';
+import { chartFormatCommands } from '../chart/commands';
+import { updateElement, type SlideElement } from '@suitenova/slides-core';
 import { designCommands } from './commands-design';
 import { pictureCommands2 } from './commands-picture2';
 import { reviewCommands2 } from './commands-review2';
@@ -344,6 +346,18 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
   add({ id: 'slides.insert.table', label: 'Tabla…', icon: 'tableGrid', run: () => ui.openDialog('table') });
   add({ id: 'slides.insert.chart', label: 'Gráfico…', icon: 'chart', run: () => ui.openDialog('chart') });
   add({ id: 'slides.chart.edit', label: 'Editar datos y tipo del gráfico…', icon: 'chart', enabled: () => c.selected.length === 1 && c.selected[0]!.kind === 'chart', run: () => ui.openDialog('chart', c.selection[0]) });
+  // «Agregar elemento de gráfico», «Cambiar colores» y «Estilos rápidos» del gráfico elegido
+  const chartEl = () => (c.selected.length === 1 && c.selected[0]!.kind === 'chart' ? (c.selected[0] as Extract<SlideElement, { kind: 'chart' }>) : null);
+  for (const def of chartFormatCommands({
+    ids: { element: 'slides.chart.el', colors: 'slides.chart.colors', style: 'slides.chart.style' },
+    get: () => chartEl()?.chart ?? null,
+    pointCount: () => Math.max(0, (chartEl()?.grid.length ?? 1) - 1),
+    apply: (next, label) => {
+      const el = chartEl();
+      if (el) c.apply(label, (d) => updateElement(d, c.slide.id, el.id, (e) => ({ ...e, chart: next, raw: undefined }) as SlideElement));
+    },
+  }))
+    add(def);
   add({ id: 'slides.insert.smartart', label: 'SmartArt…', icon: 'smartart', run: () => ui.openDialog('smartArt') });
   add({ id: 'slides.insert.wordart', label: 'WordArt (NovaArt)…', icon: 'wordart', run: () => ui.openDialog('wordArt') });
   add({ id: 'slides.insert.hyperlink', label: 'Hipervínculo…', icon: 'link', shortcut: 'Ctrl+K', enabled: () => text() || hasSel(), run: () => ui.openDialog('hyperlink') });

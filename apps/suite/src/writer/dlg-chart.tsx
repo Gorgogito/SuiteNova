@@ -26,7 +26,8 @@ export function ChartDialog({ ui, pos, onClose }: { ui: WriterUI; pos?: number; 
   const [width, setWidth] = useState<number>(() => (node ? Number(node.attrs.width) : 480));
   const [height, setHeight] = useState<number>(() => (node ? Number(node.attrs.height) : 288));
   const [wrap, setWrap] = useState<string>(() => (node ? String(node.attrs.wrap) : 'inline'));
-  const built = useBuilt(draft, editing ? base : undefined);
+  const [fmt, setFmt] = useState<ChartSpec | undefined>(editing ? base : undefined);
+  const built = useBuilt(draft, fmt);
   if (editing && (!node || node.type.name !== 'chart')) return null;
   const ok = typeof built !== 'string' && width >= 80 && height >= 60;
 
@@ -59,7 +60,7 @@ export function ChartDialog({ ui, pos, onClose }: { ui: WriterUI; pos?: number; 
         </>
       }
     >
-      <ChartEditor draft={draft} onChange={setDraft} base={editing ? base : undefined} />
+      <ChartEditor draft={draft} onChange={setDraft} base={fmt} onBase={setFmt} />
       <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <label className="nc-field" style={{ width: 110, flex: 'none' }}>
           <span>{t('Ancho (px)')}</span>

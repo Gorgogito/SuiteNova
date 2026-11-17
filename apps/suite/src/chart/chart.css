@@ -23,3 +23,9 @@
 .nc-points__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nc-points__num { width: 64px; height: 24px; box-sizing: border-box; }
 .nc-points__reset { font: inherit; font-size: 12px; }
+.nc-elements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-height: 340px; overflow: auto; }
+.nc-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.nc-gallery__item { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; padding: 6px 8px; font: inherit; font-size: 12px; border: 1px solid var(--colorNeutralStroke2); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.nc-gallery__item.is-on { border-color: var(--colorBrandStroke1, #0f6cbd); outline: 1px solid var(--colorBrandStroke1, #0f6cbd); }
+.nc-swatches { display: flex; gap: 2px; }
+.nc-swatches i { width: 16px; height: 12px; border-radius: 2px; display: inline-block; }

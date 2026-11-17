@@ -1,7 +1,6 @@
 import { ICON_COUNTS, defaultIconThresholds, formatValue, isDateFormat, normRect, type CFKind, type CFRule, type IconSetName, type Rect, type Style } from '@suitenova/calc-engine';
 import type { CommandDef } from '@suitenova/core-ui';
-import { CHART_ELEMENTS } from '../chart/elements';
-import { CHART_STYLES, COLOR_PALETTES, applyPalette, applyStyle, paletteOf } from '../chart/styles';
+import { chartFormatCommands } from '../chart/commands';
 import { chartData } from './chartOption';
 import { ICON_LABELS, SCALE_PRESETS } from './cfDialogs';
 import { objectCommands } from './commands-objects';
@@ -362,48 +361,18 @@ export function calcCommands(ui: CalcUI): CommandDef[] {
     if (title !== null) d.updateChart(c.id, { title: title.trim() || undefined }, 'Título del gráfico');
   } });
   add({ id: 'calc.chartLegend', label: 'Leyenda', icon: 'list', enabled: () => !!chart(), checked: () => !!chart()?.legend, run: () => chart() && d.updateChart(chart()!.id, { legend: !chart()!.legend }, 'Leyenda') });
-  // «Agregar elemento de gráfico» (los mismos elementos y textos que Slides y Writer)
-  for (const el of CHART_ELEMENTS) {
-    add({
-      id: `calc.el.${el.id}`,
-      label: el.label,
-      icon: 'chart',
-      enabled: () => !!chart() && el.enabled(chart()!),
-      checked: () => !!chart() && el.checked(chart()!),
-      run: () => {
-        const c = chart();
-        if (c) d.updateChart(c.id, el.apply(c) as Parameters<typeof d.updateChart>[1], el.group);
-      },
-    });
-  }
-  // «Cambiar colores» y «Estilos rápidos»
+  // «Agregar elemento de gráfico», «Cambiar colores» y «Estilos rápidos» (los mismos de Slides y Writer)
   const pointCount = (c: NonNullable<ReturnType<typeof chart>>) => chartData(c, d.wb, d.activeSheetId, d.locale).categories.length;
-  for (const p of COLOR_PALETTES) {
-    add({
-      id: `calc.chartColors.${p.id}`,
-      label: p.label,
-      icon: 'palette',
-      enabled: () => !!chart(),
-      checked: () => !!chart() && paletteOf(chart()!, pointCount(chart()!)) === p.id,
-      run: () => {
-        const c = chart();
-        if (c) d.updateChart(c.id, applyPalette(c, p.id, pointCount(c)) as Parameters<typeof d.updateChart>[1], 'Cambiar colores');
-      },
-    });
-  }
-  for (const st of CHART_STYLES) {
-    add({
-      id: `calc.chartStyle.${st.id}`,
-      label: st.label,
-      icon: 'chart',
-      description: st.description,
-      enabled: () => !!chart(),
-      run: () => {
-        const c = chart();
-        if (c) d.updateChart(c.id, applyStyle(c, st.id) as Parameters<typeof d.updateChart>[1], 'Estilo de gráfico');
-      },
-    });
-  }
+  for (const def of chartFormatCommands({
+    ids: { element: 'calc.el', colors: 'calc.chartColors', style: 'calc.chartStyle' },
+    get: () => chart() ?? null,
+    pointCount: () => (chart() ? pointCount(chart()!) : 0),
+    apply: (next, label) => {
+      const c = chart();
+      if (c) d.updateChart(c.id, next as unknown as Parameters<typeof d.updateChart>[1], label);
+    },
+  }))
+    add(def);
   add({ id: 'calc.chartStacked', label: 'Apilado', icon: 'rows', enabled: () => !!chart() && ['column', 'bar', 'line', 'area'].includes(chart()!.type), checked: () => !!chart()?.stacked, run: () => chart() && d.updateChart(chart()!.id, { stacked: !chart()!.stacked }, 'Apilar series') });
   add({ id: 'calc.chartSmooth', label: 'Líneas suavizadas', icon: 'chartLine', enabled: () => !!chart() && ['line', 'area'].includes(chart()!.type), checked: () => !!chart()?.smooth, run: () => chart() && d.updateChart(chart()!.id, { smooth: !chart()!.smooth }, 'Suavizar líneas') });
   add({ id: 'calc.chartData', label: 'Seleccionar datos…', icon: 'tableGrid', enabled: () => !!chart(), run: () => ui.openDialog('chartData') });

@@ -5,6 +5,7 @@ import type { SlidesUI } from './commands';
 import { PlaceholderGallery } from './MasterPanel';
 import { ColorPicker, EffectsMenu, FillMenu, FontGroup, LayoutGallery, OutlineMenu, ShapesGallery, useUi } from './ribbonParts';
 import { applyRun } from './textcmds';
+import { chartFormatRibbon } from '../chart/commands';
 import { LAYOUT_CATALOG, COLORS_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
 import { isLiveSmartArt } from '@suitenova/slides-core';
 import { ArtisticMenu } from './ribbonParts3';
@@ -452,12 +453,17 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     ],
   };
 
+  const chartMenus = chartFormatRibbon({ element: 'slides.chart.el', colors: 'slides.chart.colors', style: 'slides.chart.style' });
   const chartTools: RibbonTab = {
     id: 'chartTools',
     label: 'Diseño de gráfico',
     keytip: 'DG',
     contextual: { label: 'Herramientas de gráfico', color: '#2e7d32', visible: c.selected.length === 1 && c.selected[0]!.kind === 'chart' },
-    groups: [{ id: 'chartData', label: 'Datos', icon: 'chart', items: [L('slides.chart.edit', 'ED')] }],
+    groups: [
+      { id: 'chartData', label: 'Datos', icon: 'chart', items: [L('slides.chart.edit', 'ED')] },
+      { id: 'chartElements', label: 'Diseños de gráfico', icon: 'chart', items: [chartMenus.element] },
+      { id: 'chartStyles', label: 'Estilos de gráfico', icon: 'palette', items: [chartMenus.colors, chartMenus.styles] },
+    ],
   };
 
   const smartTools: RibbonTab = {

@@ -22,5 +22,5 @@ export function ChartView({ el, ctx }: { el: ChartEl; ctx: CanvasCtx }): ReactNo
     [cc],
   );
   if (!el.chart.series.length) return <div style={{ width: x.w, height: x.h, display: 'grid', placeItems: 'center', font: '14px sans-serif', color: palette.text }}>Gráfico sin datos</div>;
-  return <ChartPicture spec={el.chart} grid={el.grid} width={x.w} height={x.h} accents={accents} palette={palette} label={el.descr ?? el.chart.title} />;
+  return <ChartPicture spec={el.chart} grid={el.grid} width={x.w} height={x.h} accents={accents} palette={palette} label={el.descr ?? el.chart.title} live={ctx.media === 'edit'} />;
 }

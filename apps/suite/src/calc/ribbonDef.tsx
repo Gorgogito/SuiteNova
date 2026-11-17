@@ -4,8 +4,7 @@ import { ChevronDown } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { helpTab, viewTab } from '../common';
 import { FONT_NAMES, FONT_SIZES, PALETTE, formatLabel, numberFormats, type CalcUI } from './commands';
-import { CHART_ELEMENTS, ELEMENT_GROUPS } from '../chart/elements';
-import { CHART_STYLES, COLOR_PALETTES } from '../chart/styles';
+import { chartFormatRibbon } from '../chart/commands';
 import { chartEntries, contextualTabs, developerTab, insertGroups, pageTab, reviewTab, type ContextFlags } from './ribbonObjects';
 
 type Leaf = Exclude<RibbonItem, { kind: 'separator' }>;
@@ -621,6 +620,7 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
     },
   );
 
+  const chartMenus = chartFormatRibbon({ element: 'calc.el', colors: 'calc.chartColors', style: 'calc.chartStyle' });
   const chartTab: RibbonTab = {
     id: 'chart',
     label: 'Diseño de gráfico',
@@ -648,19 +648,7 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
         label: 'Elementos del gráfico',
         icon: 'list',
         items: [
-          {
-            kind: 'dropdown',
-            id: 'addElement',
-            label: 'Agregar elemento de gráfico',
-            icon: 'chart',
-            size: 'large',
-            keytip: 'AE',
-            entries: ELEMENT_GROUPS.flatMap((g, i) => [
-              ...(i ? [{ kind: 'separator' as const }] : []),
-              { kind: 'header' as const, label: g },
-              ...CHART_ELEMENTS.filter((e) => e.group === g).map((e) => ({ kind: 'command' as const, command: `calc.el.${e.id}` })),
-            ]),
-          },
+          chartMenus.element,
           { kind: 'button', command: 'calc.chartStacked', size: 'small', keytip: 'AP' },
           { kind: 'button', command: 'calc.chartSmooth', size: 'small', keytip: 'SU' },
           {
@@ -688,8 +676,8 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
         label: 'Estilos de gráfico',
         icon: 'palette',
         items: [
-          { kind: 'dropdown', id: 'chartColors', label: 'Cambiar colores', icon: 'palette', size: 'large', keytip: 'CC', entries: COLOR_PALETTES.map((p) => ({ kind: 'command' as const, command: `calc.chartColors.${p.id}` })) },
-          { kind: 'dropdown', id: 'chartQuick', label: 'Estilos rápidos', icon: 'chart', size: 'large', keytip: 'ER', entries: CHART_STYLES.map((s) => ({ kind: 'command' as const, command: `calc.chartStyle.${s.id}` })) },
+          chartMenus.colors,
+          chartMenus.styles,
         ],
       },
       {
