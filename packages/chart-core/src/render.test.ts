@@ -105,3 +105,31 @@ describe('formato de serie y de punto en el dibujo', () => {
     expect(ring.series[0]!.data.every((d) => d.selected)).toBe(true);
   });
 });
+
+describe('áreas y fuentes en el dibujo', () => {
+  type Opt = { backgroundColor: string; textStyle?: Record<string, unknown>; title?: { textStyle: Record<string, unknown> }; legend?: { textStyle: Record<string, unknown> }; grid: Record<string, unknown>; yAxis: { axisLabel: Record<string, unknown>; nameTextStyle: Record<string, unknown> }; series: { label?: Record<string, unknown> }[] };
+  const opt = (s: ChartSpec) => chartOption(s, data, 'es', palette) as unknown as Opt;
+
+  it('el relleno del área del gráfico y el del área de trazado', () => {
+    const o = opt(spec({ chartArea: { fill: '#f2f2f2' }, plotArea: { fill: '#ffffff', line: { color: '#ff0000', width: 1.5 } } }));
+    expect(o.backgroundColor).toBe('#f2f2f2');
+    expect(o.grid).toMatchObject({ show: true, backgroundColor: '#ffffff', borderColor: '#ff0000', borderWidth: 2 });
+    expect(opt(spec()).backgroundColor).toBe('#ffffff');
+    expect(opt(spec({ chartArea: { noFill: true } })).backgroundColor).toBe('rgba(0,0,0,0)');
+  });
+
+  it('las fuentes: la del gráfico es la base y cada parte la cambia', () => {
+    const o = opt(spec({ fonts: { chart: { family: 'Arial', size: 9, color: '#404040' }, title: { size: 20, bold: true }, legend: { italic: true }, axis: { size: 7 }, labels: { color: '#0000ff' } }, series: [{ values: 'A', labels: { value: true } }, { values: 'B' }] }));
+    expect(o.title!.textStyle).toMatchObject({ fontSize: 26.7, fontWeight: 700 });
+    expect(o.legend!.textStyle).toMatchObject({ fontStyle: 'italic', color: '#404040' });
+    expect(String(o.legend!.textStyle.fontFamily)).toContain('Arial');
+    expect(o.yAxis.axisLabel).toMatchObject({ fontSize: 9.3 });
+    expect(o.series[0]!.label).toMatchObject({ color: '#0000ff' });
+  });
+
+  it('el borde del área del gráfico se dibuja sobre la imagen', () => {
+    const svg = chartSvg(spec({ chartArea: { line: { color: '#123456', width: 2 } } }), data, 'es', palette, 400, 240);
+    expect(svg).toContain('stroke="#123456"');
+    expect(svg.endsWith('</svg>')).toBe(true);
+  });
+});

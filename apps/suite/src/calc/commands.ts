@@ -1,6 +1,8 @@
 import { ICON_COUNTS, defaultIconThresholds, formatValue, isDateFormat, normRect, type CFKind, type CFRule, type IconSetName, type Rect, type Style } from '@suitenova/calc-engine';
 import type { CommandDef } from '@suitenova/core-ui';
 import { CHART_ELEMENTS } from '../chart/elements';
+import { CHART_STYLES, COLOR_PALETTES, applyPalette, applyStyle, paletteOf } from '../chart/styles';
+import { chartData } from './chartOption';
 import { ICON_LABELS, SCALE_PRESETS } from './cfDialogs';
 import { objectCommands } from './commands-objects';
 import type { CalcDoc } from './doc';
@@ -371,6 +373,34 @@ export function calcCommands(ui: CalcUI): CommandDef[] {
       run: () => {
         const c = chart();
         if (c) d.updateChart(c.id, el.apply(c) as Parameters<typeof d.updateChart>[1], el.group);
+      },
+    });
+  }
+  // «Cambiar colores» y «Estilos rápidos»
+  const pointCount = (c: NonNullable<ReturnType<typeof chart>>) => chartData(c, d.wb, d.activeSheetId, d.locale).categories.length;
+  for (const p of COLOR_PALETTES) {
+    add({
+      id: `calc.chartColors.${p.id}`,
+      label: p.label,
+      icon: 'palette',
+      enabled: () => !!chart(),
+      checked: () => !!chart() && paletteOf(chart()!, pointCount(chart()!)) === p.id,
+      run: () => {
+        const c = chart();
+        if (c) d.updateChart(c.id, applyPalette(c, p.id, pointCount(c)) as Parameters<typeof d.updateChart>[1], 'Cambiar colores');
+      },
+    });
+  }
+  for (const st of CHART_STYLES) {
+    add({
+      id: `calc.chartStyle.${st.id}`,
+      label: st.label,
+      icon: 'chart',
+      description: st.description,
+      enabled: () => !!chart(),
+      run: () => {
+        const c = chart();
+        if (c) d.updateChart(c.id, applyStyle(c, st.id) as Parameters<typeof d.updateChart>[1], 'Estilo de gráfico');
       },
     });
   }

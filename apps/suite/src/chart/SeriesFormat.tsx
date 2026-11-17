@@ -39,7 +39,7 @@ const num = (v: string): number | undefined => {
   return v.trim() === '' || !Number.isFinite(n) ? undefined : n;
 };
 
-function Stroke({ id, title, none, st, onChange, color, withColor = true }: { id: string; title: string; none: string; st: StrokeFormat | undefined; onChange: (s: StrokeFormat | undefined) => void; color: string; withColor?: boolean }) {
+export function Stroke({ id, title, none, st, onChange, color, withColor = true }: { id: string; title: string; none: string; st: StrokeFormat | undefined; onChange: (s: StrokeFormat | undefined) => void; color: string; withColor?: boolean }) {
   const cur = st ?? {};
   const set = (patch: Partial<StrokeFormat>) => {
     const next: StrokeFormat = { ...cur, ...patch };

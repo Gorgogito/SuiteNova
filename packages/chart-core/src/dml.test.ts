@@ -178,3 +178,45 @@ describe('formato de serie y de punto en DrawingML', () => {
     expect(back.gapWidth).toBeUndefined();
   });
 });
+
+describe('área del gráfico, área de trazado y fuentes en DrawingML', () => {
+  const g = sampleGrid();
+  const make = () => {
+    const spec = specFromGrid('column', g, { title: 'Ventas', legend: true });
+    spec.chartArea = { fill: '#f2f2f2', line: { color: '#123456', width: 2, dash: 'dash' } };
+    spec.plotArea = { fill: '#ffffff', transparency: 20 };
+    spec.fonts = { chart: { family: 'Arial', size: 10, color: '#404040' }, title: { size: 18, bold: true, color: '#c00000' }, legend: { size: 9, italic: true }, axis: { size: 8 }, axisTitle: { bold: true }, labels: { size: 7, color: '#0000ff' } };
+    spec.axisY = { title: 'Euros' };
+    spec.series[0]!.labels = { value: true };
+    return spec;
+  };
+
+  it('las áreas y las fuentes hacen la ida y la vuelta', () => {
+    const xml = chartXml(make(), gridSource(g));
+    const back = parseChart(dmlParser.parse(xml));
+    if (!('def' in back)) throw new Error('skip');
+    expect(back.def.chartArea).toMatchObject({ fill: '#f2f2f2', line: { color: '#123456', width: 2, dash: 'dash' } });
+    expect(back.def.plotArea).toMatchObject({ fill: '#ffffff', transparency: 20 });
+    expect(back.def.fonts?.chart).toEqual({ family: 'Arial', size: 10, color: '#404040' });
+    expect(back.def.fonts?.title).toMatchObject({ size: 18, bold: true, color: '#c00000' });
+    expect(back.def.fonts?.legend).toMatchObject({ size: 9, italic: true });
+    expect(back.def.fonts?.axis).toMatchObject({ size: 8 });
+    expect(back.def.fonts?.labels).toMatchObject({ size: 7, color: '#0000ff' });
+  });
+
+  it('un gráfico sin formato escribe el título en negrita como siempre y no inventa áreas', () => {
+    const plain = chartXml(specFromGrid('column', g, { title: 'Ventas', legend: true }), gridSource(g));
+    expect(plain).toContain('<a:defRPr b="1">');
+    const back = parseChart(dmlParser.parse(plain));
+    if (!('def' in back)) throw new Error('skip');
+    expect(back.def.chartArea).toBeUndefined();
+    expect(back.def.plotArea).toBeUndefined();
+  });
+
+  it('los colores del tema con luminosidad (los grises de Excel) se calculan', () => {
+    const xml = chartXml(make(), gridSource(g)).replace('<a:srgbClr val="123456"></a:srgbClr>', '<a:schemeClr val="tx1"><a:lumMod val="15000"/><a:lumOff val="85000"/></a:schemeClr>');
+    const back = parseChart(dmlParser.parse(xml));
+    if (!('def' in back)) throw new Error('skip');
+    expect(back.def.chartArea?.line?.color).toBe('#d9d9d9');
+  });
+});

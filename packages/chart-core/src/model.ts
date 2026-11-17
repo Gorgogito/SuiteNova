@@ -61,6 +61,40 @@ export interface PointFormat {
   explosion?: number;
 }
 
+/** Text format of a part of the chart (Excel's "Font"): sizes in points. */
+export interface TextFormat {
+  family?: string;
+  size?: number;
+  bold?: boolean;
+  italic?: boolean;
+  /** "#rrggbb". */
+  color?: string;
+}
+
+/** Format of the chart area or the plot area (Excel's "Format chart area" / "Format plot area"). */
+export interface AreaFormat {
+  /** "#rrggbb". */
+  fill?: string;
+  /** No fill: the page shows through. */
+  noFill?: boolean;
+  /** Fill transparency in percent. */
+  transparency?: number;
+  /** Border of the area. */
+  line?: StrokeFormat;
+}
+
+/** Fonts of the chart: `chart` is the base the other parts start from. */
+export interface ChartFonts {
+  chart?: TextFormat;
+  title?: TextFormat;
+  legend?: TextFormat;
+  /** Tick labels of the axes. */
+  axis?: TextFormat;
+  axisTitle?: TextFormat;
+  /** Data labels. */
+  labels?: TextFormat;
+}
+
 /** Where the legend goes (Excel's "Legend" element): bottom, top, left, right or top right. */
 export type LegendPos = 'b' | 't' | 'l' | 'r' | 'tr';
 
@@ -150,6 +184,12 @@ export interface ChartSpec {
   legend: boolean;
   /** Where the legend goes; the bottom when empty. */
   legendPos?: LegendPos;
+  /** Format of the whole chart area (fill and border). */
+  chartArea?: AreaFormat;
+  /** Format of the plot area (fill and border). */
+  plotArea?: AreaFormat;
+  /** Fonts of the title, legend, axes and data labels. */
+  fonts?: ChartFonts;
   /** Columns and bars: space between categories as a percentage of the bar width (0 to 500; 150 in Excel). */
   gapWidth?: number;
   /** Columns and bars: how much the bars of one category overlap (-100 to 100; 0 clustered, 100 stacked). */

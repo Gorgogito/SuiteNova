@@ -4,6 +4,7 @@ import { t } from '@suitenova/core-ui';
 import { useState } from 'react';
 import type { CalcUI } from './commands';
 import { chartData } from './chartOption';
+import { AreaFonts } from '../chart/AreaFonts';
 import { SeriesFormat } from '../chart/SeriesFormat';
 import { AnalysisTab, supportsErrorBars, supportsTrend } from './dlg-chartfit';
 import { Modal, field, row2 } from './modal';
@@ -84,6 +85,7 @@ export function ChartFormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => 
         <Tab value="general">{t('General')}</Tab>
         {combinable && <Tab value="series">{t('Series')}</Tab>}
         {def.series.length > 0 && !['stock', 'surface', 'waterfall', 'funnel', 'histogram', 'boxwhisker'].includes(def.type) && <Tab value="format">{t('Formato de serie')}</Tab>}
+        <Tab value="areas">{t('Áreas y fuentes')}</Tab>
         {cartesian && <Tab value="axes">{t('Ejes')}</Tab>}
         {(supportsTrend(def) || supportsErrorBars(def)) && <Tab value="analysis">{t('Análisis')}</Tab>}
         {(threeD || def.type === 'surface') && <Tab value="3d">{t('Giro 3D')}</Tab>}
@@ -106,6 +108,7 @@ export function ChartFormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => 
         </>
       )}
       {tab === 'format' && <SeriesFormat def={def} names={data.series.map((s) => s.name)} categories={data.categories} set={set} setSeries={setSeries} />}
+      {tab === 'areas' && <AreaFonts def={def} set={set} />}
       {tab === 'series' && (
         <>
           <p>{t('Cada serie puede dibujarse de un modo distinto y usar el eje secundario (a la derecha) para valores de otra escala.')}</p>

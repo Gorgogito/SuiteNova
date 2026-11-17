@@ -6,7 +6,7 @@ export * from './format';
 export * from './source';
 export * from './grid';
 export * from './chart3d';
-export { chartOption } from './option';
+export { chartAreaCss, chartOption, effectivePalette } from './option';
 export { statChartOption } from './statOption';
 export { chart3dFor, chartSvg, echarts, is3D } from './render';
 export { NS_A, NS_C, DEFAULT_CHART_THEME, chartXml, parseChart } from './dml/chartspace';

@@ -1,4 +1,4 @@
-import { DEFAULT_3D, STOCK_SERIES, type Chart3D, type ChartAxis, type ChartSeries, type ChartSpec, type DashStyle, type DataLabels, type LabelPos, type LegendPos, type MarkerFormat, type MarkerSymbol, type PointFormat, type StrokeFormat, type ChartType, type SeriesType, type StockKind } from '../model';
+import { DEFAULT_3D, STOCK_SERIES, type Chart3D, type ChartAxis, type AreaFormat, type ChartFonts, type ChartSeries, type ChartSpec, type DashStyle, type TextFormat, type DataLabels, type LabelPos, type LegendPos, type MarkerFormat, type MarkerSymbol, type PointFormat, type StrokeFormat, type ChartType, type SeriesType, type StockKind } from '../model';
 import { formatChartNumber } from '../format';
 import type { ChartCell, ChartSource } from '../source';
 import { errBarsXml, parseErrBars, parseTrendlines, trendlinesXml } from './fitio';
@@ -43,6 +43,7 @@ function labelsXml(s: ChartSeries, kind: GroupKind, def: ChartSpec): string {
     '<c:dLbls>' +
     (l.format ? `<c:numFmt formatCode="${escapeXml(l.format)}" sourceLinked="0"/>` : '') +
     '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' +
+    txPrXml(mergeFont(activeFonts?.chart, activeFonts?.labels)) +
     pos +
     flag('showLegendKey', false) +
     flag('showVal', l.value) +
@@ -145,6 +146,7 @@ function readColorNode(sf: XNode, theme: string[]): { color: string; transparenc
     color = h ? `#${h.toLowerCase()}` : undefined;
   }
   if (!color) return undefined;
+  if (node) color = adjustColor(color, node);
   const a = Number(attr(node?.alpha, 'val'));
   return Number.isFinite(a) && node?.alpha !== undefined && a < 100000 ? { color, transparency: Math.round(100 - a / 1000) } : { color };
 }
@@ -187,6 +189,127 @@ function readPoints(s: XNode, theme: string[]): PointFormat[] {
     if (pt.color || pt.explosion) out.push(pt);
   }
   return out;
+}
+
+
+// ---- área del gráfico, área de trazado y fuentes
+/** Las fuentes del gráfico que se está escribiendo (las funciones de ejes y etiquetas las leen). */
+let activeFonts: ChartFonts | undefined;
+
+function defRPr(f: TextFormat | undefined, extra = ''): string {
+  const attrs = (f?.size !== undefined ? ` sz="${Math.round(f.size * 100)}"` : '') + (f?.bold !== undefined ? ` b="${f.bold ? 1 : 0}"` : '') + (f?.italic !== undefined ? ` i="${f.italic ? 1 : 0}"` : '') + extra;
+  const inner = (f?.color ? `<a:solidFill>${colorXml(f.color)}</a:solidFill>` : '') + (f?.family ? `<a:latin typeface="${escapeXml(f.family)}"/>` : '');
+  return `<a:defRPr${attrs}>${inner}</a:defRPr>`;
+}
+
+/** `c:txPr` con la fuente; vacío si no hay nada que decir. */
+function txPrXml(f: TextFormat | undefined): string {
+  if (!f || !(f.size !== undefined || f.bold !== undefined || f.italic !== undefined || f.color || f.family)) return '';
+  return `<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr>${defRPr(f)}</a:pPr><a:endParaRPr lang="es-ES"/></a:p></c:txPr>`;
+}
+
+const mergeFont = (base: TextFormat | undefined, f: TextFormat | undefined): TextFormat | undefined => (base || f ? { ...base, ...f } : undefined);
+
+function areaSpPr(a: AreaFormat | undefined): string {
+  if (!a) return '';
+  const fill = fillXml(a.fill, { noFill: a.noFill, transparency: a.transparency });
+  const ln = lnXml(a.line, undefined);
+  return fill || ln ? `<c:spPr>${fill}${ln}</c:spPr>` : '';
+}
+
+/** El título, con su fuente si la trae. */
+function titleXml(text: string, f: TextFormat | undefined): string {
+  const m = { bold: true, ...f };
+  const rpr = (tag: string) => {
+    const attrs = (m.size !== undefined ? ` sz="${Math.round(m.size * 100)}"` : '') + ` b="${m.bold ? 1 : 0}"` + (m.italic ? ' i="1"' : '');
+    const inner = (m.color ? `<a:solidFill>${colorXml(m.color)}</a:solidFill>` : '') + (m.family ? `<a:latin typeface="${escapeXml(m.family)}"/>` : '');
+    return `<a:${tag}${tag === 'rPr' ? ' lang="es-ES"' : ''}${attrs}>${inner}</a:${tag}>`;
+  };
+  return `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr>${rpr('defRPr')}</a:pPr><a:r>${rpr('rPr')}<a:t>${escapeXml(text)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`;
+}
+
+function readFont(node: XNode, theme: string[]): TextFormat | undefined {
+  const d = node?.p?.pPr?.defRPr ?? asArray(node?.p)[0]?.pPr?.defRPr ?? node?.defRPr;
+  if (!d) return undefined;
+  const out: TextFormat = {};
+  const sz = Number(attr(d, 'sz'));
+  if (Number.isFinite(sz) && attr(d, 'sz') !== undefined) out.size = Math.round(sz) / 100;
+  if (attr(d, 'b') !== undefined) out.bold = ['1', 'true'].includes(attr(d, 'b')!);
+  if (attr(d, 'i') !== undefined) out.italic = ['1', 'true'].includes(attr(d, 'i')!);
+  const face = attr(d.latin, 'typeface');
+  if (face && !face.startsWith('+')) out.family = face;
+  const c = readColorNode(d.solidFill, theme);
+  if (c) out.color = c.color;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** La fuente de un título (de su primera ejecución, o de la del párrafo). */
+function readTitleFont(title: XNode, theme: string[]): TextFormat | undefined {
+  const p = asArray(title?.tx?.rich?.p)[0];
+  if (!p) return undefined;
+  const run = asArray(p.r)[0];
+  const merged = { ...(readFont({ defRPr: p.pPr?.defRPr }, theme) ?? {}), ...(readFont({ defRPr: run?.rPr }, theme) ?? {}) };
+  return Object.keys(merged).length ? merged : undefined;
+}
+
+function readArea(sp: XNode, theme: string[]): AreaFormat | undefined {
+  if (!sp) return undefined;
+  const out: AreaFormat = {};
+  if (sp.noFill !== undefined) out.noFill = true;
+  const c = readColorNode(sp.solidFill, theme);
+  if (c) {
+    out.fill = c.color;
+    if (c.transparency) out.transparency = c.transparency;
+  }
+  const line = readStroke(sp.ln, theme);
+  if (line) out.line = line;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** `lumMod`, `lumOff`, `tint` y `shade` de un color del tema (lo que Excel usa para sus grises y sus tonos claros). */
+function adjustColor(hex: string, node: XNode): string {
+  const n = (k: string) => {
+    const v = Number(attr(node?.[k], 'val'));
+    return node?.[k] !== undefined && Number.isFinite(v) ? v / 100000 : undefined;
+  };
+  const lumMod = n('lumMod');
+  const lumOff = n('lumOff');
+  const tint = n('tint');
+  const shade = n('shade');
+  if (lumMod === undefined && lumOff === undefined && tint === undefined && shade === undefined) return hex;
+  let r = parseInt(hex.slice(1, 3), 16) / 255;
+  let g = parseInt(hex.slice(3, 5), 16) / 255;
+  let b = parseInt(hex.slice(5, 7), 16) / 255;
+  if (lumMod !== undefined || lumOff !== undefined) {
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0;
+    let s = 0;
+    let l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h /= 6;
+    }
+    l = Math.max(0, Math.min(1, l * (lumMod ?? 1) + (lumOff ?? 0)));
+    const hue = (p: number, q: number, t: number) => {
+      const tt = t < 0 ? t + 1 : t > 1 ? t - 1 : t;
+      return tt < 1 / 6 ? p + (q - p) * 6 * tt : tt < 1 / 2 ? q : tt < 2 / 3 ? p + (q - p) * (2 / 3 - tt) * 6 : p;
+    };
+    if (s === 0) r = g = b = l;
+    else {
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue(p, q, h + 1 / 3);
+      g = hue(p, q, h);
+      b = hue(p, q, h - 1 / 3);
+    }
+  }
+  if (tint !== undefined) [r, g, b] = [r * tint + (1 - tint), g * tint + (1 - tint), b * tint + (1 - tint)];
+  if (shade !== undefined) [r, g, b] = [r * shade, g * shade, b * shade];
+  const x = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0');
+  return `#${x(r)}${x(g)}${x(b)}`;
 }
 
 const HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
@@ -270,7 +393,10 @@ function serXml(item: { s: ChartSeries; index: number }, g: Group, def: ChartSpe
 
 function axisTitle(a: ChartAxis | undefined, rotate = false): string {
   if (!a?.title) return '';
-  return `<c:title><c:tx><c:rich><a:bodyPr${rotate ? ' rot="-5400000" vert="horz"' : ''}/><a:lstStyle/><a:p><a:pPr><a:defRPr/></a:pPr><a:r><a:rPr lang="es-ES"/><a:t>${escapeXml(a.title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`;
+  const f = mergeFont(activeFonts?.chart, activeFonts?.axisTitle);
+  const attrs = (f?.size !== undefined ? ` sz="${Math.round(f.size * 100)}"` : '') + (f?.bold !== undefined ? ` b="${f.bold ? 1 : 0}"` : '') + (f?.italic ? ' i="1"' : '');
+  const inner = (f?.color ? `<a:solidFill>${colorXml(f.color)}</a:solidFill>` : '') + (f?.family ? `<a:latin typeface="${escapeXml(f.family)}"/>` : '');
+  return `<c:title><c:tx><c:rich><a:bodyPr${rotate ? ' rot="-5400000" vert="horz"' : ''}/><a:lstStyle/><a:p><a:pPr><a:defRPr${attrs}>${inner}</a:defRPr></a:pPr><a:r><a:rPr lang="es-ES"${attrs}>${inner}</a:rPr><a:t>${escapeXml(a.title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`;
 }
 
 function scaling(a: ChartAxis | undefined, reverse: boolean): string {
@@ -283,7 +409,7 @@ const numFmtXml = (a: ChartAxis | undefined) => `<c:numFmt formatCode="${escapeX
 function catAxXml(id: number, cross: number, o: { pos: 'b' | 'l' | 'r' | 't'; deleted?: boolean; axis?: ChartAxis; reverse?: boolean; grid?: boolean; rotate?: boolean }): string {
   return (
     `<c:catAx><c:axId val="${id}"/>${scaling(o.axis, !!o.reverse)}<c:delete val="${o.deleted || o.axis?.hidden ? 1 : 0}"/><c:axPos val="${o.pos}"/>${o.axis?.gridlines || o.grid ? GRIDLINES : ''}${o.axis?.minorGridlines ? MINOR_GRIDLINES : ''}` +
-    `${axisTitle(o.axis, o.rotate)}${numFmtXml(o.axis)}<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>` +
+    `${axisTitle(o.axis, o.rotate)}${numFmtXml(o.axis)}<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>${txPrXml(mergeFont(activeFonts?.chart, activeFonts?.axis))}` +
     `<c:crossAx val="${cross}"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>`
   );
 }
@@ -292,7 +418,7 @@ function valAxXml(id: number, cross: number, o: { pos: 'b' | 'l' | 'r' | 't'; de
   const grid = o.axis?.gridlines ?? o.grid ?? false;
   return (
     `<c:valAx><c:axId val="${id}"/>${scaling(o.axis, !!o.reverse)}<c:delete val="${o.deleted || o.axis?.hidden ? 1 : 0}"/><c:axPos val="${o.pos}"/>${grid ? GRIDLINES : ''}${o.axis?.minorGridlines ? MINOR_GRIDLINES : ''}` +
-    `${axisTitle(o.axis, o.rotate)}${numFmtXml(o.axis)}<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>` +
+    `${axisTitle(o.axis, o.rotate)}${numFmtXml(o.axis)}<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>${txPrXml(mergeFont(activeFonts?.chart, activeFonts?.axis))}` +
     `<c:crossAx val="${cross}"/><c:crosses val="${o.crosses ?? 'autoZero'}"/><c:crossBetween val="${o.between ?? 'between'}"/></c:valAx>`
   );
 }
@@ -387,6 +513,7 @@ function groupXml(g: Group, def: ChartSpec, src: ChartSource): string {
 
 /** `workbookRid`: la relación del libro incrustado (Word y PowerPoint), para que Office deje editar los datos. */
 export function chartXml(def: ChartSpec, src: ChartSource, workbookRid?: string): string {
+  activeFonts = def.fonts;
   const groups = groupsOf(def);
   const plotGroups = groups.map((g) => groupXml(g, def, src)).join('');
   const hasSecondary = groups.some((g) => g.secondary);
@@ -418,19 +545,19 @@ export function chartXml(def: ChartSpec, src: ChartSource, workbookRid?: string)
     }
   }
 
-  const title = def.title
-    ? `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr b="1"/></a:pPr><a:r><a:rPr lang="es-ES" b="1"/><a:t>${escapeXml(def.title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>`
-    : '<c:autoTitleDeleted val="1"/>';
+  const title = def.title ? `${titleXml(def.title, mergeFont(def.fonts?.chart, def.fonts?.title))}<c:autoTitleDeleted val="0"/>` : '<c:autoTitleDeleted val="1"/>';
   const v = def.threeD ?? (surface ? { ...DEFAULT_3D, rightAngle: false } : undefined);
   const contour = surface && def.surface?.contour;
   const view3D = threeD && v
     ? `<c:view3D><c:rotX val="${contour ? 90 : Math.round(v.rotX)}"/><c:rotY val="${contour ? 0 : Math.round(v.rotY)}"/><c:depthPercent val="${Math.round(v.depth)}"/><c:rAngAx val="${v.rightAngle && !contour ? 1 : 0}"/>${v.rightAngle ? '' : `<c:perspective val="${Math.round(v.perspective * 2)}"/>`}</c:view3D>`
     : '';
-  const legend = def.legend ? `<c:legend><c:legendPos val="${def.legendPos ?? 'b'}"/><c:overlay val="0"/></c:legend>` : '';
+  const legend = def.legend ? `<c:legend><c:legendPos val="${def.legendPos ?? 'b'}"/><c:overlay val="0"/>${txPrXml(mergeFont(def.fonts?.chart, def.fonts?.legend))}</c:legend>` : '';
   return (
     HEAD +
     `<c:chartSpace xmlns:c="${NS_C}" xmlns:a="${NS_A}" xmlns:r="${NS_R}"><c:roundedCorners val="0"/>` +
-    `<c:chart>${title}${view3D}<c:plotArea><c:layout/>${plotGroups}${axes}${dataTableXml(def, kinds)}</c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>` +
+    `<c:chart>${title}${view3D}<c:plotArea><c:layout/>${plotGroups}${axes}${dataTableXml(def, kinds)}${areaSpPr(def.plotArea)}</c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>` +
+    areaSpPr(def.chartArea) +
+    txPrXml(def.fonts?.chart) +
     (workbookRid ? `<c:externalData r:id="${workbookRid}"><c:autoUpdate val="0"/></c:externalData>` : '') +
     '</c:chartSpace>'
   );
@@ -626,6 +753,27 @@ export function parseChart(doc: XNode, theme: string[] = DEFAULT_CHART_THEME): {
   const def: Omit<ChartSpec, 'id' | 'x' | 'y' | 'width' | 'height'> = { type, legend: chart.legend !== undefined, series };
   const t = richText(chart.title);
   if (t) def.title = t;
+  const fonts: ChartFonts = {};
+  const fChart = readFont(doc.chartSpace?.txPr, theme);
+  if (fChart) fonts.chart = fChart;
+  const fTitle = readTitleFont(chart.title, theme);
+  if (fTitle && t) fonts.title = fTitle;
+  const fLegend = readFont(chart.legend?.txPr, theme);
+  if (fLegend) fonts.legend = fLegend;
+  const catAxNode = axes.get(groups[0]!.ids[0] ?? '')?.node;
+  const valAxNode = axes.get(groups[0]!.ids[1] ?? '')?.node;
+  const fAxis = readFont(valAxNode?.txPr, theme) ?? readFont(catAxNode?.txPr, theme);
+  if (fAxis) fonts.axis = fAxis;
+  const fAxisTitle = readTitleFont(valAxNode?.title, theme) ?? readTitleFont(catAxNode?.title, theme);
+  if (fAxisTitle) fonts.axisTitle = fAxisTitle;
+  const withLabels = groups.flatMap((g) => asArray(g.node.ser)).find((s: XNode) => s.dLbls?.txPr);
+  const fLabels = readFont(withLabels?.dLbls?.txPr, theme);
+  if (fLabels) fonts.labels = fLabels;
+  if (Object.keys(fonts).length) def.fonts = fonts;
+  const ca = readArea(doc.chartSpace?.spPr, theme);
+  if (ca) def.chartArea = ca;
+  const pa = readArea(plot.spPr, theme);
+  if (pa) def.plotArea = pa;
   const lp = attr(chart.legend?.legendPos, 'val');
   if (def.legend && lp && lp !== 'b' && ['t', 'l', 'r', 'tr'].includes(lp)) def.legendPos = lp as LegendPos;
   if (plot.dTable !== undefined) def.dataTable = ['1', 'true'].includes(attr(plot.dTable.showKeys, 'val') ?? '') ? { keys: true } : {};

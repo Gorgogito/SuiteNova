@@ -1,5 +1,5 @@
 import { CHART_COLORS } from './data';
-import type { ChartAxis, ChartSeries, ChartSpec, DataLabels, MarkerFormat } from './model';
+import type { ChartAxis, ChartSeries, ChartSpec, DataLabels, MarkerFormat, TextFormat } from './model';
 import type { ErrorBars, Trendline } from './fit';
 import { fitTrend, trendName, trendPath } from './fit';
 import { formatChartNumber } from './format';
@@ -219,6 +219,85 @@ function pointData(values: (number | null)[], s: ChartSeries | undefined, base: 
   });
 }
 
+
+// ---- área del gráfico, área de trazado y fuentes
+
+const FONT_FALLBACK = 'Calibri, Carlito, "Segoe UI", sans-serif';
+
+/** The colours the chart is drawn with once the chart area and the base font have had their say. */
+export function effectivePalette(def: ChartSpec, palette: ChartPalette): ChartPalette {
+  const a = def.chartArea;
+  const bg = a?.noFill ? 'rgba(0,0,0,0)' : a?.fill ? withAlpha(a.fill, a.transparency) : palette.bg;
+  return { text: def.fonts?.chart?.color ?? palette.text, grid: palette.grid, bg };
+}
+
+/** CSS for the box that holds a live chart: the border of the chart area (the fill is drawn by the chart itself). */
+export function chartAreaCss(def: ChartSpec): Record<string, string> {
+  const l = def.chartArea?.line;
+  if (!l) return {};
+  if (l.none) return { border: 'none' };
+  const style = l.dash === 'dash' || l.dash === 'longDash' ? 'dashed' : l.dash === 'dot' ? 'dotted' : l.dash === 'dashDot' ? 'dashed' : 'solid';
+  return { border: `${l.width !== undefined ? px(l.width) : 1}px ${style} ${l.color ?? '#808080'}` };
+}
+
+const textOf = (f: TextFormat | undefined, base: TextFormat | undefined, color: string): Record<string, unknown> => {
+  const m: TextFormat = { ...base, ...f };
+  return {
+    color: m.color ?? color,
+    fontFamily: m.family ? `"${m.family}", ${FONT_FALLBACK}` : FONT_FALLBACK,
+    ...(m.size !== undefined ? { fontSize: px(m.size) } : {}),
+    ...(m.bold !== undefined ? { fontWeight: m.bold ? 700 : 400 } : {}),
+    ...(m.italic !== undefined ? { fontStyle: m.italic ? 'italic' : 'normal' } : {}),
+  };
+};
+
+/** Applies the format of the areas and the fonts to an option built for `def` (the option's own looks stay where nothing is set). */
+function finish(def: ChartSpec, option: Record<string, unknown>, palette: ChartPalette): Record<string, unknown> {
+  const out = { ...option };
+  const f = def.fonts;
+  if (f?.chart) out.textStyle = { ...(out.textStyle as object), ...textOf(f.chart, undefined, palette.text) };
+  const withText = (key: 'title' | 'legend', fmt: TextFormat | undefined) => {
+    const cur = out[key] as Record<string, unknown> | undefined;
+    if (!cur || (!fmt && !f?.chart)) return;
+    const ts = (cur.textStyle ?? {}) as Record<string, unknown>;
+    out[key] = { ...cur, textStyle: { ...ts, ...textOf(fmt, f?.chart, palette.text), ...(key === 'title' && fmt?.size === undefined ? { fontSize: ts.fontSize } : {}), ...(key === 'title' && fmt?.bold === undefined ? { fontWeight: ts.fontWeight } : {}) } };
+  };
+  withText('title', f?.title);
+  withText('legend', f?.legend);
+  if (f?.axis || f?.axisTitle || f?.chart) {
+    for (const k of ['xAxis', 'yAxis']) {
+      const ax = out[k];
+      if (!ax) continue;
+      const fix = (a: Record<string, unknown>) => ({
+        ...a,
+        axisLabel: { ...((a.axisLabel as object) ?? {}), ...textOf(f?.axis, f?.chart, palette.text) },
+        nameTextStyle: { ...((a.nameTextStyle as object) ?? {}), ...textOf(f?.axisTitle, f?.chart, palette.text) },
+      });
+      out[k] = Array.isArray(ax) ? ax.map(fix) : fix(ax as Record<string, unknown>);
+    }
+  }
+  if (f?.labels || f?.chart) {
+    const ser = out.series as Record<string, unknown>[] | undefined;
+    if (ser)
+      out.series = ser.map((s) => {
+        const l = s.label as Record<string, unknown> | undefined;
+        return l && l.show ? { ...s, label: { ...l, ...textOf(f?.labels, f?.chart, palette.text) } } : s;
+      });
+  }
+  const pa = def.plotArea;
+  if (pa && out.grid && !Array.isArray(out.grid)) {
+    const l = pa.line;
+    out.grid = {
+      ...(out.grid as object),
+      show: true,
+      backgroundColor: pa.noFill ? 'rgba(0,0,0,0)' : pa.fill ? withAlpha(pa.fill, pa.transparency) : 'rgba(0,0,0,0)',
+      borderColor: l && !l.none ? (l.color ?? '#808080') : 'rgba(0,0,0,0)',
+      borderWidth: l && !l.none ? (l.width !== undefined ? px(l.width) : 1) : 0,
+    };
+  }
+  return out;
+}
+
 const SUPERSCRIPT_R2 = 'R\u00b2';
 
 interface TrendDraw {
@@ -353,6 +432,11 @@ const axisTooltip = (extra: Record<string, unknown> = {}) => ({
 
 /** Build an ECharts option from a chart definition and the current workbook contents. */
 export function chartOption(def: ChartSpec, data: ChartData, locale: ChartLocale, palette: ChartPalette): Record<string, unknown> {
+  const pal = effectivePalette(def, palette);
+  return finish(def, buildOption(def, data, locale, pal), pal);
+}
+
+function buildOption(def: ChartSpec, data: ChartData, locale: ChartLocale, palette: ChartPalette): Record<string, unknown> {
   const { categories, series } = data;
   const n = Math.max(0, ...series.map((s) => s.values.length));
 

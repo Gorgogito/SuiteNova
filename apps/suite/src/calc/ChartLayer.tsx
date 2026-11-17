@@ -1,5 +1,6 @@
 import type { ChartDef } from '@suitenova/calc-engine';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { chartAreaCss } from '@suitenova/chart-core';
 import { chartOption } from './chartOption';
 import { chart3dFor, echarts, is3D } from './chartRender';
 import type { CalcDoc } from './doc';
@@ -55,7 +56,7 @@ function ChartView({ doc, chart, rect, dark, selected, onPointerDown }: { doc: C
   return (
     <div
       className={`calc-chart ${selected ? 'is-selected' : ''}`}
-      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
+      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, ...chartAreaCss(chart) }}
       onPointerDown={(e) => onPointerDown(e, 'move')}
       role="img"
       aria-label={chart.title ?? 'Gráfico'}

@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { helpTab, viewTab } from '../common';
 import { FONT_NAMES, FONT_SIZES, PALETTE, formatLabel, numberFormats, type CalcUI } from './commands';
 import { CHART_ELEMENTS, ELEMENT_GROUPS } from '../chart/elements';
+import { CHART_STYLES, COLOR_PALETTES } from '../chart/styles';
 import { chartEntries, contextualTabs, developerTab, insertGroups, pageTab, reviewTab, type ContextFlags } from './ribbonObjects';
 
 type Leaf = Exclude<RibbonItem, { kind: 'separator' }>;
@@ -680,6 +681,15 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
             keytip: 'ER',
             entries: [...['stderr', 'percent', 'stdev', 'fixed'].map((k) => ({ kind: 'command' as const, command: `calc.err.${k}` })), { kind: 'command' as const, command: 'calc.err.clear' }],
           },
+        ],
+      },
+      {
+        id: 'chartStyles',
+        label: 'Estilos de gráfico',
+        icon: 'palette',
+        items: [
+          { kind: 'dropdown', id: 'chartColors', label: 'Cambiar colores', icon: 'palette', size: 'large', keytip: 'CC', entries: COLOR_PALETTES.map((p) => ({ kind: 'command' as const, command: `calc.chartColors.${p.id}` })) },
+          { kind: 'dropdown', id: 'chartQuick', label: 'Estilos rápidos', icon: 'chart', size: 'large', keytip: 'ER', entries: CHART_STYLES.map((s) => ({ kind: 'command' as const, command: `calc.chartStyle.${s.id}` })) },
         ],
       },
       {
