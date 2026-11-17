@@ -78,15 +78,20 @@ export const sampleGrid = (): ChartGrid => [
  * Las series de un gráfico a partir de su rejilla: una por columna (desde la segunda), con su nombre en la primera fila y las
  * categorías en la primera columna. En dispersión, la primera columna son los valores X.
  */
-export function specFromGrid(type: ChartType, grid: ChartGrid, base: Partial<ChartSpec> = {}): ChartSpec {
+export const sheetOfSpec = (spec: Pick<ChartSpec, 'series'> | undefined): string => {
+  const ref = spec?.series.find((s) => s.values)?.values;
+  return (ref ? parseRef(ref)?.sheet : undefined) ?? GRID_SHEET;
+};
+
+export function specFromGrid(type: ChartType, grid: ChartGrid, base: Partial<ChartSpec> = {}, sheet: string = GRID_SHEET): ChartSpec {
   const rows = grid.length;
   const cols = Math.max(0, ...grid.map((r) => r.length));
   const series: ChartSpec['series'] = [];
   for (let c = 1; c < cols; c++) {
     series.push({
-      nameRef: refOf({ r1: 0, c1: c, r2: 0, c2: c }),
-      categories: rows > 1 ? refOf({ r1: 1, c1: 0, r2: rows - 1, c2: 0 }) : undefined,
-      values: refOf({ r1: 1, c1: c, r2: Math.max(1, rows - 1), c2: c }),
+      nameRef: refOf({ r1: 0, c1: c, r2: 0, c2: c }, sheet),
+      categories: rows > 1 ? refOf({ r1: 1, c1: 0, r2: rows - 1, c2: 0 }, sheet) : undefined,
+      values: refOf({ r1: 1, c1: c, r2: Math.max(1, rows - 1), c2: c }, sheet),
     });
   }
   return { legend: true, ...base, type, series };

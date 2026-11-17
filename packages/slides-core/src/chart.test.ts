@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
-import { sampleGrid, specFromGrid, type ChartType } from '@suitenova/chart-core';
+import { readGridWorkbook, sampleGrid, specFromGrid, type ChartType } from '@suitenova/chart-core';
 import { newDeck } from './defaults';
 import { newChart } from './factory';
 import { addElements } from './ops';
@@ -66,5 +66,43 @@ describe('charts in .pptx', () => {
     const a = await (await JSZip.loadAsync(data)).file(Object.keys((await JSZip.loadAsync(data)).files).find((f) => /charts\/chart\d+\.xml$/.test(f))!)!.async('string');
     const b = await again.file(Object.keys(again.files).find((f) => /charts\/chart\d+\.xml$/.test(f))!)!.async('string');
     expect(b).toBe(a);
+  });
+});
+
+describe('fidelidad al reescribir un gráfico de otro programa', () => {
+  const unzipChart = async (data: Uint8Array) => {
+    const zip = await JSZip.loadAsync(data);
+    const name = Object.keys(zip.files).find((f) => /^ppt\/charts\/chart\d*\.xml$/.test(f))!;
+    return { zip, xml: await zip.file(name)!.async('string') };
+  };
+
+  it('al editarlo se conserva lo que Nova no entiende, se cambia lo editado y se parchea el libro original', async () => {
+    const { data } = await roundTrip('column');
+    const deck = (await readPptx(data)).deck;
+    const el = deck.slides[0]!.shapes.find((e): e is ChartEl => e.kind === 'chart')!;
+    // lo «de otro programa»: estilo y extensiones en la parte del gráfico
+    const main = Object.keys(el.raw!).find((k) => /charts\/chart\d*\.xml$/.test(k))!;
+    const orig = new TextDecoder().decode(el.raw![main]!);
+    el.raw![main] = new TextEncoder().encode(orig.replace('<c:roundedCorners val="0"/>', '<c:roundedCorners val="0"/><c:style val="2"/>').replace('</c:chartSpace>', '<c:extLst><c:ext uri="{X}"/></c:extLst></c:chartSpace>'));
+    // sin editar: tal cual
+    const same = await unzipChart((await writePptx(deck)).data);
+    expect(same.xml).toContain('<c:style val="2"/>');
+    // editado: leyenda a la derecha y un dato nuevo
+    el.chart = { ...el.chart, legendPos: 'r', title: 'Cambiado' };
+    el.grid = el.grid.map((r) => [...r]);
+    el.grid[1]![1] = 99;
+    const out = await unzipChart((await writePptx(deck)).data);
+    expect(out.xml).toContain('<c:style val="2"/>');
+    expect(out.xml).toContain('<c:extLst>');
+    expect(out.xml).toContain('<c:legendPos val="r"/>');
+    expect(out.xml).toContain('Cambiado');
+    expect(out.xml).toContain('<c:v>99</c:v>');
+    const book = Object.keys(out.zip.files).find((f) => /^ppt\/embeddings\/.+\.xlsx$/.test(f))!;
+    const grid = await readGridWorkbook(await out.zip.file(book)!.async('uint8array'));
+    expect(grid[1]![1]).toBe(99);
+    // y vuelve a leerse con los cambios
+    const back = (await readPptx((await writePptx(deck)).data)).deck.slides[0]!.shapes.find((e): e is ChartEl => e.kind === 'chart')!;
+    expect(back.chart.legendPos).toBe('r');
+    expect(back.grid[1]![1]).toBe(99);
   });
 });

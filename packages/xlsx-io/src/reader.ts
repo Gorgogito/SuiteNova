@@ -521,7 +521,9 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
     // los nombres ocultos `_xlchart.*` de los gráficos de Office 2016 se sustituyen por el rango que nombran
     const unname = (t: string | undefined) => (t && chartNames.has(t) ? chartNames.get(t) : t);
     const def = { ...parsed.def, series: parsed.def.series.map((sr) => ({ ...sr, values: unname(sr.values) ?? sr.values, categories: unname(sr.categories), nameRef: unname(sr.nameRef) })) };
-    sheet.charts.push({ ...def, id: `chart-imp-${sheet.id}-${++n}`, ...rect });
+    // el XML original se guarda para escribirlo de vuelta con los cambios fusionados (salvo los de Office 2016 con nombres ocultos)
+    const rawXml = chartNames.size && /_xlchart\./.test(JSON.stringify(doc)) ? undefined : await zip.file(chartPath)?.async('string');
+    sheet.charts.push({ ...def, ...(rawXml ? { rawXml } : {}), id: `chart-imp-${sheet.id}-${++n}`, ...rect });
   }
   if (unsupportedShapes) warnings.push(`La hoja "${sheet.name}" tiene ${unsupportedShapes} forma(s) con una geometría que Nova Calc no dibuja (estrellas, llamadas, etc.): se importaron como rectángulos.`);
   if (skippedPictures) warnings.push(`La hoja "${sheet.name}" tiene ${skippedPictures} imagen(es) en un formato que no se puede importar (por ejemplo vectorial).`);

@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import type { Node as PMNode } from 'prosemirror-model';
 import { describe, expect, it } from 'vitest';
-import { sampleGrid, specFromGrid, type ChartType } from '@suitenova/chart-core';
+import { readGridWorkbook, sampleGrid, specFromGrid, type ChartType } from '@suitenova/chart-core';
 import { DEFAULT_DOC_DEFAULTS, defaultSection, emptyWriterDoc, makeSection, nodeTypes, readDocx, writeDocx, writerSchema, type WriterDoc } from './index';
 
 const t = (text: string) => writerSchema.text(text);
@@ -67,5 +67,42 @@ describe('gráficos en Writer', () => {
     const back = charts((await readDocx(data)).doc.body);
     expect(back[0]!.attrs.chart.type).toBe('waterfall');
     expect(back[0]!.attrs.grid[2][1]).toBe(2.5);
+  });
+});
+
+describe('fidelidad al reescribir un gráfico de otro programa', () => {
+  it('al editarlo se conserva lo que Nova no entiende y se parchea el libro original; sin editar, queda tal cual', async () => {
+    const first = await write(doc(chart('column')));
+    // lo «de otro programa»: estilo y extensiones añadidos a la parte del gráfico
+    const zip0 = await JSZip.loadAsync(first);
+    const orig = await zip0.file('word/charts/chart1.xml')!.async('string');
+    zip0.file('word/charts/chart1.xml', orig.replace('<c:roundedCorners val="0"/>', '<c:roundedCorners val="0"/><c:style val="2"/>').replace('</c:chartSpace>', '<c:extLst><c:ext uri="{X}"/></c:extLst></c:chartSpace>'));
+    const foreign = await zip0.generateAsync({ type: 'uint8array' });
+
+    const loaded = (await readDocx(foreign)).doc;
+    const same = await JSZip.loadAsync(((await writeDocx(loaded)) as { data: Uint8Array }).data);
+    expect(await same.file('word/charts/chart1.xml')!.async('string')).toContain('<c:style val="2"/>');
+
+    // editado: leyenda a la derecha y un dato nuevo
+    const edited = charts(loaded.body)[0]!;
+    const grid = (edited.attrs.grid as (number | string | null)[][]).map((r) => [...r]);
+    grid[1]![1] = 99;
+    const node = nodeTypes.chart!.create({ ...edited.attrs, chart: { ...edited.attrs.chart, legendPos: 'r', title: 'Cambiado' }, grid });
+    const body = nodeTypes.doc!.create(null, [makeSection([nodeTypes.paragraph!.create(null, [t('Antes '), node])], defaultSection())]);
+    const out = await JSZip.loadAsync(((await writeDocx({ ...loaded, body })) as { data: Uint8Array }).data);
+    const xml = await out.file('word/charts/chart1.xml')!.async('string');
+    expect(xml).toContain('<c:style val="2"/>');
+    expect(xml).toContain('<c:extLst>');
+    expect(xml).toContain('<c:legendPos val="r"/>');
+    expect(xml).toContain('Cambiado');
+    expect(xml).toContain('<c:v>99</c:v>');
+    const book = Object.keys(out.files).find((f) => /^word\/embeddings\/.+\.xlsx$/.test(f))!;
+    expect((await readGridWorkbook(await out.file(book)!.async('uint8array')))[1]![1]).toBe(99);
+    // dos gráficos de otro programa en un documento no se pisan
+    const two = nodeTypes.doc!.create(null, [makeSection([nodeTypes.paragraph!.create(null, [node, node])], defaultSection())]);
+    const zip2 = await JSZip.loadAsync(((await writeDocx({ ...loaded, body: two })) as { data: Uint8Array }).data);
+    expect(zip2.file('word/charts/chart1.xml') && zip2.file('word/charts/chart2.xml')).toBeTruthy();
+    expect(zip2.file('word/embeddings/Microsoft_Excel_Sheet2.xlsx')).toBeTruthy();
+    expect(await zip2.file('word/charts/_rels/chart2.xml.rels')!.async('string')).toContain('Sheet2.xlsx');
   });
 });

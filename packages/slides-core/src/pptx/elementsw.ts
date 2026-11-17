@@ -2,7 +2,6 @@ import { esc } from '@suitenova/writer-core';
 import { NS_CX, REL_CHARTEX } from '@suitenova/chart-core';
 import type { ChartEl, ConnEl, GroupEl, MediaEl, OleEl, PicEl, ShapeEl, SlideElement, StyleRef, TableCell, TableEl, TableStyleDef } from '../types';
 import { clrXml, effectsXml, fillXml, geomXml, lnXml, txBodyXml, xfrmXml, EMU, type WriteCtx } from './dmlw';
-import { chartParts } from './chartio';
 
 export interface PartWriter extends WriteCtx {
   /** numeric shape id for an element (kept from the original file when there is one) */
@@ -20,8 +19,8 @@ export interface PartWriter extends WriteCtx {
   /** rewrites the text of a part already added */
   patchPart(path: string, fn: (text: string) => string): void;
   slidePath(slideId: string): string | undefined;
-  /** el libro incrustado de un gráfico (se genera antes de escribir, porque es asíncrono) */
-  chartBook(elId: string): Uint8Array | undefined;
+  /** las partes que se escriben de un gráfico (se calculan antes de escribir, porque parchear el libro es asíncrono) */
+  chartPlan(elId: string): Record<string, Uint8Array> | undefined;
   /** table style GUID to write for a style id of the model */
   tableStyleGuid(id: string | undefined): string | undefined;
 }
@@ -170,12 +169,8 @@ function tableXml(el: TableEl, w: PartWriter): string {
 // ---- charts
 
 function chartFrameXml(el: ChartEl, w: PartWriter): string {
-  let raw = el.raw;
-  // un gráfico leído y sin tocar se escribe tal cual; uno nuevo o editado, con las partes del motor compartido y su libro
-  if (!raw || !Object.keys(raw).length) {
-    const book = w.chartBook(el.id);
-    raw = book ? chartParts(el.chart, el.grid, book) : undefined;
-  }
+  // un gráfico leído se escribe fusionando los cambios con el original; uno nuevo, con las partes del motor compartido y su libro
+  const raw = w.chartPlan(el.id);
   if (!raw) return '';
   const map = w.copyRaw(raw);
   const main = [...map.keys()].find((k) => /charts\/chart(Ex)?\d*\.xml$/.test(k)) ?? [...map.keys()][0]!;

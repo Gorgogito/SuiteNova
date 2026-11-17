@@ -354,7 +354,7 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
     pointCount: () => Math.max(0, (chartEl()?.grid.length ?? 1) - 1),
     apply: (next, label) => {
       const el = chartEl();
-      if (el) c.apply(label, (d) => updateElement(d, c.slide.id, el.id, (e) => ({ ...e, chart: next, raw: undefined }) as SlideElement));
+      if (el) c.apply(label, (d) => updateElement(d, c.slide.id, el.id, (e) => ({ ...e, chart: next }) as SlideElement));
     },
   }))
     add(def);

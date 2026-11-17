@@ -864,3 +864,38 @@ describe('pivot tables, slicers and macros travel in the suite part', () => {
     expect(Object.keys(zip.files).some((n) => /pivot/i.test(n))).toBe(false);
   });
 });
+
+describe('gráficos de otro programa: se reescriben con lo que Nova no entiende', () => {
+  it('el XML original se conserva al reescribir un gráfico editado, y sin editar queda igual de equivalente', async () => {
+    const { Workbook, parseA1, suggestChart } = await import('@suitenova/calc-engine');
+    const w = new Workbook();
+    const id = w.sheets[0]!.id;
+    w.transact(() => { for (const [a, t] of Object.entries({ A1: 'Mes', B1: 'Ventas', A2: 'Ene', B2: '10', A3: 'Feb', B3: '14' })) { const p = parseA1(a)!; w.setInput(id, p.row, p.col, t); } });
+    w.editObjects(id, (s) => void s.charts.push({ ...suggestChart(w, id, { r1: 0, c1: 0, r2: 2, c2: 1 }, 'column')!, id: 'c1', x: 10, y: 10, width: 400, height: 260 }));
+    // «de otro programa»: la parte del gráfico con estilo, diseño manual y extensiones que Nova no modela
+    const zip = await JSZip.loadAsync(await writeXlsx(w));
+    const name = Object.keys(zip.files).find((f) => /^xl\/charts\/chart\d+\.xml$/.test(f))!;
+    const xml = (await zip.file(name)!.async('string'))
+      .replace('<c:roundedCorners val="0"/>', '<c:roundedCorners val="0"/><c:style val="2"/>')
+      .replace('<c:plotArea><c:layout/>', '<c:plotArea><c:layout><c:manualLayout><c:x val="0.1"/><c:y val="0.2"/><c:w val="0.7"/><c:h val="0.6"/></c:manualLayout></c:layout>')
+      .replace('</c:chartSpace>', '<c:extLst><c:ext uri="{X}"/></c:extLst></c:chartSpace>');
+    zip.file(name, xml);
+    const loaded = (await readXlsx(await zip.generateAsync({ type: 'uint8array' }))).workbook;
+    expect(loaded.sheets[0]!.charts[0]!.rawXml).toContain('<c:manualLayout>');
+    const same = await JSZip.loadAsync(await writeXlsx(loaded));
+    expect(await same.file(name)!.async('string')).toContain('<c:manualLayout>');
+    // editado: leyenda a la derecha y título
+    loaded.editObjects(loaded.sheets[0]!.id, (s) => void Object.assign(s.charts[0]!, { legend: true, legendPos: 'r', title: 'Cambiado' }));
+    const out = await JSZip.loadAsync(await writeXlsx(loaded));
+    const edited = await out.file(name)!.async('string');
+    expect(edited).toContain('<c:style val="2"/>');
+    expect(edited).toContain('<c:manualLayout>');
+    expect(edited).toContain('<c:extLst>');
+    expect(edited).toContain('<c:legendPos val="r"/>');
+    expect(edited).toContain('Cambiado');
+    // y se vuelve a leer con los cambios
+    const again = (await readXlsx(await writeXlsx(loaded))).workbook.sheets[0]!.charts[0]!;
+    expect(again.legendPos).toBe('r');
+    expect(again.title).toBe('Cambiado');
+  });
+});

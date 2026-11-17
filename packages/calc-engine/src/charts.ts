@@ -19,6 +19,8 @@ export interface ChartDef extends ChartSpec {
   y: number;
   width: number;
   height: number;
+  /** The chart part as another program saved it: it is written back with the changes merged in, so what Nova does not model survives. */
+  rawXml?: string;
 }
 
 export interface ResolvedRange {

@@ -524,6 +524,8 @@ const nodes: Record<string, NodeSpec> = {
       id: { default: '' },
       chart: { default: null },
       grid: { default: null },
+      /** The parts of the chart as another program saved them (path → bytes), written back with the changes merged in. */
+      raw: { default: null },
     },
     parseDOM: [{ tag: 'span.nw-chart', priority: 70 }],
     toDOM: (node) => {

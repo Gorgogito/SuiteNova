@@ -73,4 +73,5 @@ Decisiones del usuario: motor compartido `chart-core` (Slides y Calc migran), da
 - [x] **Fase 2 HECHA:** formato de serie y de punto (relleno, transparencia, borde, línea, marcadores, color por punto, hueco, superposición, sectores) en motor, DrawingML y Calc; panel compartido; Excel real lo abre.
 - [x] **Fase 3 HECHA:** estilos y colores (10 juegos, 8 estilos rápidos propios), formato del área del gráfico y de trazado, fuentes; DrawingML con colores del tema con luminosidad; Excel real lo abre.
 - [x] **Fase 4 HECHA:** Slides y Writer con los mismos elementos, formato, estilos y fuentes (cuadro con pestañas y menús de la cinta compartidos); Writer mueve y redimensiona gráficos y SmartArt con el ratón; información emergente en Slides y Writer; PowerPoint y Word reales abren el formato.
-- [ ] Fase 5: fidelidad de archivo. · [ ] Fase 6: portapapeles y ODF. · [ ] Fase 7: cierre.
+- [x] **Fase 5 HECHA:** fidelidad de archivo: fusión de tres vías del XML original con lo editado, libro incrustado original parcheado, Writer y Calc conservan lo que Nova no modela; PowerPoint y Excel reales abren lo reescrito (la comprobación real destapó dos fallos que ya están corregidos).
+- [ ] Fase 6: portapapeles y ODF. · [ ] Fase 7: cierre.

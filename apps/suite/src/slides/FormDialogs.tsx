@@ -213,7 +213,7 @@ export function ChartDialog({ ui, onClose, arg }: P) {
 
   const commit = () => {
     if (typeof built === 'string') return;
-    if (existing) c.apply('Cambiar gráfico', (d) => updateElement(d, c.slide.id, existing.id, (e) => ({ ...e, chart: built.spec, grid: built.grid, raw: undefined }) as SlideElement));
+    if (existing) c.apply('Cambiar gráfico', (d) => updateElement(d, c.slide.id, existing.id, (e) => ({ ...e, chart: built.spec, grid: built.grid }) as SlideElement));
     else {
       const w = c.deck.size.w * 0.7;
       const h = c.deck.size.h * 0.65;

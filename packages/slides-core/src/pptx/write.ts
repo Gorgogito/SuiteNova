@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { esc } from '@suitenova/writer-core';
-import { writeGridWorkbook } from '@suitenova/chart-core';
+import { chartParts, rewriteRawChart, writeGridWorkbook } from '@suitenova/chart-core';
 import { DEFAULT_CLRMAP } from '../color';
 import type { Background, ColorMap, Comment, Deck, Effects, Fill, Hyperlink, Layout, Ln, Master, Slide, SlideElement, TableStyleDef, TableStylePart, TextBody, Theme, Transition } from '../types';
 import { bodyPrXml, clrXml, effectsXml, fillXml, listStyleXml, lnXml, txBodyXml, EMU, type WriteCtx } from './dmlw';
@@ -81,10 +81,13 @@ function themeXml(t: Theme, ctx: WriteCtx): string {
 export async function writePptx(deck: Deck, opts: { slideshow?: boolean; template?: boolean } = {}): Promise<WriteResult> {
   const zip = new JSZip();
   // el libro incrustado de cada gráfico nuevo o editado (generarlo es asíncrono; el resto de la escritura no)
-  const chartBooks = new Map<string, Uint8Array>();
+  const chartPlans = new Map<string, Record<string, Uint8Array>>();
   const collectCharts = async (els: SlideElement[]): Promise<void> => {
     for (const e of els) {
-      if (e.kind === 'chart' && !(e.raw && Object.keys(e.raw).length)) chartBooks.set(e.id, await writeGridWorkbook(e.grid));
+      if (e.kind === 'chart') {
+        const raw = e.raw && Object.keys(e.raw).length ? await rewriteRawChart(e.raw, e.chart, e.grid) : null;
+        chartPlans.set(e.id, raw ?? chartParts(e.chart, e.grid, await writeGridWorkbook(e.grid), 'ppt'));
+      }
       else if (e.kind === 'group') await collectCharts(e.children);
     }
   };
@@ -173,7 +176,7 @@ export async function writePptx(deck: Deck, opts: { slideshow?: boolean; templat
           else if (cur) parts.set(p, fn(new TextDecoder().decode(cur)));
         },
         slidePath: (id) => slidePaths.get(id),
-        chartBook: (id) => chartBooks.get(id),
+        chartPlan: (id) => chartPlans.get(id),
         tableStyleGuid: (id) => {
           if (!id) return undefined;
           const m = /^medium2-(accent\d)$/.exec(id);

@@ -9,7 +9,7 @@ import { resolvePart } from '../layout';
 import { parseMath, toOMML } from '../math';
 import { avLstXml, presetOf, resolveKind } from '@suitenova/shapes-core';
 import { prstTxWarpXml, w14Fx, type WordArtFx } from '@suitenova/wordart-core';
-import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, NS_CX, REL_CHARTEX, chartParts, isExType, writeGridWorkbook, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
+import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, NS_CX, REL_CHARTEX, chartParts, mainChartPath, renameBundle, rewriteRawChart, writeGridWorkbook, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 import { DIAGRAM_URI, PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel, type SmartArtParts } from '@suitenova/smartart-core';
 import { REL, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml } from './shared';
 import { commentsExtendedXml, commentsXml, customXmlParts, footnotesXml, settingsXml, watermarkParagraph, type NoteOut } from './writer-parts';
@@ -36,6 +36,8 @@ export class Ctx {
   chartSeq = 0;
   /** El libro incrustado de cada gráfico, generado antes de escribir (es asíncrono). */
   chartBooks = new WeakMap<object, Uint8Array>();
+  /** Las partes de los gráficos que vienen de otro programa, con los cambios fusionados (null: se escribe uno nuevo). */
+  chartRaws = new WeakMap<object, Record<string, Uint8Array> | null>();
   /** Elementos `w14:*` (estilo de WordArt) que van al final del `w:rPr` de cada letra mientras se escribe el texto de una forma. */
   fxTail = '';
   nums: { numId: number; abstractId: number; kind: 'bullet' | ListFormat; start: number }[] = [];
@@ -387,13 +389,17 @@ function chartXmlOf(node: PMNode, ctx: Ctx, part: PartCtx): string {
   const spec = node.attrs.chart as ChartSpec | null;
   const grid = node.attrs.grid as ChartGrid | null;
   const book = grid ? ctx.chartBooks.get(grid) : undefined;
-  if (!spec || !grid || !book) return '';
+  if (!spec || !grid) return '';
+  const raw = ctx.chartRaws.get(grid);
+  if (!raw && !book) return '';
   const n = ++ctx.chartSeq;
-  const ex = isExType(spec.type);
-  for (const [path, data] of Object.entries(chartParts(spec, grid, book, 'word', n))) ctx.chartFiles.push({ path, data });
+  const files = raw ? renameBundle(raw, n) : chartParts(spec, grid, book!, 'word', n);
+  for (const [path, data] of Object.entries(files)) ctx.chartFiles.push({ path, data });
+  const mainName = mainChartPath(files) ?? '';
+  const ex = /chartEx\d*\.xml$/.test(mainName);
   const id = `rId${part.nextRel++}`;
   const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-  part.rels.push(`<Relationship Id="${id}" Type="${ex ? REL_CHARTEX : `${R}/chart`}" Target="charts/${ex ? 'chartEx' : 'chart'}${n}.xml"/>`);
+  part.rels.push(`<Relationship Id="${id}" Type="${ex ? REL_CHARTEX : `${R}/chart`}" Target="${mainName.replace(/^word\//, '')}"/>`);
   if (!ex) return floatingXml(node, ctx, 'http://schemas.openxmlformats.org/drawingml/2006/chart', `<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="${R}" r:id="${id}"/>`, '', 'Gráfico');
   const xml = floatingXml(node, ctx, NS_CX, `<cx:chart xmlns:cx="${NS_CX}" xmlns:r="${R}" r:id="${id}"/>`, 'cx1', 'Gráfico');
   return xml.replace('Requires="cx1"', 'xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" Requires="cx1"');
@@ -859,7 +865,14 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
   const collect = (n: PMNode) => n.descendants((c) => (c.type.name === 'chart' ? void charts.push(c) : undefined));
   collect(doc.body);
   for (const p of Object.values(doc.parts)) collect(p);
-  for (const c of charts) if (c.attrs.grid) ctx.chartBooks.set(c.attrs.grid as object, await writeGridWorkbook(c.attrs.grid as ChartGrid));
+  for (const c of charts) {
+    const grid = c.attrs.grid as ChartGrid | null;
+    if (!grid) continue;
+    const raw = c.attrs.raw as Record<string, Uint8Array> | null;
+    const merged = raw ? await rewriteRawChart(raw, c.attrs.chart as ChartSpec, grid) : null;
+    if (merged) ctx.chartRaws.set(grid, merged);
+    else ctx.chartBooks.set(grid, await writeGridWorkbook(grid));
+  }
 
   // sections (copies, so that the watermark can add header parts without touching the document)
   const secProps: SectionProps[] = [];
@@ -961,7 +974,7 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
   }
   for (const f of ctx.chartFiles) {
     zip.file(f.path, f.data);
-    const ct = /charts\/chartEx\d+\.xml$/.test(f.path) ? CT_CHARTEX : /charts\/chart\d+\.xml$/.test(f.path) ? 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml' : /charts\/style\d+\.xml$/.test(f.path) ? CT_CHARTEX_STYLE : /charts\/colors\d+\.xml$/.test(f.path) ? CT_CHARTEX_COLORS : undefined;
+    const ct = /charts\/chartEx\d+\.xml$/.test(f.path) ? CT_CHARTEX : /charts\/chart\d+\.xml$/.test(f.path) ? 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml' : /charts\/style\d+\.xml$/.test(f.path) ? CT_CHARTEX_STYLE : /charts\/colors\d+\.xml$/.test(f.path) ? CT_CHARTEX_COLORS : /charts\/themeOverride\d+\.xml$/.test(f.path) ? 'application/vnd.openxmlformats-officedocument.themeOverride+xml' : /drawings\/drawing\d+\.xml$/.test(f.path) ? 'application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml' : undefined;
     if (ct) overrides.push([`/${f.path}`, ct]);
   }
 

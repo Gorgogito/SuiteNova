@@ -292,6 +292,8 @@ interface Shared {
   diagrams: Map<string, string>;
   /** Partes de gráfico (`word/charts/…`) por ruta del archivo. */
   charts: Map<string, string>;
+  /** Las partes de cada gráfico (la suya, sus relaciones, el libro incrustado, el estilo…) por ruta de la parte principal. */
+  chartRaw: Map<string, Record<string, Uint8Array>>;
   warnings: Set<string>;
   counters: Map<string, number>;
   sections: number;
@@ -1040,7 +1042,7 @@ class Converter {
     const w = Math.max(20, Math.round((num(ext && attrOf(ext, 'cx')) ?? 4572000) / EMU_PER_PX));
     const h = Math.max(20, Math.round((num(ext && attrOf(ext, 'cy')) ?? 2743200) / EMU_PER_PX));
     const pr = findDeep(d, 'docPr');
-    cur().push(nodeTypes.chart!.create({ width: w, height: h, ...this.anchorOf(d), alt: (pr && (attrOf(pr, 'descr') ?? attrOf(pr, 'title'))) || '', chart: read.spec, grid: read.grid }));
+    cur().push(nodeTypes.chart!.create({ width: w, height: h, ...this.anchorOf(d), alt: (pr && (attrOf(pr, 'descr') ?? attrOf(pr, 'title'))) || '', chart: read.spec, grid: read.grid, raw: this.sh.chartRaw.get(this.baseDir + rel!.target.replace(/^\//, '').replace(/^word\//, '')) ?? null }));
   }
 
   /** A SmartArt (`dgm:relIds`): its parts are read from `word/diagrams/` and kept whole; the drawing is shown from the cached part. */
@@ -1562,10 +1564,36 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
       .filter((p) => /^word\/charts\/(chart|chartEx)[^/]*\.xml$/.test(p))
       .map(async (p) => void charts.set(p, await zip.file(p)!.async('string'))),
   );
+  // las partes de cada gráfico tal cual, para escribirlas de vuelta con los cambios fusionados
+  const chartRaw = new Map<string, Record<string, Uint8Array>>();
+  for (const main of charts.keys()) {
+    const files: Record<string, Uint8Array> = { [main]: await zip.file(main)!.async('uint8array') };
+    const relsPath = `${main.slice(0, main.lastIndexOf('/') + 1)}_rels/${main.slice(main.lastIndexOf('/') + 1)}.rels`;
+    const relsFile = zip.file(relsPath);
+    if (relsFile) {
+      const text = await relsFile.async('string');
+      files[relsPath] = new TextEncoder().encode(text);
+      for (const m of text.matchAll(/<Relationship\b[^>]*>/g)) {
+        const tag = m[0];
+        const target = /Target="([^"]+)"/.exec(tag)?.[1];
+        if (!target || /TargetMode="External"/.test(tag)) continue;
+        const parts = (target.startsWith('/') ? target.slice(1) : main.slice(0, main.lastIndexOf('/') + 1) + target).split('/');
+        const out: string[] = [];
+        for (const x of parts) {
+          if (x === '..') out.pop();
+          else if (x && x !== '.') out.push(x);
+        }
+        const path = out.join('/');
+        const f = zip.file(path);
+        if (f) files[path] = await f.async('uint8array');
+      }
+    }
+    chartRaw.set(main, files);
+  }
 
   const commentsRead = readComments(await text(zip, 'word/comments.xml'), await text(zip, 'word/commentsExtended.xml'));
   const sh: Shared = {
-    zip, styles, baseRP, basePP, fonts, numbering, abstracts, media, diagrams, charts, warnings, counters: new Map(), sections: 0,
+    zip, styles, baseRP, basePP, fonts, numbering, abstracts, media, diagrams, charts, chartRaw, warnings, counters: new Map(), sections: 0,
     comments: commentsRead.info, footnotes: new Map(), endnotes: new Map(), noteSeq: 0, custom: new Map(),
   };
   await readNotes(zip, 'word/footnotes.xml', 'footnotes', sh, sh.footnotes);

@@ -8,13 +8,14 @@ import {
   keyCol,
   keyRow,
   type Border,
+  type ChartDef,
   type Scalar,
   type Sheet,
   type Style,
   type Workbook,
 } from '@suitenova/calc-engine';
 import JSZip from 'jszip';
-import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, REL_CHARTEX, REL_CHARTEX_COLORS, REL_CHARTEX_STYLE, chartExColorsXml, chartExStyleXml, chartExXml, chartXml, isExType } from '@suitenova/chart-core';
+import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, REL_CHARTEX, REL_CHARTEX_COLORS, REL_CHARTEX_STYLE, chartExColorsXml, chartExStyleXml, chartExXml, chartXml, dmlParser, isExType, parseChart, parseChartEx, rewriteChart } from '@suitenova/chart-core';
 import { drawingXml, type DrawingItem } from './charts-io';
 import { PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel } from '@suitenova/smartart-core';
 import { commentsXml, hyperlinksXml, pageXml, printNames, sparklinesExtXml, tableXml, validationsXml, vmlXml } from './objects-io';
@@ -205,6 +206,19 @@ interface WriteState {
   usesDynamicArrays: boolean;
 }
 
+/** La parte de un gráfico: nueva, o la original con los cambios fusionados si el gráfico vino de otro programa. */
+function chartPartXml(c: ChartDef, wb: Workbook, sheetId: number, ex: boolean): string {
+  const src = chartSource(wb, sheetId);
+  if (!c.rawXml) return ex ? chartExXml(c, src) : chartXml(c, src);
+  const doc = dmlParser.parse(c.rawXml);
+  const wasEx = doc?.chartSpace?.chartData !== undefined;
+  const before = wasEx ? parseChartEx(doc) : parseChart(doc);
+  if (wasEx !== ex || 'skip' in before) return ex ? chartExXml(c, src) : chartXml(c, src);
+  const merged = rewriteChart(c.rawXml, { spec: before.def, src }, { spec: c, src }, ex);
+  // las partes que el original enlazaba (formas del gráfico, libro externo) no se llevan al libro nuevo
+  return merged.replace(/<c:userShapes[^>]*\/>/g, '').replace(/<c:externalData[^>]*>[\s\S]*?<\/c:externalData>/g, '');
+}
+
 function numText(n: number): string {
   return Number.isFinite(n) ? String(n) : '0';
 }
@@ -381,7 +395,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
         const rid = `rId${drawingRels.length + 1}`;
         if (isExType(c.type)) {
           drawingRels.push({ id: rid, type: REL_CHARTEX, target: `../charts/chartEx${k}.xml` });
-          put(`xl/charts/chartEx${k}.xml`, chartExXml(c, chartSource(wb, sheet.id)));
+          put(`xl/charts/chartEx${k}.xml`, chartPartXml(c, wb, sheet.id, true));
           types.push(`<Override PartName="/xl/charts/chartEx${k}.xml" ContentType="${CT_CHARTEX}"/>`);
           // Excel no abre un gráfico de Office 2016 sin sus partes de estilo y de colores
           put(`xl/charts/style${k}.xml`, chartExStyleXml());
@@ -390,7 +404,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
           types.push(`<Override PartName="/xl/charts/style${k}.xml" ContentType="${CT_CHARTEX_STYLE}"/>`, `<Override PartName="/xl/charts/colors${k}.xml" ContentType="${CT_CHARTEX_COLORS}"/>`);
         } else {
           drawingRels.push({ id: rid, type: `${NS_REL}/chart`, target: `../charts/chart${k}.xml` });
-          put(`xl/charts/chart${k}.xml`, chartXml(c, chartSource(wb, sheet.id)));
+          put(`xl/charts/chart${k}.xml`, chartPartXml(c, wb, sheet.id, false));
           types.push(`<Override PartName="/xl/charts/chart${k}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`);
         }
         items.push({ kind: 'chart', ex: isExType(c.type), rId: rid, x: c.x, y: c.y, width: c.width, height: c.height, name: `Gráfico ${i + 1}` });

@@ -1,4 +1,4 @@
-import { formatChartNumber, specFromGrid, type ChartCell, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
+import { formatChartNumber, sheetOfSpec, specFromGrid, type ChartCell, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 import { applyPreset, presetById, presetOf } from './presets';
 
 /*
@@ -52,7 +52,7 @@ export function buildChart(draft: ChartDraft, base?: ChartSpec): { spec: ChartSp
   cells = cells.map((r) => Array.from({ length: last }, (_, c) => r[c] ?? ''));
   const grid = cellsToGrid(cells);
   const { series: old, ...rest } = base ?? { series: [] as ChartSpec['series'] };
-  const made = specFromGrid(preset.type, grid, { ...rest, title: draft.title.trim() || undefined, legend: draft.legend });
+  const made = specFromGrid(preset.type, grid, { ...rest, title: draft.title.trim() || undefined, legend: draft.legend }, sheetOfSpec(base));
   made.series = made.series.map((s, i) => ({ ...(old[i] ?? {}), ...s }));
   const out = applyPreset(made, preset);
   return typeof out === 'string' ? out : { spec: out, grid };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chartData, chartExXml, chartXml, dmlParser, gridSource, parseChart, parseChartEx, parseRef, readChartCaches, readGridWorkbook, refOf, sampleGrid, specFromGrid, writeGridWorkbook, type ChartGrid } from './index';
+import { chartData, chartExXml, chartXml, dmlParser, gridSource, parseChart, parseChartEx, parseRef, readChartCaches, patchGridWorkbook, readGridWorkbook, refOf, rewriteChartFromGrid, sampleGrid, specFromGrid, writeGridWorkbook, type ChartGrid } from './index';
 
 const grid: ChartGrid = sampleGrid();
 
@@ -218,5 +218,143 @@ describe('área del gráfico, área de trazado y fuentes en DrawingML', () => {
     const back = parseChart(dmlParser.parse(xml));
     if (!('def' in back)) throw new Error('skip');
     expect(back.def.chartArea?.line?.color).toBe('#d9d9d9');
+  });
+});
+
+describe('fusión con el original de otro programa', () => {
+  const g = sampleGrid();
+  const base = () => {
+    const s = specFromGrid('column', g, { title: 'Ventas', legend: true });
+    s.series[0]!.color = '#4472c4';
+    return s;
+  };
+  /** Un original «de otro programa»: lo que Nova escribe más cosas que Nova no modela. */
+  const foreign = () => {
+    let xml = chartXml(base(), gridSource(g), 'rId1');
+    xml = xml.replace('<c:roundedCorners val="0"/>', '<c:date1904 val="0"/><c:lang val="es-ES"/><c:roundedCorners val="0"/><c:style val="2"/>');
+    xml = xml.replace('<c:plotArea><c:layout/>', '<c:plotArea><c:layout><c:manualLayout><c:x val="0.1"/><c:y val="0.2"/><c:w val="0.7"/><c:h val="0.6"/></c:manualLayout></c:layout>');
+    xml = xml.replace('<c:invertIfNegative val="0"/>', '<c:invertIfNegative val="0"/><c:dPt><c:idx val="2"/><c:invertIfNegative val="0"/><c:bubble3D val="0"/><c:spPr><a:gradFill><a:gsLst><a:gs pos="0"><a:srgbClr val="FF0000"/></a:gs></a:gsLst></a:gradFill></c:spPr></c:dPt>');
+    xml = xml.replace('<c:spPr><a:solidFill><a:srgbClr val="4472C4"></a:srgbClr></a:solidFill></c:spPr>', '<c:spPr><a:solidFill><a:srgbClr val="4472C4"></a:srgbClr></a:solidFill><a:effectLst><a:outerShdw blurRad="50800"/></a:effectLst></c:spPr>');
+    xml = xml.replace('</c:chartSpace>', '<c:printSettings><c:headerFooter/></c:printSettings><c:extLst><c:ext uri="{X}"/></c:extLst></c:chartSpace>');
+    return xml;
+  };
+
+  it('sin cambios se escribe el original tal cual', () => {
+    const o = foreign();
+    expect(rewriteChartFromGrid(o, base(), g)).toBe(o);
+  });
+
+  it('con cambios se aplican y se conserva lo que Nova no modela', () => {
+    const o = foreign();
+    const edited = base();
+    edited.legendPos = 'r';
+    edited.series[0]!.color = '#ff0000';
+    edited.title = 'Otro título';
+    const xml = rewriteChartFromGrid(o, edited, g)!;
+    expect(xml).toContain('<c:style val="2"/>');
+    expect(xml).toContain('<c:manualLayout>');
+    expect(xml).toContain('<a:gradFill>'); // el punto que Nova no entiende
+    expect(xml).toContain('<c:printSettings>');
+    expect(xml).toContain('<c:extLst>');
+    expect(xml.indexOf('<c:extLst>')).toBeGreaterThan(xml.indexOf('<c:printSettings>'));
+    expect(xml).toContain('<c:legendPos val="r"/>');
+    expect(xml).toContain('Otro título');
+    expect(xml).toContain('FF0000');
+    expect(xml).not.toContain('4472C4"></a:srgbClr></a:solidFill><a:effectLst>'); // el color viejo cambió
+    const back = parseChart(dmlParser.parse(xml));
+    if (!('def' in back)) throw new Error('skip');
+    expect(back.def.title).toBe('Otro título');
+    expect(back.def.legendPos).toBe('r');
+    expect(back.def.series[0]!.color).toBe('#ff0000');
+  });
+
+  it('lo que la persona quita desaparece y los datos nuevos salen en la caché', () => {
+    const o = foreign();
+    const edited = base();
+    edited.title = undefined;
+    const g2 = sampleGrid();
+    g2[1]![1] = 99;
+    const xml = rewriteChartFromGrid(o, edited, g2)!;
+    expect(xml).not.toContain('Ventas');
+    expect(xml).toContain('<c:v>99</c:v>');
+    expect(xml).not.toContain('<c:v>4.3</c:v>');
+    expect(xml).toContain('<c:manualLayout>');
+  });
+});
+
+describe('libro incrustado original', () => {
+  it('se parchean solo las celdas que cambian y se añaden las nuevas en su sitio', async () => {
+    const before: ChartGrid = [['', 'A', 'B'], ['x', 1, 2], ['y', 3, 4]];
+    const after: ChartGrid = [['', 'A', 'B'], ['x', 1, 20], ['y', 3, 4], ['z', 5, 'texto']];
+    const book = await writeGridWorkbook(before);
+    const patched = await patchGridWorkbook(book, before, after);
+    const back = await readGridWorkbook(patched);
+    expect(back[1]).toEqual(['x', 1, 20]);
+    expect(back[2]).toEqual(['y', 3, 4]);
+    expect(back[3]).toEqual(['z', 5, 'texto']);
+    // sin cambios, los mismos bytes
+    expect(await patchGridWorkbook(book, before, before)).toBe(book);
+  });
+
+  it('las referencias de la rejilla usan el nombre de hoja del original', () => {
+    const s = specFromGrid('column', sampleGrid(), {}, 'Hoja1');
+    expect(s.series[0]!.values).toBe('Hoja1!$B$2:$B$5');
+    expect(s.series[0]!.nameRef).toBe('Hoja1!$B$1');
+  });
+});
+
+describe('fusión: elementos de los que el esquema permite uno solo', () => {
+  it('un color nuevo sustituye al del tema del original (no quedan dos colores en el relleno)', () => {
+    const g = sampleGrid();
+    const spec = specFromGrid('column', g, {});
+    spec.series[0]!.color = '#4472c4';
+    const o = chartXml(spec, gridSource(g), 'rId1').replace('<a:srgbClr val="4472C4"></a:srgbClr>', '<a:schemeClr val="accent1"/>');
+    const edited = specFromGrid('column', g, {});
+    edited.series[0]!.color = '#c00000';
+    const xml = rewriteChartFromGrid(o, edited, g)!;
+    expect(xml).toContain('C00000');
+    expect(xml).not.toContain('accent1');
+    expect(xml.match(/<a:solidFill>/g)!.length).toBe(o.match(/<a:solidFill>/g)!.length);
+  });
+
+  it('un degradado del original no se queda junto al relleno nuevo', () => {
+    const g = sampleGrid();
+    const spec = specFromGrid('column', g, {});
+    const o = chartXml(spec, gridSource(g), 'rId1').replace('<c:invertIfNegative val="0"/>', '<c:spPr><a:gradFill><a:gsLst/></a:gradFill></c:spPr><c:invertIfNegative val="0"/>');
+    const edited = specFromGrid('column', g, {});
+    edited.series[0]!.color = '#00b050';
+    const xml = rewriteChartFromGrid(o, edited, g)!;
+    expect(xml).toContain('00B050');
+    expect(xml).not.toContain('gradFill');
+  });
+});
+
+describe('fusión: ejes con otros identificadores', () => {
+  it('los ejes del original (con sus propios axId) se fusionan por posición y no se duplican', () => {
+    const g = sampleGrid();
+    const spec = specFromGrid('column', g, {});
+    const o = chartXml(spec, gridSource(g), 'rId1').replace(/val="111"/g, 'val="500111"').replace(/val="222"/g, 'val="500222"');
+    const edited = specFromGrid('column', g, {});
+    edited.axisY = { title: 'Euros' };
+    edited.legend = true;
+    const xml = rewriteChartFromGrid(o, edited, g)!;
+    expect(xml.match(/<c:catAx>/g)!.length).toBe(1);
+    expect(xml.match(/<c:valAx>/g)!.length).toBe(1);
+    expect(xml).toContain('Euros');
+    expect(xml).toContain('500111');
+    expect(xml).not.toContain('val="111"');
+  });
+});
+
+describe('series sin nombre en el archivo', () => {
+  it('reciben «Serie n» en la cabecera de su columna y la rejilla queda completa', async () => {
+    const { readChartPart } = await import('./index');
+    const g = sampleGrid();
+    const spec = specFromGrid('column', g, {});
+    for (const s of spec.series) delete s.nameRef;
+    const read = readChartPart(chartXml(spec, gridSource(g)));
+    if ('skip' in read) throw new Error('skip');
+    expect(read.grid[0]!.slice(1)).toEqual(['Serie 1', 'Serie 2']);
+    expect(read.spec.series[0]!.nameRef).toBe('Sheet1!$B$1');
   });
 });
