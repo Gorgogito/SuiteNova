@@ -3,3 +3,6 @@ export * from './umath';
 export * from './tables';
 export * from './xml';
 export * from './omml';
+export * from './edit';
+export * from './structures';
+export * from './editview';

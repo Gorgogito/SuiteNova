@@ -199,6 +199,9 @@ importers:
       '@suitenova/mail-core':
         specifier: workspace:*
         version: link:../../packages/mail-core
+      '@suitenova/math-core':
+        specifier: workspace:*
+        version: link:../../packages/math-core
       '@suitenova/notes-core':
         specifier: workspace:*
         version: link:../../packages/notes-core

@@ -1,10 +1,11 @@
 import { Button, Checkbox, Input, Select } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { nodeTypes, parseMath, scaleGroupContent, toMathML } from '@suitenova/writer-core';
+import { nodeTypes, parseMath, scaleGroupContent, toTex, type MNode } from '@suitenova/writer-core';
 import { NodeSelection } from 'prosemirror-state';
 import { outerGroupPos } from './shape-selection';
-import { useMemo, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { WriterUI } from './commands';
+import { EquationEditor } from '../math/EquationEditor';
 import { Modal, field, focusDocSoon } from './dialogs';
 import { formatDatePattern, type ControlType } from './forms';
 
@@ -19,125 +20,57 @@ export const EQUATION_SAMPLES: { label: string; tex: string }[] = [
   { label: 'Límite', tex: String.raw`\lim_{x \to 0} \frac{\sin x}{x}=1` },
 ];
 
-const PALETTE: { name: string; items: { label: string; tex: string; caret?: number }[] }[] = [
-  {
-    name: 'Estructuras',
-    items: [
-      { label: 'a/b', tex: String.raw`\frac{a}{b}` },
-      { label: '√x', tex: String.raw`\sqrt{x}` },
-      { label: 'ⁿ√x', tex: String.raw`\sqrt[n]{x}` },
-      { label: 'xⁿ', tex: 'x^{n}' },
-      { label: 'xᵢ', tex: 'x_{i}' },
-      { label: 'xᵢⁿ', tex: 'x_{i}^{n}' },
-      { label: '∑', tex: String.raw`\sum_{i=1}^{n} ` },
-      { label: '∏', tex: String.raw`\prod_{i=1}^{n} ` },
-      { label: '∫', tex: String.raw`\int_{a}^{b} f(x)\,dx` },
-      { label: 'lím', tex: String.raw`\lim_{x \to 0} ` },
-      { label: '( )', tex: String.raw`\left( x \right)` },
-      { label: '[ ]', tex: String.raw`\left[ x \right]` },
-      { label: '(ⁿₖ)', tex: String.raw`\binom{n}{k}` },
-      { label: 'Matriz', tex: String.raw`\begin{pmatrix} a & b \\ c & d \end{pmatrix}` },
-      { label: 'Sistema', tex: String.raw`\begin{cases} x+y=1 \\ x-y=0 \end{cases}` },
-      { label: 'hat', tex: String.raw`\hat{x}` },
-      { label: 'vec', tex: String.raw`\vec{x}` },
-      { label: 'bar', tex: String.raw`\overline{x}` },
-    ],
-  },
-  {
-    name: 'Griegas',
-    items: 'α β γ δ ε ζ η θ ι κ λ μ ν ξ π ρ σ τ υ φ χ ψ ω Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω'.split(' ').map((g) => ({
-      label: g,
-      tex: '\\' + ({ α: 'alpha', β: 'beta', γ: 'gamma', δ: 'delta', ε: 'epsilon', ζ: 'zeta', η: 'eta', θ: 'theta', ι: 'iota', κ: 'kappa', λ: 'lambda', μ: 'mu', ν: 'nu', ξ: 'xi', π: 'pi', ρ: 'rho', σ: 'sigma', τ: 'tau', υ: 'upsilon', φ: 'phi', χ: 'chi', ψ: 'psi', ω: 'omega', Γ: 'Gamma', Δ: 'Delta', Θ: 'Theta', Λ: 'Lambda', Ξ: 'Xi', Π: 'Pi', Σ: 'Sigma', Φ: 'Phi', Ψ: 'Psi', Ω: 'Omega' } as Record<string, string>)[g] + ' ',
-    })),
-  },
-  {
-    name: 'Operadores',
-    items: [
-      ['±', 'pm'], ['×', 'times'], ['÷', 'div'], ['·', 'cdot'], ['≤', 'leq'], ['≥', 'geq'], ['≠', 'neq'], ['≈', 'approx'], ['≡', 'equiv'], ['∞', 'infty'], ['∂', 'partial'], ['∇', 'nabla'], ['∈', 'in'], ['∉', 'notin'], ['⊂', 'subset'], ['∪', 'cup'], ['∩', 'cap'], ['→', 'to'], ['⇒', 'Rightarrow'], ['⇔', 'Leftrightarrow'], ['∀', 'forall'], ['∃', 'exists'], ['…', 'ldots'], ['°', 'degree'],
-    ].map(([label, cmd]) => ({ label: label!, tex: `\\${cmd} ` })),
-  },
-  {
-    name: 'Funciones',
-    items: ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'max', 'min', 'det'].map((f) => ({ label: f, tex: `\\${f} ` })),
-  },
-];
-
 export function EquationDialog({ ui, pos, onClose }: { ui: WriterUI; pos?: number; onClose: () => void }) {
   const ctl = ui.ctl;
   const existing = pos !== undefined ? ctl.mainView?.state.doc.nodeAt(pos) : null;
   const initial = existing && existing.type.name === 'math' ? (existing.attrs.tex as string) : (ctl.mainState && !ctl.mainState.selection.empty ? ctl.mainState.doc.textBetween(ctl.mainState.selection.from, ctl.mainState.selection.to, ' ') : '');
   const [tex, setTex] = useState(initial);
+  const [tree, setTree] = useState<MNode>(() => parseMath(initial));
   const [display, setDisplay] = useState(existing && existing.type.name === 'math' ? !!existing.attrs.display : false);
-  const [tab, setTab] = useState(0);
-  const area = useRef<HTMLTextAreaElement>(null);
-  const preview = useMemo(() => {
-    try {
-      return tex.trim() ? toMathML(parseMath(tex), display) : '';
-    } catch {
-      return '';
+  const setCode = (code: string) => {
+    setTex(code);
+    setTree(parseMath(code));
+  };
+  const accept = () => {
+    const v = ctl.mainView;
+    if (v) {
+      const node = nodeTypes.math!.create({ tex: tex.trim(), display });
+      if (existing && pos !== undefined) v.dispatch(v.state.tr.setNodeMarkup(pos, undefined, node.attrs));
+      else v.dispatch(v.state.tr.replaceSelectionWith(node, false).scrollIntoView());
     }
-  }, [tex, display]);
-  const insertAt = (snippet: string) => {
-    const el = area.current;
-    const a = el?.selectionStart ?? tex.length;
-    const b = el?.selectionEnd ?? tex.length;
-    const next = tex.slice(0, a) + snippet + tex.slice(b);
-    setTex(next);
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(a + snippet.length, a + snippet.length);
-    });
+    onClose();
+    focusDocSoon(ui);
   };
   return (
     <Modal
       title={t('Ecuación')}
-      width={680}
+      width={720}
       onClose={onClose}
       actions={
         <>
           <Button onClick={onClose}>{t('Cancelar')}</Button>
-          <Button
-            appearance="primary"
-            disabled={!tex.trim()}
-            onClick={() => {
-              const v = ctl.mainView;
-              if (v) {
-                const node = nodeTypes.math!.create({ tex: tex.trim(), display });
-                if (existing && pos !== undefined) v.dispatch(v.state.tr.setNodeMarkup(pos, undefined, node.attrs));
-                else v.dispatch(v.state.tr.replaceSelectionWith(node, false).scrollIntoView());
-              }
-              onClose();
-              focusDocSoon(ui);
-            }}
-          >
+          <Button appearance="primary" disabled={!tex.trim()} onClick={accept}>
             {t('Aceptar')}
           </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }} role="tablist">
-        {PALETTE.map((g, i) => (
-          <Button key={g.name} size="small" appearance={tab === i ? 'primary' : 'secondary'} role="tab" aria-selected={tab === i} onClick={() => setTab(i)}>
-            {t(g.name)}
-          </Button>
-        ))}
+      <EquationEditor
+        value={tree}
+        autoFocus
+        onChange={(n) => {
+          setTree(n);
+          setTex(toTex(n).trim());
+        }}
+      />
+      <div style={{ ...field, marginTop: 8 }}>
+        <label htmlFor="nw-eq-src">{t('Código LaTeX (se actualiza solo; también se puede escribir aquí)')}</label>
+        <textarea id="nw-eq-src" className="nw-card-edit" style={{ minHeight: 48, fontFamily: 'Consolas, monospace' }} value={tex} onChange={(e) => setCode(e.target.value)} />
       </div>
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minHeight: 64, marginBottom: 8 }}>
-        {PALETTE[tab]!.items.map((it) => (
-          <Button key={it.label + it.tex} size="small" onClick={() => insertAt(it.tex)} title={it.tex}>
-            {it.label}
-          </Button>
-        ))}
-      </div>
-      <div style={field}>
-        <label htmlFor="nw-eq-src">{t('Ecuación (escriba en formato LaTeX o use los botones)')}</label>
-        <textarea id="nw-eq-src" ref={area} className="nw-card-edit" style={{ minHeight: 70, fontFamily: 'Consolas, monospace' }} value={tex} autoFocus onChange={(e) => setTex(e.target.value)} />
-      </div>
-      <div className="nw-eq-preview" aria-label={t('Vista previa')} dangerouslySetInnerHTML={{ __html: preview || `<span style="color:#888">${t('Vista previa')}</span>` }} />
       <Checkbox checked={display} onChange={(_e, d) => setDisplay(!!d.checked)} label={t('Ecuación en su propia línea (centrada)')} />
       <div style={{ ...field, marginTop: 8 }}>
         <label htmlFor="nw-eq-sample">{t('Ecuaciones frecuentes')}</label>
-        <Select id="nw-eq-sample" value="" onChange={(_e, d) => d.value && setTex(d.value)}>
+        <Select id="nw-eq-sample" value="" onChange={(_e, d) => d.value && setCode(d.value)}>
           <option value="">—</option>
           {EQUATION_SAMPLES.map((s) => (
             <option key={s.label} value={s.tex}>

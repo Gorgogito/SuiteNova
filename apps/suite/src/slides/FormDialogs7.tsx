@@ -1,7 +1,9 @@
 import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
+import { parseMath, toTex, type MNode } from '@suitenova/math-core';
 import { newPicture, withAdjust, type PicEl } from '@suitenova/slides-core';
 import { useEffect, useState } from 'react';
+import { EquationEditor } from '../math/EquationEditor';
 import type { SlidesUI } from './commands';
 import { Modal } from './Dialogs';
 import { EQUATION_EXAMPLES, EQUATION_NAME, mathml, renderEquation } from './equation';
@@ -15,6 +17,7 @@ export function EquationDialog({ ui, onClose }: P) {
   const sel = c.selected.length === 1 ? c.selected[0]! : null;
   const editing = sel && sel.kind === 'pic' && sel.name === EQUATION_NAME ? sel : null;
   const [latex, setLatex] = useState(editing?.descr || 'x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}');
+  const [tree, setTree] = useState<MNode>(() => parseMath(editing?.descr || 'x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}'));
   const [error, setError] = useState('');
   const [html, setHtml] = useState('');
   const [busy, setBusy] = useState(false);
@@ -64,12 +67,13 @@ export function EquationDialog({ ui, onClose }: P) {
       <div className="sl-form">
         <div className="sl-layouts" role="group" aria-label={t('Ejemplos')}>
           {EQUATION_EXAMPLES.map((e) => (
-            <button key={e.name} type="button" className="sl-chip" onClick={() => setLatex(e.latex)}>{t(e.name)}</button>
+            <button key={e.name} type="button" className="sl-chip" onClick={() => { setLatex(e.latex); setTree(parseMath(e.latex)); }}>{t(e.name)}</button>
           ))}
         </div>
+        <EquationEditor value={tree} autoFocus onChange={(n) => setLatex(toTex(n).trim())} />
         <label className="sl-field">
-          <span>{t('Fórmula (LaTeX)')}</span>
-          <textarea rows={3} aria-label={t('Fórmula en LaTeX')} value={latex} onChange={(e) => setLatex(e.target.value)} spellCheck={false} />
+          <span>{t('Código LaTeX (se actualiza solo; también se puede escribir aquí)')}</span>
+          <textarea rows={2} aria-label={t('Fórmula en LaTeX')} value={latex} onChange={(e) => { setLatex(e.target.value); setTree(parseMath(e.target.value)); }} spellCheck={false} />
         </label>
         <div className="sl-eqprev" aria-label={t('Vista previa de la fórmula')} data-testid="eq-preview">
           {error ? <span role="alert" className="sl-eqerr">{error}</span> : <span dangerouslySetInnerHTML={{ __html: html }} />}

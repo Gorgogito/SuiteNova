@@ -65,7 +65,7 @@ await check('equation: insert from the dialog, preview, MathML drawn, edit by do
   await page.locator('#nw-eq-src').waitFor();
   await page.locator('#nw-eq-src').fill(String.raw`\frac{a}{b}+\sqrt{x^{2}}`);
   await settle(300);
-  assert.equal(await page.locator('.nw-eq-preview math').count(), 1, 'preview');
+  assert.equal(await page.locator('[data-testid=equation-editor] math').count(), 1, 'the editor draws the equation');
   await shot('equation-dialog');
   await page.getByRole('button', { name: 'Aceptar' }).click();
   await settle();

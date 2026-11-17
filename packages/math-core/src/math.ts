@@ -508,7 +508,7 @@ export function toMathML(n: MNode, display = false): string {
 }
 
 /** El atributo `mathvariant` de un carácter con estilo. */
-function variant(n: RunFmt): string {
+export function variant(n: RunFmt): string {
   if (n.scr) return ` mathvariant="${n.scr}"`;
   return n.sty === 'b' ? ' mathvariant="bold"' : n.sty === 'bi' ? ' mathvariant="bold-italic"' : n.sty === 'p' ? ' mathvariant="normal"' : n.sty === 'i' ? ' mathvariant="italic"' : '';
 }
@@ -526,7 +526,7 @@ function mm(n: MNode): string {
       return `<mfrac${n.bar ? '' : ' linethickness="0"'}${n.kind === 'skw' ? ' bevelled="true"' : ''}>${mm(n.n)}${mm(n.d)}</mfrac>`;
     case 'pre': return `<mmultiscripts>${mm(n.b)}<mprescripts/>${mm(n.sub)}${mm(n.sup)}</mmultiscripts>`;
     case 'eqarr': return `<mtable columnalign="left">${n.rows.map((r) => `<mtr><mtd>${mm(r)}</mtd></mtr>`).join('')}</mtable>`;
-    case 'box': return n.border ? `<menclose notation="box">${mm(n.c)}</menclose>` : mm(n.c);
+    case 'box': return n.border ? `<mrow class="nm-box" style="border:1px solid currentColor;padding:0.15em">${mm(n.c)}</mrow>` : mm(n.c);
     case 'sup': return `<msup>${mm(n.b)}${mm(n.s)}</msup>`;
     case 'sub': return `<msub>${mm(n.b)}${mm(n.s)}</msub>`;
     case 'subsup': return `<msubsup>${mm(n.b)}${mm(n.sub)}${mm(n.sup)}</msubsup>`;

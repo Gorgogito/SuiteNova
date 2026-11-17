@@ -114,6 +114,6 @@ describe('estilos y nodos nuevos', () => {
     expect(toMathML(parseMath(r`\mathbb{R}`))).toContain('mathvariant="double-struck"');
     expect(toMathML(parseMath(r`\mathbf{x}`))).toContain('mathvariant="bold"');
     expect(toMathML({ t: 'pre', b: { t: 'id', v: 'C' }, sub: { t: 'num', v: '6' }, sup: { t: 'num', v: '14' } })).toContain('<mprescripts/>');
-    expect(toMathML(parseMath(r`\boxed{x}`))).toContain('menclose');
+    expect(toMathML(parseMath(r`\boxed{x}`))).toContain('nm-box');
   });
 });
