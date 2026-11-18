@@ -1,0 +1,107 @@
+Frases: 50. Word marcó algo en 17; errores de GrammarErrors en total: 0.
+Ortografía idéntica: 37/50
+Gramática (marca o no) coincide: 23/50
+Todo junto (alguna marca) coincide: 22/50
+
+es «Vamos a ver el la película.»
+   ortografía Word=["el la"] Nova=[]
+   gramática  Word=[] Nova=[]
+es «El casa es grande.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["agreement:El casa"]
+es «La libro está en la mesa.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["agreement:La libro"]
+es «Los gatos negra duermen.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["agreement:gatos negra"]
+es «Las casas blancos son bonitas.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["agreement:casas blancos"]
+es «Pienso de que vendrá mañana.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["dequeismo:de"]
+es «Habían muchas personas en la fiesta.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["haber-impersonal:Habían"]
+es «Hay que haber que pasa.»
+   ortografía Word=["que"] Nova=[]
+   gramática  Word=[] Nova=[]
+es «El perro perro ladra.»
+   ortografía Word=["perro"] Nova=[]
+   gramática  Word=[] Nova=["repeated-word:perro perro"]
+es «Hola  mundo con dos espacios.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["double-space:  "]
+es «Hola , mundo con espacio antes de la coma.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["space-before-punctuation: "]
+es «Hola,mundo sin espacio después de la coma.»
+   ortografía Word=["Hola,mundo"] Nova=[]
+   gramática  Word=[] Nova=["missing-space-after:,"]
+es «Qué hora es?»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["unmatched-pair:?"]
+es «¿Qué hora es»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["unmatched-pair:¿"]
+es «Dijo (que vendría.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["unmatched-pair:("]
+es «hola. mañana vengo.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["capital-after-period:h","capital-after-period:m"]
+es «Lo hizo a nivel de empresa.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["a-nivel-de:a nivel de"]
+es «Lo hizo en base a la ley.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["en-base-a:en base a"]
+es «De acuerdo a lo dicho, iré.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["de-acuerdo-a:De acuerdo a"]
+es «La agua fría es buena.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["agreement:La agua"]
+es «Ha echo la tarea.»
+   ortografía Word=["echo"] Nova=[]
+   gramática  Word=[] Nova=["hecho:echo"]
+es «No lo se si viene.»
+   ortografía Word=["se"] Nova=[]
+   gramática  Word=[] Nova=[]
+es «Esta bien, gracias.»
+   ortografía Word=["Esta"] Nova=[]
+   gramática  Word=[] Nova=[]
+es «Aun no ha llegado.»
+   ortografía Word=["Aun"] Nova=[]
+   gramática  Word=[] Nova=[]
+en «This is is a test.»
+   ortografía Word=["is"] Nova=[]
+   gramática  Word=[] Nova=[]
+en «I saw a elephant.»
+   ortografía Word=["a"] Nova=[]
+   gramática  Word=[] Nova=["a-an:a"]
+en «He is an teacher.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["a-an:an"]
+en «i like pizza.»
+   ortografía Word=["i"] Nova=[]
+   gramática  Word=[] Nova=["capital-after-period:i","lone-i:i"]
+en «Hello  world with two spaces.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["double-space:  "]
+en «Hello , world with a space before the comma.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["space-before-punctuation: "]
+en «Hello,world without space after the comma.»
+   ortografía Word=["Hello,world"] Nova=[]
+   gramática  Word=[] Nova=["missing-space-after:,"]
+en «He said (that he would come.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["unmatched-pair:("]
+en «hello. tomorrow I will come.»
+   ortografía Word=[] Nova=[]
+   gramática  Word=[] Nova=["capital-after-period:h","capital-after-period:t"]
+en «Their going to the store.»
+   ortografía Word=["Their"] Nova=[]
+   gramática  Word=[] Nova=[]
