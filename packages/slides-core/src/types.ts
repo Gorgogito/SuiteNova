@@ -189,6 +189,8 @@ export interface RunProps {
   spc?: number;
   kern?: number;
   lang?: string;
+  /** «No revisar la ortografía ni la gramática» (`noProof`). */
+  noProof?: boolean;
   /** text fill / outline / effects (WordArt) */
   fx?: TextEffects;
   hlink?: Hyperlink;

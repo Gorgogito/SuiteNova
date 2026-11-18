@@ -393,6 +393,8 @@ export function readRunProps(n: XNode | undefined, ctx: DmlCtx): RunProps {
   if (kern !== undefined) r.kern = kern / 100;
   const lang = attrOf(n, 'lang');
   if (lang) r.lang = lang;
+  const np = attrOf(n, 'noProof');
+  if (np === '1' || np === 'true') r.noProof = true;
   const latin = findKid(n, 'latin');
   if (latin) r.latin = attrOf(latin, 'typeface');
   const ea = findKid(n, 'ea');

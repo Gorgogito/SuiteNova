@@ -1,4 +1,5 @@
 import { documentFormulas } from '@suitenova/notes-core';
+import { spellPlugin } from '../spell';
 import { nodeTypes } from '@suitenova/writer-core';
 import { baseKeymap } from 'prosemirror-commands';
 import { history } from 'prosemirror-history';
@@ -128,5 +129,6 @@ export function textPlugins(ctl: NotesCtl): Plugin[] {
     pageLinkPlugin(ctl),
     painterPlugin(ctl),
     formulaPlugin(),
+    spellPlugin(),
   ];
 }

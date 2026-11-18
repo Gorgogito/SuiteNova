@@ -1446,6 +1446,46 @@ await check('views: outline (type, Enter, Tab, Shift+Tab, undo), slide sorter (s
   await page.waitForSelector('.sl-surface');
 });
 
+await check('proofing: underlines while editing, language per text (saved) and «no revisar»', async () => {
+  await ev(() => { const c = window.__novaSlides.ctl; c.newDoc(); c.goTo(0); });
+  await clickAt(480, 200);
+  await settle();
+  if (!(await state()).editing) await page.keyboard.press('Enter');
+  await settle();
+  await page.keyboard.type('Una cassa the house biig fin');
+  await settle(2500);
+  const red = () => page.locator('.sl-pm .nw-misspelled').allInnerTexts();
+  assert.ok((await red()).includes('cassa') && (await red()).includes('house'), JSON.stringify(await red()));
+  const select = (needle) => ev((n) => {
+    const v = window.__novaSlides.ctl.editor;
+    let f = null;
+    v.state.doc.descendants((node, pos) => { if (!f && node.isText && node.text.includes(n)) f = [pos + node.text.indexOf(n), pos + node.text.indexOf(n) + n.length]; return true; });
+    v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc, f[0], f[1])));
+  }, needle);
+  await select('the house biig');
+  await tab('Revisar');
+  await btn('Idioma');
+  await page.getByRole('menuitem', { name: 'Idioma de la selección: English' }).click();
+  await settle(2500);
+  assert.deepEqual(await red(), ['cassa', 'biig']);
+  await page.locator('.sl-pm .nw-misspelled', { hasText: 'cassa' }).click({ button: 'right' });
+  await page.locator('.nv-sp-menu [role=menuitem]', { hasText: /^casa$/ }).click();
+  await settle(600);
+  assert.ok(!(await red()).includes('cassa'));
+  await page.keyboard.type(' cassa');
+  await settle(800);
+  await select('biig');
+  await tab('Revisar');
+  await btn('Idioma');
+  await page.getByRole('menuitem', { name: 'No revisar la ortografía' }).click();
+  await settle(800);
+  assert.deepEqual(await red(), ['cassa']);
+  await page.keyboard.press('Escape');
+  const saved = await ev(() => JSON.stringify(window.__novaSlides.ctl.deck.slides[0].shapes));
+  assert.match(saved, /"lang":"en-US"/);
+  assert.match(saved, /"noProof":true/);
+});
+
 await check('no console errors or unexpected dialogs', async () => {
   assert.deepEqual(errors, []);
   assert.deepEqual(dialogs, []);

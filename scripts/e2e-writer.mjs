@@ -182,7 +182,7 @@ await check('hyperlink dialog rejects javascript: and creates http links', async
 
 await check('find and replace', async () => {
   await clearDoc();
-  await page.keyboard.insertText('gato perro gato Gato');
+  await page.keyboard.insertText('Gato perro gato Gato');
   await page.keyboard.press('Control+H');
   await page.getByPlaceholder('Buscar', { exact: true }).fill('gato');
   await settle();

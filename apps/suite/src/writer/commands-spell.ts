@@ -1,6 +1,6 @@
 import type { CommandDef } from '@suitenova/core-ui';
 import type { WriterUI } from './commands';
-import { SPELL_LANGS, issuesOf, type SpellLang } from '../spell';
+import { SPELL_LANGS, issuesOf, langOfSelection, noProofOfSelection, setSelectionLang, spellLangTag, toggleNoProof, type SpellLang } from '../spell';
 
 /** Spelling check: dialog, check while typing, language and personal dictionary. */
 export function spellCommands(ui: WriterUI): CommandDef[] {
@@ -34,6 +34,36 @@ export function spellCommands(ui: WriterUI): CommandDef[] {
         c.setSpellLang(l.id);
       },
     });
+  // idioma por texto: el de la selección (o de lo que se escriba), distinto del idioma del documento
+  const sel = () => (c.mainView ? langOfSelection(c.mainView.state) : null);
+  for (const l of SPELL_LANGS)
+    add({
+      id: `writer.spell.selLang.${l.id}`,
+      label: `Idioma de la selección: ${l.label}`,
+      icon: 'globe',
+      description: 'Marca el texto seleccionado con este idioma de revisión; se guarda en el archivo .docx.',
+      checked: () => sel() === spellLangTag(l.id),
+      enabled: () => !!c.mainView && !c.readOnly,
+      run: () => c.mainView && setSelectionLang(c.mainView, spellLangTag(l.id)),
+    });
+  add({
+    id: 'writer.spell.selLang.default',
+    label: 'Idioma de la selección: el del documento',
+    icon: 'globe',
+    description: 'Quita el idioma propio del texto seleccionado: vale el idioma del documento.',
+    checked: () => sel() === null,
+    enabled: () => !!c.mainView && !c.readOnly,
+    run: () => c.mainView && setSelectionLang(c.mainView, null),
+  });
+  add({
+    id: 'writer.spell.noProof',
+    label: 'No revisar la ortografía ni la gramática',
+    icon: 'check',
+    description: 'El texto seleccionado no se subraya ni se revisa.',
+    checked: () => !!c.mainView && noProofOfSelection(c.mainView.state),
+    enabled: () => !!c.mainView && !c.readOnly,
+    run: () => c.mainView && toggleNoProof(c.mainView),
+  });
   add({ id: 'writer.spell.next', label: 'Siguiente error', icon: 'arrowRight', enabled: () => !!c.mainView && issuesOf(c.mainView).length > 0, run: () => ui.openDialog('spell') });
   return defs;
 }

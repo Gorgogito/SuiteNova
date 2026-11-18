@@ -1,6 +1,8 @@
 import { docNode, emptyDocJson, slidesSchema, updateElement, type ShapeEl, type SlideElement, type TableEl } from '@suitenova/slides-core';
 import { EditorView } from 'prosemirror-view';
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { issueAt, onReviewOptions, ReviewMenu, setSpell, type Issue } from '../../spell';
+import { enableSpell, slidesHost } from '../spell';
 import { useAutofit } from '../render/autofit';
 import { shapeLayout, textBoxStyle, xfOf, type CanvasCtx } from '../render/SlideCanvas';
 import { promptDoc } from '../render/SlideCanvas';
@@ -12,6 +14,7 @@ export function ShapeTextEditor({ ctl, el, ctx }: { ctl: SlidesCtl; el: ShapeEl;
   const host = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const [menu, setMenu] = useState<{ issue: Issue; x: number; y: number } | null>(null);
   const { x, g, look, tc, body } = shapeLayout(ctx, el);
   const ec: EditContext = { tc, env: ctx.env, ph: look.fillClr };
   const ecRef = useRef(ec);
@@ -35,13 +38,26 @@ export function ShapeTextEditor({ ctl, el, ctx }: { ctl: SlidesCtl; el: ShapeEl;
           );
         } else if (!tr.getMeta(editCtxKey)) ctl.touch();
       },
-      attributes: { class: 'sl-pm', spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Texto de la forma' },
+      attributes: { class: 'sl-pm', spellcheck: 'false', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Texto de la forma' },
+      handleDOMEvents: {
+        contextmenu(v, event) {
+          const at = v.posAtCoords({ left: event.clientX, top: event.clientY });
+          const issue = at ? issueAt(v, at.pos) : null;
+          if (!issue) return false;
+          event.preventDefault();
+          setMenu({ issue, x: event.clientX, y: event.clientY });
+          return true;
+        },
+      },
     });
     viewRef.current = view;
     ctl.editor = view;
+    void enableSpell(view);
+    const off = onReviewOptions(() => !view.isDestroyed && setSpell(view, {}));
     view.dispatch(cursorAtEnd(view.state.tr));
     view.focus();
     return () => {
+      off();
       if (ctl.editor === view) ctl.editor = null;
       view.destroy();
       viewRef.current = null;
@@ -59,6 +75,7 @@ export function ShapeTextEditor({ ctl, el, ctx }: { ctl: SlidesCtl; el: ShapeEl;
   const colStyle: React.CSSProperties = body.numCol && body.numCol > 1 ? { columnCount: body.numCol, columnGap: body.spcCol ?? 0 } : {};
   return (
     <div className="sl-edit-wrap" style={wrap} data-editing={el.id}>
+      {menu && viewRef.current && <ReviewMenu host={slidesHost(viewRef.current)} viewId="edit" issue={menu.issue} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
       <div ref={box} className="sl-text sl-edit" style={{ ...style, pointerEvents: 'auto' }}>
         <div ref={host} style={{ width: body.wrap === 'none' ? undefined : '100%', ...colStyle }} />
       </div>

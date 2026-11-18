@@ -470,7 +470,7 @@ export class WriterCtl {
         chart: (n, v, g) => new ObjectView(n, v, g as () => number | undefined),
         smartart: (n, v, g) => new ObjectView(n, v, g as () => number | undefined),
       },
-      attributes: () => ({ class: `nw-doc${this.autoHyphenate ? ' nw-hyphens' : ''}`, lang: this.hyphenLang(), spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Documento' }),
+      attributes: () => ({ class: `nw-doc${this.autoHyphenate ? ' nw-hyphens' : ''}`, lang: this.hyphenLang(), spellcheck: 'false', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Documento' }),
       dispatchTransaction: (tr: Transaction) => {
         const v = this.mainView!;
         const tracking = !this.readOnly && (this.trackChanges || this.protection?.mode === 'trackedChanges');

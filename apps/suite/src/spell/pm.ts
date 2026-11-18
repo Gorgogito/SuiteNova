@@ -2,8 +2,9 @@ import type { SpellLang } from '@suitenova/spell-core';
 import type { Node as PMNode } from 'prosemirror-model';
 import { Plugin, PluginKey } from 'prosemirror-state';
 import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
-import type { DocSpellEngine, Misspelling } from './engine';
-import { getReviewOptions } from './options';
+import type { DocSpellEngine, MarkInfo, Misspelling } from './engine';
+import { loadedEngine, loadSpeller } from './load';
+import { getReviewOptions, notifyReview } from './options';
 import { reviewDoc, type Issue } from './review';
 
 interface SpellState {
@@ -22,11 +23,18 @@ const CLASS: Record<Issue['kind'], string> = { spelling: 'nw-misspelled', gramma
  * Subraya mientras se escribe: ortografía (rojo) y gramática, puntuación y estilo (azul). El motor llega de forma asíncrona (el diccionario
  * es grande), y `setSpell(view, ...)` activa o desactiva la revisión o cambia el idioma.
  */
-export function spellPlugin(): Plugin {
+export function spellPlugin(markInfo?: MarkInfo): Plugin {
   const build = (doc: PMNode, engine: DocSpellEngine | null, lang: SpellLang, on: boolean): Pick<SpellState, 'issues' | 'deco'> => {
     // sin diccionario todavía no se subraya nada (ni siquiera la gramática: aparecería a medias)
     if (!engine || !on) return { issues: [], deco: DecorationSet.empty };
-    const issues = reviewDoc(doc, { engine, lang, options: getReviewOptions() });
+    const issues = reviewDoc(doc, {
+      lang,
+      options: getReviewOptions(),
+      markInfo,
+      engineFor: loadedEngine,
+      // un texto en otro idioma: se carga su diccionario y se vuelve a subrayar cuando llegue
+      onMissing: (l) => void loadSpeller(l).then(notifyReview, () => {}),
+    });
     return {
       issues,
       deco: DecorationSet.create(

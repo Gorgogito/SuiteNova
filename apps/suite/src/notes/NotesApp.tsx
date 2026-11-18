@@ -1,4 +1,6 @@
 import { Button } from '@fluentui/react-components';
+import { DictionaryDialog, EditorPane, ReviewMenu, ReviewOptionsDialog, type Issue } from '../spell';
+import { notesHost } from './review-host';
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
 import { displayTitle, isLocked, newPage, newTextContainer, pageToMarkdown, parseNotebook, tagCss, type Container } from '@suitenova/notes-core';
 import { DEFAULT_DOC_DEFAULTS, defaultStyles, docFromText, flattenSections, readDocx, styleCss, writerSchema } from '@suitenova/writer-core';
@@ -144,6 +146,11 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   const [dialog, setDialog] = useState<{ kind: NotesDialog; arg?: unknown } | null>(null);
+  const [spellMenu, setSpellMenu] = useState<{ issue: Issue; viewId: string; x: number; y: number } | null>(null);
+  useEffect(() => {
+    ctl.onSpellMenu = (m) => setSpellMenu(m);
+    return ctl.watchReview();
+  }, [ctl]);
   const [saveState, setSaveState] = useState('');
   const [recording, setRecording] = useState<Recording | null>(null);
   const [clock, setClock] = useState(0);
@@ -750,6 +757,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
               </>
             )}
           </div>
+          {ctl.showEditor && <EditorPane host={notesHost(ctl)} onClose={() => ((ctl.showEditor = false), ctl.touch())} onOptions={() => setDialog({ kind: 'reviewOptions' })} />}
           {!ctl.fullPage && (
           <nav className="nn-pages" aria-label={t('Páginas')}>
             <button type="button" className="nn-newpage" onClick={() => ctl.addPage()}>
@@ -842,6 +850,9 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         {dlg === 'count' && <CountDialog ctl={ctl} onClose={closeDialog} />}
         {dlg === 'a11y' && <AccessibilityDialog ctl={ctl} onClose={closeDialog} openImage={(id) => setDialog({ kind: 'image', arg: id })} />}
         {dlg === 'spell' && <NotesSpellDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'reviewOptions' && <ReviewOptionsDialog lang={ctl.spellLang} onClose={closeDialog} onDictionary={() => setDialog({ kind: 'userDict' })} />}
+        {dlg === 'userDict' && <DictionaryDialog onClose={closeDialog} />}
+        {spellMenu && <ReviewMenu host={notesHost(ctl)} viewId={spellMenu.viewId} issue={spellMenu.issue} x={spellMenu.x} y={spellMenu.y} onClose={() => setSpellMenu(null)} onOptions={() => setDialog({ kind: 'reviewOptions' })} />}
         {dlg === 'read' && <ReadDialog ctl={ctl} onClose={closeDialog} />}
         {dlg === 'symbol' && <SymbolDialog ctl={ctl} onClose={closeDialog} />}
         {dlg === 'inkText' && <InkToTextDialog ctl={ctl} lang={ocrLang} onClose={closeDialog} />}

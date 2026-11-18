@@ -109,7 +109,7 @@ const UNDERLINE_TO_FILE: Record<string, string> = { single: 'single', double: 'd
 
 function rPr(marks: readonly Mark[], extra = '', tail = ''): string {
   let dstrike = '', spacing = '';
-  let fonts = '', b = '', i = '', strike = '', color = '', sz = '', u = '', shd = '', va = '', style = '', caps = '', lang = '';
+  let fonts = '', b = '', i = '', strike = '', color = '', sz = '', u = '', shd = '', va = '', style = '', caps = '', lang = '', noProof = '';
   for (const m of marks) {
     switch (m.type.name) {
       case 'strong': b = '<w:b/><w:bCs/>'; break;
@@ -126,11 +126,12 @@ function rPr(marks: readonly Mark[], extra = '', tail = ''): string {
       case 'fontSize': sz = `<w:sz w:val="${Math.round(m.attrs.value * 2)}"/><w:szCs w:val="${Math.round(m.attrs.value * 2)}"/>`; break;
       case 'link': style = '<w:rStyle w:val="Hyperlink"/>'; break;
       case 'caps': caps = m.attrs.value === 'small' ? '<w:smallCaps/>' : '<w:caps/>'; break;
+      case 'noproof': noProof = '<w:noProof/>'; break;
       case 'lang': lang = `<w:lang w:val="${esc(m.attrs.value)}"/>`; break;
     }
   }
   // schema order of w:rPr: rStyle, rFonts, b, i, caps/smallCaps, strike, color, sz, highlight/shd, u, vertAlign, lang
-  const inner = extra + style + fonts + b + i + caps + strike + dstrike + color + spacing + sz + u + shd + va + lang + tail;
+  const inner = extra + style + fonts + b + i + caps + strike + dstrike + noProof + color + spacing + sz + u + shd + va + lang + tail;
   return inner ? `<w:rPr>${inner}</w:rPr>` : '';
 }
 

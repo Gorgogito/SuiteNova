@@ -207,3 +207,16 @@ describe('imágenes: recorte, giro, borde y ajuste', () => {
     expect(dom[2][1].style).toContain('left:-100.0px');
   });
 });
+
+describe('DOCX: idioma de revisión y «no revisar»', () => {
+  it('w:lang y w:noProof sobreviven al guardar y abrir, en su orden de esquema', async () => {
+    const { r, xml } = await roundTrip(wd(p('hola', {}, [mk('lang', { value: 'es-MX' })]), p('hello', {}, [mk('lang', { value: 'en-US' }), mk('noproof')]), p('plain')));
+    const b = firstBlocks(r.doc);
+    expect(b[0]!.firstChild!.marks.find((m) => m.type.name === 'lang')!.attrs.value).toBe('es-MX');
+    const m1 = b[1]!.firstChild!.marks.map((m) => m.type.name).sort();
+    expect(m1).toEqual(['lang', 'noproof']);
+    expect(b[2]!.firstChild!.marks.map((m) => m.type.name)).toEqual([]);
+    expect(xml).toContain('<w:noProof/>');
+    expect(xml).toMatch(/<w:noProof\/>.*<w:lang w:val="en-US"\/>/);
+  });
+});

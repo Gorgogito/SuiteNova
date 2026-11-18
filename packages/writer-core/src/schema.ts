@@ -665,6 +665,11 @@ const marks: Record<string, MarkSpec> = {
     parseDOM: [{ tag: 'span[lang]', getAttrs: (dom) => ({ value: (dom as HTMLElement).getAttribute('lang') ?? '' }) }],
     toDOM: (m) => ['span', { lang: m.attrs.value }, 0],
   },
+  /** «No revisar la ortografía ni la gramática» (`w:noProof`). */
+  noproof: {
+    parseDOM: [{ tag: 'span[data-noproof]' }],
+    toDOM: () => ['span', { 'data-noproof': '1' }, 0],
+  },
   /** Small capitals and all capitals. */
   caps: {
     attrs: { value: { default: 'all' } },

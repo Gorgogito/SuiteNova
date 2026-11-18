@@ -14,7 +14,11 @@ const dict = (name: string) => {
   return new DocSpellEngine(nspell(fs.readFileSync(d + 'index.aff', 'utf8'), fs.readFileSync(d + 'index.dic', 'utf8')));
 };
 const es = dict('dictionary-es');
-const ctx = (over: Partial<ReviewCtx> = {}): ReviewCtx => ({ engine: es, lang: 'es', options: DEFAULT_REVIEW_OPTIONS, ...over });
+const engines: Record<string, DocSpellEngine | null> = { es, 'es-MX': dict('dictionary-es-mx'), en: dict('dictionary-en') };
+const ctx = (over: Partial<ReviewCtx> & { engine?: DocSpellEngine | null } = {}): ReviewCtx => {
+  const { engine, ...rest } = over;
+  return { lang: 'es', options: DEFAULT_REVIEW_OPTIONS, engineFor: (l) => (engine !== undefined ? (l === 'es' ? engine : null) : (engines[l] ?? null)), ...rest };
+};
 const p = (...c: (string | ReturnType<typeof writerSchema.text>)[]) => nodeTypes.paragraph!.create(null, c.map((x) => (typeof x === 'string' ? writerSchema.text(x) : x)));
 const apply = (doc: ReturnType<typeof docOf>, f: { from: number; to: number; text: string }) => {
   const tr = EditorState.create({ doc }).tr;
@@ -49,7 +53,7 @@ describe('revisión unificada de un documento', () => {
   it('la ortografía ofrece las sugerencias del diccionario sobre la palabra', () => {
     const doc = docOf([p('Una cassa.')]);
     const i = reviewDoc(doc, ctx())[0]!;
-    const fx = fixesOf(i, es);
+    const fx = fixesOf(i, (l) => engines[l] ?? null);
     expect(fx.map((f) => f.text)).toContain('casa');
     expect(apply(doc, fx.find((f) => f.text === 'casa')!)).toBe('Una casa.');
   });
@@ -77,9 +81,9 @@ describe('revisión unificada de un documento', () => {
     expect(reviewDoc(doc, ctx({ options: { ...DEFAULT_REVIEW_OPTIONS, rules: { 'double-space': false } } })).map((i) => i.kind)).toEqual(['spelling']);
   });
 
-  it('sin motor de ortografía todavía, la gramática se calcula igual', () => {
+  it('sin el diccionario todavía no se marca nada (ni gramática a medias)', () => {
     const doc = docOf([p('Hola  mundo.')]);
-    expect(reviewDoc(doc, ctx({ engine: null })).map((i) => i.rule)).toEqual(['double-space']);
+    expect(reviewDoc(doc, ctx({ engine: null }))).toEqual([]);
   });
 
   it('«omitir una vez» quita solo ese problema y «volver a revisar» lo devuelve', () => {
@@ -115,5 +119,44 @@ describe('revisión unificada de un documento', () => {
     expect(first).toHaveLength(800);
     expect(again).toHaveLength(800);
     expect(t2 - t1).toBeLessThan(Math.max(50, (t1 - t0) / 2));
+  });
+
+  describe('idioma por texto', () => {
+    const lang = (v: string) => writerSchema.marks.lang!.create({ value: v });
+    const t = (x: string, ...m: ReturnType<typeof lang>[]) => writerSchema.text(x, m);
+
+    it('cada tramo se revisa con su idioma: lo correcto en inglés no se marca en un documento en español', () => {
+      const doc = docOf([p('La casa y ', t('the house is big', lang('en-US')), ' son cassa.')]);
+      expect(reviewDoc(doc, ctx()).map((i) => i.text)).toEqual(['cassa']);
+      const doc2 = docOf([p('Esto es ', t('a recieve problem', lang('en-US')), '.')]);
+      const issues = reviewDoc(doc2, ctx());
+      expect(issues.map((i) => [i.text, i.lang])).toEqual([['recieve', 'en']]);
+    });
+
+    it('las variantes se leen de la etiqueta: es-MX acepta lo suyo y es-ES lo marca', () => {
+      expect(reviewDoc(docOf([p('Qué chévere')]), ctx()).map((i) => i.text)).toEqual(['chévere']);
+      expect(reviewDoc(docOf([p(t('Qué chévere', lang('es-MX')))]), ctx()).map((i) => i.text)).toEqual([]);
+    });
+
+    it('un idioma sin diccionario (francés) no se revisa, y «no revisar» tampoco', () => {
+      expect(reviewDoc(docOf([p(t('Bonjour le monde cassa', lang('fr-FR')))]), ctx())).toEqual([]);
+      const np = writerSchema.marks.noproof!.create();
+      expect(reviewDoc(docOf([p('Hola ', writerSchema.text('cassa', [np]), ' cassa')]), ctx()).map((i) => i.from)).toHaveLength(1);
+    });
+
+    it('la gramática usa las reglas del idioma del tramo (a/an en inglés dentro de un texto en español)', () => {
+      const doc = docOf([p('Dijo ', t('I saw a apple', lang('en-US')), ' ayer.')]);
+      const issues = reviewDoc(doc, ctx());
+      expect(issues.map((i) => i.rule)).toEqual(['a-an']);
+      expect(doc.textBetween(issues[0]!.from, issues[0]!.to)).toBe('a');
+    });
+
+    it('si falta el diccionario de un tramo se avisa y se revisa el resto', () => {
+      const missing: string[] = [];
+      const doc = docOf([p('cassa ', t('recieve', lang('en-US')))]);
+      const issues = reviewDoc(doc, ctx({ engineFor: (l) => (l === 'es' ? es : null), onMissing: (l) => missing.push(l) }));
+      expect(issues.filter((i) => i.kind === 'spelling').map((i) => i.text)).toEqual(['cassa']);
+      expect(missing).toEqual(['en']);
+    });
   });
 });

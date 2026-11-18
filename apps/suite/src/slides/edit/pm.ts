@@ -5,6 +5,8 @@ import { keymap } from 'prosemirror-keymap';
 import type { Node as PMNode } from 'prosemirror-model';
 import { EditorState, Plugin, PluginKey, TextSelection, type Command, type Transaction } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
+import { spellPlugin } from '../../spell';
+import { slidesMarkInfo } from '../spell';
 import { cssText, effectiveParaProps, numberParas, paraInfo, runStyle, type TextEnv } from '../render/TextView';
 
 /*
@@ -222,6 +224,7 @@ export function editPlugins(ec: () => EditContext, initial: EditContext): Plugin
   return [
     history(),
     decorationPlugin(initial),
+    spellPlugin(slidesMarkInfo),
     keymap({
       Enter: makeEnter(ec),
       'Shift-Enter': softBreak,

@@ -323,6 +323,72 @@ await check('the selected language survives a reload (es-MX is kept)', async () 
   await waitEngine();
 });
 
+const selectText = (needle) =>
+  ev((n) => {
+    const v = window.__novaWriter.ctl.mainView;
+    let found = null;
+    v.state.doc.descendants((node, pos) => {
+      if (found || !node.isText) return;
+      const i = node.text.indexOf(n);
+      if (i >= 0) found = [pos + i, pos + i + n.length];
+    });
+    if (!found) throw new Error('no se encontró ' + n);
+    v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc, found[0], found[1])));
+    v.focus();
+  }, needle);
+
+await check('language per text: the English part is checked in English inside a Spanish document', async () => {
+  await resetOptions();
+  await newDoc();
+  await page.keyboard.type('Esta cassa y the house is biig listo.');
+  await settle(900);
+  assert.ok((await underlined()).includes('house'), JSON.stringify(await underlined()));
+  await selectText('the house is biig');
+  await tab('Revisar');
+  await page.getByRole('button', { name: 'Idioma del texto' }).click();
+  await page.getByRole('menuitem', { name: 'Idioma de la selección: English' }).click();
+  await settle(2500);
+  assert.deepEqual(await underlined(), ['cassa', 'biig']);
+  const langs = await ev(() => {
+    const out = [];
+    window.__novaWriter.ctl.mainView.state.doc.descendants((n) => {
+      if (n.isText) out.push([n.text, n.marks.filter((m) => m.type.name === 'lang').map((m) => m.attrs.value)]);
+      return true;
+    });
+    return out;
+  });
+  assert.deepEqual(langs.map((l) => l[1][0] ?? null), [null, 'en-US', null]);
+  await shot('lang-per-text');
+});
+
+await check('the selection language menu shows what the text has, and can go back to the document language', async () => {
+  await selectText('the house is biig');
+  await tab('Revisar');
+  await page.getByRole('button', { name: 'Idioma del texto' }).click();
+  await page.getByRole('menuitem', { name: 'Idioma de la selección: el del documento' }).click();
+  await settle(900);
+  assert.ok((await underlined()).includes('house'));
+});
+
+await check('«No revisar» hides the underline of the selection and can be undone', async () => {
+  await newDoc();
+  await page.keyboard.type('Una cassa y otra cassa.');
+  await settle(800);
+  assert.deepEqual(await underlined(), ['cassa', 'cassa']);
+  await selectText('cassa');
+  await tab('Revisar');
+  await page.getByRole('button', { name: 'Ortografía' }).last().click();
+  await page.getByRole('menuitem', { name: 'No revisar la ortografía ni la gramática' }).click();
+  await settle(700);
+  assert.deepEqual(await underlined(), ['cassa']);
+  await selectText('cassa');
+  await tab('Revisar');
+  await page.getByRole('button', { name: 'Ortografía' }).last().click();
+  await page.getByRole('menuitem', { name: 'No revisar la ortografía ni la gramática' }).click();
+  await settle(700);
+  assert.deepEqual(await underlined(), ['cassa', 'cassa']);
+});
+
 await check('no console errors', async () => {
   assert.deepEqual(errors, []);
 });

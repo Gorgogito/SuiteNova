@@ -101,6 +101,8 @@ import type { Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import { TextSelection } from 'prosemirror-state';
+import { isSpellLang, type SpellLang } from '@suitenova/spell-core';
+import { loadSpeller, onReviewOptions, setSpell, type Issue } from '../spell';
 
 export { SECTION_COLORS, displayTitle, pageText };
 
@@ -140,6 +142,60 @@ export class NotesCtl {
   showResults = false;
   /** Mensaje corto para la barra de estado. */
   message = '';
+
+  // ---- corrector
+  /** Idioma de revisión de las notas (`off`: no se subraya). */
+  spellLang: SpellLang | 'off' = (() => {
+    try {
+      const v = localStorage.getItem('nova.notes.spellLang');
+      return v === 'off' || isSpellLang(v) ? v : 'es';
+    } catch {
+      return 'es';
+    }
+  })();
+  /** Panel «Editor» abierto. */
+  showEditor = false;
+  onSpellMenu: (m: { issue: Issue; viewId: string; x: number; y: number }) => void = () => {};
+  private offReview: (() => void) | null = null;
+
+  /** Activa (o apaga) el subrayado en los cuadros de texto, una vez cargado el diccionario. */
+  async applySpell(only?: EditorView): Promise<void> {
+    const views = only ? [only] : [...this.views.values()];
+    if (this.spellLang === 'off') {
+      for (const v of views) setSpell(v, { on: false });
+      return;
+    }
+    const lang = this.spellLang;
+    try {
+      const engine = await loadSpeller(lang);
+      if (this.spellLang === lang) for (const v of views) if (!v.isDestroyed) setSpell(v, { engine, on: true, lang });
+    } catch {
+      for (const v of views) if (!v.isDestroyed) setSpell(v, { engine: null, on: false });
+    }
+  }
+
+  setSpellLang(lang: SpellLang | 'off'): void {
+    this.spellLang = lang;
+    try {
+      localStorage.setItem('nova.notes.spellLang', lang);
+    } catch {
+      /* sin almacenamiento */
+    }
+    void this.applySpell();
+    this.touch();
+  }
+
+  /** Al cambiar las opciones o las palabras omitidas se vuelve a subrayar. */
+  watchReview(): () => void {
+    this.offReview?.();
+    this.offReview = onReviewOptions(() => {
+      for (const v of this.views.values()) if (!v.isDestroyed) setSpell(v, {});
+    });
+    return () => {
+      this.offReview?.();
+      this.offReview = null;
+    };
+  }
 
   // ---- lienzo
   views = new Map<string, EditorView>();
@@ -282,6 +338,7 @@ export class NotesCtl {
   attachView(id: string, view: EditorView): void {
     this.views.set(id, view);
     if (!this.activeId) this.activeId = id;
+    void this.applySpell(view);
   }
   detachView(id: string): void {
     this.views.delete(id);

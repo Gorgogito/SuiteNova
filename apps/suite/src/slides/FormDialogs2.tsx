@@ -1,9 +1,10 @@
 import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { addSection, docNode, eachText, findAll, moveSection, removeSection, renameSection, replaceAll, resizeSlide, type Deck, type FindOptions, type ShowProps } from '@suitenova/slides-core';
+import { addSection, docNode, eachText, slidesSchema, findAll, moveSection, removeSection, renameSection, replaceAll, resizeSlide, type Deck, type FindOptions, type ShowProps } from '@suitenova/slides-core';
 import { useEffect, useMemo, useState } from 'react';
 import { loadSpeller, addToUserDictionary, SPELL_LANGS, type SpellLang } from '../spell';
-import { findWords, getReviewOptions, skipWordWith, type SpellEngine } from '../spell';
+import { getReviewOptions, loadedEngine, reviewDoc, type SpellEngine } from '../spell';
+import { setSlidesLang, slidesLang, slidesMarkInfo } from './spell';
 import { addComment, rememberAuthor, savedAuthor } from './comments';
 import type { SlidesUI } from './commands';
 import { Modal } from './Dialogs';
@@ -448,18 +449,19 @@ interface Err {
   elementId: string | null;
   word: string;
   context: string;
+  lang: SpellLang;
 }
 
-function collect(deck: Deck, engine: SpellEngine, skipped: Set<string>): Err[] {
+/** Las palabras mal escritas de la presentación, cada una con el diccionario del idioma de su tramo; sin gramática (solo ortografía). */
+function collect(deck: Deck, skipped: Set<string>, docLang: SpellLang, onMissing: (l: SpellLang) => void): Err[] {
   const out: Err[] = [];
+  const options = { ...getReviewOptions(), grammar: false };
   for (const t of eachText(deck, true)) {
     docNode(t.body.doc).forEach((para) => {
-      let text = '';
-      para.forEach((n) => (text += n.type.name === 'text' ? n.text! : ' '));
-      for (const w of findWords(text)) {
-        if (skipWordWith(text, w, getReviewOptions()) || engine.isCorrect(w.word)) continue;
-        if (skipped.has(`${t.elementId}|${w.word}`)) continue;
-        out.push({ slideId: t.slideId, slideIndex: t.slideIndex, elementId: t.elementId, word: w.word, context: text.trim() });
+      const doc = slidesSchema.topNodeType.create(null, [para]);
+      for (const i of reviewDoc(doc, { lang: docLang, options, markInfo: slidesMarkInfo, engineFor: loadedEngine, onMissing })) {
+        if (skipped.has(`${t.elementId}|${i.text}`)) continue;
+        out.push({ slideId: t.slideId, slideIndex: t.slideIndex, elementId: t.elementId, word: i.text, context: para.textContent.trim(), lang: i.lang });
       }
     });
   }
@@ -470,11 +472,12 @@ export function SpellingDialog({ ui, onClose }: P) {
   const c = ui.ctl;
   const [lang, setLang] = useState<SpellLang>(() => {
     try {
-      return (localStorage.getItem('nova.writer.spellLangLast') as SpellLang | null) ?? 'es';
+      return slidesLang();
     } catch {
       return 'es';
     }
   });
+  const [tick, setTick] = useState(0);
   const [engine, setEngine] = useState<SpellEngine | null>(null);
   const [failed, setFailed] = useState(false);
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
@@ -484,9 +487,9 @@ export function SpellingDialog({ ui, onClose }: P) {
     setFailed(false);
     loadSpeller(lang).then(setEngine, () => setFailed(true));
   }, [lang]);
-  const errors = useMemo(() => (engine ? collect(c.deck, engine, skipped) : []), [engine, c.deck, skipped]); // eslint-disable-line react-hooks/exhaustive-deps
+  const errors = useMemo(() => (engine ? collect(c.deck, skipped, lang, (l) => void loadSpeller(l).then(() => setTick((n) => n + 1), () => {})) : []), [engine, c.deck, skipped, lang, tick]); // eslint-disable-line react-hooks/exhaustive-deps
   const e = errors[0];
-  const suggestions = useMemo(() => (engine && e ? engine.suggest(e.word) : []), [engine, e?.word]); // eslint-disable-line react-hooks/exhaustive-deps
+  const suggestions = useMemo(() => (e ? (loadedEngine(e.lang) ?? engine)?.suggest(e.word) ?? [] : []), [engine, e?.word, e?.lang]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     setSug(suggestions[0] ?? '');
     if (e) {
@@ -503,7 +506,7 @@ export function SpellingDialog({ ui, onClose }: P) {
   const key = (x: Err) => `${x.elementId}|${x.word}`;
   const ignoreAll = () => {
     if (!e || !engine) return;
-    engine.ignore(e.word);
+    (loadedEngine(e.lang) ?? engine).ignore(e.word);
     setSkipped((s) => new Set(s));
   };
   return (
@@ -515,7 +518,7 @@ export function SpellingDialog({ ui, onClose }: P) {
       <div className="sl-form">
         <label className="sl-field">
           <span>{t('Idioma del diccionario')}</span>
-          <select value={lang} onChange={(ev) => setLang(ev.target.value as SpellLang)} aria-label={t('Idioma del diccionario')}>
+          <select value={lang} onChange={(ev) => (setSlidesLang(ev.target.value as SpellLang), setLang(ev.target.value as SpellLang))} aria-label={t('Idioma del diccionario')}>
             {SPELL_LANGS.map((l) => (
               <option key={l.id} value={l.id}>{l.label}</option>
             ))}

@@ -2,6 +2,8 @@ import type { CommandDef } from '@suitenova/core-ui';
 import { redo as pmRedo, undo as pmUndo } from 'prosemirror-history';
 import type { SlidesCtl } from './ctl';
 import { applyPara, applyRun, applyTextFormat, canFormatText } from './textcmds';
+import { SPELL_LANGS, spellLangTag } from '../spell';
+import { runLangOf, runNoProofOf, setSlidesLang, slidesLang } from './spell';
 import type { MergeOp } from '@suitenova/slides-core';
 import { addNodeAt, deleteNode, segmentCount, setNodeKind, setSegmentKind, toggleClosed, type NodeKind } from '@suitenova/slides-core';
 import { addLayout, deleteLayout, deleteMaster, duplicateLayout, duplicateMaster, moveLayout, newPlaceholder, type PhType } from '@suitenova/slides-core';
@@ -383,6 +385,19 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
   add({ id: 'slides.anim.later', label: 'Mover después', icon: 'moveDown', enabled: () => !!c.selEffect, run: () => c.selEffect && moveEffect(c, c.selEffect, 1) });
   add({ id: 'slides.show.custom', label: 'Presentaciones personalizadas…', icon: 'list', run: () => ui.openDialog('customShows') });
   add({ id: 'slides.review.spelling', label: 'Revisar ortografía', icon: 'spell', shortcut: 'F7', run: () => ui.openDialog('spelling') });
+  for (const l of SPELL_LANGS)
+    add({
+      id: `slides.review.lang.${l.id}`,
+      label: `Idioma de la selección: ${l.label}`,
+      icon: 'globe',
+      description: 'Marca el texto seleccionado con este idioma de revisión; se guarda en el archivo .pptx.',
+      checked: () => !!c.editor && runLangOf(c.editor.state) === spellLangTag(l.id),
+      enabled: () => canFormatText(c),
+      run: () => applyRun(c, (r) => ({ ...r, lang: spellLangTag(l.id) }), 'Idioma de revisión'),
+    });
+  add({ id: 'slides.review.lang.default', label: 'Idioma de la selección: el de la presentación', icon: 'globe', checked: () => !!c.editor && runLangOf(c.editor.state) === null, enabled: () => canFormatText(c), run: () => applyRun(c, ({ lang: _l, ...r }) => r, 'Idioma de revisión') });
+  add({ id: 'slides.review.noProof', label: 'No revisar la ortografía', icon: 'check', description: 'El texto seleccionado no se subraya ni se revisa.', checked: () => !!c.editor && runNoProofOf(c.editor.state), enabled: () => canFormatText(c), run: () => applyRun(c, (r) => (r.noProof ? (({ noProof: _n, ...rest }) => rest)(r) : { ...r, noProof: true }), 'No revisar') });
+  for (const l of SPELL_LANGS) add({ id: `slides.review.docLang.${l.id}`, label: l.label, icon: 'globe', checked: () => slidesLang() === l.id, run: () => (setSlidesLang(l.id), c.touch()) });
   add({ id: 'slides.review.find', label: 'Buscar y reemplazar…', icon: 'search', shortcut: 'Ctrl+F', run: () => ui.openDialog('findReplace') });
   add({ id: 'slides.review.comments', label: 'Panel de comentarios', icon: 'comment', checked: () => c.pane === 'comments', run: () => ((c.pane = c.pane === 'comments' ? 'none' : 'comments'), c.touch()) });
   const views: [string, 'normal' | 'sorter' | 'reading' | 'outline' | 'master' | 'notes', string, string][] = [

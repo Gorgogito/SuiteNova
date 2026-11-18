@@ -15,20 +15,37 @@ export interface Seg {
   from: number;
   len: number;
   noCheck: boolean;
+  /** Etiqueta de idioma del texto (`es-MX`), o `null` si usa el del documento. */
+  lang: string | null;
 }
 
+/** Lo que cada producto sabe decir de un trozo de texto: si no se revisa y en qué idioma está. */
+export type MarkInfo = (n: PMNode) => { noCheck: boolean; lang: string | null };
+
+/** Writer y Notes: enlaces, código y «no revisar» se omiten; la marca `lang` fija el idioma. */
+export const writerMarkInfo: MarkInfo = (n) => {
+  let noCheck = false;
+  let lang: string | null = null;
+  for (const m of n.marks) {
+    const name = m.type.name;
+    if (name === 'link' || name === 'code' || name === 'noproof') noCheck = true;
+    else if (name === 'lang') lang = (m.attrs.value as string) || null;
+  }
+  return { noCheck, lang };
+};
+
 /** El texto de un bloque as one string (non-text inline content breaks words) with the document position of each piece. */
-export function blockText(block: PMNode, blockPos: number): { text: string; segs: Seg[] } {
+export function blockText(block: PMNode, blockPos: number, info: MarkInfo = writerMarkInfo): { text: string; segs: Seg[] } {
   let text = '';
   const segs: Seg[] = [];
   block.descendants((n, pos) => {
     if (n.isText) {
-      const noCheck = n.marks.some((m) => m.type.name === 'link' || m.type.name === 'code');
-      segs.push({ pos: blockPos + 1 + pos, from: text.length, len: n.text!.length, noCheck });
+      const mi = info(n);
+      segs.push({ pos: blockPos + 1 + pos, from: text.length, len: n.text!.length, noCheck: mi.noCheck, lang: mi.lang });
       text += n.text!;
     } else if (n.isLeaf || n.isInline || n.isBlock) {
       text += '\n';
-      segs.push({ pos: blockPos + 1 + pos, from: text.length - 1, len: 1, noCheck: true });
+      segs.push({ pos: blockPos + 1 + pos, from: text.length - 1, len: 1, noCheck: true, lang: null });
     }
     return true;
   });

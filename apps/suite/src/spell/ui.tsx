@@ -4,8 +4,8 @@ import { t } from '@suitenova/core-ui';
 import { TextSelection } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { DocSpellEngine } from './engine';
-import { addToUserDictionary, ignoreWord, loadSpeller, removeFromUserDictionary, SPELL_LANGS, userDictionaryWords } from './load';
+import type { DocSpellEngine, MarkInfo } from './engine';
+import { addToUserDictionary, ignoreWord, loadedEngine, loadSpeller, removeFromUserDictionary, SPELL_LANGS, userDictionaryWords } from './load';
 import { getReviewOptions, ignoreOnce, onReviewOptions, resetIgnored, setReviewOptions } from './options';
 import { applyFix, fixesOf, KIND_LABEL, reviewDoc, type Issue, type ReviewFix } from './review';
 import './messages';
@@ -25,6 +25,8 @@ export interface ReviewHost {
   /** Devuelve el foco al documento. */
   focus(): void;
   readOnly?: boolean;
+  /** Cómo lee el producto el idioma y el «no revisar» de cada texto (por omisión, el de Writer). */
+  markInfo?: MarkInfo;
 }
 
 export interface LocatedIssue extends Issue {
@@ -55,7 +57,8 @@ export function useReview(host: ReviewHost): { engine: DocSpellEngine | null; is
   const issues = useMemo(() => {
     if (!engine || lang === 'off') return [];
     const out: LocatedIssue[] = [];
-    for (const { id, view } of host.views()) for (const i of reviewDoc(view.state.doc, { engine, lang, options: getReviewOptions() })) out.push({ ...i, viewId: id });
+    const ctx = { lang, options: getReviewOptions(), markInfo: host.markInfo, engineFor: loadedEngine, onMissing: (l: SpellLang) => void loadSpeller(l).then(() => setTick((n) => n + 1), () => {}) };
+    for (const { id, view } of host.views()) for (const i of reviewDoc(view.state.doc, ctx)) out.push({ ...i, viewId: id });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine, lang, tick]);
@@ -111,14 +114,13 @@ export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions }: { 
   const ref = useRef<HTMLDivElement>(null);
   const [engine, setEngine] = useState<DocSpellEngine | null>(null);
   const [fixes, setFixes] = useState<ReviewFix[] | null>(issue.kind === 'spelling' ? null : issue.fixes);
-  const lang = host.lang;
+  const lang = issue.lang;
   useEffect(() => {
-    if (lang === 'off') return;
     let alive = true;
     void loadSpeller(lang).then((e) => {
       if (!alive) return;
       setEngine(e);
-      setFixes(fixesOf(issue, e));
+      setFixes(fixesOf(issue, loadedEngine));
     });
     return () => {
       alive = false;
@@ -188,7 +190,7 @@ export function ReviewDialog({ host, onClose }: { host: ReviewHost; onClose: () 
   }, [issues, host, order]);
   useEffect(() => {
     if (!current || !engine) return;
-    const f = fixesOf(current, engine);
+    const f = fixesOf(current, loadedEngine);
     setFixes(f);
     setChoice(f[0]?.text ?? '');
     goToIssue(host, current);
@@ -292,7 +294,7 @@ export function ReviewDialog({ host, onClose }: { host: ReviewHost; onClose: () 
             <Button onClick={skip}>{t('Omitir una vez')}</Button>
             {current.kind === 'spelling' ? (
               <>
-                <Button onClick={() => (mark(current, current.to), ignoreWord(engine, current.text), refresh())}>{t('Omitir todo')}</Button>
+                <Button onClick={() => (mark(current, current.to), ignoreWord(loadedEngine(current.lang) ?? engine, current.text), refresh())}>{t('Omitir todo')}</Button>
                 <Button onClick={() => (mark(current, current.to), addToUserDictionary(engine, current.text), refresh())}>{t('Agregar al diccionario')}</Button>
               </>
             ) : (
@@ -378,7 +380,7 @@ export function EditorPane({ host, onClose, onOptions }: { host: ReviewHost; onC
         {engine && shown.length === 0 && <p role="status">{t('No hay problemas de este tipo.')}</p>}
         <ul>
           {shown.map((i) => {
-            const fx = fixesOf(i, engine).slice(0, i.kind === 'spelling' ? 3 : 2);
+            const fx = fixesOf(i, loadedEngine).slice(0, i.kind === 'spelling' ? 3 : 2);
             return (
               <li key={`${i.viewId}:${i.from}:${i.rule}`} className={`nv-ed-item nv-ed-${i.kind}`}>
                 <button type="button" className="nv-ed-go" onClick={() => goToIssue(host, i)}>
@@ -400,7 +402,7 @@ export function EditorPane({ host, onClose, onOptions }: { host: ReviewHost; onC
                       {f.label || t('(quitar)')}
                     </Button>
                   ))}
-                  <Button size="small" onClick={() => (i.kind === 'spelling' ? engine && ignoreWord(engine, i.text) : ignoreOnce(i.key), refresh())}>
+                  <Button size="small" onClick={() => (i.kind === 'spelling' ? ignoreWord(loadedEngine(i.lang) ?? engine!, i.text) : ignoreOnce(i.key), refresh())}>
                     {i.kind === 'spelling' ? t('Omitir todo') : t('Omitir una vez')}
                   </Button>
                   {i.kind === 'spelling' && (

@@ -3,9 +3,9 @@ import { t } from '@suitenova/core-ui';
 import { groupIntoLines, newTextContainer, readableText, strokeBounds, strokesToSvg } from '@suitenova/notes-core';
 import { nodeTypes, writerSchema } from '@suitenova/writer-core';
 import { setCellAttr } from 'prosemirror-tables';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { isSpellLang } from '@suitenova/spell-core';
-import { ReviewDialog, type ReviewHost, type SpellLang } from '../spell';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { ReviewDialog } from '../spell';
+import { notesHost } from './review-host';
 import { TABLE_STYLES, applyTableStyle, DEFAULT_STYLE_OPTIONS, setTableProps, sortTable, findTable } from '../writer/table-tools';
 import { SYMBOL_GROUPS } from '../writer/symbols';
 import type { NotesCtl } from './ctl';
@@ -24,38 +24,8 @@ const refocus = (ctl: NotesCtl) => setTimeout(() => ctl.focusEditor(), 80);
 
 /** El cuadro F7 compartido (ortografía, gramática y estilo) sobre los cuadros de texto de la página. */
 export function NotesSpellDialog({ ctl, onClose }: { ctl: NotesCtl; onClose: () => void }) {
-  const [lang, setLang] = useState<SpellLang>(() => {
-    try {
-      const v = localStorage.getItem('nova.notes.spellLang');
-      return isSpellLang(v) ? v : 'es';
-    } catch {
-      return 'es';
-    }
-  });
-  const host: ReviewHost = useMemo(
-    () => ({
-      lang,
-      setLang: (l) => {
-        setLang(l);
-        try {
-          localStorage.setItem('nova.notes.spellLang', l);
-        } catch {
-          /* sin almacenamiento */
-        }
-      },
-      views: () =>
-        [...ctl.page.containers]
-          .filter((x) => x.kind === 'text')
-          .sort((a, b) => a.y - b.y || a.x - b.x)
-          .flatMap((c) => {
-            const view = ctl.views.get(c.id);
-            return view ? [{ id: c.id, view }] : [];
-          }),
-      focus: () => refocus(ctl),
-    }),
-    [ctl, lang],
-  );
-  return <ReviewDialog host={host} onClose={onClose} />;
+  useSyncExternalStore(ctl.subscribe, ctl.getVersion);
+  return <ReviewDialog host={notesHost(ctl)} onClose={onClose} />;
 }
 
 // ------------------------------------------------------------------------------------------------ lector inmersivo y voz

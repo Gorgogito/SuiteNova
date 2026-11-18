@@ -1,4 +1,4 @@
-import { SPELL_LANGS, UserDictionary, type SpellLang } from '@suitenova/spell-core';
+import { SPELL_LANGS, SpellEngine, UserDictionary, type SpellLang } from '@suitenova/spell-core';
 import nspell from 'nspell';
 import { DocSpellEngine } from './engine';
 import { notifyReview } from './options';
@@ -26,6 +26,7 @@ const userDict = new UserDictionary(
 
 /** Los motores ya cargados (una palabra agregada o quitada vale en todos). */
 const loaded = new Set<DocSpellEngine>();
+const resolved = new Map<SpellLang, DocSpellEngine>();
 const engines = new Map<SpellLang, Promise<DocSpellEngine>>();
 
 /** Carga (una vez) el diccionario de un idioma. El análisis tarda un momento: se hace fuera del camino de la escritura. */
@@ -37,6 +38,7 @@ export function loadSpeller(lang: SpellLang): Promise<DocSpellEngine> {
       await new Promise((r) => setTimeout(r, 0));
       const e = new DocSpellEngine(nspell(aff, dic), userDict.words());
       loaded.add(e);
+      resolved.set(lang, e);
       return e;
     })();
     engines.set(lang, p);
@@ -66,3 +68,9 @@ export function ignoreWord(engine: DocSpellEngine, word: string): void {
   engine.ignore(word);
   notifyReview();
 }
+
+/** El motor de un idioma si ya está cargado (sin esperar). */
+export const loadedEngine = (lang: SpellLang): DocSpellEngine | null => resolved.get(lang) ?? null;
+
+/** Cambia cuando se carga un diccionario o se omite, agrega o quita una palabra: las comprobaciones guardadas dejan de valer. */
+export const engineEpoch = (): number => loaded.size * 1_000_000 + SpellEngine.version;

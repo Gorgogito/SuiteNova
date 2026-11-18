@@ -31,6 +31,7 @@ interface RP {
   vert?: 'superscript' | 'subscript';
   caps?: 'all' | 'small';
   lang?: string;
+  noProof?: boolean;
 }
 interface TabDef {
   pos: number;
@@ -124,6 +125,9 @@ function parseRPr(n: XNode | undefined, fonts: Fonts): RP {
         if (c && c !== 'auto' && /^[0-9a-f]{6}$/i.test(c)) rp.ucolor = '#' + c.toLowerCase();
         break;
       }
+      case 'noProof':
+        if (toggle(k)) rp.noProof = true;
+        break;
       case 'lang': {
         const v = attrOf(k, 'val');
         if (v) rp.lang = v;
@@ -791,6 +795,7 @@ class Converter {
     if (eff.sz && eff.sz !== base.sz) m.push(markTypes.fontSize!.create({ value: eff.sz }));
     if (eff.vert) m.push((eff.vert === 'superscript' ? markTypes.superscript : markTypes.subscript)!.create());
     if (eff.caps) m.push(markTypes.caps!.create({ value: eff.caps }));
+    if (eff.noProof && !base.noProof) m.push(markTypes.noproof!.create());
     if (eff.lang && eff.lang !== base.lang) m.push(markTypes.lang!.create({ value: eff.lang }));
     if (href) m.push(markTypes.link!.create({ href }));
     for (const id of this.activeComments) {

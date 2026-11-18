@@ -16,6 +16,8 @@ export interface Speller {
  * productos lo adaptan a su modelo de documento (ProseMirror, celdas, diapositivas).
  */
 export class SpellEngine {
+  /** Sube con cada palabra omitida, agregada o quitada en cualquier motor (las comprobaciones guardadas dejan de valer). */
+  static version = 0;
   private known = new Map<string, boolean>();
   /** Palabras omitidas (en esta sesión) o agregadas al diccionario, en minúsculas. */
   readonly ignored = new Set<string>();
@@ -44,6 +46,7 @@ export class SpellEngine {
 
   /** Omite una palabra (por esta sesión). */
   ignore(word: string): void {
+    SpellEngine.version++;
     this.ignored.add(word.toLowerCase());
     this.known.clear();
   }
@@ -56,6 +59,7 @@ export class SpellEngine {
 
   /** Quita una palabra agregada o omitida (deja de aceptarse al momento). */
   remove(word: string): void {
+    SpellEngine.version++;
     this.ignored.delete(word.toLowerCase());
     try {
       this.speller.remove?.(word);

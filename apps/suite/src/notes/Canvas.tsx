@@ -1,4 +1,5 @@
 import { Button, Input } from '@fluentui/react-components';
+import { issueAt } from '../spell';
 import { t } from '@suitenova/core-ui';
 import { contentNode, pageExtent, recognizeShape, replayAt, simplify, snap, snapToRuler, strokeBounds, strokePath, strokesInRect, type Container, type FileContainer, type ImageContainer, type MediaContainer, type Page, type Ruler, type Stroke, type TextContainer } from '@suitenova/notes-core';
 import { EditorState } from 'prosemirror-state';
@@ -23,13 +24,21 @@ function TextBox({ ctl, c, openDialog }: { ctl: NotesCtl; c: TextContainer; open
       state: EditorState.create({ doc: contentNode(initial.current), plugins: textPlugins(ctl) }),
       ...mathClipboardProps,
       nodeViews: { math: (node, v, getPos) => new MathView(node, v, getPos as () => number | undefined, host) },
-      attributes: { class: 'nw-doc nn-doc', spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Cuadro de texto' },
+      attributes: { class: 'nw-doc nn-doc', spellcheck: 'false', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Cuadro de texto' },
       dispatchTransaction(tr) {
         view.updateState(view.state.apply(tr));
         if (tr.docChanged) ctl.updateText(c.id, view.state.doc);
         else ctl.touch();
       },
       handleDOMEvents: {
+        contextmenu(v, event) {
+          const at = v.posAtCoords({ left: event.clientX, top: event.clientY });
+          const issue = at ? issueAt(v, at.pos) : null;
+          if (!issue) return false;
+          event.preventDefault();
+          ctl.onSpellMenu({ issue, viewId: c.id, x: event.clientX, y: event.clientY });
+          return true;
+        },
         focus() {
           ctl.focusView(c.id);
           return false;

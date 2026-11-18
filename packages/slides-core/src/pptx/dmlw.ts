@@ -163,7 +163,7 @@ function hlinkXml(h: Hyperlink | undefined, ctx: WriteCtx, tag = 'a:hlinkClick')
 }
 
 export function runPropsXml(r: RunProps, ctx: WriteCtx, tag = 'a:rPr', lang = true): string {
-  const a = `${lang && r.lang ? attr('lang', r.lang) : ''}${r.sz !== undefined ? attr('sz', Math.round(r.sz * 100)) : ''}${r.b !== undefined ? attr('b', r.b) : ''}${r.i !== undefined ? attr('i', r.i) : ''}${attr('u', r.u)}${r.strike ? attr('strike', r.strike) : ''}${r.kern !== undefined ? attr('kern', Math.round(r.kern * 100)) : ''}${attr('cap', r.cap)}${r.spc !== undefined ? attr('spc', Math.round(r.spc * 100)) : ''}${r.baseline ? attr('baseline', Math.round(r.baseline * 1000)) : ''}`;
+  const a = `${lang && r.lang ? attr('lang', r.lang) : ''}${lang && r.noProof ? attr('noProof', true) : ''}${r.sz !== undefined ? attr('sz', Math.round(r.sz * 100)) : ''}${r.b !== undefined ? attr('b', r.b) : ''}${r.i !== undefined ? attr('i', r.i) : ''}${attr('u', r.u)}${r.strike ? attr('strike', r.strike) : ''}${r.kern !== undefined ? attr('kern', Math.round(r.kern * 100)) : ''}${attr('cap', r.cap)}${r.spc !== undefined ? attr('spc', Math.round(r.spc * 100)) : ''}${r.baseline ? attr('baseline', Math.round(r.baseline * 1000)) : ''}`;
   const color = r.color ? `<a:solidFill>${clrXml(r.color)}</a:solidFill>` : '';
   const fxFill = r.fx?.fill ? fillXml(r.fx.fill, ctx) : '';
   const ln = r.fx?.ln ? lnXml(r.fx.ln, ctx) : '';

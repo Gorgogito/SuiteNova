@@ -1,4 +1,5 @@
 import type { CommandDef } from '@suitenova/core-ui';
+import { SPELL_LANGS, langOfSelection, noProofOfSelection, setSelectionLang, spellLangTag, toggleNoProof } from '../spell';
 import type { PageSort } from '@suitenova/notes-core';
 import { isInTable } from 'prosemirror-tables';
 import { changeCase } from '../writer/format-tools';
@@ -72,7 +73,17 @@ export function notesCommands2(ui: NotesUI): CommandDef[] {
 
   // ---- revisar y ver
   add({ id: 'notes.find', label: 'Buscar en esta página…', icon: 'search', shortcut: 'Ctrl+F', enabled: () => open, run: () => ui.openDialog('find') });
-  add({ id: 'notes.spell', label: 'Ortografía', icon: 'nnSpell', shortcut: 'F7', enabled: () => open, run: () => ui.openDialog('spell') });
+  add({ id: 'notes.spell', label: 'Ortografía y gramática', icon: 'nnSpell', shortcut: 'F7', description: 'Revisa la ortografía, la gramática, la puntuación y el estilo de la página, de un problema en un problema.', enabled: () => open, run: () => ui.openDialog('spell') });
+  add({ id: 'notes.spell.editor', label: 'Editor', icon: 'nnSpell', description: 'Muestra a un lado todos los problemas de la página, con su corrección.', checked: () => c.showEditor, enabled: () => open && c.spellLang !== 'off', run: () => ((c.showEditor = !c.showEditor), c.touch()) });
+  add({ id: 'notes.spell.toggle', label: 'Revisar mientras escribe', icon: 'check', checked: () => c.spellLang !== 'off', run: () => c.setSpellLang(c.spellLang === 'off' ? 'es' : 'off') });
+  add({ id: 'notes.spell.options', label: 'Opciones de revisión…', icon: 'check', run: () => ui.openDialog('reviewOptions') });
+  add({ id: 'notes.spell.dictionary', label: 'Diccionario personalizado…', icon: 'book', run: () => ui.openDialog('userDict') });
+  for (const l of SPELL_LANGS) {
+    add({ id: `notes.spell.lang.${l.id}`, label: l.label, icon: 'globe', checked: () => c.spellLang === l.id, run: () => c.setSpellLang(l.id) });
+    add({ id: `notes.spell.selLang.${l.id}`, label: `Idioma de la selección: ${l.label}`, icon: 'globe', description: 'Marca el texto seleccionado con este idioma de revisión.', checked: () => !!c.view && langOfSelection(c.view.state) === spellLangTag(l.id), enabled: () => !!c.view, run: () => c.view && setSelectionLang(c.view, spellLangTag(l.id)) });
+  }
+  add({ id: 'notes.spell.selLang.default', label: 'Idioma de la selección: el de la nota', icon: 'globe', checked: () => !!c.view && langOfSelection(c.view.state) === null, enabled: () => !!c.view, run: () => c.view && setSelectionLang(c.view, null) });
+  add({ id: 'notes.spell.noProof', label: 'No revisar la ortografía ni la gramática', icon: 'check', checked: () => !!c.view && noProofOfSelection(c.view.state), enabled: () => !!c.view, run: () => c.view && toggleNoProof(c.view) });
   add({ id: 'notes.count', label: 'Contar palabras', icon: 'nnCount', run: () => ui.openDialog('count') });
   add({ id: 'notes.a11y', label: 'Comprobar accesibilidad', icon: 'nnA11y', run: () => ui.openDialog('a11y') });
   add({ id: 'notes.read', label: 'Lector inmersivo y voz', icon: 'nnSpeaker', enabled: () => open, run: () => ui.openDialog('read') });

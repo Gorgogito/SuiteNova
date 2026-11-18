@@ -335,7 +335,7 @@ await check('ortografía encuentra la palabra mal escrita y la corrige con una s
   await ctl((c) => c.addPage());
   await writeAt(80, 60, 'La casa es grandee y bonita');
   await tab('Revisar');
-  await btn('Ortografía');
+  await btn('Ortografía y gramática');
   await page.getByTestId('spell-word').waitFor({ timeout: 20000 });
   assert.equal(await page.getByTestId('spell-word').innerText(), 'grandee');
   await shot('ortografia');
@@ -643,6 +643,68 @@ await check('impresión de PDF: cada página entra como imagen y su texto se enc
   assert.ok(sizes.every((r) => Math.abs(r - 1.25) < 0.02), sizes.join());
   await ctl((c) => c.search(''));
 });
+
+await check('corrector: subraya mientras se escribe, con color por categoría, y el menú corrige', async () => {
+  await ctl((c) => (c.addPage(), c.setTool('select')));
+  await writeAt(80, 60, 'Una cassa  rara y los mesa');
+  await settle(2500);
+  const red = await page.locator('.nn-doc .nw-misspelled').allInnerTexts();
+  assert.deepEqual(red, ['cassa']);
+  assert.ok((await page.locator('.nn-doc .nw-grammar').count()) >= 2);
+  await page.locator('.nn-doc .nw-misspelled').first().click({ button: 'right' });
+  await page.locator('.nv-sp-menu').waitFor();
+  await shot('corrector-menu');
+  await page.locator('.nv-sp-menu [role=menuitem]', { hasText: /^casa$/ }).click();
+  await settle(500);
+  assert.match(await ctl((c) => c.textOfPage()), /Una casa /);
+});
+
+await check('corrector: idioma de la selección y «no revisar» en una nota', async () => {
+  await ctl((c) => (c.addPage(), c.setTool('select')));
+  await writeAt(80, 60, 'Hola the house is biig fin');
+  await settle(2500);
+  const sel = (needle) =>
+    ctl((c, n) => {
+      const v = c.view;
+      let found = null;
+      v.state.doc.descendants((node, pos) => {
+        if (!found && node.isText && node.text.includes(n)) found = [pos + node.text.indexOf(n), pos + node.text.indexOf(n) + n.length];
+        return true;
+      });
+      v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc, found[0], found[1])));
+      v.focus();
+    }, needle);
+  await sel('the house is biig');
+  await tab('Revisar');
+  await btn('Idioma y opciones');
+  await page.getByRole('menuitem', { name: 'Idioma de la selección: English' }).click();
+  await settle(2500);
+  assert.deepEqual(await page.locator('.nn-doc .nw-misspelled').allInnerTexts(), ['biig']);
+  await sel('biig');
+  await tab('Revisar');
+  await btn('Idioma y opciones');
+  await page.getByRole('menuitem', { name: 'No revisar la ortografía ni la gramática' }).click();
+  await settle(800);
+  assert.deepEqual(await page.locator('.nn-doc .nw-misspelled').allInnerTexts(), []);
+});
+
+await check('corrector: el panel Editor lista los problemas y corrige con un clic', async () => {
+  await ctl((c) => (c.addPage(), c.setTool('select')));
+  await writeAt(80, 60, 'Una cassa  rara.');
+  await settle(2500);
+  await tab('Revisar');
+  await btn('Editor');
+  const pane = page.locator('aside.nv-ed');
+  await pane.waitFor();
+  assert.match(await pane.innerText(), /cassa/);
+  await shot('corrector-editor');
+  await pane.getByRole('button', { name: 'casa', exact: true }).first().click();
+  await settle(600);
+  assert.match(await ctl((c) => c.textOfPage()), /Una casa /);
+  await pane.getByRole('button', { name: 'Cerrar' }).click();
+  assert.equal(await page.locator('aside.nv-ed').count(), 0);
+});
+
 
 await check('sin errores en la consola', async () => {
   assert.deepEqual(errors, []);
