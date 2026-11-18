@@ -2,6 +2,7 @@ import { t } from '@suitenova/core-ui';
 import { QTYPES, gradable, hasOptions, isInput, type Question } from '@suitenova/forms-core';
 import type { FormsCtl } from './ctl';
 import { FORM_HEAD } from './ctl';
+import { ProofTextarea } from '../spell';
 
 const typeName = (q: Question) => QTYPES.find((x) => x.id === q.type)?.name ?? q.type;
 
@@ -46,7 +47,7 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
       </label>
       <label className="fm-field">
         <span>{t('Descripción (opcional)')}</span>
-        <textarea className="fm-input" rows={2} value={q.description} onChange={(e) => up({ description: e.target.value })} />
+        <ProofTextarea className="fm-input" rows={2} value={q.description} onChange={(e) => up({ description: e.target.value })} />
       </label>
 
       {(q.type === 'choice' || q.type === 'multi' || q.type === 'dropdown') && <ListEditor label={t('Opciones')} items={q.options} onChange={(v) => up({ options: v })} />}
@@ -201,7 +202,7 @@ export function Designer({ ctl }: { ctl: FormsCtl }) {
             </label>
             <label className="fm-field">
               <span>{t('Descripción del formulario')}</span>
-              <textarea className="fm-input" rows={2} value={f.description} onChange={(e) => ctl.setForm({ description: e.target.value })} />
+              <ProofTextarea className="fm-input" rows={2} value={f.description} onChange={(e) => ctl.setForm({ description: e.target.value })} />
             </label>
             <label className="fm-field">
               <span>{t('Mensaje de agradecimiento')}</span>

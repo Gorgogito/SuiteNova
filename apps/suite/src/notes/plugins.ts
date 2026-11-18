@@ -1,5 +1,6 @@
 import { documentFormulas } from '@suitenova/notes-core';
-import { spellPlugin } from '../spell';
+import { getAutoCorrect, spellPlugin } from '../spell';
+import { autoCorrectPlugin } from '../writer/autocorrect';
 import { nodeTypes } from '@suitenova/writer-core';
 import { baseKeymap } from 'prosemirror-commands';
 import { history } from 'prosemirror-history';
@@ -130,5 +131,6 @@ export function textPlugins(ctl: NotesCtl): Plugin[] {
     painterPlugin(ctl),
     formulaPlugin(),
     spellPlugin(),
+    autoCorrectPlugin(getAutoCorrect),
   ];
 }

@@ -6,7 +6,7 @@ import type { NotesCtl } from './ctl';
 import { FONT_SIZES, changeIndent, clearFormatting, listAncestor, markActive, markAttr, selectionParagraph, setAlign, setMark, setStyle, toggleList, toggleMarkByName, selectAll } from './editing';
 import { BUILTIN_TAGS } from '@suitenova/notes-core';
 
-export type NotesDialog = 'link' | 'table' | 'tags' | 'about' | 'shortcuts' | 'templates' | 'style' | 'versions' | 'trash' | 'protectPage' | 'protectSection' | 'share' | 'equation' | 'image' | 'email' | 'movePage' | 'mergeSection' | 'recent' | 'unread' | 'find' | 'count' | 'a11y' | 'spell' | 'reviewOptions' | 'userDict' | 'read' | 'symbol' | 'inkText' | 'tableSort' | 'tableLook';
+export type NotesDialog = 'link' | 'table' | 'tags' | 'about' | 'shortcuts' | 'templates' | 'style' | 'versions' | 'trash' | 'protectPage' | 'protectSection' | 'share' | 'equation' | 'image' | 'email' | 'movePage' | 'mergeSection' | 'recent' | 'unread' | 'find' | 'count' | 'a11y' | 'spell' | 'autocorrect' | 'reviewOptions' | 'userDict' | 'read' | 'symbol' | 'inkText' | 'tableSort' | 'tableLook';
 
 export interface NotesUI {
   ctl: NotesCtl;

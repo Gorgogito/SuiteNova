@@ -7,6 +7,8 @@ import { CFManagerDialog, CFRuleDialog, CustomFilterDialog, type CFPreset } from
 import { FUNCTION_CATEGORIES, FUNCTION_DOCS } from './functionDocs';
 import { Modal, field, focusGridSoon } from './modal';
 import { ChartFormatDialog } from './dlg-chart';
+import { CalcSpellDialog } from './dlg-spell';
+import { AutoCorrectDialog, DictionaryDialog, ReviewOptionsDialog, defaultFieldLang, getAutoCorrect, setAutoCorrect } from '../spell';
 import { EntryAlertDialog, HyperlinkDialog, NoteDialog, ValidationDialog } from './dlg-data';
 import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
 import { PageSetupDialog, PrintPreviewDialog } from './dlg-page';
@@ -592,6 +594,14 @@ export function DialogHost({ ui, registry, kind, arg, onClose }: { ui: CalcUI; r
     focusGridSoon();
   };
   switch (kind) {
+    case 'spell':
+      return <CalcSpellDialog ui={ui} onClose={close} />;
+    case 'reviewOptions':
+      return <ReviewOptionsDialog lang={defaultFieldLang()} onClose={close} onDictionary={() => ui.openDialog('userDict')} />;
+    case 'userDict':
+      return <DictionaryDialog onClose={close} />;
+    case 'autocorrect':
+      return <AutoCorrectDialog product="Nova Calc" plain initial={getAutoCorrect()} onSave={setAutoCorrect} onClose={close} />;
     case 'find':
       return <FindDialog ui={ui} replace={false} onClose={close} />;
     case 'replace':

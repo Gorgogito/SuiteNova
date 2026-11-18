@@ -706,6 +706,13 @@ await check('corrector: el panel Editor lista los problemas y corrige con un cli
 });
 
 
+await check('autocorrección compartida: en una nota las comillas, los símbolos y la mayúscula se corrigen al escribir', async () => {
+  await ctl((c) => (c.addPage(), c.setTool('select')));
+  await writeAt(80, 60, 'hola. mañana dijo "si" (c) ');
+  await settle(400);
+  assert.equal((await ctl((c) => c.textOfPage())).trim(), 'Hola. Mañana dijo “si” ©');
+});
+
 await check('sin errores en la consola', async () => {
   assert.deepEqual(errors, []);
 });

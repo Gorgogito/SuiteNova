@@ -4,6 +4,7 @@ import { occurrencesBetween, type CalEvent, type Occurrence } from '@suitenova/m
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { addDays, startOfDay, type MailCtl } from './ctl';
 import { StickyDialog } from './StickyDialog';
+import { ProofTextarea } from '../spell';
 
 const HOUR_H = 44;
 
@@ -189,7 +190,7 @@ export function EventBody({ ctl, ev, occurrence, isNew, onClose }: { ctl: MailCt
               </label>
               <label>
                 <span>{t('Descripción')}</span>
-                <textarea aria-label={t('Descripción')} rows={4} value={e.description} onChange={(x) => set({ description: x.target.value })} />
+                <ProofTextarea aria-label={t('Descripción')} rows={4} value={e.description} onChange={(x) => set({ description: x.target.value })} />
               </label>
               {err && (
                 <div className="ml-error" role="alert">

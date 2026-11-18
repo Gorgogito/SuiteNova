@@ -9,3 +9,8 @@ export { ignoreWord } from './load';
 export { notifyReview } from './options';
 export { langOfSelection, noProofOfSelection, setSelectionLang, toggleNoProof } from './lang-marks';
 export { spellLangTag } from '@suitenova/spell-core';
+export { AutoCorrectDialog } from './AutoCorrectDialog';
+export { autoCorrectField, getAutoCorrect, setAutoCorrect } from './autocorrect';
+export { ProofTextarea, defaultFieldLang } from './ProofTextarea';
+export { reviewPlainText, applyFixToText } from './plain';
+export { ProofMemo } from './ProofMemo';

@@ -160,3 +160,25 @@ describe('revisión unificada de un documento', () => {
     });
   });
 });
+
+import { applyFixToText, reviewPlainText } from './plain';
+
+describe('texto sin formato', () => {
+  const text = 'Una cassa  rara.\nOtra linea con los mesa y\n\nfin';
+  it('las posiciones son desplazamientos del texto, también en varias líneas', () => {
+    const issues = reviewPlainText(text, ctx());
+    expect(issues.length).toBeGreaterThanOrEqual(3);
+    for (const i of issues) expect(text.slice(i.from, i.to)).toBe(i.text);
+    expect(issues.map((i) => i.text)).toContain('cassa');
+    expect(issues.map((i) => i.text)).toContain('los mesa');
+  });
+  it('aplicar una corrección da el texto esperado', () => {
+    const ds = reviewPlainText(text, ctx()).find((i) => i.rule === 'double-space')!;
+    expect(applyFixToText(text, ds.fixes[0]!)).toBe('Una cassa rara.\nOtra linea con los mesa y\n\nfin');
+    const ag = reviewPlainText(text, ctx()).find((i) => i.rule === 'agreement')!;
+    expect(applyFixToText(text, ag.fixes[0]!)).toMatch(/con (la mesa|los mesas) y/);
+  });
+  it('un texto vacío no da problemas', () => {
+    expect(reviewPlainText('  \n ', ctx())).toEqual([]);
+  });
+});

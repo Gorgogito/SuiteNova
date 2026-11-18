@@ -1,5 +1,5 @@
 import { Button } from '@fluentui/react-components';
-import { DictionaryDialog, EditorPane, ReviewMenu, ReviewOptionsDialog, type Issue } from '../spell';
+import { AutoCorrectDialog, getAutoCorrect, setAutoCorrect, DictionaryDialog, EditorPane, ReviewMenu, ReviewOptionsDialog, type Issue } from '../spell';
 import { notesHost } from './review-host';
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
 import { displayTitle, isLocked, newPage, newTextContainer, pageToMarkdown, parseNotebook, tagCss, type Container } from '@suitenova/notes-core';
@@ -851,6 +851,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         {dlg === 'a11y' && <AccessibilityDialog ctl={ctl} onClose={closeDialog} openImage={(id) => setDialog({ kind: 'image', arg: id })} />}
         {dlg === 'spell' && <NotesSpellDialog ctl={ctl} onClose={closeDialog} />}
         {dlg === 'reviewOptions' && <ReviewOptionsDialog lang={ctl.spellLang} onClose={closeDialog} onDictionary={() => setDialog({ kind: 'userDict' })} />}
+        {dlg === 'autocorrect' && <AutoCorrectDialog product="Nova Notes" initial={getAutoCorrect()} onSave={setAutoCorrect} onClose={closeDialog} />}
         {dlg === 'userDict' && <DictionaryDialog onClose={closeDialog} />}
         {spellMenu && <ReviewMenu host={notesHost(ctl)} viewId={spellMenu.viewId} issue={spellMenu.issue} x={spellMenu.x} y={spellMenu.y} onClose={() => setSpellMenu(null)} onOptions={() => setDialog({ kind: 'reviewOptions' })} />}
         {dlg === 'read' && <ReadDialog ctl={ctl} onClose={closeDialog} />}

@@ -77,6 +77,7 @@ export function notesCommands2(ui: NotesUI): CommandDef[] {
   add({ id: 'notes.spell.editor', label: 'Editor', icon: 'nnSpell', description: 'Muestra a un lado todos los problemas de la página, con su corrección.', checked: () => c.showEditor, enabled: () => open && c.spellLang !== 'off', run: () => ((c.showEditor = !c.showEditor), c.touch()) });
   add({ id: 'notes.spell.toggle', label: 'Revisar mientras escribe', icon: 'check', checked: () => c.spellLang !== 'off', run: () => c.setSpellLang(c.spellLang === 'off' ? 'es' : 'off') });
   add({ id: 'notes.spell.options', label: 'Opciones de revisión…', icon: 'check', run: () => ui.openDialog('reviewOptions') });
+  add({ id: 'notes.spell.autocorrect', label: 'Opciones de autocorrección…', icon: 'check', description: 'Qué se corrige al escribir (comillas, símbolos, mayúsculas…) y los reemplazos propios, los mismos de todos los productos.', run: () => ui.openDialog('autocorrect') });
   add({ id: 'notes.spell.dictionary', label: 'Diccionario personalizado…', icon: 'book', run: () => ui.openDialog('userDict') });
   for (const l of SPELL_LANGS) {
     add({ id: `notes.spell.lang.${l.id}`, label: l.label, icon: 'globe', checked: () => c.spellLang === l.id, run: () => c.setSpellLang(l.id) });

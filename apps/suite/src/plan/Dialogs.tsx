@@ -1,4 +1,4 @@
-import { Button, DialogActions, DialogContent, DialogTitle, Input, Textarea } from '@fluentui/react-components';
+import { Button, DialogActions, DialogContent, DialogTitle, Input } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
 import {
   BASELINES, CONSTRAINT_LABEL, TASK_TYPE_LABEL, baselineName, checkFormula, fieldType, fieldsOf, formatDuration, formatPredecessors, formatTime, linkTasks, newAssignment, newCalendar, newId, parseDateTime,
@@ -8,6 +8,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 import { StickyDialog } from '../mail/StickyDialog';
 import type { PlanCtl } from './ctl';
+import { ProofTextarea } from '../spell';
 
 const field: React.CSSProperties = { display: 'grid', gap: 4, marginBottom: 10 };
 const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 };
@@ -387,7 +388,7 @@ function TaskForm({ ctl, index, onClose }: { ctl: PlanCtl; index: number; onClos
         )}
         {tab === 'notes' && (
           <Field id="pl-f-notes" label="Notas">
-            <Textarea id="pl-f-notes" rows={6} value={notes} onChange={(_e, d) => setNotes(d.value)} />
+            <ProofTextarea id="pl-f-notes" className="nv-field" rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
         )}
         {tab === 'custom' &&

@@ -1,6 +1,7 @@
 import { t } from '@suitenova/core-ui';
 import { isVisible, score, validateAll, visibleAnswers, type Answer, type Form, type Question } from '@suitenova/forms-core';
 import { useState } from 'react';
+import { ProofTextarea } from '../spell';
 
 type Answers = Record<string, Answer>;
 
@@ -12,7 +13,7 @@ function Field({ q, value, error, onChange }: { q: Question; value: Answer | und
     case 'text':
       return <input className="fm-input" type={q.format === 'email' ? 'email' : q.format === 'url' ? 'url' : 'text'} aria-label={q.title} value={str} onChange={(e) => onChange(e.target.value)} {...invalid} />;
     case 'longtext':
-      return <textarea className="fm-input" rows={4} aria-label={q.title} value={str} onChange={(e) => onChange(e.target.value)} {...invalid} />;
+      return <ProofTextarea className="fm-input" rows={4} aria-label={q.title} value={str} onChange={(e) => onChange(e.target.value)} {...invalid} />;
     case 'number':
       return <input className="fm-input" type="text" inputMode="decimal" aria-label={q.title} value={str} onChange={(e) => onChange(e.target.value)} {...invalid} />;
     case 'date':

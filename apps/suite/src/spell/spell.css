@@ -194,3 +194,33 @@
   flex-wrap: wrap;
   margin-top: 4px;
 }
+
+/* campo de texto con corrector: el espejo va detrás del campo y copia su tipografía */
+.nv-pt {
+  background: var(--colorNeutralBackground1, #fff);
+}
+.nv-pt__mirror {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: transparent;
+  pointer-events: none;
+  border-style: solid;
+  border-color: transparent;
+  box-sizing: border-box;
+}
+.nv-field {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--colorNeutralStroke1, #bbb);
+  border-radius: 4px;
+  font: inherit;
+  color: inherit;
+  resize: vertical;
+}

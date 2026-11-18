@@ -571,6 +571,35 @@ export class CalcDoc {
   }
 
   /** Write typed text into a cell (formula bar / editor / paste). Throws FormulaSyntaxError for bad formulas. */
+  /**
+   * Las celdas con texto (sin fórmulas) que se revisan: la selección si abarca varias celdas, y si no la hoja entera, en orden de lectura.
+   * Es lo que recorre el cuadro de ortografía (F7), como en Excel.
+   */
+  textCells(): { sheetId: number; row: number; col: number; text: string }[] {
+    const id = this.activeSheetId;
+    const cells = this.wb.cellsOf(id);
+    if (!cells) return [];
+    const r = normRect(this.sel.ranges[this.sel.ranges.length - 1] ?? { r1: this.sel.active.row, c1: this.sel.active.col, r2: this.sel.active.row, c2: this.sel.active.col });
+    const many = r.r2 > r.r1 || r.c2 > r.c1;
+    const out: { sheetId: number; row: number; col: number; text: string }[] = [];
+    for (const [k, c] of cells) {
+      if (typeof c.value !== 'string' || !c.value.trim()) continue;
+      const row = keyRow(k);
+      const col = keyCol(k);
+      if (many && (row < r.r1 || row > r.r2 || col < r.c1 || col > r.c2)) continue;
+      if (this.wb.formulaText(id, row, col) !== undefined) continue;
+      out.push({ sheetId: id, row, col, text: c.value });
+    }
+    return out.sort((a, b) => a.row - b.row || a.col - b.col);
+  }
+
+  /** Cambia el texto de varias celdas de una vez (un solo paso para deshacer), respetando la protección de la hoja. */
+  setCellsText(changes: { sheetId: number; row: number; col: number; text: string }[]): void {
+    const ok = changes.filter((c) => this.prot.canEdit([{ r1: c.row, c1: c.col, r2: c.row, c2: c.col }], c.sheetId));
+    if (!ok.length) return;
+    this.run('Corregir ortografía', () => ok.map((c) => this.writeTyped(c.sheetId, c.row, c.col, c.text)));
+  }
+
   private writeTyped(sheetId: number, row: number, col: number, text: string): Patch {
     if (text === '') return this.wb.setInput(sheetId, row, col, '');
     const c = this.canonicalInput(text);

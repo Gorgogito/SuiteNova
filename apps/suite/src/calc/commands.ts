@@ -48,7 +48,11 @@ export type DialogKind =
   | 'shapeFormat'
   | 'wordartFormat'
   | 'smartart'
-  | 'equation';
+  | 'equation'
+  | 'spell'
+  | 'reviewOptions'
+  | 'userDict'
+  | 'autocorrect';
 
 export interface CalcUI {
   doc: CalcDoc;
@@ -143,6 +147,10 @@ export function calcCommands(ui: CalcUI): CommandDef[] {
   add({ id: 'calc.saveAs', label: 'Guardar como…', icon: 'save', shortcut: 'Ctrl+Shift+S', run: () => void ui.save(true) });
   add({ id: 'calc.exportCsv', label: 'Exportar hoja a CSV…', icon: 'exportFile', description: 'Guarda la hoja activa como texto separado por comas.', run: () => void ui.exportCsv() });
   add({ id: 'calc.close', label: 'Cerrar', icon: 'close', run: () => ui.close() });
+  add({ id: 'calc.spell', label: 'Ortografía', icon: 'spell', shortcut: 'F7', description: 'Revisa la ortografía de las celdas con texto, de la selección o de la hoja.', run: () => ui.openDialog('spell') });
+  add({ id: 'calc.spell.options', label: 'Opciones de revisión…', icon: 'check', description: 'Qué se omite al revisar la ortografía (MAYÚSCULAS, números, direcciones).', run: () => ui.openDialog('reviewOptions') });
+  add({ id: 'calc.spell.dictionary', label: 'Diccionario personalizado…', icon: 'book', run: () => ui.openDialog('userDict') });
+  add({ id: 'calc.autocorrect', label: 'Opciones de autocorrección…', icon: 'check', description: 'Qué se corrige al escribir en una celda y los reemplazos propios, los mismos de todos los productos.', run: () => ui.openDialog('autocorrect') });
   add({ id: 'calc.about', label: 'Acerca de Nova Calc', icon: 'info', run: () => ui.openDialog('about') });
   add({ id: 'calc.shortcuts', label: 'Atajos de teclado', icon: 'keyboard', shortcut: 'F1', run: () => ui.openDialog('shortcuts') });
 

@@ -83,6 +83,23 @@ export function reviewTab(): RibbonTab {
     keytip: 'R',
     groups: [
       {
+        id: 'proofing',
+        label: 'Revisión',
+        icon: 'spell',
+        items: [
+          { kind: 'button', command: 'calc.spell', size: 'large', keytip: 'XO' },
+          {
+            kind: 'dropdown',
+            id: 'spellOptionsMenu',
+            label: 'Opciones',
+            icon: 'check',
+            size: 'large',
+            keytip: 'XP',
+            entries: [cmd('calc.spell.options'), cmd('calc.spell.dictionary'), cmd('calc.autocorrect')],
+          },
+        ],
+      },
+      {
         id: 'notes',
         label: 'Notas',
         icon: 'note',

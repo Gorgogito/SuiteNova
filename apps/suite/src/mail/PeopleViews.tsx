@@ -3,6 +3,7 @@ import { displayName, type Contact, type LabeledValue, type TaskItem } from '@su
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { dateStr, parseLocal } from './CalendarView';
 import { startOfDay, type MailCtl } from './ctl';
+import { ProofTextarea } from '../spell';
 
 const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const LABELS = ['trabajo', 'casa', 'móvil', 'fax', 'otro'];
@@ -71,7 +72,7 @@ function ContactForm({ ctl, c }: { ctl: MailCtl; c: Contact }) {
       </div>
       <label>
         <span>{t('Notas')}</span>
-        <textarea aria-label={t('Notas')} rows={4} value={d.note} onChange={(e) => set({ note: e.target.value })} />
+        <ProofTextarea aria-label={t('Notas')} rows={4} value={d.note} onChange={(e) => set({ note: e.target.value })} />
       </label>
       <div className="ml-actions">
         <button type="submit" className="ml-btn ml-btn--primary" disabled={!dirty}>
@@ -162,7 +163,7 @@ function TaskForm({ ctl, t0 }: { ctl: MailCtl; t0: TaskItem }) {
       </label>
       <label>
         <span>{t('Notas')}</span>
-        <textarea aria-label={t('Notas')} rows={5} value={d.notes} onChange={(e) => setD({ ...d, notes: e.target.value })} />
+        <ProofTextarea aria-label={t('Notas')} rows={5} value={d.notes} onChange={(e) => setD({ ...d, notes: e.target.value })} />
       </label>
       <div className="ml-actions">
         <button type="submit" className="ml-btn ml-btn--primary" disabled={!dirty || !d.title.trim()}>

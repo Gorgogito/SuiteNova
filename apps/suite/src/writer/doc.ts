@@ -1,4 +1,5 @@
-import { autoCorrectPlugin, autoListRules, loadAutoCorrect, type AutoCorrectOptions } from './autocorrect';
+import { autoCorrectPlugin, autoListRules, type AutoCorrectOptions } from './autocorrect';
+import { getAutoCorrect, setAutoCorrect } from '../spell';
 import { applyFormat, type CopiedFormat } from './format-tools';
 import { baseKeymap, chainCommands } from 'prosemirror-commands';
 import { history, redo, undo } from 'prosemirror-history';
@@ -202,7 +203,13 @@ export class WriterCtl {
   /** Modo «Seleccionar objetos»: arrastrar elige con un recuadro las formas que quedan dentro. */
   selectObjects = false;
   /** Autocorrección al escribir (se guarda en este equipo). */
-  autoCorrect: AutoCorrectOptions = loadAutoCorrect();
+  /** Opciones de autocorrección: son las de todos los productos (una sola lista de reemplazos). */
+  get autoCorrect(): AutoCorrectOptions {
+    return getAutoCorrect();
+  }
+  set autoCorrect(o: AutoCorrectOptions) {
+    setAutoCorrect(o);
+  }
   /** «Copiar formato» activo: el formato copiado se aplica a la próxima selección. */
   painter: CopiedFormat | null = null;
   viewMode: ViewMode = 'print';

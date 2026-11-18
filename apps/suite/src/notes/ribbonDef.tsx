@@ -537,6 +537,7 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
               { kind: 'separator' },
               { kind: 'command', command: 'notes.spell.dictionary' },
               { kind: 'command', command: 'notes.spell.options' },
+              { kind: 'command', command: 'notes.spell.autocorrect' },
             ],
           },
           L('notes.count', 'large', 'WC'),

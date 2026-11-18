@@ -67,7 +67,7 @@ export function useReview(host: ReviewHost): { engine: DocSpellEngine | null; is
 
 // ------------------------------------------------------------------------------------------------ ventana modal
 
-function Modal({ title, onClose, children, actions, width = 520 }: { title: string; onClose: () => void; children: ReactNode; actions: ReactNode; width?: number }) {
+export function Modal({ title, onClose, children, actions, width = 520 }: { title: string; onClose: () => void; children: ReactNode; actions: ReactNode; width?: number }) {
   // Fluent deja aria-hidden en la página cuando el padre desmonta el diálogo abierto: se devuelve cuando ya no queda ninguno
   useEffect(
     () => () => {
@@ -110,7 +110,7 @@ const ruleLabel = (rule: string) => GRAMMAR_RULES.find((r) => r.id === rule)?.la
 // ------------------------------------------------------------------------------------------------ menú contextual
 
 /** El menú del botón derecho sobre algo subrayado: correcciones, omitir, agregar al diccionario, desactivar la regla. */
-export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions }: { host: ReviewHost; issue: Issue; viewId: string; x: number; y: number; onClose: () => void; onOptions?: () => void }) {
+export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions, onFix }: { host: ReviewHost; issue: Issue; viewId: string; x: number; y: number; onClose: () => void; onOptions?: () => void; onFix?: (f: ReviewFix) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [engine, setEngine] = useState<DocSpellEngine | null>(null);
   const [fixes, setFixes] = useState<ReviewFix[] | null>(issue.kind === 'spelling' ? null : issue.fixes);
@@ -140,7 +140,8 @@ export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions }: { 
   const done = (fn: () => void) => () => {
     fn();
     onClose();
-    view?.focus();
+    if (view) view.focus();
+    else host.focus();
   };
   const spelling = issue.kind === 'spelling';
   const item = (label: ReactNode, run: () => void, strong = false, key?: string) => (
@@ -153,7 +154,7 @@ export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions }: { 
       {!spelling && <div className="nv-sp-note">{t(issue.message)}</div>}
       {fixes === null && <div className="nv-sp-note">{t('Buscando sugerencias…')}</div>}
       {fixes?.length === 0 && <div className="nv-sp-note">{t('(sin sugerencias)')}</div>}
-      {fixes?.slice(0, 6).map((f, n) => item(f.label || t('(quitar)'), done(() => view && !host.readOnly && applyFix(view, f)), n === 0 || !spelling, `fix${n}`))}
+      {fixes?.slice(0, 6).map((f, n) => item(f.label || t('(quitar)'), done(() => (onFix ? onFix(f) : view && !host.readOnly && applyFix(view, f))), n === 0 || !spelling, `fix${n}`))}
       <hr />
       {spelling ? (
         <>

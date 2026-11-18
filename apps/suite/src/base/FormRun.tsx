@@ -3,6 +3,7 @@ import { t } from '@suitenova/core-ui';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { BaseCtl, FormDef, Tab } from './ctl';
 import { AttachmentsDialog } from './dlg-attach';
+import { ProofMemo } from '../spell';
 
 type Ctl<T extends FormControl['type']> = Extract<FormControl, { type: T }>;
 
@@ -332,7 +333,7 @@ export function FormRun({ ctl, tab, def, onDesign }: { ctl: BaseCtl; tab: Tab; d
     const readOnly = c.readOnly || !editable || dis || !!c.locked;
     if (c.type === 'text' && c.multiline)
       return (
-        <textarea
+        <ProofMemo
           key={`${key}:${rid}:${cur}:${bump}`}
           id={single ? idOf(c) : undefined}
           className="bs-fc bs-fc-memo"
@@ -343,7 +344,7 @@ export function FormRun({ ctl, tab, def, onDesign }: { ctl: BaseCtl; tab: Tab; d
           readOnly={readOnly}
           disabled={rid === null || dis}
           {...ti}
-          defaultValue={cur}
+          initial={cur}
           onBlur={(e) => !readOnly && e.target.value !== cur && void commit(rid, col.name, e.target.value, c.afterUpdate)}
         />
       );

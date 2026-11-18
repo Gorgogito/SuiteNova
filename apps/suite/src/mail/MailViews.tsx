@@ -5,6 +5,7 @@ import { childrenOf, encodeBase64, folderRows, formatAddress, parseMessage, rawO
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { saveBytes } from '../fileio';
 import type { ComposeState, MailCtl } from './ctl';
+import { ProofTextarea } from '../spell';
 
 // ---------------------------------------------------------------------------------------------- folders
 export function FolderTree({ ctl }: { ctl: MailCtl }) {
@@ -446,7 +447,7 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
                 <span>{t('Asunto')}</span>
                 <input aria-label={t('Asunto')} value={s.subject} onChange={(e) => set({ subject: e.target.value })} />
               </label>
-              <textarea aria-label={t('Cuerpo del mensaje')} value={s.body} onChange={(e) => set({ body: e.target.value })} rows={12} />
+              <ProofTextarea aria-label={t('Cuerpo del mensaje')} value={s.body} onChange={(e) => set({ body: e.target.value })} rows={12} />
               <div className="ml-compose__att">
                 <button type="button" className="ml-btn" onClick={() => fileRef.current?.click()}>
                   📎 {t('Adjuntar archivo')}

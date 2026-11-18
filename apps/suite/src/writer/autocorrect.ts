@@ -7,138 +7,27 @@ import { InputRule, inputRules, wrappingInputRule } from 'prosemirror-inputrules
 import { closeHistory } from 'prosemirror-history';
 import { Plugin, type EditorState, type Transaction } from 'prosemirror-state';
 import { markTypes, nodeTypes } from '@suitenova/writer-core';
+import { AUTOCORRECT_KEY, DEFAULT_AUTOCORRECT, FRACTIONS, SYMBOLS, correctWord, loadAutoCorrectFrom, saveAutoCorrectTo, smartQuote, startsSentence, type AutoCorrectOptions, type Correction } from '@suitenova/spell-core';
 
-export interface AutoCorrectOptions {
-  smartQuotes: boolean;
-  symbols: boolean;
-  fractions: boolean;
-  dashes: boolean;
-  capitalizeSentences: boolean;
-  fixTwoInitialCaps: boolean;
-  autoLinks: boolean;
-  autoLists: boolean;
-  /** Reemplazos propios: lo que se escribe → lo que queda. */
-  custom: Record<string, string>;
-}
+export { AUTOCORRECT_KEY, DEFAULT_AUTOCORRECT, FRACTIONS, SYMBOLS, correctWord, smartQuote, startsSentence, type AutoCorrectOptions, type Correction };
 
-export const DEFAULT_AUTOCORRECT: AutoCorrectOptions = {
-  smartQuotes: true,
-  symbols: true,
-  fractions: true,
-  dashes: true,
-  capitalizeSentences: true,
-  fixTwoInitialCaps: true,
-  autoLinks: true,
-  autoLists: true,
-  custom: {},
-};
-
-const KEY = 'nova.writer.autocorrect';
+/** Símbolos que se cambian al instante (los demás esperan a que se complete la palabra). */
+const IMMEDIATE = ['(c)', '(r)', '(tm)', '(e)', '...', '-->', '<--', '==>', '<==', '<=>'];
 
 export function loadAutoCorrect(): AutoCorrectOptions {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULT_AUTOCORRECT, ...(JSON.parse(raw) as Partial<AutoCorrectOptions>) };
+    return loadAutoCorrectFrom(localStorage);
   } catch {
-    /* sin almacenamiento: valores por omisión */
+    return loadAutoCorrectFrom(null);
   }
-  return { ...DEFAULT_AUTOCORRECT };
 }
 
 export function saveAutoCorrect(o: AutoCorrectOptions): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(o));
+    saveAutoCorrectTo(localStorage, o);
   } catch {
     /* sin almacenamiento */
   }
-}
-
-/** Símbolos que se escriben con teclas. */
-export const SYMBOLS: Record<string, string> = {
-  '(c)': '©',
-  '(r)': '®',
-  '(tm)': '™',
-  '(e)': '€',
-  '...': '…',
-  '-->': '→',
-  '<--': '←',
-  '==>': '⇒',
-  '<==': '⇐',
-  '<=>': '⇔',
-  ':)': '☺',
-  ':(': '☹',
-};
-/** Símbolos que se cambian al instante (los demás esperan a que se complete la palabra). */
-const IMMEDIATE = ['(c)', '(r)', '(tm)', '(e)', '...', '-->', '<--', '==>', '<==', '<=>'];
-export const FRACTIONS: Record<string, string> = { '1/2': '½', '1/4': '¼', '3/4': '¾' };
-
-/** Abreviaturas tras las que una palabra en minúscula no empieza oración. */
-const ABBREVIATIONS = new Set(['etc', 'sr', 'sra', 'srta', 'dr', 'dra', 'pág', 'págs', 'ud', 'uds', 'aprox', 'núm', 'tel', 'av', 'pp', 'vol', 'cap', 'fig', 'ej', 'p.ej', 'ee', 'uu', 'vs', 'cf', 'ibid', 'mr', 'mrs', 'ms', 'no', 'e.g', 'i.e']);
-
-const lower = (s: string) => s.toLocaleLowerCase();
-const upper = (s: string) => s.toLocaleUpperCase();
-const isLetter = (c: string) => lower(c) !== upper(c);
-
-/** Comilla de apertura o de cierre según lo que haya antes. `quote` es `"` o `'`. */
-export function smartQuote(quote: '"' | "'", before: string): string {
-  const prev = before.slice(-1);
-  const opens = prev === '' || /[\s([{¡¿–— ]/.test(prev) || /[“‘«]/.test(prev);
-  if (quote === '"') return opens ? '“' : '”';
-  // una comilla simple pegada a una letra es apóstrofo o cierre: ’
-  return opens ? '‘' : '’';
-}
-
-export interface Correction {
-  /** El texto que sustituye a la palabra. */
-  text: string;
-  /** Vínculo que lleva el texto, si es una dirección. */
-  href?: string;
-}
-
-/** ¿Empieza oración una palabra que va tras `before`? */
-export function startsSentence(before: string): boolean {
-  const t = before.replace(/[\s ]+$/, '');
-  if (t === '' && before === '') return true;
-  if (t === '') return true;
-  const last = t.slice(-1);
-  if (!/[.!?¡¿:]/.test(last) || last === ':') return false;
-  if (last === '.') {
-    const word = /([\p{L}.]+)\.$/u.exec(t)?.[1]?.toLowerCase();
-    if (word && ABBREVIATIONS.has(word)) return false;
-    if (word && word.length === 1) return false; // «J. R. R.» y similares
-  }
-  // exige un espacio tras el signo: «3.5» no es final de oración
-  return /[\s ]$/.test(before);
-}
-
-/**
- * La corrección de una palabra terminada (al escribir un espacio o un signo). `before` es el texto del párrafo antes de la palabra.
- * Devuelve null si no hay nada que corregir.
- */
-export function correctWord(word: string, before: string, o: AutoCorrectOptions): Correction | null {
-  if (!word) return null;
-  const custom = o.custom[word];
-  if (custom !== undefined) return { text: custom };
-  if (o.symbols && SYMBOLS[word]) return { text: SYMBOLS[word]! };
-  if (o.fractions && FRACTIONS[word]) return { text: FRACTIONS[word]! };
-  if (o.dashes && word === '--') return { text: '–' };
-  if (o.dashes && word === '---') return { text: '—' };
-  if (o.autoLinks) {
-    if (/^(https?:\/\/)[^\s]+\.[^\s]+$/i.test(word)) return { text: word, href: word };
-    if (/^www\.[^\s]+\.[^\s]+$/i.test(word)) return { text: word, href: `http://${word}` };
-    if (/^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(word)) return { text: word, href: `mailto:${word}` };
-  }
-  if (/\d|@|\//.test(word) || /^(https?:|www\.)/i.test(word)) return null;
-  const letters = [...word];
-  // dos mayúsculas iniciales: «COrrecto» → «Correcto» (no «ID», ni «IDs», ni siglas largas)
-  if (o.fixTwoInitialCaps && letters.length >= 4 && letters[0] === upper(letters[0]!) && isLetter(letters[0]!) && letters[1] === upper(letters[1]!) && isLetter(letters[1]!) && letters.slice(2).every((c) => c === lower(c) && isLetter(c))) {
-    const fixed = letters[0]! + lower(letters[1]!) + letters.slice(2).join('');
-    return { text: o.capitalizeSentences && startsSentence(before) ? upper(fixed[0]!) + fixed.slice(1) : fixed };
-  }
-  if (o.capitalizeSentences && isLetter(letters[0]!) && letters[0] === lower(letters[0]!) && startsSentence(before)) {
-    return { text: upper(letters[0]!) + letters.slice(1).join('') };
-  }
-  return null;
 }
 
 // ---------------------------------------------------------------------------------------------- plugin

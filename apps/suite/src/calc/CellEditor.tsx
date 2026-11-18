@@ -1,6 +1,7 @@
 import { ES_FUNCTIONS, functionRegistry } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { autoCorrectField, getAutoCorrect } from '../spell';
 import { canPointAt } from './GridView';
 import type { CalcDoc, EditState } from './doc';
 import { ENTRY_PENDING } from './doc-objects';
@@ -142,7 +143,13 @@ export function CellEditor({ doc, edit, rect, zoom, dark, maxW, maxH }: Props) {
         spellCheck={false}
         autoComplete="off"
         rows={1}
-        onChange={(e) => doc.setEditText(e.target.value, e.target.selectionStart)}
+        onChange={(e) => {
+          const el = e.currentTarget;
+          // autocorrección de lo que se escribe como texto (una fórmula no se toca)
+          const r = !el.value.startsWith('=') && !edit.text.startsWith('=') && !(e.nativeEvent as InputEvent).isComposing ? autoCorrectField(edit.text, el.value, el.selectionStart, { capitalizeSentences: /[.!?¡¿]\s/.test(el.value.slice(0, el.selectionStart)) && getAutoCorrect().capitalizeSentences }) : null;
+          if (r) doc.setEditText(r.text, r.caret);
+          else doc.setEditText(el.value, el.selectionStart);
+        }}
         onSelect={(e) => {
           // use the live edit state: a stale closure here would resurrect an edit that was just cancelled
           const s = e.currentTarget.selectionStart;
