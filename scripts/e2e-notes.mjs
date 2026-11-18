@@ -202,8 +202,8 @@ await check('equation: insert and edit', async () => {
   await pm.click({ position: { x: 24, y: 8 } });
   await tab('Insertar');
   await btn('Ecuación…');
-  await page.getByLabel(/Escribe la ecuación/).fill(String.raw`x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}`);
-  await page.waitForSelector('.nn-eqprev math');
+  await page.locator('#nn-eq').fill(String.raw`x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}`);
+  await page.waitForSelector('[data-testid=equation-editor] math');
   await btn('Aceptar');
   assert.ok((await page.locator('.nn-doc .nw-math math').count()) >= 1);
   await shot('equation');

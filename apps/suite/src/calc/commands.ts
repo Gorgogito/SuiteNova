@@ -2,6 +2,8 @@ import { ICON_COUNTS, defaultIconThresholds, formatValue, isDateFormat, normRect
 import type { CommandDef } from '@suitenova/core-ui';
 import { chartFormatCommands } from '../chart/commands';
 import { readChart, writeChart } from '../chart/clipboard';
+import { readMath, writeMath } from '../math/clipboard';
+import { equationClipOf, pasteEquation } from './equation-clip';
 import { chartData } from './chartOption';
 import { ICON_LABELS, SCALE_PRESETS } from './cfDialogs';
 import { objectCommands } from './commands-objects';
@@ -156,11 +158,19 @@ export function calcCommands(ui: CalcUI): CommandDef[] {
       if (cut && d.selectedChart) d.deleteChart(d.selectedChart);
       return;
     }
+    const eq = equationClipOf(d);
+    if (eq && d.x.selectedShape) {
+      void writeMath(eq);
+      if (cut) d.x.deleteShape(d.x.selectedShape);
+      return;
+    }
     const tsv = d.copy(cut);
     void navigator.clipboard?.writeText(tsv).catch(() => undefined);
   };
   const pasteFromSystem = async (mode: Parameters<CalcDoc['paste']>[1]) => {
     if (mode === 'all') {
+      const eq = await readMath();
+      if (eq) return pasteEquation(d, eq);
       const clip = await readChart();
       if (clip) {
         const e = d.pasteChartClip(clip);

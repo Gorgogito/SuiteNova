@@ -1,5 +1,5 @@
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { newMedia, newPicture, readOdp, readPpt, readPptx, writePptx, type Deck } from '@suitenova/slides-core';
+import { newMathBox, newMedia, newPicture, readOdp, readPpt, readPptx, writePptx, type Deck } from '@suitenova/slides-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { zoomCommands } from '../common';
 import { pickAndRead, readPath, saveBytes } from '../fileio';
@@ -19,6 +19,9 @@ import { slidesTabs } from './ribbonDef';
 import { chainFor, newId, newShape } from '@suitenova/slides-core';
 import { chartFromHtml } from '@suitenova/chart-core';
 import { chartOfPaste } from '../chart/clipboard';
+import { mathsFromHtml, type MathClip } from '@suitenova/math-core';
+import { mathOfPaste } from '../math/clipboard';
+import { EQUATION_SIZE, renderEquation } from './equation';
 import { colorContext } from '@suitenova/slides-core';
 import type { CanvasCtx } from './render/SlideCanvas';
 import { Stage } from './Stage';
@@ -129,6 +132,17 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
     [ctl],
   );
 
+  /** Pega una ecuación que viene de fuera como cuadro nuevo en el centro de la diapositiva (con su imagen de respaldo). */
+  const pasteMath = useCallback(
+    async (clip: MathClip) => {
+      const img = await renderEquation(clip.tex, '#000000', EQUATION_SIZE);
+      const id = addAsset(img.bytes, 'image/png', 'ecuacion.png');
+      const el = newMathBox({ tex: clip.tex, display: true, size: EQUATION_SIZE, fallback: id }, (ctl.deck.size.w - img.w) / 2, (ctl.deck.size.h - img.h) / 2, img.w, img.h);
+      ctl.addElement(el, { select: true });
+    },
+    [ctl, addAsset],
+  );
+
   const ui: SlidesUI = useMemo(
     () => ({
       ctl,
@@ -180,7 +194,15 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
           const items = await navigator.clipboard.read();
           for (const it of items) {
             if (!textOnly && it.types.includes('text/html')) {
-              const chart = chartFromHtml(await (await it.getType('text/html')).text());
+              const html = await (await it.getType('text/html')).text();
+              const eq = mathsFromHtml(html)[0];
+              if (eq) {
+                const own = ctl.clip?.els.some((x) => x.kind === 'shape' && x.math) && it.types.includes('text/plain') && (await (await it.getType('text/plain')).text()) === ctl.clipText;
+                if (own) ctl.paste();
+                else await pasteMath(eq);
+                return;
+              }
+              const chart = chartFromHtml(html);
               if (chart) {
                 const own = ctl.clip?.els.some((x) => x.kind === 'chart') && it.types.includes('text/plain') && (await (await it.getType('text/plain')).text()) === ctl.clipText;
                 if (own) ctl.paste();
@@ -228,7 +250,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
       runProps: () => currentRunProps(ctl, canvasCtx()),
       paraProps: () => currentParaProps(ctl, canvasCtx()),
     }),
-    [ctl, loadFile, saveNow, module.name, canvasCtx],
+    [ctl, loadFile, saveNow, module.name, canvasCtx, pasteMath],
   );
 
   useEffect(() => {
@@ -277,6 +299,13 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
       const imgs = [...cd.files].filter((f) => f.type.startsWith('image/'));
       const txt = cd.getData('text/plain');
       const chart = chartOfPaste(cd);
+      const eq = mathOfPaste(cd);
+      // una ecuación copiada en Slides se pega como copia exacta; la que viene de Word, Writer, Notes, Calc u otra página, como cuadro nuevo
+      if (eq) {
+        if (txt === ctl.clipText && ctl.clip?.els.some((x) => x.kind === 'shape' && x.math)) ctl.paste();
+        else void pasteMath(eq);
+        return;
+      }
       // un gráfico copiado en Slides se pega como copia exacta; el que viene de Calc, Writer u otro documento, con su rejilla
       if (chart) {
         if (txt === ctl.clipText && ctl.clip?.els.some((x) => x.kind === 'chart')) ctl.paste();
@@ -287,7 +316,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
-  }, [ctl]);
+  }, [ctl, pasteMath]);
   useEffect(
     () =>
       ctl.on('files', (files: File[]) => {

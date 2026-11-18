@@ -1,4 +1,6 @@
 import { chartOfPaste, putChart } from '../chart/clipboard';
+import { mathOfPaste, putMath } from '../math/clipboard';
+import { equationClipOf, pasteEquation } from './equation-clip';
 import { MAX_COLS, MAX_ROWS, canonicalFormula, formatA1, hyperlinkAt, normRect, parseFormula, walk, type Hyperlink, type Rect } from '@suitenova/calc-engine';
 import { useCore } from '@suitenova/core-ui';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -557,6 +559,8 @@ export function GridView({ doc, zoom, dark, onZoomChange, onContextMenu, onFilte
     e.preventDefault();
     const clip = doc.selectedChart ? doc.chartClip() : null;
     if (clip) return putChart(e.clipboardData, clip);
+    const eq = equationClipOf(doc);
+    if (eq) return putMath(e.clipboardData, eq);
     e.clipboardData.setData('text/plain', doc.copy(false));
   };
   const onCut = (e: React.ClipboardEvent) => {
@@ -568,12 +572,24 @@ export function GridView({ doc, zoom, dark, onZoomChange, onContextMenu, onFilte
       doc.deleteChart(doc.selectedChart);
       return;
     }
+    const eq = equationClipOf(doc);
+    if (eq && doc.x.selectedShape) {
+      putMath(e.clipboardData, eq);
+      doc.x.deleteShape(doc.x.selectedShape);
+      return;
+    }
     e.clipboardData.setData('text/plain', doc.copy(true));
   };
   const onPaste = (e: React.ClipboardEvent) => {
     if (doc.edit) return;
     e.preventDefault();
     const chart = chartOfPaste(e.clipboardData);
+    const eq = chart ? null : mathOfPaste(e.clipboardData);
+    if (eq) {
+      void pasteEquation(doc, eq);
+      wantVisible.current = true;
+      return;
+    }
     const err = chart ? doc.pasteChartClip(chart) : doc.paste(e.clipboardData.getData('text/plain'));
     if (err) window.alert(err);
     wantVisible.current = true;

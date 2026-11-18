@@ -7,3 +7,4 @@ export * from './edit';
 export * from './structures';
 export * from './editview';
 export * from './mathml';
+export * from './clip';

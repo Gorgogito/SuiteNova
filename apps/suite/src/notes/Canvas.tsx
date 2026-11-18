@@ -5,6 +5,7 @@ import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { MathView } from '../writer/nodeviews';
+import { hookMathCopy, mathClipboardProps } from '../math/clipboard';
 import type { NotesCtl } from './ctl';
 import { textPlugins } from './plugins';
 
@@ -20,6 +21,7 @@ function TextBox({ ctl, c, openDialog }: { ctl: NotesCtl; c: TextContainer; open
     const host = mathHost(ctl, openDialog);
     const view: EditorView = new EditorView(el, {
       state: EditorState.create({ doc: contentNode(initial.current), plugins: textPlugins(ctl) }),
+      ...mathClipboardProps,
       nodeViews: { math: (node, v, getPos) => new MathView(node, v, getPos as () => number | undefined, host) },
       attributes: { class: 'nw-doc nn-doc', spellcheck: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Cuadro de texto' },
       dispatchTransaction(tr) {
@@ -39,6 +41,7 @@ function TextBox({ ctl, c, openDialog }: { ctl: NotesCtl; c: TextContainer; open
         },
       },
     });
+    hookMathCopy(view);
     ctl.attachView(c.id, view);
     if (ctl.focusRequest === c.id) {
       ctl.focusRequest = null;

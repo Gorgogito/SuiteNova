@@ -63,6 +63,7 @@ import { formsPlugin } from './forms';
 import { WriterRuntime } from './macros';
 import { loadSpeller, misspellingAt, setSpell, spellPlugin, type SpellLang } from './spell';
 import { getLocale } from '@suitenova/core-ui';
+import { hookMathCopy, mathClipboardProps } from '../math/clipboard';
 import { ControlView, FieldView, GroupView, MathView, ShapeView, editSelectedMath, type NodeViewHost } from './nodeviews';
 import { ObjectView } from './objectview';
 import { shapeSelectionPlugin } from './shape-selection';
@@ -449,6 +450,7 @@ export class WriterCtl {
     const state = EditorState.create({ doc: this.initialDoc, plugins: this.plugins() });
     this.mainView = new EditorView(mount, {
       state,
+      ...mathClipboardProps,
       editable: () => !this.readOnly || this.protection?.mode === 'forms',
       nodeViews: {
         math: (n, v, g) => new MathView(n, v, g as () => number | undefined, this.nodeHost),
@@ -514,6 +516,7 @@ export class WriterCtl {
         return false;
       },
     });
+    hookMathCopy(this.mainView);
     // images and fonts change the layout after they load
     const again = () => this.mainView && repaginate(this.mainView);
     host.addEventListener('load', again, true);

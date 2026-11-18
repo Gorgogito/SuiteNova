@@ -66,6 +66,8 @@ import {
 } from '@suitenova/slides-core';
 import { gridToTsv, type ChartClip } from '@suitenova/chart-core';
 import { writeChart } from '../chart/clipboard';
+import { mathClipText } from '@suitenova/math-core';
+import { writeMath } from '../math/clipboard';
 import type { EditorView } from 'prosemirror-view';
 import { AssetUrls } from './render/assets';
 
@@ -766,9 +768,15 @@ export class SlidesCtl {
     this.clipText = parts.join('\n');
     // un gráfico elegido va también al portapapeles del sistema (con sus datos), para pegarlo en Calc o en Writer
     const only = this.clip.els.length === 1 && this.clip.els[0]!.kind === 'chart' ? (this.clip.els[0] as Extract<SlideElement, { kind: 'chart' }>) : null;
+    // una ecuación elegida va también al portapapeles del sistema como ecuación (Word, Writer, Notes y Calc la entienden) y en formato lineal
+    const eq = this.clip.els.length === 1 && this.clip.els[0]!.kind === 'shape' ? (this.clip.els[0] as ShapeEl).math : undefined;
     if (only) {
       this.clipText = gridToTsv(only.grid);
       void writeChart({ chart: only.chart, grid: only.grid });
+    } else if (eq) {
+      const c = { tex: eq.tex, display: eq.display ?? true };
+      this.clipText = mathClipText(c);
+      void writeMath(c);
     } else void navigator.clipboard?.writeText(this.clipText).catch(() => undefined);
     this.touch();
   }

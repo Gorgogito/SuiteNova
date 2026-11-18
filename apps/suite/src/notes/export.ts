@@ -1,4 +1,5 @@
 import { buildMessage } from '@suitenova/mail-core';
+import { toUnicodeMath } from '@suitenova/math-core';
 import { bakeFormulas, contentNode, displayTitle, pageExtent, strokePath, textContainers, type Notebook, type Page } from '@suitenova/notes-core';
 import { DEFAULT_DOC_DEFAULTS, defaultStyles, emptyWriterDoc, ensureSections, nodeTypes, parseMath, styleCss, toMathML, writeDocx, writerSchema } from '@suitenova/writer-core';
 import { DOMSerializer, Fragment, type Node as PMNode } from 'prosemirror-model';
@@ -11,15 +12,16 @@ function textHtml(content: unknown, mathml = false): string {
   const node = contentNode(bakeFormulas(content));
   const div = document.createElement('div');
   div.appendChild(ser.serializeFragment(node.content));
-  // las ecuaciones se dibujan como MathML en la página web; en el correo (que casi no lo admite) queda el texto LaTeX
-  if (mathml)
-    div.querySelectorAll<HTMLElement>('span.nw-math').forEach((el) => {
-      try {
-        el.innerHTML = toMathML(parseMath(el.dataset.tex ?? ''), el.dataset.display === '1');
-      } catch {
-        /* se deja el texto */
-      }
-    });
+  // las ecuaciones se dibujan como MathML en la página web; en el correo (que casi no lo admite) queda el texto en formato lineal (a/b, x^2)
+  div.querySelectorAll<HTMLElement>('span.nw-math').forEach((el) => {
+    try {
+      const tex = el.dataset.tex ?? '';
+      if (mathml) el.innerHTML = toMathML(parseMath(tex), el.dataset.display === '1');
+      else el.textContent = toUnicodeMath(parseMath(tex));
+    } catch {
+      /* se deja el texto */
+    }
+  });
   return div.innerHTML;
 }
 

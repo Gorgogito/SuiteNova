@@ -259,4 +259,13 @@ registerMessages('en', {
   Pertenece: 'Element of',
   'Derivada parcial': 'Partial derivative',
   Nabla: 'Nabla',
+  // ecuación: editor estructurado compartido
+  'Código LaTeX (se actualiza solo; también se puede escribir aquí)': 'LaTeX code (updates itself; you can also type here)',
+  'Teorema de Pitágoras': 'Pythagorean theorem',
+  'Fórmula cuadrática': 'Quadratic formula',
+  'Área del círculo': 'Area of a circle',
+  'Binomio de Newton': 'Binomial theorem',
+  'Serie de Taylor': 'Taylor series',
+  'Identidad de Euler': "Euler's identity",
+  'Integral definida': 'Definite integral',
 });

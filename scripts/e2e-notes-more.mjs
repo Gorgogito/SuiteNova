@@ -586,21 +586,21 @@ await check('acoplar al escritorio solo avisa fuera de la aplicación de escrito
   assert.match(await ctl((c) => c.message), /aplicación de escritorio/);
 });
 
-await check('ecuación: la paleta inserta estructuras donde está el cursor y se ve la vista previa', async () => {
+await check('ecuación: el editor estructurado (el de Writer) escribe fracciones con «/» y mantiene el código LaTeX', async () => {
   await ctl((c) => c.addPage());
   await tab('Insertar');
   await btn('Ecuación…');
-  await dlg().getByRole('button', { name: 'Fracción', exact: true }).click();
-  assert.equal(await dlg().locator('#nn-eq').inputValue(), '\\frac{}{}');
-  await dlg().locator('#nn-eq').fill('x');
-  await dlg().locator('#nn-eq').selectText();
-  await dlg().getByRole('button', { name: 'Raíz cuadrada', exact: true }).click();
-  assert.equal(await dlg().locator('#nn-eq').inputValue(), '\\sqrt{x}');
-  await dlg().getByRole('tab', { name: 'Letras griegas', exact: true }).click();
-  await dlg().getByRole('button', { name: 'pi', exact: true }).click();
-  assert.match(await dlg().locator('#nn-eq').inputValue(), /\\pi /);
-  assert.ok(await dlg().locator('.nn-eqprev math').count(), 'vista previa en MathML');
-  await shot('ecuacion-paleta');
+  await dlg().locator('[data-testid=equation-editor]').click();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('x=a/b');
+  await settle(200);
+  assert.equal(await dlg().locator('#nn-eq').inputValue(), String.raw`x=\frac{a}{b}`);
+  assert.ok(await dlg().locator('[data-testid=equation-editor] mfrac').count(), 'se dibuja la fracción');
+  await dlg().locator('#nn-eq').fill(String.raw`\sqrt{x}+\pi`);
+  await settle(200);
+  assert.ok(await dlg().locator('[data-testid=equation-editor] msqrt').count(), 'el editor sigue al código');
+  await shot('ecuacion-editor');
   await dlg().getByRole('button', { name: 'Aceptar', exact: true }).click();
   await settle(200);
   assert.ok(await page.locator('.nn-box--text math, .nn-box--text .nw-math').count());
