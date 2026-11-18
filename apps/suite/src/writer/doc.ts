@@ -61,7 +61,8 @@ import { backspaceCommand, deleteCommand, enterCommand, shiftTabCommand, tabComm
 import { tabsPlugin } from './tabs';
 import { formsPlugin } from './forms';
 import { WriterRuntime } from './macros';
-import { loadSpeller, misspellingAt, setSpell, spellPlugin, type SpellLang } from '../spell';
+import { isSpellLang } from '@suitenova/spell-core';
+import { issueAt, loadSpeller, onReviewOptions, setSpell, spellPlugin, type Issue, type SpellLang } from '../spell';
 import { getLocale } from '@suitenova/core-ui';
 import { hookMathCopy, mathClipboardProps } from '../math/clipboard';
 import { ControlView, FieldView, GroupView, MathView, ShapeView, editSelectedMath, type NodeViewHost } from './nodeviews';
@@ -276,14 +277,17 @@ export class WriterCtl {
   spellLang: SpellLang | 'off' = (() => {
     try {
       const v = localStorage.getItem('nova.writer.spellLang');
-      if (v === 'es' || v === 'en' || v === 'off') return v;
+      if (v === 'off' || isSpellLang(v)) return v;
     } catch {
       /* no storage */
     }
     return getLocale() === 'en' ? 'en' : 'es';
   })();
   spellLoading = false;
-  onSpellMenu: (m: { from: number; to: number; word: string; x: number; y: number }) => void = () => {};
+  onSpellMenu: (m: { issue: Issue; x: number; y: number }) => void = () => {};
+  /** Panel «Editor» (ortografía y gramática) abierto. */
+  showEditor = false;
+  private offReview: (() => void) | null = null;
 
   /** Load the dictionary of the chosen language and underline the mistakes (or stop doing so). */
   async applySpell(): Promise<void> {
@@ -298,7 +302,7 @@ export class WriterCtl {
     this.touch();
     try {
       const engine = await loadSpeller(this.spellLang);
-      if (this.mainView === v) setSpell(v, { engine, on: true });
+      if (this.mainView === v) setSpell(v, { engine, on: true, lang: this.spellLang });
     } catch {
       if (this.mainView === v) setSpell(v, { engine: null, on: false });
     } finally {
@@ -447,6 +451,11 @@ export class WriterCtl {
   /** Create the ProseMirror view inside `mount`. `host` is the element whose class toggles during measurement. */
   attach(mount: HTMLElement, host: HTMLElement): void {
     this.host = host;
+    // al cambiar las opciones de revisión o las palabras omitidas o agregadas, se vuelve a subrayar
+    this.offReview = onReviewOptions(() => {
+      const mv = this.mainView;
+      if (mv) setSpell(mv, {});
+    });
     const state = EditorState.create({ doc: this.initialDoc, plugins: this.plugins() });
     this.mainView = new EditorView(mount, {
       state,
@@ -477,10 +486,10 @@ export class WriterCtl {
         keyup: (v, e) => ((e as KeyboardEvent).key === 'Shift' ? this.finishPainter(v) : false),
         contextmenu: (v, event) => {
           const at = v.posAtCoords({ left: event.clientX, top: event.clientY });
-          const m = at ? misspellingAt(v, at.pos) : null;
+          const m = at ? issueAt(v, at.pos) : null;
           if (!m) return false;
           event.preventDefault();
-          this.onSpellMenu({ ...m, x: event.clientX, y: event.clientY });
+          this.onSpellMenu({ issue: m, x: event.clientX, y: event.clientY });
           return true;
         },
         dblclick: (_v, event) => {
@@ -525,6 +534,8 @@ export class WriterCtl {
   }
 
   detach(): void {
+    this.offReview?.();
+    this.offReview = null;
     this.mainView?.destroy();
     this.mainView = null;
   }

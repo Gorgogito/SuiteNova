@@ -735,13 +735,14 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           {
             kind: 'dropdown',
             id: 'spellMenu',
-            label: 'Ortografía',
+            label: 'Ortografía y gramática',
             icon: 'spell',
             size: 'large',
             primaryCommand: 'writer.spell.check',
             keytip: 'SP',
             entries: [
               { kind: 'command', command: 'writer.spell.check' },
+              { kind: 'command', command: 'writer.spell.pane' },
               { kind: 'command', command: 'writer.spell.toggle' },
               { kind: 'separator' },
               { kind: 'command', command: 'writer.spell.lang.es' },
@@ -750,6 +751,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
               { kind: 'command', command: 'writer.spell.lang.en' },
               { kind: 'separator' },
               { kind: 'command', command: 'writer.spell.dictionary' },
+              { kind: 'command', command: 'writer.spell.options' },
               { kind: 'command', command: 'writer.autocorrect' },
             ],
           },

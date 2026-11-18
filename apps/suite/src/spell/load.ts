@@ -1,6 +1,7 @@
 import { SPELL_LANGS, UserDictionary, type SpellLang } from '@suitenova/spell-core';
 import nspell from 'nspell';
 import { DocSpellEngine } from './engine';
+import { notifyReview } from './options';
 
 export { SPELL_LANGS, type SpellLang };
 
@@ -23,6 +24,8 @@ const userDict = new UserDictionary(
   })(),
 );
 
+/** Los motores ya cargados (una palabra agregada o quitada vale en todos). */
+const loaded = new Set<DocSpellEngine>();
 const engines = new Map<SpellLang, Promise<DocSpellEngine>>();
 
 /** Carga (una vez) el diccionario de un idioma. El análisis tarda un momento: se hace fuera del camino de la escritura. */
@@ -32,7 +35,9 @@ export function loadSpeller(lang: SpellLang): Promise<DocSpellEngine> {
     p = (async () => {
       const [aff, dic] = await Promise.all([fetch(FILES[lang].aff).then((r) => r.text()), fetch(FILES[lang].dic).then((r) => r.text())]);
       await new Promise((r) => setTimeout(r, 0));
-      return new DocSpellEngine(nspell(aff, dic), userDict.words());
+      const e = new DocSpellEngine(nspell(aff, dic), userDict.words());
+      loaded.add(e);
+      return e;
     })();
     engines.set(lang, p);
     p.catch(() => engines.delete(lang));
@@ -40,11 +45,24 @@ export function loadSpeller(lang: SpellLang): Promise<DocSpellEngine> {
   return p;
 }
 
-/** Agrega una palabra al diccionario personal (y al motor ya cargado). */
-export function addToUserDictionary(engine: DocSpellEngine, word: string): void {
-  engine.add(word);
+/** Agrega una palabra al diccionario personal (y a los motores ya cargados, de cualquier idioma). */
+export function addToUserDictionary(_engine: DocSpellEngine | null, word: string): void {
   userDict.add(word);
+  for (const e of loaded) e.add(word);
+  notifyReview();
 }
 
 export const userDictionaryWords = (): string[] => userDict.words();
-export const removeFromUserDictionary = (word: string): void => userDict.remove(word);
+
+/** Quita una palabra del diccionario personal; deja de aceptarse al momento. */
+export function removeFromUserDictionary(word: string): void {
+  userDict.remove(word);
+  for (const e of loaded) e.remove(word);
+  notifyReview();
+}
+
+/** Omite una palabra (por esta sesión) y avisa para volver a subrayar. */
+export function ignoreWord(engine: DocSpellEngine, word: string): void {
+  engine.ignore(word);
+  notifyReview();
+}

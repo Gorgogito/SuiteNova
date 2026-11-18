@@ -1,10 +1,14 @@
-import { findWords, skipWord, type Word } from './words';
+import { findWords, type Word } from './words';
+import { skipWordWith, type ReviewOptions } from './options';
+
+const ALL_SKIPS = { ignoreUppercase: true, ignoreNumbers: true, ignoreInternet: true };
 
 /** La parte de nspell que usa el corrector. */
 export interface Speller {
   correct(word: string): boolean;
   suggest(word: string): string[];
   add(word: string): unknown;
+  remove?(word: string): unknown;
 }
 
 /**
@@ -50,8 +54,19 @@ export class SpellEngine {
     this.ignore(word);
   }
 
+  /** Quita una palabra agregada o omitida (deja de aceptarse al momento). */
+  remove(word: string): void {
+    this.ignored.delete(word.toLowerCase());
+    try {
+      this.speller.remove?.(word);
+    } catch {
+      /* no estaba en el diccionario del motor */
+    }
+    this.known.clear();
+  }
+
   /** Las palabras mal escritas de un texto plano, con su posición. */
-  check(text: string): Word[] {
-    return findWords(text).filter((w) => !skipWord(text, w) && !this.isCorrect(w.word));
+  check(text: string, options: Pick<ReviewOptions, 'ignoreUppercase' | 'ignoreNumbers' | 'ignoreInternet'> = ALL_SKIPS): Word[] {
+    return findWords(text).filter((w) => !skipWordWith(text, w, options) && !this.isCorrect(w.word));
   }
 }

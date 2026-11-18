@@ -336,12 +336,14 @@ await check('ortografía encuentra la palabra mal escrita y la corrige con una s
   await writeAt(80, 60, 'La casa es grandee y bonita');
   await tab('Revisar');
   await btn('Ortografía');
-  await page.getByTestId('nn-spell-word').waitFor({ timeout: 20000 });
-  assert.equal(await page.getByTestId('nn-spell-word').innerText(), 'grandee');
+  await page.getByTestId('spell-word').waitFor({ timeout: 20000 });
+  assert.equal(await page.getByTestId('spell-word').innerText(), 'grandee');
   await shot('ortografia');
-  await dlg().locator('.nn-suggest button').first().click();
+  assert.ok((await page.locator('#nv-sp-sug option').allInnerTexts()).includes('grande'));
+  await page.locator('#nv-sp-sug').selectOption('grande');
+  await dlg().getByRole('button', { name: 'Cambiar', exact: true }).click();
   await settle(300);
-  assert.ok(await dlg().getByText('no hay más errores').count());
+  assert.ok(await dlg().getByText('no hay más problemas').count());
   const t = await ctl((c) => c.textOfPage());
   assert.match(t, /grande /);
   await closeDlg();

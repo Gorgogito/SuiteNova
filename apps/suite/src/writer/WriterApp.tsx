@@ -11,7 +11,8 @@ import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { writerCommands, type WriterDialog, type WriterUI } from './commands';
 import { DialogHost } from './dialogs';
 import { ControlPopup } from './ControlPopup';
-import { SpellMenu } from './SpellUI';
+import { EditorPane, ReviewMenu } from '../spell';
+import { writerHost } from './review-host';
 import { OpenPasswordDialog } from './dlg-security';
 import { PAGE_GAP, WriterCtl, findKey } from './doc';
 import './icons';
@@ -218,7 +219,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
   zoomRef.current = zoom;
   const [dialog, setDialog] = useState<WriterDialog | null>(null);
   const [dialogArg, setDialogArg] = useState<unknown>(undefined);
-  const [spellTarget, setSpellTarget] = useState<{ from: number; to: number; word: string; x: number; y: number } | null>(null);
+  const [spellTarget, setSpellTarget] = useState<{ issue: import('../spell').Issue; x: number; y: number } | null>(null);
   const [pwPrompt, setPwPrompt] = useState<{ name: string; path: string | null; data: Uint8Array } | null>(null);
   const [controlPos, setControlPos] = useState<number | null>(null);
   const [find, setFind] = useState<{ replace: boolean } | null>(null);
@@ -554,6 +555,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
           </div>
         </div>
         {ctl.showReview && <ReviewPane ctl={ctl} />}
+        {ctl.showEditor && <EditorPane host={writerHost(ctl)} onClose={() => { ctl.showEditor = false; ctl.touch(); }} onOptions={() => { setDialogArg(undefined); setDialog('reviewOptions'); }} />}
         </div>
         {ctl.noteEdit && <NotePopup ctl={ctl} />}
         {!ctl.contentEnabled && ctl.macros.length > 0 && (
@@ -581,7 +583,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
             }}
           />
         )}
-        {spellTarget && <SpellMenu ctl={ctl} target={spellTarget} onClose={() => setSpellTarget(null)} />}
+        {spellTarget && <ReviewMenu host={writerHost(ctl)} viewId="main" issue={spellTarget.issue} x={spellTarget.x} y={spellTarget.y} onClose={() => setSpellTarget(null)} onOptions={() => { setDialogArg(undefined); setDialog('reviewOptions'); }} />}
         {controlPos !== null && <ControlPopup ctl={ctl} pos={controlPos} onClose={() => setControlPos(null)} />}
         <input
           ref={fileRef}

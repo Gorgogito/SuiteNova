@@ -20,7 +20,8 @@ import { StyleEditDialog, StylesDialog } from './dlg-styles';
 import { TemplatesDialog } from './dlg-templates';
 import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
 import { EncryptDialog, SignDialog, SignatureInfoDialog } from './dlg-security';
-import { SpellDialog, UserDictionaryDialog } from './SpellUI';
+import { DictionaryDialog, ReviewDialog, ReviewOptionsDialog } from '../spell';
+import { writerHost } from './review-host';
 import { EnvelopeDialog, FinishMergeDialog, LabelsDialog, MergeBlockDialog, MergeFieldDialog, MergeRuleDialog, RecipientsDialog } from './dlg-mail';
 import { createTable, insertBlockAfterCursor, markAttr, setLink } from './editing';
 
@@ -330,9 +331,11 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
     case 'signInfo':
       return <SignatureInfoDialog ui={ui} onClose={onClose} />;
     case 'spell':
-      return <SpellDialog ui={ui} onClose={onClose} />;
+      return <ReviewDialog host={writerHost(ui.ctl)} onClose={onClose} />;
     case 'userDict':
-      return <UserDictionaryDialog ui={ui} onClose={onClose} />;
+      return <DictionaryDialog onClose={() => { onClose(); focusDocSoon(ui); }} />;
+    case 'reviewOptions':
+      return <ReviewOptionsDialog lang={ui.ctl.spellLang} onClose={() => { onClose(); focusDocSoon(ui); }} onDictionary={() => ui.openDialog('userDict')} />;
     case 'templates':
       return <TemplatesDialog ui={ui} onClose={onClose} />;
     case 'envelope':

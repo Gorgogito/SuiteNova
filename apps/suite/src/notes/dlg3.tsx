@@ -2,10 +2,10 @@ import { Button, Input } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
 import { groupIntoLines, newTextContainer, readableText, strokeBounds, strokesToSvg } from '@suitenova/notes-core';
 import { nodeTypes, writerSchema } from '@suitenova/writer-core';
-import { TextSelection } from 'prosemirror-state';
 import { setCellAttr } from 'prosemirror-tables';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { SPELL_LANGS, addToUserDictionary, loadSpeller, type SpellLang } from '../spell';
+import { isSpellLang } from '@suitenova/spell-core';
+import { ReviewDialog, type ReviewHost, type SpellLang } from '../spell';
 import { TABLE_STYLES, applyTableStyle, DEFAULT_STYLE_OPTIONS, setTableProps, sortTable, findTable } from '../writer/table-tools';
 import { SYMBOL_GROUPS } from '../writer/symbols';
 import type { NotesCtl } from './ctl';
@@ -20,131 +20,42 @@ const closeBtn = (onClose: () => void) => (
 );
 const refocus = (ctl: NotesCtl) => setTimeout(() => ctl.focusEditor(), 80);
 
-// ------------------------------------------------------------------------------------------------ ortografía
+// ------------------------------------------------------------------------------------------------ ortografía y gramática
 
-interface Found {
-  box: string;
-  from: number;
-  to: number;
-  word: string;
-}
-
+/** El cuadro F7 compartido (ortografía, gramática y estilo) sobre los cuadros de texto de la página. */
 export function NotesSpellDialog({ ctl, onClose }: { ctl: NotesCtl; onClose: () => void }) {
   const [lang, setLang] = useState<SpellLang>(() => {
     try {
-      return (localStorage.getItem('nova.notes.spellLang') as SpellLang | null) ?? 'es';
+      const v = localStorage.getItem('nova.notes.spellLang');
+      return isSpellLang(v) ? v : 'es';
     } catch {
       return 'es';
     }
   });
-  const [engine, setEngine] = useState<Awaited<ReturnType<typeof loadSpeller>> | null>(null);
-  const [error, setError] = useState('');
-  const [tick, setTick] = useState(0);
-  const [skip, setSkip] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    let alive = true;
-    setEngine(null);
-    setError('');
-    loadSpeller(lang).then(
-      (e) => alive && setEngine(e),
-      (e: Error) => alive && setError(e.message),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [lang]);
-  const found: Found[] = useMemo(() => {
-    if (!engine) return [];
-    const out: Found[] = [];
-    for (const c of [...ctl.page.containers].filter((x) => x.kind === 'text').sort((a, b) => a.y - b.y || a.x - b.x)) {
-      const v = ctl.views.get(c.id);
-      if (!v) continue;
-      for (const m of engine.inDoc(v.state.doc)) if (!skip.has(m.word.toLowerCase())) out.push({ box: c.id, ...m });
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine, tick, skip, ctl.page.id]);
-  const cur = found[0];
-  const suggestions = useMemo(() => (engine && cur ? engine.suggest(cur.word) : []), [engine, cur]);
-  const view = cur ? ctl.views.get(cur.box) : undefined;
-  useEffect(() => {
-    if (!cur || !view) return;
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, cur.from, cur.to)).scrollIntoView());
-  }, [cur?.box, cur?.from, cur?.to]); // eslint-disable-line react-hooks/exhaustive-deps
-  const replace = (w: string) => {
-    if (!cur || !view) return;
-    view.dispatch(view.state.tr.replaceWith(cur.from, cur.to, view.state.schema.text(w, view.state.doc.resolve(cur.from).marks())));
-    setTick((n) => n + 1);
-  };
-  const context = (() => {
-    if (!cur || !view) return '';
-    const $p = view.state.doc.resolve(cur.from);
-    return $p.parent.textContent;
-  })();
-  const close = () => {
-    onClose();
-    refocus(ctl);
-  };
-  return (
-    <Modal title={t('Ortografía')} onClose={close} actions={closeBtn(close)}>
-      <div style={field}>
-        <label htmlFor="nn-spell-lang">{t('Idioma')}</label>
-        <select
-          id="nn-spell-lang"
-          className="nv-select"
-          value={lang}
-          onChange={(e) => {
-            const l = e.target.value as SpellLang;
-            setLang(l);
-            try {
-              localStorage.setItem('nova.notes.spellLang', l);
-            } catch {
-              /* sin almacenamiento */
-            }
-          }}
-        >
-          {SPELL_LANGS.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      {error && <p role="alert">{error}</p>}
-      {!engine && !error && <p>{t('Cargando el diccionario…')}</p>}
-      {engine && !cur && <p role="status">{t('La revisión ortográfica terminó: no hay más errores en esta página.')}</p>}
-      {engine && cur && (
-        <>
-          <p>
-            {t('No está en el diccionario:')} <strong data-testid="nn-spell-word">{cur.word}</strong>
-            {found.length > 1 ? ` (${t('quedan {n}', { n: found.length })})` : ''}
-          </p>
-          <p className="nn-note" style={{ fontStyle: 'italic' }}>
-            {context.slice(0, 200)}
-          </p>
-          <div className="nn-suggest" role="listbox" aria-label={t('Sugerencias')}>
-            {suggestions.length === 0 && <span className="nn-note">{t('(sin sugerencias)')}</span>}
-            {suggestions.slice(0, 6).map((s) => (
-              <Button key={s} size="small" onClick={() => replace(s)}>
-                {s}
-              </Button>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-            <Button onClick={() => setSkip(new Set([...skip, cur.word.toLowerCase()]))}>{t('Ignorar siempre')}</Button>
-            <Button
-              onClick={() => {
-                addToUserDictionary(engine, cur.word);
-                setTick((n) => n + 1);
-              }}
-            >
-              {t('Añadir al diccionario')}
-            </Button>
-          </div>
-        </>
-      )}
-    </Modal>
+  const host: ReviewHost = useMemo(
+    () => ({
+      lang,
+      setLang: (l) => {
+        setLang(l);
+        try {
+          localStorage.setItem('nova.notes.spellLang', l);
+        } catch {
+          /* sin almacenamiento */
+        }
+      },
+      views: () =>
+        [...ctl.page.containers]
+          .filter((x) => x.kind === 'text')
+          .sort((a, b) => a.y - b.y || a.x - b.x)
+          .flatMap((c) => {
+            const view = ctl.views.get(c.id);
+            return view ? [{ id: c.id, view }] : [];
+          }),
+      focus: () => refocus(ctl),
+    }),
+    [ctl, lang],
   );
+  return <ReviewDialog host={host} onClose={onClose} />;
 }
 
 // ------------------------------------------------------------------------------------------------ lector inmersivo y voz

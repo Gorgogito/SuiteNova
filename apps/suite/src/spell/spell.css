@@ -1,0 +1,196 @@
+/* subrayado: ortografía en rojo, gramática y puntuación en azul, estilo en verde con guiones */
+.nw-grammar {
+  text-decoration: underline double #1a5fb4;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+}
+.nw-style {
+  text-decoration: underline dashed #2e7d32;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+}
+.nw-misspelled {
+  text-decoration: underline wavy #d32f2f;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+}
+
+/* menú contextual */
+.nv-sp-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  max-width: 340px;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--colorNeutralBackground1, #fff);
+  color: var(--colorNeutralForeground1, #222);
+  border: 1px solid var(--colorNeutralStroke1, #bbb);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+}
+.nv-sp-menu hr {
+  margin: 2px 0;
+}
+.nv-sp-item {
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.nv-sp-item:hover,
+.nv-sp-item:focus {
+  background: var(--colorNeutralBackground1Hover, #e6eefb);
+  outline: none;
+}
+.nv-sp-note {
+  padding: 5px 10px;
+  color: var(--colorNeutralForeground3, #666);
+  font-size: 12px;
+}
+
+/* cuadro F7 */
+.nv-sp-word {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--colorNeutralStroke2, #ccc);
+  border-radius: 4px;
+  font-weight: 600;
+}
+.nv-sp-context {
+  font-style: italic;
+  font-size: 12px;
+  opacity: 0.8;
+  max-height: 60px;
+  overflow: auto;
+}
+.nv-sp-count {
+  margin: 0 0 6px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.nv-sp-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* opciones y diccionario */
+.nv-sp-group {
+  border: 1px solid var(--colorNeutralStroke2, #ccc);
+  border-radius: 4px;
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  display: grid;
+  gap: 2px;
+}
+.nv-sp-rules {
+  display: grid;
+  gap: 0;
+  max-height: 200px;
+  overflow: auto;
+  padding-left: 8px;
+}
+.nv-sp-limit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.nv-sp-dict {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow: auto;
+}
+.nv-sp-dict li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+}
+
+/* panel «Editor» */
+.nv-ed {
+  flex: none;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground2);
+  font-size: 12.5px;
+}
+.nv-ed > header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.nv-ed-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.nv-ed-tabs button {
+  flex: 1;
+  padding: 6px 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+.nv-ed-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--colorBrandForeground1, #2b6cb0);
+  font-weight: 600;
+}
+.nv-ed-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 8px;
+}
+.nv-ed-body ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nv-ed-item {
+  padding: 6px 0 6px 6px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  border-left: 3px solid transparent;
+}
+.nv-ed-spelling {
+  border-left-color: #d32f2f;
+}
+.nv-ed-grammar,
+.nv-ed-punctuation {
+  border-left-color: #1a5fb4;
+}
+.nv-ed-style {
+  border-left-color: #2e7d32;
+}
+.nv-ed-go {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.nv-ed-go span {
+  opacity: 0.8;
+}
+.nv-ed-fixes {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}

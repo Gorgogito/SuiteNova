@@ -3,7 +3,7 @@ import { t } from '@suitenova/core-ui';
 import { addSection, docNode, eachText, findAll, moveSection, removeSection, renameSection, replaceAll, resizeSlide, type Deck, type FindOptions, type ShowProps } from '@suitenova/slides-core';
 import { useEffect, useMemo, useState } from 'react';
 import { loadSpeller, addToUserDictionary, SPELL_LANGS, type SpellLang } from '../spell';
-import { findWords, skipWord, type SpellEngine } from '../spell';
+import { findWords, getReviewOptions, skipWordWith, type SpellEngine } from '../spell';
 import { addComment, rememberAuthor, savedAuthor } from './comments';
 import type { SlidesUI } from './commands';
 import { Modal } from './Dialogs';
@@ -457,7 +457,7 @@ function collect(deck: Deck, engine: SpellEngine, skipped: Set<string>): Err[] {
       let text = '';
       para.forEach((n) => (text += n.type.name === 'text' ? n.text! : ' '));
       for (const w of findWords(text)) {
-        if (skipWord(text, w) || engine.isCorrect(w.word)) continue;
+        if (skipWordWith(text, w, getReviewOptions()) || engine.isCorrect(w.word)) continue;
         if (skipped.has(`${t.elementId}|${w.word}`)) continue;
         out.push({ slideId: t.slideId, slideIndex: t.slideIndex, elementId: t.elementId, word: w.word, context: text.trim() });
       }
