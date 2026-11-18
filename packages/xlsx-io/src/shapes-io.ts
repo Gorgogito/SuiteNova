@@ -1,5 +1,6 @@
 /** Formas y cuadros de texto de la hoja (`xdr:sp` y `xdr:cxnSp` del dibujo de SpreadsheetML). */
 import { SHAPE_FILL, SHAPE_LINE, type SheetShape, type ShapeKind } from '@suitenova/calc-engine';
+import { OMML_NS, ommlXml, parseMath, parseOmmlXml, toTex } from '@suitenova/math-core';
 import { avLstXml, cleanAdjust, hasPreset, isLineKind, parseGuide, presetOf } from '@suitenova/shapes-core';
 import { dmlTextFx, prstTxWarpXml, type FxColor, type FxFill, type WordArtFx } from '@suitenova/wordart-core';
 import { resolveColor } from './colors';
@@ -25,10 +26,33 @@ function textXml(s: SheetShape): string {
   return `<xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" wrap="square" rtlCol="0" anchor="${anchor}">${s.wordart?.warp ? prstTxWarpXml(s.wordart.warp.prst, s.wordart.warp.adj) : ''}</a:bodyPr><a:lstStyle/>${paras}</xdr:txBody>`;
 }
 
+const NS_MC = 'http://schemas.openxmlformats.org/markup-compatibility/2006';
+const NS_A14 = 'http://schemas.microsoft.com/office/drawing/2010/main';
+const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+/**
+ * Una ecuación como la escribe Excel: `mc:AlternateContent` con un cuadro de texto cuyo párrafo es `a14:m` (la opción `a14`) y, si hay,
+ * la imagen de la fórmula como alternativa para las versiones que no la conocen (`fallbackRId` es su relación del dibujo).
+ */
+function mathBodyXml(s: SheetShape, id: number, xfrm: string, name: string, fallbackRId?: string): string {
+  const m = s.math!;
+  const size = Math.round((m.size ?? 14) * 100);
+  const display = m.display ?? false;
+  const keep = !!m.omml && m.ommlTex === m.tex && (m.ommlSize ?? m.size) === m.size;
+  const omml = keep ? m.omml!.replace(/^<m:(oMathPara|oMath)\b([^>]*)>/, (_x, tag: string, attrs: string) => `<m:${tag} ${OMML_NS}${attrs.replace(/\sxmlns:m="[^"]*"/, '')}>`) : ommlXml(parseMath(m.tex), display, { rPr: `<a:rPr lang="es-ES" sz="${size}" i="1"><a:latin typeface="Cambria Math" panose="02040503050406030204" pitchFamily="18" charset="0"/></a:rPr>` });
+  const alt = escapeXml(s.alt ?? m.tex);
+  const sp = `<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="${id}" name="${name}" descr="${alt}"/><xdr:cNvSpPr txBox="1"/></xdr:nvSpPr><xdr:spPr>${xfrm}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></xdr:spPr><xdr:txBody><a:bodyPr wrap="none" rtlCol="0"><a:spAutoFit/></a:bodyPr><a:lstStyle/><a:p><a14:m>${omml}</a14:m><a:endParaRPr lang="es-ES" sz="${size}"/></a:p></xdr:txBody></xdr:sp>`;
+  const pic = fallbackRId
+    ? `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${name}" descr="${alt}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="${fallbackRId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr>${xfrm}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>`
+    : '';
+  return `<mc:AlternateContent xmlns:mc="${NS_MC}"><mc:Choice xmlns:a14="${NS_A14}" Requires="a14">${sp}</mc:Choice><mc:Fallback xmlns:r="${NS_R}">${pic}</mc:Fallback></mc:AlternateContent>`;
+}
+
 /** Cuerpo de un ancla de dibujo para una forma; `w` y `h` son el tamaño en píxeles. */
-export function shapeBodyXml(s: SheetShape, id: number, at?: { x: number; y: number }): string {
+export function shapeBodyXml(s: SheetShape, id: number, at?: { x: number; y: number }, fallbackRId?: string): string {
   const name = escapeXml(s.name ?? `Forma ${id - 1}`);
   const xfrm = `<a:xfrm${s.rotation ? ` rot="${Math.round(s.rotation * 60000)}"` : ''}${s.flip ? ' flipH="1"' : ''}><a:off x="${at ? Math.round(at.x * EMU) : 0}" y="${at ? Math.round(at.y * EMU) : 0}"/><a:ext cx="${Math.round(s.width * EMU)}" cy="${Math.round(s.height * EMU)}"/></a:xfrm>`;
+  if (s.math) return mathBodyXml(s, id, xfrm, name, fallbackRId);
   const geom = `<a:prstGeom prst="${presetOf(s.kind)}">${avLstXml(s.adj)}</a:prstGeom>`;
   if (isLineKind(s.kind)) {
     return `<xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="${id}" name="${name}"${s.alt ? ` descr="${escapeXml(s.alt)}"` : ''}/><xdr:cNvCxnSpPr/></xdr:nvCxnSpPr><xdr:spPr>${xfrm}${geom}${lineXml(s.line === undefined ? { color: SHAPE_LINE, width: 2 } : s.line)}</xdr:spPr></xdr:cxnSp>`;
@@ -101,6 +125,28 @@ export function parseGroup(grp: XNode, frame: { x: number; y: number; width: num
     if (rect) out.push(...parseGroup(sub, rect, theme));
   }
   return out;
+}
+
+/**
+ * Una ecuación de un ancla (`mc:AlternateContent` con un cuadro cuyo párrafo es `a14:m`). `raws` son los `a14:m` del dibujo en texto,
+ * en el orden en que el lector los marcó (`nova`); `embed` es la relación de la imagen de respaldo, si hay.
+ */
+export function parseMathAnchor(a: XNode, raws: string[], theme: string[]): { shape: Omit<SheetShape, 'id' | 'x' | 'y' | 'width' | 'height'>; embed?: string } | null {
+  const sp = asArray(a.AlternateContent?.Choice)[0]?.sp;
+  if (!sp) return null;
+  const para = asArray(sp.txBody?.p)[0];
+  const k = attr(asArray(para?.m)[0], 'nova');
+  const raw = k === undefined ? undefined : raws[Number(k)];
+  if (!raw) return null;
+  const read = parseOmmlXml(raw);
+  const tex = read ? toTex(read.node).trim() : '';
+  if (!read || !tex) return null;
+  const base = parseShape({ sp }, theme)?.shape ?? { kind: 'textBox' };
+  const size = Number(/ sz="(\d+)"/.exec(raw)?.[1] ?? attr(para?.endParaRPr, 'sz') ?? 0) / 100;
+  const shape: Omit<SheetShape, 'id' | 'x' | 'y' | 'width' | 'height'> = { ...base, kind: 'textBox', math: { tex, display: read.display, ...(size > 0 ? { size, ommlSize: size } : {}), omml: raw, ommlTex: tex } };
+  delete shape.text;
+  const embed = attr(asArray(a.AlternateContent?.Fallback)[0]?.pic?.blipFill?.blip, 'embed');
+  return { shape, ...(embed ? { embed } : {}) };
 }
 
 /** Forma leída de un ancla (`sp` o `cxnSp`); `null` si no es una forma. `unsupported` dice que la geometría se sustituyó por un rectángulo. */

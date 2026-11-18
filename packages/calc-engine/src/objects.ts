@@ -296,6 +296,22 @@ export interface SheetImage {
 export type ShapeKind = string;
 export const SHAPE_KINDS: ShapeKind[] = ['rect', 'roundRect', 'ellipse', 'triangle', 'diamond', 'rightArrow', 'leftArrow', 'line', 'textBox'];
 
+/** An equation box: the formula is the content of the shape (Excel's `a14:m` in a text box), not a picture. */
+export interface SheetMath {
+  /** the formula in LaTeX (the shared math engine reads it) */
+  tex: string;
+  /** on its own line (`m:oMathPara`) or inline */
+  display?: boolean;
+  /** size of the characters, points */
+  size?: number;
+  /** the original `m:oMath`/`m:oMathPara` as read from the file, written back while `tex` and `size` are not edited */
+  omml?: string;
+  ommlTex?: string;
+  ommlSize?: number;
+  /** key in the workbook's media store of the picture of the formula: what older versions and other programs show */
+  fallback?: string;
+}
+
 export interface SheetShape {
   id: string;
   kind: ShapeKind;
@@ -316,6 +332,8 @@ export interface SheetShape {
   rotation?: number;
   /** WordArt: estilo del texto (relleno, contorno, efectos) y transformación (`null` = sin deformar); ausente = texto normal. */
   wordart?: { fx: WordArtFx; warp: { prst: string; adj?: Record<string, number> } | null };
+  /** An equation box (the text is the formula). */
+  math?: SheetMath;
   text?: string;
   textColor?: string;
   fontSize?: number;

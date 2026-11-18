@@ -429,6 +429,49 @@ export class DocObjects {
     return shape.id;
   }
 
+  /**
+   * Inserta una ecuación (un cuadro cuyo contenido es la fórmula) junto a la celda activa. `pic` es la imagen de la fórmula (respaldo
+   * para los programas que no la entienden) y su tamaño natural en píxeles. Devuelve su identificador ('' con la hoja protegida).
+   */
+  insertEquation(tex: string, size: number, pic: { bytes: Uint8Array; w: number; h: number }): string {
+    if (!this.d.prot.allowed('objects')) return '';
+    this.d.commitIfEditing();
+    const { row, col } = this.d.sel.active;
+    const fallback = this.wb.addMedia('image/png', pic.bytes);
+    const shape: SheetShape = {
+      id: newShapeId(),
+      kind: 'textBox',
+      x: colOffsetPx(this.sheet, col) + 12,
+      y: rowOffsetPx(this.sheet, row) + 12,
+      width: Math.ceil(pic.w),
+      height: Math.ceil(pic.h),
+      fill: null,
+      line: null,
+      name: 'Ecuación',
+      alt: tex,
+      math: { tex, display: true, size, fallback },
+    };
+    this.d.run('Insertar ecuación', () => this.wb.editObjects(this.id, (s) => void s.shapes.push(shape)));
+    this.selectObject('shape', shape.id);
+    return shape.id;
+  }
+
+  /** Cambia la fórmula de una ecuación: el cuadro conserva su lugar y toma el tamaño natural de la nueva (si algo cambió). */
+  setEquation(id: string, tex: string, size: number, pic: { bytes: Uint8Array; w: number; h: number }): void {
+    const cur = this.sheet.shapes.find((o) => o.id === id);
+    if (!cur?.math) return;
+    const same = cur.math.tex === tex && (cur.math.size ?? 14) === size;
+    if (same) return;
+    const fallback = this.wb.addMedia('image/png', pic.bytes);
+    const w = Math.ceil(pic.w);
+    const h = Math.ceil(pic.h);
+    this.updateShape(
+      id,
+      { alt: tex, x: cur.x + (cur.width - w) / 2, y: cur.y + (cur.height - h) / 2, width: w, height: h, math: { tex, display: cur.math.display, size, fallback } },
+      'Editar ecuación',
+    );
+  }
+
   /** WordArt de la forma elegida: `null` lo quita; el estilo y la transformación se pueden cambiar por separado. */
   setWordArt(patch: { fx?: WordArtFx; warp?: { prst: string; adj?: Record<string, number> } | null } | null, label = 'Formato de WordArt'): void {
     const id = this.selectedShape;

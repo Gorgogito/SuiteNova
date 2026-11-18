@@ -93,6 +93,8 @@ export function objectCommands(ui: CalcUI): CommandDef[] {
   const shapeKinds: [ShapeKind, string][] = [['rect', 'Rectángulo'], ['roundRect', 'Rectángulo redondeado'], ['ellipse', 'Elipse'], ['triangle', 'Triángulo'], ['diamond', 'Rombo'], ['rightArrow', 'Flecha derecha'], ['leftArrow', 'Flecha izquierda'], ['line', 'Línea']];
   for (const [kind, label] of shapeKinds) add({ id: `calc.shape.${kind}`, label, icon: kind === 'line' ? 'ruler' : 'shapes', enabled: () => !editing(), run: () => void x.insertShape(kind) });
   add({ id: 'calc.textbox', label: 'Cuadro de texto', icon: 'textbox', description: 'Inserta un cuadro para escribir texto sobre la hoja. Doble clic para editar el texto.', enabled: () => !editing(), run: () => void x.insertShape('textBox') });
+  add({ id: 'calc.equation.insert', label: 'Ecuación…', icon: 'sigma', description: 'Escribe una ecuación con símbolos, fracciones, raíces, sumatorias y matrices en un cuadro sobre la hoja. Doble clic para editarla.', enabled: () => !editing(), run: () => ui.openDialog('equation', { create: true }) });
+  add({ id: 'calc.equation.edit', label: 'Editar ecuación…', icon: 'sigma', enabled: () => !!d.sheet.shapes.find((o) => o.id === x.selectedShape)?.math && !editing(), run: () => ui.openDialog('equation') });
   add({ id: 'calc.shape.format', label: 'Formato de forma…', icon: 'settings', enabled: () => !!x.selectedShape, run: () => ui.openDialog('shapeFormat') });
   const turnShape = (by: number) => {
     const group = d.sheet.shapes.filter((o) => x.selectedShapes.includes(o.id));

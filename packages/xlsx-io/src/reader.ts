@@ -24,7 +24,7 @@ import {
 import JSZip from 'jszip';
 import { DEFAULT_THEME, resolveColor, type ColorSpec } from './colors';
 import { parseChart, parseChartEx } from '@suitenova/chart-core';
-import { parseGroup, parseShape } from './shapes-io';
+import { parseGroup, parseMathAnchor, parseShape } from './shapes-io';
 import { anchorToRect } from './charts-io';
 import { applySuitePart } from './suite-part';
 import { parseAutoFilter, parseConditionalFormatting, parseDxfs } from './filter-cf-io';
@@ -432,7 +432,13 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
   const rels = await relsOf(read, sheetPart);
   const drawingPath = rels.get(attr(drawingRef, 'id') ?? '');
   if (!drawingPath) return;
-  const drawing = await read(drawingPath);
+  let drawing = await read(drawingPath);
+  // las ecuaciones (`a14:m`) se leen del texto del dibujo: el análisis por objetos pierde el orden de sus partes
+  const mathRaw: string[] = [];
+  const rawXml = zip.file(drawingPath) ? await zip.file(drawingPath)!.async('string') : '';
+  if (rawXml.includes('<a14:m')) {
+    drawing = parser.parse(rawXml.replace(/<a14:m>([\s\S]*?)<\/a14:m>/g, (_m, inner: string) => `<a14:m nova="${mathRaw.push(inner.trim()) - 1}"/>`));
+  }
   const drawingRels = await relsOf(read, drawingPath);
   const anchors = [...asArray(drawing?.wsDr?.twoCellAnchor), ...asArray(drawing?.wsDr?.oneCellAnchor), ...asArray(drawing?.wsDr?.absoluteAnchor)];
   let skippedPictures = 0;
@@ -455,6 +461,18 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
         }
       }
       continue;
+    }
+    if (!chartRef && a.AlternateContent !== undefined && mathRaw.length) {
+      const eq = parseMathAnchor(a, mathRaw, theme);
+      const rect = anchorToRect(sheet, a);
+      if (eq && rect) {
+        const path = eq.embed ? drawingRels.get(eq.embed) : undefined;
+        const file = path ? zip.file(path) : null;
+        const mime = MIME_BY_EXT[(path ?? '').split('.').pop()!.toLowerCase()];
+        const fallback = file && mime ? wb.addMedia(mime, await file.async('uint8array')) : undefined;
+        sheet.shapes.push({ ...eq.shape, ...(fallback && eq.shape.math ? { math: { ...eq.shape.math, fallback } } : {}), id: `shape-imp-${sheet.id}-${++s}`, ...rect });
+        continue;
+      }
     }
     if (!chartRef && (a.sp !== undefined || a.cxnSp !== undefined)) {
       const parsed = parseShape(a, theme);

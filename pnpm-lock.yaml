@@ -668,6 +668,9 @@ importers:
       '@suitenova/chart-core':
         specifier: workspace:*
         version: link:../chart-core
+      '@suitenova/math-core':
+        specifier: workspace:*
+        version: link:../math-core
       '@suitenova/shapes-core':
         specifier: workspace:*
         version: link:../shapes-core

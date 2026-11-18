@@ -45,7 +45,8 @@ export type DialogKind =
   | 'unprotectBook'
   | 'shapeFormat'
   | 'wordartFormat'
-  | 'smartart';
+  | 'smartart'
+  | 'equation';
 
 export interface CalcUI {
   doc: CalcDoc;

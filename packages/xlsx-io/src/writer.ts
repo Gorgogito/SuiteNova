@@ -448,11 +448,27 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
         drawingRels.push({ id: rid, type: `${NS_REL}/image`, target: `../media/${file}` });
         items.push({ kind: 'pic', rId: rid, x: img.x, y: img.y, width: img.width, height: img.height, name: img.name ?? `Imagen ${i + 1}`, alt: img.alt });
       });
+      // the picture of an equation: its media and a relationship of the drawing
+      const mathFallback = (s: (typeof sheet.shapes)[number]): string => {
+        const media = s.math?.fallback ? wb.media.get(s.math.fallback) : undefined;
+        const ext = media ? EXT[media.mime] : undefined;
+        if (!media || !ext || !s.math?.fallback) return '';
+        let file = mediaFile.get(s.math.fallback);
+        if (!file) {
+          file = `image${++mediaCount}.${ext}`;
+          mediaFile.set(s.math.fallback, file);
+          put(`xl/media/${file}`, media.data);
+          mediaExts.add(ext);
+        }
+        const rid = `rId${drawingRels.length + 1}`;
+        drawingRels.push({ id: rid, type: `${NS_REL}/image`, target: `../media/${file}` });
+        return rid;
+      };
       const doneGroups = new Set<string>();
       let groupN = 0;
       sheet.shapes.forEach((s, i) => {
         if (!s.group) {
-          items.push({ kind: 'shape', shape: s, rId: '', x: s.x, y: s.y, width: s.width, height: s.height, name: s.name ?? `Forma ${i + 1}` });
+          items.push({ kind: 'shape', shape: s, rId: mathFallback(s), x: s.x, y: s.y, width: s.width, height: s.height, name: s.name ?? `Forma ${i + 1}` });
           return;
         }
         if (doneGroups.has(s.group)) return;

@@ -1,4 +1,5 @@
 import { shapeSvg } from '@suitenova/shapes-core';
+import { mathBoxHtml } from '../slides/render/mathbox';
 import { CFEvaluator, colToName, colAtPx, colOffsetPx, normRect, rowAtPx, rowOffsetPx, shapeLook, tableAt, type FormulaLocale, type PageSetup, type Rect, type Sheet, type Style } from '@suitenova/calc-engine';
 import type { CalcDoc } from './doc';
 import { chartSvg } from './chartRender';
@@ -370,7 +371,9 @@ function pageHtml(o: HtmlOptions, p: PrintPage, total: number): string {
     const look = shapeLook(sh);
     const justify = { top: 'flex-start', middle: 'center', bottom: 'flex-end' }[sh.vAlign ?? (sh.kind === 'textBox' ? 'top' : 'middle')];
     const align = sh.hAlign ?? (sh.kind === 'textBox' ? 'left' : 'center');
-    const txt = sh.text
+    const txt = sh.math
+      ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;white-space:nowrap;color:#000;font-size:${((sh.math.size ?? 14) * 4) / 3}px;font-family:'Cambria Math','STIX Two Math','Latin Modern Math',serif">${mathBoxHtml(sh.math.tex, !!sh.math.display)}</div>`
+      : sh.text
       ? `<div style="position:absolute;inset:4px;display:flex;flex-direction:column;justify-content:${justify};text-align:${align};white-space:pre-wrap;overflow:hidden;color:${sh.textColor ?? '#000'};font-size:${sh.fontSize ?? 11}px;${sh.bold ? 'font-weight:700;' : ''}${sh.italic ? 'font-style:italic;' : ''}">${esc(sh.text)}</div>`
       : '';
     parts.push(

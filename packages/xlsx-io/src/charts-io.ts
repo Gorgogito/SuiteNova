@@ -48,7 +48,7 @@ export function drawingXml(sheet: Sheet, items: DrawingItem[]): string {
           : c.kind === 'group'
           ? groupBodyXml(c.group!, id, c.name)
           : c.kind === 'shape'
-          ? shapeBodyXml(c.shape!, id)
+          ? shapeBodyXml(c.shape!, id, undefined, c.rId || undefined)
           : c.kind === 'chart' && c.ex
           ? `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" Requires="cx1">` +
             `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +

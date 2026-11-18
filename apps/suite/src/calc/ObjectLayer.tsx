@@ -4,6 +4,7 @@ import { t } from '@suitenova/core-ui';
 import { Check, FilterX, ListChecks } from 'lucide-react';
 import { dragWarpAdjust, warpAdjustHandles } from '@suitenova/wordart-core';
 import { renderWordArt } from '../wordart/engine';
+import { mathBoxHtml } from '../slides/render/mathbox';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CalcDoc } from './doc';
 import { colX, screenX, screenY, type Layout, type Viewport } from './render';
@@ -283,11 +284,19 @@ function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit,
       role="img"
       aria-label={s.alt ?? s.name ?? s.text ?? t('Forma')}
       onPointerDown={(e) => (editing ? e.stopPropagation() : onDown(e, 'move'))}
-      onDoubleClick={() => !isLineKind(s.kind) && onEdit()}
+      onDoubleClick={() => (s.math ? window.dispatchEvent(new CustomEvent('nova-calc-equation-edit')) : !isLineKind(s.kind) && onEdit())}
     >
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', pointerEvents: 'none' }}>
         <g dangerouslySetInnerHTML={{ __html: shapeSvg(s.kind, w, h, { fill: look.fill, stroke: look.line?.color ?? null, strokeWidth: (look.line?.width ?? 1) * zoom, flip: s.flip, adj }) }} />
       </svg>
+      {s.math && (
+        <div
+          className="calc-shape__math"
+          data-testid="calc-math"
+          style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: ((s.math.size ?? 14) * 4 * zoom) / 3, fontFamily: "'Cambria Math','STIX Two Math','Latin Modern Math',serif", color: s.textColor ?? '#000000', whiteSpace: 'nowrap', pointerEvents: 'none' }}
+          dangerouslySetInnerHTML={{ __html: mathBoxHtml(s.math.tex, !!s.math.display) }}
+        />
+      )}
       {s.wordart && !editing && <WordArtDraw s={warpDraft && s.wordart.warp ? { ...s, wordart: { ...s.wordart, warp: { ...s.wordart.warp, adj: warpDraft } } } : s} w={w} h={h} zoom={zoom} onDrawn={setWaDrawn} />}
       {editing ? (
         <textarea

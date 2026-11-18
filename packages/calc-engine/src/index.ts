@@ -44,6 +44,7 @@ export {
   type PivotValueField,
   type PrintSettings,
   type SheetImage,
+  type SheetMath,
   type SheetShape,
   type ShapeKind,
   SHAPE_KINDS,

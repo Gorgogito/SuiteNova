@@ -26,6 +26,7 @@ import './messages-filter2';
 import './messages-stat';
 import './messages-shape';
 import '../wordart/messages';
+import '../math/messages';
 import { calcTabs } from './ribbonDef';
 import { SheetTabs } from './SheetTabs';
 import { ListMenu } from './ObjectLayer';
@@ -154,6 +155,18 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
     };
     window.addEventListener('nova-calc-smartart-edit', open);
     return () => window.removeEventListener('nova-calc-smartart-edit', open);
+  }, [doc]);
+
+  // doble clic en una ecuación (la dibuja ObjectLayer): abre su edición
+  useEffect(() => {
+    const open = () => {
+      if (doc.sheet.shapes.find((o) => o.id === doc.x.selectedShape)?.math) {
+        setDialogArg(undefined);
+        setDialog('equation');
+      }
+    };
+    window.addEventListener('nova-calc-equation-edit', open);
+    return () => window.removeEventListener('nova-calc-equation-edit', open);
   }, [doc]);
 
   const ui: CalcUI = useMemo(
