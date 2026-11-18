@@ -745,6 +745,8 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
               { kind: 'command', command: 'writer.spell.toggle' },
               { kind: 'separator' },
               { kind: 'command', command: 'writer.spell.lang.es' },
+              { kind: 'command', command: 'writer.spell.lang.es-MX' },
+              { kind: 'command', command: 'writer.spell.lang.es-PE' },
               { kind: 'command', command: 'writer.spell.lang.en' },
               { kind: 'separator' },
               { kind: 'command', command: 'writer.spell.dictionary' },

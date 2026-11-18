@@ -125,6 +125,23 @@ await check('check while typing can be turned off', async () => {
   await waitEngine();
 });
 
+await check('language: Spanish of Mexico and of Peru accept their own words, Spanish of Spain does not', async () => {
+  await newDoc();
+  await page.keyboard.type('Esta fiesta es chévere y la cassa también.');
+  await settle(800);
+  assert.deepEqual(await underlined(), ['chévere', 'cassa']);
+  for (const lang of ['es-MX', 'es-PE']) {
+    await tab('Revisar');
+    await page.getByRole('button', { name: 'Ortografía' }).last().click();
+    await page.getByRole('menuitem', { name: lang === 'es-MX' ? 'Español (México)' : 'Español (Perú)' }).click();
+    await waitEngine();
+    await settle(600);
+    assert.deepEqual(await underlined(), ['cassa'], lang);
+  }
+  await ev(() => window.__novaWriter.ctl.setSpellLang('es'));
+  await waitEngine();
+});
+
 await check('no console errors', async () => {
   assert.deepEqual(errors, []);
 });

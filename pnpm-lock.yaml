@@ -217,6 +217,9 @@ importers:
       '@suitenova/smartart-core':
         specifier: workspace:*
         version: link:../../packages/smartart-core
+      '@suitenova/spell-core':
+        specifier: workspace:*
+        version: link:../../packages/spell-core
       '@suitenova/wordart-core':
         specifier: workspace:*
         version: link:../../packages/wordart-core
@@ -250,6 +253,12 @@ importers:
       dictionary-es:
         specifier: ^4.0.0
         version: 4.0.0
+      dictionary-es-mx:
+        specifier: 2.0.0
+        version: 2.0.0
+      dictionary-es-pe:
+        specifier: 2.0.0
+        version: 2.0.0
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
@@ -567,6 +576,30 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.5
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
+
+  packages/spell-core:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      dictionary-en:
+        specifier: ^4.0.0
+        version: 4.0.0
+      dictionary-es:
+        specifier: ^4.0.0
+        version: 4.0.0
+      dictionary-es-mx:
+        specifier: 2.0.0
+        version: 2.0.0
+      dictionary-es-pe:
+        specifier: 2.0.0
+        version: 2.0.0
+      nspell:
+        specifier: ^2.1.5
+        version: 2.1.5
       vitest:
         specifier: ^3.2.0
         version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
@@ -2198,6 +2231,12 @@ packages:
 
   dictionary-en@4.0.0:
     resolution: {integrity: sha512-3NHnE1uq33ZE/CIwaZ6gqxa4BnglHnxeAcTM0GJ7cmtRGcvX9InMK/IqLtYcUMFCUpUNgybH+DzkqdgAo3F1zg==}
+
+  dictionary-es-mx@2.0.0:
+    resolution: {integrity: sha512-EkRPJAgPhY55oMiHqwEBavOpokkvXlOO5jOdwZJmV/B6w9pGpJxlm7YorgHjiB2HqyPGW0FRcOoJRBTspTXUEA==}
+
+  dictionary-es-pe@2.0.0:
+    resolution: {integrity: sha512-57LMEGDzwGzdF1bkrvyEIM1YGwfqgJylncy4Sh/E6jVzKotm2Se+/6T49qBsARt2N2qtCcX/g7wHyNaehU8EeA==}
 
   dictionary-es@4.0.0:
     resolution: {integrity: sha512-8J3IYdaHYmkojxqhB+DneQpek6N/s3MwbVk3bPNGQSTBT5kxJtmbuiT0LSDP0Al6K9Vevo1sjspG8AGP9Yvxiw==}
@@ -4680,6 +4719,10 @@ snapshots:
   detect-libc@2.1.2: {}
 
   dictionary-en@4.0.0: {}
+
+  dictionary-es-mx@2.0.0: {}
+
+  dictionary-es-pe@2.0.0: {}
 
   dictionary-es@4.0.0: {}
 

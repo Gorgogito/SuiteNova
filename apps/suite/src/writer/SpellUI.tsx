@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { WriterCtl } from './doc';
 import { Modal, field, focusDocSoon } from './dialogs';
 import type { WriterUI } from './commands';
-import { addToUserDictionary, loadSpeller, misspellings, removeFromUserDictionary, setSpell, userDictionaryWords, type SpellLang } from './spell';
-import type { Misspelling } from './spell-core';
+import { addToUserDictionary, loadSpeller, misspellings, removeFromUserDictionary, setSpell, userDictionaryWords, type SpellLang } from '../spell';
+import type { Misspelling } from '../spell';
 
 async function engineOf(ctl: WriterCtl) {
   if (ctl.spellLang === 'off') return null;

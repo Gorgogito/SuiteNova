@@ -88,3 +88,9 @@ En Office es un componente compartido (OMML, el mismo motor en Word, PowerPoint,
 - [x] **Fase 7 HECHA (cierre):** `LIMITACIONES.md` corregido y con sección propia, Word, PowerPoint y Excel reales abren las 5 ecuaciones de `scripts/real-equations.mjs` como ecuaciones (tamaños 20-36 pt en PowerPoint), regresión completa (tipos, pruebas y e2e). **Subproducto Ecuaciones terminado.** Pendiente: LibreOffice, Outlook y OneNote reales.
 - [ ] Fase 6: Notes, Mail y portapapeles entre productos.
 - [ ] Fase 7: cierre (documentación, límites, regresión, Office real).
+
+## Subproducto Corrector ortográfico y gramatical (2026-11-17)
+En Office es un componente compartido (motor y diccionarios, diccionario personal y Autocorrección comunes; idioma por texto; Excel solo a petición). Diseño y fases en `docs/diseno-corrector.md`.
+- [x] **Fase 1 HECHA:** paquete compartido `packages/spell-core` (motor sobre texto plano, palabras que se omiten, idiomas **es-ES, es-MX, es-PE y en**, diccionario personal único); adaptador de ProseMirror y carga de diccionarios en `apps/suite/src/spell/`; Writer, Slides y Notes migrados; 12 pruebas nuevas y una e2e nueva en `e2e-writer-spell`.
+- [ ] Fase 2: gramática y estilo (motor de reglas). Fase 3: interfaz compartida (panel «Editor»). Fase 4: Writer, Slides y Notes con idioma por texto. Fase 5: Calc, Mail, Plan, Forms, Base y Autocorrección compartida. Fase 6: cierre con Word real.
+

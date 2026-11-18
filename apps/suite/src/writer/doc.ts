@@ -61,7 +61,7 @@ import { backspaceCommand, deleteCommand, enterCommand, shiftTabCommand, tabComm
 import { tabsPlugin } from './tabs';
 import { formsPlugin } from './forms';
 import { WriterRuntime } from './macros';
-import { loadSpeller, misspellingAt, setSpell, spellPlugin, type SpellLang } from './spell';
+import { loadSpeller, misspellingAt, setSpell, spellPlugin, type SpellLang } from '../spell';
 import { getLocale } from '@suitenova/core-ui';
 import { hookMathCopy, mathClipboardProps } from '../math/clipboard';
 import { ControlView, FieldView, GroupView, MathView, ShapeView, editSelectedMath, type NodeViewHost } from './nodeviews';

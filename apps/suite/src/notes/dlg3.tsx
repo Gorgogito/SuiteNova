@@ -5,7 +5,7 @@ import { nodeTypes, writerSchema } from '@suitenova/writer-core';
 import { TextSelection } from 'prosemirror-state';
 import { setCellAttr } from 'prosemirror-tables';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { SPELL_LANGS, addToUserDictionary, loadSpeller, type SpellLang } from '../writer/spell';
+import { SPELL_LANGS, addToUserDictionary, loadSpeller, type SpellLang } from '../spell';
 import { TABLE_STYLES, applyTableStyle, DEFAULT_STYLE_OPTIONS, setTableProps, sortTable, findTable } from '../writer/table-tools';
 import { SYMBOL_GROUPS } from '../writer/symbols';
 import type { NotesCtl } from './ctl';

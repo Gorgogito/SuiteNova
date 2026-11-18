@@ -1,6 +1,6 @@
 import type { CommandDef } from '@suitenova/core-ui';
 import type { WriterUI } from './commands';
-import { SPELL_LANGS, misspellings } from './spell';
+import { SPELL_LANGS, misspellings, type SpellLang } from '../spell';
 
 /** Spelling check: dialog, check while typing, language and personal dictionary. */
 export function spellCommands(ui: WriterUI): CommandDef[] {
@@ -14,7 +14,7 @@ export function spellCommands(ui: WriterUI): CommandDef[] {
     icon: 'check',
     description: 'Subraya en rojo las palabras que no están en el diccionario.',
     checked: () => c.spellLang !== 'off',
-    run: () => c.setSpellLang(c.spellLang === 'off' ? (localStorage.getItem('nova.writer.spellLangLast') as 'es' | 'en' | null) ?? 'es' : 'off'),
+    run: () => c.setSpellLang(c.spellLang === 'off' ? (localStorage.getItem('nova.writer.spellLangLast') as SpellLang | null) ?? 'es' : 'off'),
   });
   add({ id: 'writer.spell.dictionary', label: 'Diccionario personalizado…', icon: 'book', run: () => ui.openDialog('userDict') });
   for (const l of SPELL_LANGS)
