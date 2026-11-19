@@ -104,7 +104,9 @@ await check('el cuadro de opciones apaga correcciones y guarda reemplazos propio
   await page.waitForTimeout(300);
   await shot('dialogo-autocorreccion');
   const dlg = page.getByRole('dialog');
+  await dlg.getByRole('tab', { name: 'Autoformato' }).click();
   await dlg.getByLabel('Comillas rectas por comillas tipográficas').uncheck();
+  await dlg.getByRole('tab', { name: 'Autocorrección', exact: true }).click();
   await dlg.getByLabel('Reemplazar', { exact: true }).fill('pq');
   await dlg.getByLabel('Con', { exact: true }).fill('porque');
   await dlg.getByRole('button', { name: 'Agregar' }).click();

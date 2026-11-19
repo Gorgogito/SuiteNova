@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_AUTOCORRECT, autoCorrectTyped, correctWord, defaultExceptions, defaultReplacements, findMarkup, loadAutoCorrectFrom, ordinalOf, parseAutoCorrectStore, replacementFor, resolveAutoCorrect, ruleLineKind, saveAutoCorrectTo, startsSentence } from './autocorrect';
+import { DEFAULT_AUTOCORRECT, exportReplacements, importReplacements, loadMathListFrom, saveMathListTo, autoCorrectTyped, correctWord, defaultExceptions, defaultReplacements, findMarkup, loadAutoCorrectFrom, ordinalOf, parseAutoCorrectStore, replacementFor, resolveAutoCorrect, ruleLineKind, saveAutoCorrectTo, startsSentence } from './autocorrect';
 import { autoLangOf } from './autocorrect-data';
 
 const es = { ...DEFAULT_AUTOCORRECT, custom: defaultReplacements('es') };
@@ -100,5 +100,27 @@ describe('ordinales, marcado y líneas de borde', () => {
     expect(ruleLineKind('###')).toBe('triple');
     expect(ruleLineKind('--')).toBeNull();
     expect(ruleLineKind('--- a')).toBeNull();
+  });
+});
+
+describe('lista matemática e importar/exportar', () => {
+  it('la lista matemática se guarda aparte y se puede volver a la de fábrica', () => {
+    const m = new Map<string, string>();
+    const st = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+    expect(loadMathListFrom(st)).toBeNull();
+    saveAutoCorrectTo(st, { ...es, custom: { bss: 'buenos' } });
+    saveMathListTo(st, { alpha: 'α', mio: '★' });
+    expect(loadMathListFrom(st)).toEqual({ alpha: 'α', mio: '★' });
+    expect(loadAutoCorrectFrom(st, 'es').custom).toEqual({ bss: 'buenos' });
+    saveMathListTo(st, null);
+    expect(loadMathListFrom(st)).toBeNull();
+  });
+  it('exporta e importa sin perder comas, comillas ni saltos', () => {
+    const list = { bss: 'buenos días, a todos', q: 'dijo "hola"', ml: 'a\nb', ab: 'x' };
+    expect(importReplacements(exportReplacements(list))).toEqual(list);
+  });
+  it('importa tabulador, punto y coma, comentarios y BOM; descarta lo inválido', () => {
+    const t = '﻿# mi lista\r\nbss\tbuenos días\r\nomw;on my way\r\n\r\nsolo\r\n"con espacio";x\r\nok,vale';
+    expect(importReplacements(t)).toEqual({ bss: 'buenos días', omw: 'on my way', ok: 'vale' });
   });
 });

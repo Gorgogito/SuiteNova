@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { end, toTree, backspace, del, fromTree, insertStructure, moveLeft, moveRight, moveVertical, nextSlot, parsePathKey, parseUnicodeMath, pathKey, placeCursor, renderEdit, selectAll, toTex, typeChar, typeText, STRUCTURES, SYMBOL_GROUPS, type EditState } from './index';
+import { setMathAutoCorrect, defaultMathAutoCorrect, end, toTree, backspace, del, fromTree, insertStructure, moveLeft, moveRight, moveVertical, nextSlot, parsePathKey, parseUnicodeMath, pathKey, placeCursor, renderEdit, selectAll, toTex, typeChar, typeText, STRUCTURES, SYMBOL_GROUPS, type EditState } from './index';
 
 const start = () => fromTree({ t: 'row', c: [] });
 const type = (s: string, st: EditState = start()) => typeText(st, s);
@@ -160,5 +160,28 @@ describe('edición estructurada', () => {
   it('lo escrito se puede leer en el formato lineal de Word', () => {
     expect(JSON.stringify(parseUnicodeMath('a/b'))).toContain('frac');
     expect(tex(type('x^2+y^2=z^2'))).toBe('x^2+y^2=z^2');
+  });
+});
+
+describe('autocorrección matemática editable', () => {
+  it('la lista de fábrica trae letras y símbolos y no cambia el comportamiento', () => {
+    expect(defaultMathAutoCorrect().alpha).toBe('α');
+    expect(defaultMathAutoCorrect().leq).toBe('≤');
+    setMathAutoCorrect(defaultMathAutoCorrect());
+    expect(tex(type(r`\alpha `))).toBe(r`\alpha`);
+    setMathAutoCorrect(null);
+  });
+  it('una entrada propia reemplaza, y quitar una de fábrica la deja sin convertir', () => {
+    const list = defaultMathAutoCorrect();
+    delete list.beta;
+    list.mio = 'ℵ';
+    setMathAutoCorrect(list);
+    try {
+      expect(tex(type(r`\mio `))).toBe(r`\aleph`);
+      expect(tex(type(r`\beta `))).toBe(r`\text{\beta}`);
+      expect(tex(type(r`\frac `))).toContain('frac');
+    } finally {
+      setMathAutoCorrect(null);
+    }
   });
 });

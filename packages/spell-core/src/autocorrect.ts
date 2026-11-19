@@ -57,6 +57,9 @@ export interface AutoCorrectStore {
   flags: AutoFlags;
   lists: Partial<Record<AutoLang, Record<string, string>>>;
   exceptions: Partial<Record<AutoLang, AutoExceptions>>;
+  /** Lista de la autocorrección matemática (`
+ombre` → texto); si falta, vale la de fábrica de Ecuaciones. */
+  math?: Record<string, string>;
 }
 
 export const emptyAutoCorrectStore = (): AutoCorrectStore => ({ version: 2, flags: { ...DEFAULT_FLAGS }, lists: {}, exceptions: {} });
@@ -77,6 +80,7 @@ export function parseAutoCorrectStore(raw: string | null | undefined): AutoCorre
     if (!v || typeof v !== 'object') return out;
     const flagSrc = (v.version === 2 ? (v.flags as Record<string, unknown>) : v) ?? {};
     for (const k of Object.keys(DEFAULT_FLAGS) as (keyof AutoFlags)[]) if (typeof flagSrc[k] === 'boolean') out.flags[k] = flagSrc[k] as boolean;
+    if (v.math && typeof v.math === 'object') out.math = pairs(v.math);
     if (v.version === 2) {
       for (const l of ['es', 'en'] as const) {
         const list = (v.lists as Record<string, unknown> | undefined)?.[l];
@@ -327,4 +331,84 @@ export function autoCorrectTyped(prev: string, next: string, caret: number, o: A
   if (!fix || fix.text === word || fix.sup) return null;
   const text = before + fix.text + ch + tail;
   return out(text, before.length + fix.text.length + 1);
+}
+
+/** La lista de la autocorrección matemática guardada (`null` si no se ha tocado: vale la de fábrica). */
+export function loadMathListFrom(store: { getItem(k: string): string | null } | null): Record<string, string> | null {
+  try {
+    return parseAutoCorrectStore(store?.getItem(AUTOCORRECT_KEY)).math ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Guarda la lista matemática sin tocar el resto (`null` vuelve a la de fábrica). */
+export function saveMathListTo(store: { getItem?(k: string): string | null; setItem(k: string, v: string): void } | null, list: Record<string, string> | null): void {
+  try {
+    const s = parseAutoCorrectStore(store?.getItem?.(AUTOCORRECT_KEY));
+    if (list) s.math = { ...list };
+    else delete s.math;
+    store?.setItem(AUTOCORRECT_KEY, JSON.stringify(s));
+  } catch {
+    /* sin almacenamiento */
+  }
+}
+
+
+// ------------------------------------------------------------------------------------------------- importar y exportar
+
+/** Una lista de reemplazos como texto CSV (`reemplazar,con`, entre comillas si hace falta), una entrada por línea y en orden alfabético. */
+export function exportReplacements(list: Record<string, string>): string {
+  const q = (x: string) => (/[",;\t\r\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x);
+  return Object.keys(list)
+    .sort((a, b) => a.localeCompare(b))
+    .map((k) => `${q(k)},${q(list[k]!)}`)
+    .join('\r\n');
+}
+
+/** Lee un texto de reemplazos: tabulador, coma o punto y coma entre las dos columnas, con comillas CSV; ignora líneas vacías y las que empiezan por `#`. */
+export function importReplacements(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const src = text.replace(/^﻿/, '');
+  let i = 0;
+  const field = (): { v: string; sep: string } => {
+    let v = '';
+    if (src[i] === '"') {
+      i++;
+      for (; i < src.length; i++) {
+        if (src[i] === '"') {
+          if (src[i + 1] === '"') {
+            v += '"';
+            i++;
+          } else {
+            i++;
+            break;
+          }
+        } else v += src[i];
+      }
+    } else {
+      while (i < src.length && !'\t,;\r\n'.includes(src[i]!)) v += src[i++];
+    }
+    return { v, sep: src[i] ?? '\n' };
+  };
+  while (i < src.length) {
+    if (src[i] === '\r' || src[i] === '\n') {
+      i++;
+      continue;
+    }
+    if (src[i] === '#') {
+      while (i < src.length && src[i] !== '\n') i++;
+      continue;
+    }
+    const a = field();
+    let b = { v: '', sep: '\n' };
+    if (a.sep === '\t' || a.sep === ',' || a.sep === ';') {
+      i++;
+      b = field();
+    }
+    while (i < src.length && src[i] !== '\n') i++;
+    const k = a.v.trim();
+    if (k && !/\s/.test(k) && b.v) out[k] = b.v;
+  }
+  return out;
 }

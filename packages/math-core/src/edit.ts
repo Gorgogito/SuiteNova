@@ -275,13 +275,29 @@ const ESC_STRUCT: Record<string, string> = {
   overline: 'overline', underline: 'underline', sum: 'nary-∑', prod: 'nary-∏', int: 'nary-∫', iint: 'nary-∬', iiint: 'nary-∭', oint: 'nary-∮',
 };
 
+/** Lista de «Autocorrección matemática» del usuario (`\nombre` → texto); sin ella valen las tablas de fábrica. */
+let userMath: Record<string, string> | null = null;
+export function setMathAutoCorrect(list: Record<string, string> | null): void {
+  userMath = list ? { ...list } : null;
+}
+/** La lista de fábrica de la autocorrección matemática: letras griegas y símbolos (`alpha` → `α`, se escribe `\alpha`). */
+export function defaultMathAutoCorrect(): Record<string, string> {
+  return { ...GREEK, ...SYMBOLS };
+}
+
 /** Pone en el cursor lo que significa `\nombre`. */
 function resolveEscape(st: EditState): EditState {
   const name = st.esc ?? '';
   const base: EditState = { ...st, esc: undefined };
   if (!name) return base;
-  if (GREEK[name]) return insertNode(base, { t: 'id', v: GREEK[name]! });
-  if (SYMBOLS[name]) return insertNode(base, { t: 'op', v: SYMBOLS[name]! });
+  if (userMath) {
+    // lista editable (Autocorrección matemática): lo que no está en ella no se convierte; siguen valiendo las estructuras (`\frac`, `\sum`...)
+    const to = userMath[name];
+    if (to !== undefined && !ESC_STRUCT[name]) return [...to].reduce((acc, ch) => typeChar(acc, ch), base);
+  } else {
+    if (GREEK[name]) return insertNode(base, { t: 'id', v: GREEK[name]! });
+    if (SYMBOLS[name]) return insertNode(base, { t: 'op', v: SYMBOLS[name]! });
+  }
   if (ESC_STRUCT[name]) return insertStructure(base, ESC_STRUCT[name]!);
   if (NARY[name]) return typeChar(base, NARY[name]!);
   if (FUNCS.has(name)) return insertStructure(base, `fn-${name}`);

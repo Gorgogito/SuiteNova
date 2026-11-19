@@ -107,4 +107,5 @@ En Office es un componente compartido (motor y diccionarios, diccionario persona
 
 ## Autocorrección (en `spell-core`, plan en `docs/diseno-autocorreccion.md`)
 - [x] **Fase 1 HECHA:** motor (lista y excepciones por idioma, reemplazos de fábrica, mayúscula de lo escrito, ordinales, `*negrita*`, líneas de borde, migración); `spell-core` 66 pruebas.
-- [ ] Fase 2: cuadro único (con Excepciones, Autoformato y Matemática; importar y exportar). Fase 3: Writer, Notes y Slides. Fase 4: Calc, Mail, Plan, Forms y Base. Fase 5: cierre con Word real.
+- [x] **Fase 2 HECHA:** cuadro único con pestañas Autocorrección (idioma de la lista, Excepciones, importar y exportar CSV), Autoformato y Matemática (lista editable conectada con el editor de Ecuaciones); `spell-core` 69, `math-core` 42, e2e nueva (9).
+- [ ] Fase 3: Writer, Notes y Slides. Fase 4: Calc, Mail, Plan, Forms y Base. Fase 5: cierre con Word real.
