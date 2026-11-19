@@ -102,17 +102,25 @@ export function wordAround(doc: PMNode, pos: number): { word: string; from: numb
   const $pos = doc.resolve(pos);
   if (!$pos.parent.isTextblock) return null;
   const text = $pos.parent.textBetween(0, $pos.parent.content.size, undefined, '￼');
-  const off = $pos.parentOffset;
-  const isWord = (ch: string | undefined) => !!ch && /[\p{L}\p{M}\p{N}'’-]/u.test(ch);
+  const w = wordInText(text, $pos.parentOffset);
+  if (!w) return null;
+  const base = $pos.start();
+  return { word: w.word, from: base + w.from, to: base + w.to };
+}
+
+const isWordChar = (ch: string | undefined) => !!ch && /[\p{L}\p{M}\p{N}'’-]/u.test(ch);
+
+/** La palabra que contiene un desplazamiento de un texto (o que termina justo ahí), con el tramo que ocupa; sin apóstrofos ni guiones en los extremos. */
+export function wordInText(text: string, off: number): { word: string; from: number; to: number } | null {
   let a = off;
   let b = off;
-  while (a > 0 && isWord(text[a - 1])) a--;
-  while (b < text.length && isWord(text[b])) b++;
-  const word = text.slice(a, b).replace(/^['’-]+|['’-]+$/g, '');
+  while (a > 0 && isWordChar(text[a - 1])) a--;
+  while (b < text.length && isWordChar(text[b])) b++;
+  const raw = text.slice(a, b);
+  const word = raw.replace(/^['’-]+|['’-]+$/g, '');
   if (!word) return null;
-  const start = a + text.slice(a, b).indexOf(word);
-  const base = $pos.start();
-  return { word, from: base + start, to: base + start + word.length };
+  const from = a + raw.indexOf(word);
+  return { word, from, to: from + word.length };
 }
 
 export { THESAURUS_LANGS };

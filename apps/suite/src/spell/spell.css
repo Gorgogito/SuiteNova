@@ -304,3 +304,10 @@
   padding-top: 6px;
   border-top: 1px dashed var(--colorNeutralStroke2);
 }
+
+.nv-th--dialog {
+  display: flex;
+  flex-direction: column;
+  height: min(60vh, 460px);
+  font-size: 12.5px;
+}

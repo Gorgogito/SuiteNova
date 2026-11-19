@@ -13,7 +13,7 @@ Igual que el corrector: motor sin interfaz + interfaz compartida.
 1. **Motor y datos (hecha).**
 2. **Interfaz compartida (hecha):** panel «Sinónimos», submenú contextual, Mayús+F7, «Insertar», «Copiar», «Buscar».
 3. **Writer, Notes y Slides (hecha):** panel, Mayús+F7, botón en la cinta y menú del botón derecho sobre cualquier palabra, en los tres; idioma por texto.
-4. **Mail, Plan, Forms y Base:** campos de texto.
+4. **Mail, Plan, Forms y Base (hecha):** campos de texto.
 5. **Cierre:** documentación, límites y comparación con Word real por COM (`Range.SynonymInfo`).
 
 ## 4. Bitácora
@@ -34,3 +34,10 @@ Igual que el corrector: motor sin interfaz + interfaz compartida.
 - **Notes y Slides:** comando `notes.spell.thesaurus` / `slides.review.thesaurus` (Mayús+F7), botón «Sinónimos» (keytip `SN`) en Revisar, panel a un lado (Slides lo muestra mientras se edita un texto). Slides no tiene panel «Editor», pero sí este.
 - **Pruebas:** `e2e-thesaurus` 14 (Writer: menú sobre cualquier palabra, idioma por texto; Notes; Slides); regresión: aplicación 380, Writer 19/19, Writer ortografía, Notes 23/23 y 35/35, Slides 26/26.
 - **Límites:** (1) el menú propio sustituye al del navegador sobre las palabras: no tiene «Seleccionar todo», «Deshacer» ni las opciones de pegado de Office. (2) Pegar con formato depende de que el navegador dé permiso de lectura del portapapeles; si no, pega texto. (3) El panel de Slides solo sigue al texto cuando se está editando una forma. (4) La flexión inversa sigue sin hacerse (se insertan formas de base).
+
+### Fase 4 (hecha, 2026-11-18): Mail, Plan, Forms y Base
+- **`ProofTextarea`** (el campo con corrector de la fase 5 del corrector) ahora ofrece sinónimos: el botón derecho sobre cualquier palabra abre el mismo menú que en los documentos (`WordMenuView`: Cortar, Copiar, Pegar, hasta 5 sinónimos y «Sinónimos…»), y Mayús+F7 abre el cuadro de sinónimos sobre la palabra del cursor o de la selección. El menú de las palabras subrayadas también ofrece «Sinónimos…». Vale en todos los campos que ya lo usan: cuerpo del mensaje, notas de contactos y descripción de eventos de Mail, descripciones y respuestas largas de Forms, notas de tareas de Plan y memo de los formularios de Base.
+- **`ThesaurusDialog`:** en los campos no hay sitio para un panel lateral, así que el mismo panel va dentro de un cuadro (`ThesaurusPane` con `dialog`); «Insertar» reemplaza en el campo y el cuadro se queda abierto para seguir. En Plan se abre sobre el cuadro de la tarea.
+- **Refactor:** `WordMenuView` (menú genérico con acciones) y `WordMenu` (ProseMirror) comparten código; `wordInText` es la búsqueda de palabra sobre texto plano.
+- **Pruebas:** `e2e-thesaurus` 18 (Mail: menú de palabra y diálogo con Mayús+F7; Forms; Plan con cuadro sobre cuadro); regresión: aplicación 380, proof-fields 10/10, Mail 18/18, Forms 21/21, Plan 42/42, Base 6/6 y 10/10.
+- **Límites:** (1) el memo de Base usa el mismo componente pero no tiene prueba propia de sinónimos. (2) Los campos de una línea (`<input>`) no tienen menú ni Mayús+F7. (3) En los campos el idioma es el de las preferencias o el de la interfaz (no hay idioma por texto). (4) El menú propio de los campos sustituye al del navegador (sin «Seleccionar todo» ni «Deshacer»). (5) Algunas entradas de OpenThesaurus son dudosas (`bonito` lista `atún` entre sus significados): son datos del tesauro original, no del motor.

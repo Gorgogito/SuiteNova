@@ -241,6 +241,107 @@ await check('Slides: the pane follows the word being edited and Insert replaces 
   await shot('slides');
 });
 
+
+const fieldDlg = () => page.getByRole('dialog').filter({ has: page.getByRole('complementary', { name: 'Sinónimos' }) });
+const fieldMenuClick = async (root, word) => {
+  const p = await page.evaluate(([root, word]) => {
+    const m = document.querySelector(root + ' .nv-pt__mirror');
+    const w = document.createTreeWalker(m, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      const i = n.textContent.indexOf(word);
+      if (i < 0) continue;
+      const r = document.createRange();
+      r.setStart(n, i);
+      r.setEnd(n, i + word.length);
+      const b = r.getBoundingClientRect();
+      return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+    }
+    return null;
+  }, [root, word]);
+  assert.ok(p, `no se encontró «${word}» en el campo`);
+  await page.mouse.click(p.x, p.y, { button: 'right' });
+};
+
+await check('Mail: right click on a word of the body gives Cut/Copy/Paste and synonyms; picking one edits the field', async () => {
+  await page.goto('http://localhost:1420/?app=mail', { waitUntil: 'load' });
+  await settle(900);
+  await page.keyboard.press('Control+Shift+M');
+  const body = page.getByLabel('Cuerpo del mensaje');
+  await body.waitFor();
+  await body.click();
+  await page.keyboard.type('Una casa grande y bonita');
+  await settle(2200);
+  await fieldMenuClick('.nv-pt', 'casa');
+  const menu = page.locator('.nv-sp-menu');
+  await menu.waitFor();
+  for (const n of ['Cortar', 'Copiar', 'Pegar']) assert.equal(await menu.getByRole('menuitem', { name: n, exact: true }).count(), 1, n);
+  await shot('mail-word-menu');
+  await menu.locator('.nv-sp-syn', { hasText: /^apartamento$/ }).click();
+  await settle(300);
+  assert.equal(await body.inputValue(), 'Una apartamento grande y bonita');
+});
+
+await check('Mail: Shift+F7 in the field opens the thesaurus dialog on the word at the cursor; Insert replaces it', async () => {
+  const body = page.getByLabel('Cuerpo del mensaje');
+  await body.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.press('Shift+F7');
+  const dlg = fieldDlg();
+  await dlg.waitFor();
+  await page.waitForFunction(() => document.querySelector('[role=dialog] .nv-th-head')?.textContent?.trim() === 'bonito' || document.querySelector('[role=dialog] .nv-th-head')?.textContent?.includes('bonita'), null, { timeout: 20000 });
+  await dlg.locator('.nv-th-word').first().click();
+  await dlg.getByRole('button', { name: 'Insertar' }).click();
+  await shot('mail-dialog');
+  await dlg.getByRole('button', { name: 'Cerrar' }).last().click();
+  await settle(300);
+  assert.match(await body.inputValue(), /^Una apartamento grande y [a-záéíóúñ]+$/);
+  assert.ok(!/bonita/.test(await body.inputValue()), await body.inputValue());
+});
+
+await check('Forms: the long answer of the preview opens the thesaurus with Shift+F7', async () => {
+  await page.goto('http://localhost:1420/?app=forms', { waitUntil: 'load' });
+  await settle(900);
+  await page.getByRole('tab', { name: 'Inicio', exact: true }).click();
+  await page.locator('[data-nv-item="addMenu"]').click();
+  await page.getByRole('menuitem', { name: 'Párrafo' }).click();
+  await settle(300);
+  await page.getByRole('tab', { name: 'Vista', exact: true }).click();
+  await page.getByRole('button', { name: 'Vista previa' }).click();
+  const box = page.locator('form textarea.fm-input');
+  await box.waitFor();
+  await box.click();
+  await page.keyboard.type('Una casa');
+  await settle(1500);
+  await page.keyboard.press('Shift+F7');
+  const dlg = fieldDlg();
+  await dlg.waitFor();
+  await page.waitForFunction(() => document.querySelector('[role=dialog] .nv-th-head')?.textContent?.trim() === 'casa', null, { timeout: 20000 });
+});
+
+await check('Plan: the notes of a task (inside a dialog) open the thesaurus on top and insert into the field', async () => {
+  await page.goto('http://localhost:1420/?app=plan', { waitUntil: 'networkidle' });
+  await page.waitForSelector('.pl-app');
+  await page.getByRole('button', { name: 'Añadir la primera tarea' }).click();
+  await page.getByRole('gridcell', { name: 'Nombre de la tarea, fila 1', exact: true }).click();
+  await page.keyboard.press('Shift+F2');
+  const main = page.getByRole('dialog').first();
+  await main.getByRole('tab', { name: 'Notas' }).click();
+  const notes = main.getByRole('textbox', { name: 'Notas' });
+  await notes.click();
+  await page.keyboard.type('Una casa grande');
+  await page.keyboard.press('Control+Home');
+  await page.keyboard.press('Shift+F7');
+  const dlg = fieldDlg();
+  await dlg.waitFor();
+  await page.waitForFunction(() => document.querySelector('[role=dialog] .nv-th-head')?.textContent?.trim() === 'una' || !!document.querySelector('[role=dialog] .nv-th-head'), null, { timeout: 20000 });
+  await dlg.getByLabel('Palabra a buscar').fill('casa');
+  await dlg.getByRole('button', { name: 'Buscar sinónimos' }).first().click();
+  await dlg.locator('.nv-th-head').waitFor();
+  await dlg.getByRole('button', { name: 'Cerrar' }).last().click();
+  await settle(300);
+  assert.equal(await notes.inputValue(), 'Una casa grande');
+});
+
 await check('no console errors', async () => {
   assert.deepEqual(errors, []);
 });

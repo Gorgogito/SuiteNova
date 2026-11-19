@@ -5,7 +5,7 @@ import { matchCase, type Pos } from '@suitenova/thesaurus-core';
 import { TextSelection } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { useEffect, useRef, useState } from 'react';
-import type { ReviewHost } from './ui';
+import { Modal, type ReviewHost } from './ui';
 import { langAtPos, useSynonyms, wordAtSelection } from './thesaurus';
 import './messages';
 import './spell.css';
@@ -61,7 +61,7 @@ export function pmThesaurusHost(host: ReviewHost): ThesaurusHost {
 const POS_LABEL: Record<Pos, string> = { noun: 'Sustantivo', verb: 'Verbo', adj: 'Adjetivo', adv: 'Adverbio' };
 
 /** El panel «Sinónimos» (Mayús+F7): los significados de la palabra por categoría, con «Insertar», «Copiar» y «Buscar» para seguir de palabra en palabra. */
-export function ThesaurusPane({ host, onClose, initialWord }: { host: ThesaurusHost; onClose: () => void; initialWord?: string }) {
+export function ThesaurusPane({ host, onClose, initialWord, dialog }: { host: ThesaurusHost; onClose: () => void; initialWord?: string; /** Sin cabecera ni ancho fijo: va dentro de un cuadro (campos de texto). */ dialog?: boolean }) {
   const [word, setWord] = useState(initialWord ?? host.current()?.word ?? '');
   const [textLang, setTextLang] = useState<SpellLang | undefined>(() => (initialWord ? undefined : host.current()?.lang));
   const lang = textLang ?? host.lang;
@@ -119,14 +119,16 @@ export function ThesaurusPane({ host, onClose, initialWord }: { host: ThesaurusH
   );
 
   return (
-    <aside className="nv-ed nv-th" aria-label={t('Sinónimos')}>
-      <header>
-        <strong>{t('Sinónimos')}</strong>
-        <span style={{ flex: 1 }} />
-        <button type="button" className="nv-btn nv-btn--small" onClick={onClose} aria-label={t('Cerrar')} title={t('Cerrar')}>
-          ✕
-        </button>
-      </header>
+    <aside className={dialog ? 'nv-th nv-th--dialog' : 'nv-ed nv-th'} aria-label={t('Sinónimos')}>
+      {!dialog && (
+        <header>
+          <strong>{t('Sinónimos')}</strong>
+          <span style={{ flex: 1 }} />
+          <button type="button" className="nv-btn nv-btn--small" onClick={onClose} aria-label={t('Cerrar')} title={t('Cerrar')}>
+            ✕
+          </button>
+        </header>
+      )}
       <form
         className="nv-th-search"
         onSubmit={(e) => {
@@ -217,5 +219,21 @@ export function ThesaurusPane({ host, onClose, initialWord }: { host: ThesaurusH
         </footer>
       )}
     </aside>
+  );
+}
+
+/** El panel «Sinónimos» dentro de un cuadro, para los campos de texto (Mail, Plan, Forms, Base) donde no hay sitio para un panel lateral. */
+export function ThesaurusDialog({ host, onClose }: { host: ThesaurusHost; onClose: () => void }) {
+  return (
+    <Modal
+      title={t('Sinónimos')}
+      onClose={onClose}
+      width={460}
+      actions={
+        <Button onClick={onClose}>{t('Cerrar')}</Button>
+      }
+    >
+      <ThesaurusPane host={host} onClose={onClose} dialog />
+    </Modal>
   );
 }

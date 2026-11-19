@@ -1,4 +1,5 @@
 import { t } from '@suitenova/core-ui';
+import type { SpellLang } from '@suitenova/spell-core';
 import { matchCase } from '@suitenova/thesaurus-core';
 import { TextSelection } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
@@ -36,14 +37,30 @@ async function paste(view: EditorView): Promise<void> {
   if (text) view.pasteText(text);
 }
 
+/** Lo que el menú de palabra necesita de cada tipo de campo (ProseMirror o campo de texto). */
+export interface WordMenuActions {
+  word: string;
+  lang: SpellLang | 'off';
+  readOnly?: boolean;
+  hasSelection: boolean;
+  cut(): void;
+  copy(): void;
+  paste(): void;
+  /** Reemplaza la palabra por otra (ya con la mayúscula de la original). */
+  replace(text: string): void;
+  /** Abre el panel o cuadro de sinónimos sobre esta palabra. */
+  openThesaurus(): void;
+  /** Devuelve el foco al campo. */
+  focus(): void;
+}
+
 /**
  * El menú del botón derecho sobre una palabra que el corrector no marca (como el de Office): Cortar, Copiar, Pegar y, si el tesauro la
- * conoce, unos pocos sinónimos y «Sinónimos…» para abrir el panel. Las palabras subrayadas siguen teniendo su propio menú (`ReviewMenu`).
+ * conoce, unos pocos sinónimos y «Sinónimos…». Las palabras subrayadas siguen teniendo su propio menú (`ReviewMenu`).
  */
-export function WordMenu({ host, view, target, x, y, onClose, onThesaurus }: { host: ReviewHost; view: EditorView; target: WordTarget; x: number; y: number; onClose: () => void; onThesaurus: () => void }) {
+export function WordMenuView({ a, x, y, onClose }: { a: WordMenuActions; x: number; y: number; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  const lang = langAtPos(view, target.from, host.markInfo) ?? host.lang;
-  const { result } = useSynonyms(target.word, lang);
+  const { result } = useSynonyms(a.word, a.lang);
   useEffect(() => {
     const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && onClose();
     const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -54,11 +71,10 @@ export function WordMenu({ host, view, target, x, y, onClose, onThesaurus }: { h
       document.removeEventListener('keydown', key, true);
     };
   }, [onClose]);
-  const hasSel = !view.state.selection.empty;
-  const editable = !host.readOnly;
+  const editable = !a.readOnly;
   const done = (fn: () => void) => () => {
     onClose();
-    view.focus();
+    a.focus();
     fn();
   };
   const item = (label: ReactNode, run: () => void, enabled = true, key?: string) => (
@@ -69,33 +85,42 @@ export function WordMenu({ host, view, target, x, y, onClose, onThesaurus }: { h
   const lookup = result?.lookup;
   const list = lookup ? [...new Set(lookup.senses.flatMap((s) => s.synonyms))].slice(0, 5) : [];
   return (
-    <div ref={ref} className="nv-sp-menu" style={{ left: Math.min(x, window.innerWidth - 280), top: Math.min(y, window.innerHeight - 300) }} role="menu" aria-label={target.word}>
-      {item(t('Cortar'), done(() => void document.execCommand('cut')), editable && hasSel)}
-      {item(t('Copiar'), done(() => void document.execCommand('copy')), hasSel)}
-      {item(t('Pegar'), done(() => void paste(view)), editable)}
+    <div ref={ref} className="nv-sp-menu" style={{ left: Math.min(x, window.innerWidth - 280), top: Math.min(y, window.innerHeight - 300) }} role="menu" aria-label={a.word}>
+      {item(t('Cortar'), done(a.cut), editable && a.hasSelection)}
+      {item(t('Copiar'), done(a.copy), a.hasSelection)}
+      {item(t('Pegar'), done(a.paste), editable)}
       {lookup && (
         <>
           <hr />
           <div className="nv-sp-note">{t('Sinónimos')}</div>
-          {editable &&
-            list.map((w) =>
-              item(
-                <span className="nv-sp-syn">{w}</span>,
-                done(() => {
-                  const next = matchCase(target.word, w);
-                  const tr = view.state.tr.insertText(next, target.from, target.to);
-                  view.dispatch(tr.setSelection(TextSelection.create(tr.doc, target.from, target.from + next.length)));
-                }),
-                true,
-                `syn-${w}`,
-              ),
-            )}
-          {item(t('Sinónimos…'), done(() => {
-            view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, target.from, target.to)));
-            onThesaurus();
-          }))}
+          {editable && list.map((w) => item(<span className="nv-sp-syn">{w}</span>, done(() => a.replace(matchCase(a.word, w))), true, `syn-${w}`))}
+          {item(t('Sinónimos…'), done(a.openThesaurus))}
         </>
       )}
     </div>
   );
+}
+
+/** El menú de palabra de un editor de ProseMirror. */
+export function WordMenu({ host, view, target, x, y, onClose, onThesaurus }: { host: ReviewHost; view: EditorView; target: WordTarget; x: number; y: number; onClose: () => void; onThesaurus: () => void }) {
+  const select = (from: number, to: number) => view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+  const actions: WordMenuActions = {
+    word: target.word,
+    lang: langAtPos(view, target.from, host.markInfo) ?? host.lang,
+    readOnly: host.readOnly,
+    hasSelection: !view.state.selection.empty,
+    cut: () => void document.execCommand('cut'),
+    copy: () => void document.execCommand('copy'),
+    paste: () => void paste(view),
+    replace: (next) => {
+      const tr = view.state.tr.insertText(next, target.from, target.to);
+      view.dispatch(tr.setSelection(TextSelection.create(tr.doc, target.from, target.from + next.length)));
+    },
+    openThesaurus: () => {
+      select(target.from, target.to);
+      onThesaurus();
+    },
+    focus: () => view.focus(),
+  };
+  return <WordMenuView a={actions} x={x} y={y} onClose={onClose} />;
 }

@@ -6,7 +6,11 @@ import { loadedEngine, loadSpeller } from './load';
 import { getReviewOptions, onReviewOptions } from './options';
 import { applyFixToText, reviewPlainText } from './plain';
 import { type Issue } from './review';
+import { matchCase } from '@suitenova/thesaurus-core';
+import { ThesaurusDialog, type ThesaurusHost } from './ThesaurusPane';
+import { wordInText } from './thesaurus';
 import { ReviewMenu, type ReviewHost } from './ui';
+import { WordMenuView, type WordMenuActions } from './WordMenu';
 
 /** El idioma de revisión de los campos de texto sin documento (Mail, Plan, Forms, Base…): `nova.spell.lang`, o el de la interfaz. */
 export function defaultFieldLang(): SpellLang {
@@ -28,6 +32,31 @@ function setNativeValue(ta: HTMLTextAreaElement, value: string, caret: number): 
   set.call(ta, value);
   ta.setSelectionRange(caret, caret);
   ta.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/** La palabra del texto cuyo rectángulo (en el espejo) contiene el punto, con su tramo; el espejo repite el texto del campo tal cual. */
+function wordAtPoint(mirror: HTMLElement, value: string, x: number, y: number): { word: string; from: number; to: number } | null {
+  const nodes: { node: Text; start: number }[] = [];
+  let len = 0;
+  const w = document.createTreeWalker(mirror, NodeFilter.SHOW_TEXT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    nodes.push({ node: n as Text, start: len });
+    len += (n.textContent ?? '').length;
+  }
+  const at = (off: number): { node: Text; offset: number } | null => {
+    for (const n of nodes) if (off >= n.start && off <= n.start + (n.node.textContent ?? '').length) return { node: n.node, offset: off - n.start };
+    return null;
+  };
+  for (const m of value.matchAll(/[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N}'’-]*/gu)) {
+    const a = at(m.index!);
+    const b = at(m.index! + m[0].length);
+    if (!a || !b) continue;
+    const r = document.createRange();
+    r.setStart(a.node, a.offset);
+    r.setEnd(b.node, b.offset);
+    for (const q of r.getClientRects()) if (x >= q.left && x <= q.right && y >= q.top && y <= q.bottom) return wordInText(value, m.index! + 1);
+  }
+  return null;
 }
 
 type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'> & {
@@ -52,6 +81,8 @@ export function ProofTextarea({ value, lang, proof = true, autoFix = true, onCha
   const [tick, setTick] = useState(0);
   const [ready, setReady] = useState(false);
   const [menu, setMenu] = useState<{ issue: Issue; x: number; y: number } | null>(null);
+  const [wordMenu, setWordMenu] = useState<{ w: { word: string; from: number; to: number }; x: number; y: number } | null>(null);
+  const [thesaurus, setThesaurus] = useState(false);
   const useLang = lang ?? defaultFieldLang();
 
   useEffect(() => {
@@ -110,6 +141,43 @@ export function ProofTextarea({ value, lang, proof = true, autoFix = true, onCha
   }, [issues, value]);
 
   const host: ReviewHost = useMemo(() => ({ lang: useLang, views: () => [], focus: () => ta.current?.focus() }), [useLang]);
+  /** El campo visto por el panel «Sinónimos»: la palabra del cursor (o de la selección) y cómo se reemplaza. */
+  const thHost: ThesaurusHost = useMemo(() => {
+    const cur = () => {
+      const t = ta.current;
+      if (!t) return null;
+      const { selectionStart: a, selectionEnd: b, value: v } = t;
+      if (a !== b) {
+        const raw = v.slice(a, b);
+        const word = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+        if (!word || word.length > 60) return null;
+        const from = a + raw.indexOf(word);
+        return { word, from, to: from + word.length };
+      }
+      return wordInText(v, a);
+    };
+    return {
+      lang: useLang,
+      readOnly: !!rest.readOnly || !!rest.disabled,
+      current: () => {
+        const c = cur();
+        return c ? { word: c.word } : null;
+      },
+      insert: (text) => {
+        const t = ta.current;
+        const c = cur();
+        if (!t || !c) return;
+        const next = matchCase(c.word, text);
+        setNativeValue(t, t.value.slice(0, c.from) + next + t.value.slice(c.to), c.from + next.length);
+        t.setSelectionRange(c.from, c.from + next.length);
+      },
+      focus: () => ta.current?.focus(),
+    };
+  }, [useLang, rest.readOnly, rest.disabled]);
+  const selectRange = (from: number, to: number) => {
+    ta.current?.focus();
+    ta.current?.setSelectionRange(from, to);
+  };
   const fix = (f: { from: number; to: number; text: string }) => {
     const t = ta.current;
     if (!t) return;
@@ -157,7 +225,13 @@ export function ProofTextarea({ value, lang, proof = true, autoFix = true, onCha
           if (mirror.current) mirror.current.scrollTop = e.currentTarget.scrollTop;
           onScroll?.(e);
         }}
-        onKeyDown={onKeyDown}
+        onKeyDown={(e) => {
+          onKeyDown?.(e);
+          if (!e.defaultPrevented && e.key === 'F7' && e.shiftKey && proof) {
+            e.preventDefault();
+            setThesaurus(true);
+          }
+        }}
         onContextMenu={(e) => {
           onContextMenu?.(e);
           if (e.defaultPrevented || !mirror.current) return;
@@ -174,9 +248,47 @@ export function ProofTextarea({ value, lang, proof = true, autoFix = true, onCha
               }
             }
           }
+          // una palabra cualquiera: Cortar, Copiar, Pegar y sinónimos
+          if (proof) {
+            const w = wordAtPoint(mirror.current, value, e.clientX, e.clientY);
+            if (w) {
+              e.preventDefault();
+              setWordMenu({ w, x: e.clientX, y: e.clientY });
+            }
+          }
         }}
       />
-      {menu && <ReviewMenu host={host} viewId="field" issue={menu.issue} x={menu.x} y={menu.y} onFix={fix} onClose={() => setMenu(null)} />}
+      {menu && <ReviewMenu host={host} viewId="field" issue={menu.issue} x={menu.x} y={menu.y} onFix={fix} onClose={() => setMenu(null)} onThesaurus={() => { selectRange(menu.issue.from, menu.issue.to); setThesaurus(true); }} />}
+      {wordMenu && (
+        <WordMenuView
+          x={wordMenu.x}
+          y={wordMenu.y}
+          onClose={() => setWordMenu(null)}
+          a={{
+            word: wordMenu.w.word,
+            lang: useLang,
+            readOnly: thHost.readOnly,
+            hasSelection: (ta.current?.selectionStart ?? 0) !== (ta.current?.selectionEnd ?? 0),
+            cut: () => void document.execCommand('cut'),
+            copy: () => void document.execCommand('copy'),
+            paste: () => {
+              const t = ta.current;
+              void navigator.clipboard.readText().then((text) => {
+                if (!t || !text) return;
+                const a = t.selectionStart;
+                setNativeValue(t, t.value.slice(0, a) + text + t.value.slice(t.selectionEnd), a + text.length);
+              }, () => {});
+            },
+            replace: (next) => setNativeValue(ta.current!, value.slice(0, wordMenu.w.from) + next + value.slice(wordMenu.w.to), wordMenu.w.from + next.length),
+            openThesaurus: () => {
+              selectRange(wordMenu.w.from, wordMenu.w.to);
+              setThesaurus(true);
+            },
+            focus: () => ta.current?.focus(),
+          } satisfies WordMenuActions}
+        />
+      )}
+      {thesaurus && <ThesaurusDialog host={thHost} onClose={() => { setThesaurus(false); ta.current?.focus(); }} />}
     </div>
   );
 }
