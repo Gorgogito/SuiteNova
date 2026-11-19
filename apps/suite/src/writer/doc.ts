@@ -294,6 +294,8 @@ export class WriterCtl {
   onSpellMenu: (m: { issue: Issue; x: number; y: number }) => void = () => {};
   /** Panel «Editor» (ortografía y gramática) abierto. */
   showEditor = false;
+  /** Panel «Sinónimos» abierto. */
+  showThesaurus = false;
   private offReview: (() => void) | null = null;
 
   /** Load the dictionary of the chosen language and underline the mistakes (or stop doing so). */

@@ -11,8 +11,8 @@ import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { writerCommands, type WriterDialog, type WriterUI } from './commands';
 import { DialogHost } from './dialogs';
 import { ControlPopup } from './ControlPopup';
-import { EditorPane, ReviewMenu } from '../spell';
-import { writerHost } from './review-host';
+import { EditorPane, ReviewMenu, ThesaurusPane } from '../spell';
+import { writerHost, writerThesaurusHost } from './review-host';
 import { OpenPasswordDialog } from './dlg-security';
 import { PAGE_GAP, WriterCtl, findKey } from './doc';
 import './icons';
@@ -555,6 +555,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
           </div>
         </div>
         {ctl.showReview && <ReviewPane ctl={ctl} />}
+        {ctl.showThesaurus && <ThesaurusPane host={writerThesaurusHost(ctl)} onClose={() => { ctl.showThesaurus = false; ctl.touch(); }} />}
         {ctl.showEditor && <EditorPane host={writerHost(ctl)} onClose={() => { ctl.showEditor = false; ctl.touch(); }} onOptions={() => { setDialogArg(undefined); setDialog('reviewOptions'); }} />}
         </div>
         {ctl.noteEdit && <NotePopup ctl={ctl} />}
@@ -583,7 +584,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
             }}
           />
         )}
-        {spellTarget && <ReviewMenu host={writerHost(ctl)} viewId="main" issue={spellTarget.issue} x={spellTarget.x} y={spellTarget.y} onClose={() => setSpellTarget(null)} onOptions={() => { setDialogArg(undefined); setDialog('reviewOptions'); }} />}
+        {spellTarget && <ReviewMenu host={writerHost(ctl)} viewId="main" issue={spellTarget.issue} x={spellTarget.x} y={spellTarget.y} onClose={() => setSpellTarget(null)} onThesaurus={() => { ctl.showThesaurus = true; ctl.touch(); }} onOptions={() => { setDialogArg(undefined); setDialog('reviewOptions'); }} />}
         {controlPos !== null && <ControlPopup ctl={ctl} pos={controlPos} onClose={() => setControlPos(null)} />}
         <input
           ref={fileRef}

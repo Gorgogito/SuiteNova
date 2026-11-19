@@ -1,4 +1,4 @@
-import type { ReviewHost } from '../spell';
+import { pmThesaurusHost, type ReviewHost, type ThesaurusHost } from '../spell';
 import type { WriterCtl } from './doc';
 
 const hosts = new WeakMap<WriterCtl, ReviewHost>();
@@ -19,6 +19,18 @@ export function writerHost(ctl: WriterCtl): ReviewHost {
       },
     };
     hosts.set(ctl, h);
+  }
+  return h;
+}
+
+const thHosts = new WeakMap<WriterCtl, ThesaurusHost>();
+
+/** El panel «Sinónimos» sobre la vista de Writer. */
+export function writerThesaurusHost(ctl: WriterCtl): ThesaurusHost {
+  let h = thHosts.get(ctl);
+  if (!h) {
+    h = pmThesaurusHost(writerHost(ctl));
+    thHosts.set(ctl, h);
   }
   return h;
 }

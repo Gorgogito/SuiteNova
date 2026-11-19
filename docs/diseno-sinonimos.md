@@ -11,8 +11,8 @@ Igual que el corrector: motor sin interfaz + interfaz compartida.
 
 ## 3. Plan por fases
 1. **Motor y datos (hecha).**
-2. **Interfaz compartida:** panel «Sinónimos», submenú contextual, Mayús+F7, «Insertar», «Copiar», «Buscar».
-3. **Writer, Notes y Slides:** selección, mayúsculas, idioma por texto, deshacer.
+2. **Interfaz compartida (hecha):** panel «Sinónimos», submenú contextual, Mayús+F7, «Insertar», «Copiar», «Buscar».
+3. **Writer, Notes y Slides:** Writer ya tiene el panel (fase 2); falta Notes y Slides, el idioma por texto, y un menú del botón derecho sobre cualquier palabra con «Sinónimos»; deshacer.
 4. **Mail, Plan, Forms y Base:** campos de texto.
 5. **Cierre:** documentación, límites y comparación con Word real por COM (`Range.SynonymInfo`).
 
@@ -21,3 +21,9 @@ Igual que el corrector: motor sin interfaz + interfaz compartida.
 - `thesaurus-core`: 10 pruebas. Español 21 794 entradas (2,8 MB), inglés 117 666 (6,2 MB). Los `.dat` originales se descargan a `data/src/` (ignorado por git) al ejecutar el script.
 - `lookup` devuelve la entrada directa si existe; si no, prueba formas de base (plural, femenino, infinitivo en español; plural, `-ed`, `-ing`, comparativos, irregulares frecuentes en inglés). `lemma` indica si se usó una forma de base.
 - **Límites:** (1) una forma flexionada que es entrada por sí misma (`running`, `quickly`) usa esa entrada, no la del verbo; (2) la flexión inversa (devolver el sinónimo conjugado como la palabra escrita) no está: se devuelven formas de base; (3) el español de OpenThesaurus (2012) es más pobre que el inglés (sin categoría gramatical, 22 mil entradas) y sin léxico regional de México y Perú; (4) la lematización es por reglas, sin diccionario morfológico: los verbos irregulares en español no se resuelven.
+
+### Fase 2 (hecha, 2026-11-18): interfaz compartida
+- **`apps/suite/src/spell/`:** `thesaurus.ts` (carga perezosa de los dos archivos de datos, `useSynonyms`, `findSynonyms` con palabras parecidas del corrector cuando la palabra no está, `wordAtSelection`), `ThesaurusPane.tsx` (panel «Sinónimos»: significados por categoría, términos relacionados y antónimos; «Insertar» conserva la mayúscula, «Copiar», «Buscar sinónimos» para seguir, «Anterior»; sigue al cursor del documento) y `pmThesaurusHost` (adaptador de cualquier `ReviewHost` de ProseMirror). El menú contextual del corrector (`ReviewMenu`) ofrece hasta 5 sinónimos y «Sinónimos…» si la palabra marcada está en el tesauro.
+- **Writer como producto de referencia:** comando `writer.spell.thesaurus` (Mayús+F7), botón «Sinónimos» en Revisar (keytip `SN`) y panel a un lado.
+- **Pruebas:** e2e nueva `scripts/e2e-thesaurus.mjs` (10: abrir con Mayús+F7, insertar con mayúscula, palabra flexionada, buscar y volver, palabra ausente con parecidas, inglés, copiar y cerrar, cinta, menú contextual); regresión: aplicación 380, Writer 19/19, Writer ortografía 19.
+- **Límites:** (1) el menú del botón derecho solo sale sobre palabras subrayadas por el corrector (las de ortografía no, porque no están en el tesauro): sobre una palabra cualquiera sigue el menú del navegador; el menú sobre cualquier palabra queda para la fase 3. (2) El panel usa el idioma del documento, no el del texto seleccionado (fase 3). (3) El panel sigue al cursor cada medio segundo. (4) Las palabras aparecen repetidas si están en varios significados.

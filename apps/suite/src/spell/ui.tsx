@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { DocSpellEngine, MarkInfo } from './engine';
 import { addToUserDictionary, ignoreWord, loadedEngine, loadSpeller, removeFromUserDictionary, SPELL_LANGS, userDictionaryWords } from './load';
 import { getReviewOptions, ignoreOnce, onReviewOptions, resetIgnored, setReviewOptions } from './options';
+import { matchCase } from '@suitenova/thesaurus-core';
+import { useSynonyms } from './thesaurus';
 import { applyFix, fixesOf, KIND_LABEL, reviewDoc, type Issue, type ReviewFix } from './review';
 import './messages';
 import './spell.css';
@@ -110,7 +112,7 @@ const ruleLabel = (rule: string) => GRAMMAR_RULES.find((r) => r.id === rule)?.la
 // ------------------------------------------------------------------------------------------------ menú contextual
 
 /** El menú del botón derecho sobre algo subrayado: correcciones, omitir, agregar al diccionario, desactivar la regla. */
-export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions, onFix }: { host: ReviewHost; issue: Issue; viewId: string; x: number; y: number; onClose: () => void; onOptions?: () => void; onFix?: (f: ReviewFix) => void }) {
+export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions, onFix, onThesaurus }: { host: ReviewHost; issue: Issue; viewId: string; x: number; y: number; onClose: () => void; onOptions?: () => void; onFix?: (f: ReviewFix) => void; onThesaurus?: (word: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [engine, setEngine] = useState<DocSpellEngine | null>(null);
   const [fixes, setFixes] = useState<ReviewFix[] | null>(issue.kind === 'spelling' ? null : issue.fixes);
@@ -155,6 +157,9 @@ export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions, onFi
       {fixes === null && <div className="nv-sp-note">{t('Buscando sugerencias…')}</div>}
       {fixes?.length === 0 && <div className="nv-sp-note">{t('(sin sugerencias)')}</div>}
       {fixes?.slice(0, 6).map((f, n) => item(f.label || t('(quitar)'), done(() => (onFix ? onFix(f) : view && !host.readOnly && applyFix(view, f))), n === 0 || !spelling, `fix${n}`))}
+      {onThesaurus && !spelling && !/\s/.test(issue.text) && (
+        <MenuSynonyms issue={issue} host={host} apply={(f) => done(() => (onFix ? onFix(f) : view && !host.readOnly && applyFix(view, f)))()} onOpen={done(() => onThesaurus(issue.text))} item={item} />
+      )}
       <hr />
       {spelling ? (
         <>
@@ -169,6 +174,22 @@ export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions, onFi
       )}
       {onOptions && item(t('Opciones de revisión…'), done(onOptions))}
     </div>
+  );
+}
+
+/** Los sinónimos de la palabra subrayada en el menú del botón derecho: unos pocos y «Sinónimos…» para abrir el panel. No sale nada si la palabra no está en el tesauro. */
+function MenuSynonyms({ issue, host, apply, onOpen, item }: { issue: Issue; host: ReviewHost; apply: (f: ReviewFix) => void; onOpen: () => void; item: (label: ReactNode, run: () => void, strong?: boolean, key?: string) => ReactNode }) {
+  const { result } = useSynonyms(issue.text, issue.lang);
+  const lookup = result?.lookup;
+  if (!lookup) return null;
+  const list = [...new Set(lookup.senses.flatMap((s) => s.synonyms))].slice(0, 5);
+  return (
+    <>
+      <hr />
+      <div className="nv-sp-note">{t('Sinónimos')}</div>
+      {!host.readOnly && list.map((w) => item(<span className="nv-sp-syn">{w}</span>, () => apply({ label: w, from: issue.from, to: issue.to, text: matchCase(issue.text, w) }), false, `syn-${w}`))}
+      {item(t('Sinónimos…'), onOpen)}
+    </>
   );
 }
 

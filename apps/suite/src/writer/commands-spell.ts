@@ -18,6 +18,7 @@ export function spellCommands(ui: WriterUI): CommandDef[] {
   });
   add({ id: 'writer.spell.dictionary', label: 'Diccionario personalizado…', icon: 'book', run: () => ui.openDialog('userDict') });
   add({ id: 'writer.spell.pane', label: 'Editor', icon: 'spell', description: 'Muestra a un lado todos los problemas de ortografía, gramática y estilo, con su corrección.', checked: () => c.showEditor, enabled: () => !!c.mainView && c.spellLang !== 'off', run: () => { c.showEditor = !c.showEditor; c.touch(); } });
+  add({ id: 'writer.spell.thesaurus', label: 'Sinónimos', icon: 'book', shortcut: 'Shift+F7', description: 'Busca sinónimos de la palabra del cursor o de la selección y permite reemplazarla.', checked: () => c.showThesaurus, enabled: () => !!c.mainView && c.spellLang !== 'off', run: () => { c.showThesaurus = !c.showThesaurus; c.touch(); } });
   add({ id: 'writer.spell.options', label: 'Opciones de revisión…', icon: 'check', description: 'Qué se omite en la ortografía y qué reglas de gramática y estilo se aplican.', run: () => ui.openDialog('reviewOptions') });
   for (const l of SPELL_LANGS)
     add({

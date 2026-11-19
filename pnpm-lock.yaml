@@ -220,6 +220,9 @@ importers:
       '@suitenova/spell-core':
         specifier: workspace:*
         version: link:../../packages/spell-core
+      '@suitenova/thesaurus-core':
+        specifier: workspace:*
+        version: link:../../packages/thesaurus-core
       '@suitenova/wordart-core':
         specifier: workspace:*
         version: link:../../packages/wordart-core

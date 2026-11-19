@@ -224,3 +224,83 @@
   color: inherit;
   resize: vertical;
 }
+
+/* panel «Sinónimos» */
+.nv-th-search {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.nv-th-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--colorNeutralStroke1, #bbb);
+  border-radius: 4px;
+  background: var(--colorNeutralBackground1);
+  color: inherit;
+  font: inherit;
+}
+.nv-th-head {
+  margin: 4px 0 6px;
+  font-size: 15px;
+}
+.nv-th-head small {
+  font-weight: 400;
+  opacity: 0.7;
+}
+.nv-th-sense h4 {
+  margin: 8px 0 2px;
+  font-size: 12px;
+  font-style: italic;
+  opacity: 0.8;
+}
+.nv-th-sense h5 {
+  margin: 6px 0 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.nv-th-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+.nv-th-word {
+  padding: 2px 8px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 12px;
+  background: var(--colorNeutralBackground1);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.nv-th-word:hover,
+.nv-th-word[aria-pressed='true'] {
+  border-color: var(--colorBrandForeground1, #2b6cb0);
+  background: var(--colorNeutralBackground1Hover, #eef);
+}
+.nv-th-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground1);
+}
+.nv-th-actions strong {
+  flex-basis: 100%;
+}
+.nv-sp-syn {
+  font-style: italic;
+}
+.nv-th-sense + .nv-th-sense {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--colorNeutralStroke2);
+}

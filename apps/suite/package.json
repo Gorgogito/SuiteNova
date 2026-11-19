@@ -28,6 +28,7 @@
     "@suitenova/spell-core": "workspace:*",
     "@suitenova/slides-core": "workspace:*",
     "@suitenova/smartart-core": "workspace:*",
+    "@suitenova/thesaurus-core": "workspace:*",
     "@suitenova/wordart-core": "workspace:*",
     "@suitenova/writer-core": "workspace:*",
     "@suitenova/xlsx-io": "workspace:*",

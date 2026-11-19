@@ -14,3 +14,5 @@ export { autoCorrectField, getAutoCorrect, setAutoCorrect } from './autocorrect'
 export { ProofTextarea, defaultFieldLang } from './ProofTextarea';
 export { reviewPlainText, applyFixToText } from './plain';
 export { ProofMemo } from './ProofMemo';
+export { ThesaurusPane, pmThesaurusHost, type ThesaurusHost } from './ThesaurusPane';
+export { findSynonyms, loadThesaurus, loadedThesaurus, thesaurusLangOf, useSynonyms, wordAtSelection } from './thesaurus';

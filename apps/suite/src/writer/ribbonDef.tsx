@@ -756,6 +756,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
               { kind: 'command', command: 'writer.autocorrect' },
             ],
           },
+          { kind: 'button', command: 'writer.spell.thesaurus', size: 'large', keytip: 'SN' },
           {
             kind: 'dropdown',
             id: 'selLangMenu',
