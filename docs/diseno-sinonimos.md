@@ -14,7 +14,7 @@ Igual que el corrector: motor sin interfaz + interfaz compartida.
 2. **Interfaz compartida (hecha):** panel «Sinónimos», submenú contextual, Mayús+F7, «Insertar», «Copiar», «Buscar».
 3. **Writer, Notes y Slides (hecha):** panel, Mayús+F7, botón en la cinta y menú del botón derecho sobre cualquier palabra, en los tres; idioma por texto.
 4. **Mail, Plan, Forms y Base (hecha):** campos de texto.
-5. **Cierre:** documentación, límites y comparación con Word real por COM (`Range.SynonymInfo`).
+5. **Cierre (hecha):** documentación, límites y comparación con Word real por COM (`Range.SynonymInfo`).
 
 ## 4. Bitácora
 ### Fase 1 (hecha, 2026-11-18): motor y datos
@@ -41,3 +41,13 @@ Igual que el corrector: motor sin interfaz + interfaz compartida.
 - **Refactor:** `WordMenuView` (menú genérico con acciones) y `WordMenu` (ProseMirror) comparten código; `wordInText` es la búsqueda de palabra sobre texto plano.
 - **Pruebas:** `e2e-thesaurus` 18 (Mail: menú de palabra y diálogo con Mayús+F7; Forms; Plan con cuadro sobre cuadro); regresión: aplicación 380, proof-fields 10/10, Mail 18/18, Forms 21/21, Plan 42/42, Base 6/6 y 10/10.
 - **Límites:** (1) el memo de Base usa el mismo componente pero no tiene prueba propia de sinónimos. (2) Los campos de una línea (`<input>`) no tienen menú ni Mayús+F7. (3) En los campos el idioma es el de las preferencias o el de la interfaz (no hay idioma por texto). (4) El menú propio de los campos sustituye al del navegador (sin «Seleccionar todo» ni «Deshacer»). (5) Algunas entradas de OpenThesaurus son dudosas (`bonito` lista `atún` entre sus significados): son datos del tesauro original, no del motor.
+
+### Fase 5 (hecha, 2026-11-18): cierre y comparación con Word real
+- **Cómo se comparó.** `scripts/word-compare/word-syn.ps1` abre Word por COM (sin ventana) y llama a `Application.SynonymInfo(palabra, idioma)` (con `[ref]` en los argumentos, y `SynonymList` por cada significado) para 55 palabras (30 en español, 25 en inglés; `words-syn.json`, con formas flexionadas, una expresión y palabras inexistentes). `packages/thesaurus-core/src/word-compare.test.ts` pasa las mismas palabras por Nova y escribe `scripts/word-compare/informe-sinonimos.txt` (se omite si no existe `word-syn-out.json`; no afirma nada).
+- **Resultados.**
+  - *Cobertura:* de las 55 palabras, **53 las encuentran ambos y 3 ninguno** (`xqzvbn` en los dos idiomas y `ceviche`); no hay ninguna que Word encuentre y Nova no, ni al revés. Eso incluye las formas flexionadas: Nova lleva `casas`, `corriendo`, `hablábamos`, `walked`, `cities` a su forma de base igual que Word.
+  - *Contenido:* de las palabras que ambos encuentran, comparten al menos un sinónimo 23 de 28 en español y 19 de 24 en inglés (con los términos parecidos de Nova, 21 de 24 en inglés). La coincidencia media sobre la lista más corta es del 38 % en español y el 33 % en inglés: las fuentes son distintas (Word usa un tesauro propio de Microsoft), así que ninguna lista contiene a la otra.
+  - *Tamaño:* Word devuelve listas bastante más largas en casi todo (`trabajo` 174 sinónimos frente a 31; `idea` 117 frente a 14; en inglés `fast` 77 frente a 21, `bad` 82 frente a 17); Nova supera a Word en pocas (`difícil`, `pequeño`, `triste`, `coche`, `ordenador`). El inglés de Nova da pocos sinónimos estrictos y muchos «parecidos» (`beautiful` no tiene ninguno estricto, `important` solo 4) porque WordNet separa los significados cercanos.
+  - *Flexión:* Word devuelve los sinónimos de `casas` ya en plural y los de `corriendo` ya en gerundio; Nova devuelve las formas de base (límite ya conocido, sin conjugar).
+- **Límites del conjunto (resumen).** Tesauro más pequeño que el de Microsoft (21 794 entradas en español de OpenThesaurus 2012; 117 666 en inglés de WordNet), sin léxico regional de México ni de Perú (`ceviche` falta en los dos), algunas entradas dudosas (`bonito` lista `atún`); sin categoría gramatical en español; sin conjugar el sinónimo; la lematización es por reglas y no resuelve verbos irregulares del español; una forma flexionada que es entrada por sí misma usa esa entrada (`running`). Los campos de una línea (`<input>`) no tienen sinónimos; los de texto no tienen idioma por texto; el menú propio sustituye al del navegador. Calc no tiene sinónimos (como Excel). Outlook, OneNote y LibreOffice reales sin probar.
+- **Regresión:** `thesaurus-core` 11 pruebas; la aplicación no cambió en esta fase (380 pruebas y las e2e de la fase 4 siguen vigentes).

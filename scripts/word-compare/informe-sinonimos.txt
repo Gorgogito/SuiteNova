@@ -1,0 +1,58 @@
+es: 30 palabras. Las dos la encuentran: 28; solo Word: 0; solo Nova: 0; ninguna: 2. De las que encuentran las dos, comparten algún término (sinónimos o parecidos de Nova): 23/28; comparten algún sinónimo estricto: 23/28; coincidencia media sobre la lista más corta: 38 %.
+en: 25 palabras. Las dos la encuentran: 24; solo Word: 0; solo Nova: 0; ninguna: 1. De las que encuentran las dos, comparten algún término (sinónimos o parecidos de Nova): 21/24; comparten algún sinónimo estricto: 19/24; coincidencia media sobre la lista más corta: 33 %.
+
+es «casa»: Word=95 sinónimos; Nova=30 sinónimos; en común: apartamento, habitación, alojamiento, residencia, vivienda, domicilio
+es «feliz»: Word=55 sinónimos; Nova=29 sinónimos; en común: bendito, dichoso, contento, satisfecho, boyante, próspero
+es «grande»: Word=107 sinónimos; Nova=56 sinónimos; en común: considerable, mayúsculo, extraordinario, ingente, inusitado, gigantesco
+es «rápido»: Word=36 sinónimos; Nova=28 sinónimos; en común: veloz, ligero, raudo, repentino, súbito, vertiginoso
+es «bonito»: Word=28 sinónimos; Nova=32 sinónimos; en común: atún, hermoso, bello, agraciado, lindo, primoroso
+es «bueno»: Word=59 sinónimos; Nova=58 sinónimos; en común: excelente, bonachón, piadoso, benévolo, generoso, compasivo
+es «malo»: Word=98 sinónimos; Nova=56 sinónimos; en común: perverso, maligno, pérfido, bribón, perjudicial, maldito
+es «trabajo»: Word=174 sinónimos; Nova=31 sinónimos; en común: trajín, afán, ajetreo, faena, forcejeo, labor
+es «hablar»: Word=76 sinónimos; Nova=38 sinónimos; en común: conversar, dialogar, departir, charlar, platicar, manifestar
+es «correr»: Word=57 sinónimos; Nova=17 sinónimos; en común: andar, transcurrir, pasar, acelerar, apresurarse, volar
+es «importante»: Word=104 sinónimos; Nova=37 sinónimos; en común: fundamental, decisivo, destacado, notable, trascendente, trascendental
+es «difícil»: Word=51 sinónimos; Nova=60 sinónimos; en común: arduo, duro, complejo, embarazoso, comprometido, delicado
+es «problema»: Word=35 sinónimos; Nova=23 sinónimos; en común: apuro, dificultad, aprieto, conflicto, inconveniente, pega
+es «idea»: Word=117 sinónimos; Nova=14 sinónimos; en común: concepto, noción, percepción, representación
+es «ciudad»: Word=11 sinónimos; Nova=8 sinónimos; en común: localidad, pueblo, villa, urbe, capital, metrópoli
+es «casas»: Word=95 sinónimos; Nova=30 sinónimos (de «casa»); en común: (ninguno)
+es «felices»: Word=55 sinónimos; Nova=29 sinónimos (de «feliz»); en común: (ninguno)
+es «corriendo»: Word=57 sinónimos; Nova=17 sinónimos (de «correr»); en común: apresurarse, desplazarse
+es «hablábamos»: Word=76 sinónimos; Nova=38 sinónimos (de «hablar»); en común: (ninguno)
+es «contentas»: Word=64 sinónimos; Nova=36 sinónimos (de «contento»); en común: (ninguno)
+es «ordenador»: Word=2 sinónimos; Nova=12 sinónimos; en común: computador, computadora
+es «coche»: Word=7 sinónimos; Nova=14 sinónimos; en común: carro, auto, automóvil, vagón
+es «ayudar»: Word=38 sinónimos; Nova=36 sinónimos; en común: proteger, sufragar, favorecer, donar, auxiliar, apoyar
+es «empezar»: Word=28 sinónimos; Nova=11 sinónimos; en común: comenzar, iniciar, principiar, emprender, entablar, abrir
+es «pequeño»: Word=10 sinónimos; Nova=28 sinónimos; en común: chico
+es «xqzvbn»: Word=no encontrada; Nova=no encontrada
+es «ceviche»: Word=no encontrada; Nova=no encontrada
+es «a la vez»: Word=2 sinónimos; Nova=2 sinónimos; en común: (ninguno)
+es «muchacho»: Word=23 sinónimos; Nova=17 sinónimos; en común: chico, chaval, joven, adolescente, pollo, mancebo
+es «triste»: Word=68 sinónimos; Nova=78 sinónimos; en común: aciago, funesto, infeliz, desventurado, infausto, apenado
+en «happy»: Word=18 sinónimos; Nova=3 sinónimos; en común: blissful, cheerful, contented, content, glad, joyful
+en «big»: Word=38 sinónimos; Nova=35 sinónimos; en común: large, sizable, sizeable, broad, spacious, wide
+en «fast»: Word=77 sinónimos; Nova=21 sinónimos; en común: express, fleet, swift, high-speed, immediate, prompt
+en «good»: Word=71 sinónimos; Nova=34 sinónimos; en común: great, smashing, satisfactory, well-behaved, obedient, respectable
+en «bad»: Word=82 sinónimos; Nova=17 sinónimos; en común: awful, dreadful, terrible, distressing, sad, sorry
+en «work»: Word=42 sinónimos; Nova=40 sinónimos; en común: employment, oeuvre, act, function, operate, run
+en «speak»: Word=25 sinónimos; Nova=6 sinónimos; en común: talk, verbalize, address
+en «run»: Word=123 sinónimos; Nova=68 sinónimos; en común: go, pass, lead, extend, operate, flow
+en «important»: Word=24 sinónimos; Nova=4 sinónimos; en común: crucial, essential, of the essence, central, key, chief
+en «difficult»: Word=36 sinónimos; Nova=2 sinónimos; en común: hard, challenging, arduous, awkward, knotty, problematic
+en «problem»: Word=25 sinónimos; Nova=2 sinónimos; en común: (ninguno)
+en «idea»: Word=56 sinónimos; Nova=8 sinónimos; en común: thought
+en «city»: Word=8 sinónimos; Nova=2 sinónimos; en común: metropolis
+en «houses»: Word=34 sinónimos; Nova=15 sinónimos (de «house»); en común: put up
+en «walked»: Word=17 sinónimos; Nova=8 sinónimos (de «walk»); en común: (ninguno)
+en «happier»: Word=22 sinónimos; Nova=3 sinónimos (de «happy»); en común: blissful, cheerful, contented, content, joyful, fortunate
+en «cities»: Word=5 sinónimos; Nova=2 sinónimos (de «city»); en común: (ninguno)
+en «help»: Word=30 sinónimos; Nova=11 sinónimos; en común: aid, assist, assistance, service, facilitate
+en «begin»: Word=31 sinónimos; Nova=9 sinónimos; en común: start, set out, commence
+en «small»: Word=13 sinónimos; Nova=12 sinónimos; en común: little, petite, tiny, minute, lesser, miniature
+en «xqzvbn»: Word=no encontrada; Nova=no encontrada
+en «sad»: Word=22 sinónimos; Nova=5 sinónimos; en común: depressing, gloomy, melancholy, sorrowful, distressing
+en «car»: Word=17 sinónimos; Nova=10 sinónimos; en común: auto, automobile
+en «beautiful»: Word=9 sinónimos; Nova=0 sinónimos; en común: fine-looking, good-looking, handsome, gorgeous, lovely, stunning
+en «quickly»: Word=35 sinónimos; Nova=7 sinónimos; en común: rapidly, speedily, chop-chop, promptly, cursorily

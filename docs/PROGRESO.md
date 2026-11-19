@@ -103,4 +103,4 @@ En Office es un componente compartido (motor y diccionarios, diccionario persona
 - [x] **Fase 2 HECHA:** interfaz compartida (panel «Sinónimos», sinónimos en el menú del corrector, Mayús+F7) y Writer como producto de referencia; e2e `e2e-thesaurus` (10).
 - [x] **Fase 3 HECHA:** Writer, Notes y Slides (panel, Mayús+F7, cinta, menú del botón derecho sobre cualquier palabra con Cortar, Copiar, Pegar y sinónimos, idioma por texto); e2e `e2e-thesaurus` 14.
 - [x] **Fase 4 HECHA:** Mail, Plan, Forms y Base (campos con `ProofTextarea`: menú del botón derecho sobre cualquier palabra, Mayús+F7 con el panel en un cuadro); e2e `e2e-thesaurus` 18.
-- [ ] Fase 5: cierre con Word real.
+- [x] **Fase 5 HECHA:** cierre con Word real por COM (`SynonymInfo`, 55 palabras: ambos la encuentran en 53, ninguno en 3; coincidencia media del 38 % en español y 33 % en inglés, fuentes distintas). **Diccionario de sinónimos terminado (5 fases).**
