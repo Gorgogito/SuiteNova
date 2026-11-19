@@ -1,7 +1,7 @@
 import { ES_FUNCTIONS, functionRegistry } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { autoCorrectField, getAutoCorrect } from '../spell';
+import { autoCorrectField, defaultFieldLang, getAutoCorrectFor } from '../spell';
 import { canPointAt } from './GridView';
 import type { CalcDoc, EditState } from './doc';
 import { ENTRY_PENDING } from './doc-objects';
@@ -146,7 +146,7 @@ export function CellEditor({ doc, edit, rect, zoom, dark, maxW, maxH }: Props) {
         onChange={(e) => {
           const el = e.currentTarget;
           // autocorrección de lo que se escribe como texto (una fórmula no se toca)
-          const r = !el.value.startsWith('=') && !edit.text.startsWith('=') && !(e.nativeEvent as InputEvent).isComposing ? autoCorrectField(edit.text, el.value, el.selectionStart, { capitalizeSentences: /[.!?¡¿]\s/.test(el.value.slice(0, el.selectionStart)) && getAutoCorrect().capitalizeSentences }) : null;
+          const r = !el.value.startsWith('=') && !edit.text.startsWith('=') && !(e.nativeEvent as InputEvent).isComposing ? autoCorrectField(edit.text, el.value, el.selectionStart, { capitalizeSentences: /[.!?¡¿]\s/.test(el.value.slice(0, el.selectionStart)) && getAutoCorrectFor(defaultFieldLang()).capitalizeSentences }, defaultFieldLang()) : null;
           if (r) doc.setEditText(r.text, r.caret);
           else doc.setEditText(el.value, el.selectionStart);
         }}

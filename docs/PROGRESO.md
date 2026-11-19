@@ -109,4 +109,5 @@ En Office es un componente compartido (motor y diccionarios, diccionario persona
 - [x] **Fase 1 HECHA:** motor (lista y excepciones por idioma, reemplazos de fábrica, mayúscula de lo escrito, ordinales, `*negrita*`, líneas de borde, migración); `spell-core` 66 pruebas.
 - [x] **Fase 2 HECHA:** cuadro único con pestañas Autocorrección (idioma de la lista, Excepciones, importar y exportar CSV), Autoformato y Matemática (lista editable conectada con el editor de Ecuaciones); `spell-core` 69, `math-core` 42, e2e nueva (9).
 - [x] **Fase 3 HECHA:** `*negrita*`/`_cursiva_`, ordinales con superíndice, líneas de borde (también en .docx) e idioma por texto en Writer y Notes; Slides recibe autocorrección y su cuadro; e2e nueva (12).
+- [x] **Fase 4 HECHA:** campos de texto (Calc, Mail, Plan, Forms, Base) con la lista y excepciones del idioma del campo; «Opciones de autocorrección…» en el menú del botón derecho de los campos; e2e nueva (6).
 - [ ] Fase 4: Calc, Mail, Plan, Forms y Base. Fase 5: cierre con Word real.

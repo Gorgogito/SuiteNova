@@ -52,6 +52,8 @@ export interface WordMenuActions {
   openThesaurus(): void;
   /** Devuelve el foco al campo. */
   focus(): void;
+  /** Abre «Opciones de autocorrección» (solo donde el campo corrige al escribir). */
+  openAutoCorrect?(): void;
 }
 
 /**
@@ -95,6 +97,12 @@ export function WordMenuView({ a, x, y, onClose }: { a: WordMenuActions; x: numb
           <div className="nv-sp-note">{t('Sinónimos')}</div>
           {editable && list.map((w) => item(<span className="nv-sp-syn">{w}</span>, done(() => a.replace(matchCase(a.word, w))), true, `syn-${w}`))}
           {item(t('Sinónimos…'), done(a.openThesaurus))}
+        </>
+      )}
+      {a.openAutoCorrect && (
+        <>
+          <hr />
+          {item(t('Opciones de autocorrección…'), done(a.openAutoCorrect))}
         </>
       )}
     </div>

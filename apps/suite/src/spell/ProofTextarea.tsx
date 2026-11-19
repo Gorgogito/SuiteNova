@@ -1,7 +1,8 @@
 import { getLocale } from '@suitenova/core-ui';
 import { isSpellLang, type SpellLang } from '@suitenova/spell-core';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type TextareaHTMLAttributes } from 'react';
-import { autoCorrectField } from './autocorrect';
+import { AutoCorrectDialog } from './AutoCorrectDialog';
+import { autoCorrectField, getAutoCorrectFor, setAutoCorrect } from './autocorrect';
 import { loadedEngine, loadSpeller } from './load';
 import { getReviewOptions, onReviewOptions } from './options';
 import { applyFixToText, reviewPlainText } from './plain';
@@ -67,13 +68,15 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'> & {
   proof?: boolean;
   /** Corrige al escribir con la autocorrección compartida (por omisión, sí). */
   autoFix?: boolean;
+  /** Nombre del producto en el cuadro de autocorrección que abre el menú (por omisión, «Nova»). */
+  product?: string;
 };
 
 /**
  * Un `<textarea>` con el corrector de Nova: subraya la ortografía (rojo) y la gramática y el estilo (azul y verde) mientras se escribe, ofrece
  * las correcciones con el botón derecho y aplica la autocorrección. Sirve donde había un `<textarea>`: acepta las mismas propiedades.
  */
-export function ProofTextarea({ value, lang, proof = true, autoFix = true, onChange, onKeyDown, onContextMenu, onScroll, style, className, ...rest }: Props) {
+export function ProofTextarea({ value, lang, proof = true, autoFix = true, product = 'Nova', onChange, onKeyDown, onContextMenu, onScroll, style, className, ...rest }: Props) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const mirror = useRef<HTMLDivElement>(null);
   const prev = useRef(value);
@@ -83,6 +86,7 @@ export function ProofTextarea({ value, lang, proof = true, autoFix = true, onCha
   const [menu, setMenu] = useState<{ issue: Issue; x: number; y: number } | null>(null);
   const [wordMenu, setWordMenu] = useState<{ w: { word: string; from: number; to: number }; x: number; y: number } | null>(null);
   const [thesaurus, setThesaurus] = useState(false);
+  const [acDialog, setAcDialog] = useState(false);
   const useLang = lang ?? defaultFieldLang();
 
   useEffect(() => {
@@ -210,7 +214,7 @@ export function ProofTextarea({ value, lang, proof = true, autoFix = true, onCha
           const before = prev.current;
           prev.current = t.value;
           if (autoFix && !busy.current && !(e.nativeEvent as InputEvent).isComposing) {
-            const r = autoCorrectField(before, t.value, t.selectionStart);
+            const r = autoCorrectField(before, t.value, t.selectionStart, {}, useLang);
             if (r) {
               busy.current = true;
               prev.current = r.text;
@@ -258,7 +262,7 @@ export function ProofTextarea({ value, lang, proof = true, autoFix = true, onCha
           }
         }}
       />
-      {menu && <ReviewMenu host={host} viewId="field" issue={menu.issue} x={menu.x} y={menu.y} onFix={fix} onClose={() => setMenu(null)} onThesaurus={() => { selectRange(menu.issue.from, menu.issue.to); setThesaurus(true); }} />}
+      {menu && <ReviewMenu host={host} viewId="field" issue={menu.issue} x={menu.x} y={menu.y} onFix={fix} onClose={() => setMenu(null)} onThesaurus={() => { selectRange(menu.issue.from, menu.issue.to); setThesaurus(true); }} onAutoCorrect={autoFix ? () => setAcDialog(true) : undefined} />}
       {wordMenu && (
         <WordMenuView
           x={wordMenu.x}
@@ -285,9 +289,11 @@ export function ProofTextarea({ value, lang, proof = true, autoFix = true, onCha
               setThesaurus(true);
             },
             focus: () => ta.current?.focus(),
+            openAutoCorrect: autoFix ? () => setAcDialog(true) : undefined,
           } satisfies WordMenuActions}
         />
       )}
+      {acDialog && <AutoCorrectDialog product={product} plain initial={getAutoCorrectFor(useLang)} onSave={setAutoCorrect} onClose={() => { setAcDialog(false); ta.current?.focus(); }} />}
       {thesaurus && <ThesaurusDialog host={thHost} onClose={() => { setThesaurus(false); ta.current?.focus(); }} />}
     </div>
   );

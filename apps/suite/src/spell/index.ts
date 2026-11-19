@@ -10,7 +10,7 @@ export { notifyReview } from './options';
 export { langOfSelection, noProofOfSelection, setSelectionLang, toggleNoProof } from './lang-marks';
 export { spellLangTag } from '@suitenova/spell-core';
 export { AutoCorrectDialog } from './AutoCorrectDialog';
-export { autoCorrectField, getAutoCorrect, getMathList, setAutoCorrect, setMathList } from './autocorrect';
+export { autoCorrectField, getAutoCorrect, getAutoCorrectFor, getMathList, setAutoCorrect, setMathList } from './autocorrect';
 export { ProofTextarea, defaultFieldLang } from './ProofTextarea';
 export { reviewPlainText, applyFixToText } from './plain';
 export { ProofMemo } from './ProofMemo';

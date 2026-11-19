@@ -112,7 +112,7 @@ const ruleLabel = (rule: string) => GRAMMAR_RULES.find((r) => r.id === rule)?.la
 // ------------------------------------------------------------------------------------------------ menú contextual
 
 /** El menú del botón derecho sobre algo subrayado: correcciones, omitir, agregar al diccionario, desactivar la regla. */
-export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions, onFix, onThesaurus }: { host: ReviewHost; issue: Issue; viewId: string; x: number; y: number; onClose: () => void; onOptions?: () => void; onFix?: (f: ReviewFix) => void; onThesaurus?: (word: string) => void }) {
+export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions, onFix, onThesaurus, onAutoCorrect }: { host: ReviewHost; issue: Issue; viewId: string; x: number; y: number; onClose: () => void; onOptions?: () => void; onFix?: (f: ReviewFix) => void; onThesaurus?: (word: string) => void; onAutoCorrect?: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [engine, setEngine] = useState<DocSpellEngine | null>(null);
   const [fixes, setFixes] = useState<ReviewFix[] | null>(issue.kind === 'spelling' ? null : issue.fixes);
@@ -173,6 +173,7 @@ export function ReviewMenu({ host, issue, viewId, x, y, onClose, onOptions, onFi
         </>
       )}
       {onOptions && item(t('Opciones de revisión…'), done(onOptions))}
+      {onAutoCorrect && item(t('Opciones de autocorrección…'), done(onAutoCorrect))}
     </div>
   );
 }
