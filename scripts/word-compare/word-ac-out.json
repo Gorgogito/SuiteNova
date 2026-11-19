@@ -1,0 +1,4817 @@
+﻿{
+    "options":  {
+                    "replaceText":  true,
+                    "capSentences":  true,
+                    "twoInitial":  true,
+                    "quotes":  true,
+                    "ordinals":  true,
+                    "fractions":  true,
+                    "dashes":  true
+                },
+    "entries":  [
+                    {
+                        "name":  "(c)",
+                        "value":  "©"
+                    },
+                    {
+                        "name":  "(e)",
+                        "value":  "€"
+                    },
+                    {
+                        "name":  "(r)",
+                        "value":  "®"
+                    },
+                    {
+                        "name":  "(tm)",
+                        "value":  "™"
+                    },
+                    {
+                        "name":  ", ¡cuanto",
+                        "value":  ", ¡cuánto"
+                    },
+                    {
+                        "name":  ", ¿a donde",
+                        "value":  ", ¿a dónde"
+                    },
+                    {
+                        "name":  ", ¿como",
+                        "value":  ", ¿cómo"
+                    },
+                    {
+                        "name":  ", ¿cual",
+                        "value":  ", ¿cuál"
+                    },
+                    {
+                        "name":  ", ¿cuales",
+                        "value":  ", ¿cuáles"
+                    },
+                    {
+                        "name":  ", ¿cuando",
+                        "value":  ", ¿cuándo"
+                    },
+                    {
+                        "name":  ", ¿cuanta",
+                        "value":  ", ¿cuánta"
+                    },
+                    {
+                        "name":  ", ¿cuantas",
+                        "value":  ", ¿cuántas"
+                    },
+                    {
+                        "name":  ", ¿cuanto",
+                        "value":  ", ¿cuánto"
+                    },
+                    {
+                        "name":  ", ¿cuantos",
+                        "value":  ", ¿cuántos"
+                    },
+                    {
+                        "name":  ", ¿donde",
+                        "value":  ", ¿dónde"
+                    },
+                    {
+                        "name":  ", ¿para quien",
+                        "value":  ", ¿para quién"
+                    },
+                    {
+                        "name":  ", ¿por cuanto",
+                        "value":  ", ¿por cuánto"
+                    },
+                    {
+                        "name":  ", ¿por que",
+                        "value":  ", ¿por qué"
+                    },
+                    {
+                        "name":  ", ¿porque",
+                        "value":  ", ¿por qué"
+                    },
+                    {
+                        "name":  ", ¿que",
+                        "value":  ", ¿qué"
+                    },
+                    {
+                        "name":  ", ¿quien",
+                        "value":  ", ¿quién"
+                    },
+                    {
+                        "name":  ", ¿quienes",
+                        "value":  ", ¿quiénes"
+                    },
+                    {
+                        "name":  "...",
+                        "value":  "…"
+                    },
+                    {
+                        "name":  "; ¡cuanto",
+                        "value":  "; ¡cuánto"
+                    },
+                    {
+                        "name":  "; ¿a donde",
+                        "value":  "; ¿a dónde"
+                    },
+                    {
+                        "name":  "; ¿como",
+                        "value":  "; ¿cómo"
+                    },
+                    {
+                        "name":  "; ¿cual",
+                        "value":  "; ¿cuál"
+                    },
+                    {
+                        "name":  "; ¿cuales",
+                        "value":  "; ¿cuáles"
+                    },
+                    {
+                        "name":  "; ¿cuando",
+                        "value":  "; ¿cuándo"
+                    },
+                    {
+                        "name":  "; ¿cuanta",
+                        "value":  "; ¿cuánta"
+                    },
+                    {
+                        "name":  "; ¿cuantas",
+                        "value":  "; ¿cuántas"
+                    },
+                    {
+                        "name":  "; ¿cuanto",
+                        "value":  "; ¿cuánto"
+                    },
+                    {
+                        "name":  "; ¿cuantos",
+                        "value":  "; ¿cuántos"
+                    },
+                    {
+                        "name":  "; ¿donde",
+                        "value":  "; ¿dónde"
+                    },
+                    {
+                        "name":  "; ¿para quien",
+                        "value":  "; ¿para quién"
+                    },
+                    {
+                        "name":  "; ¿por cuanto",
+                        "value":  "; ¿por cuánto"
+                    },
+                    {
+                        "name":  "; ¿por que",
+                        "value":  "; ¿por qué"
+                    },
+                    {
+                        "name":  "; ¿porque",
+                        "value":  "; ¿por qué"
+                    },
+                    {
+                        "name":  "; ¿que",
+                        "value":  "; ¿qué"
+                    },
+                    {
+                        "name":  "; ¿quien",
+                        "value":  "; ¿quién"
+                    },
+                    {
+                        "name":  "; ¿quienes",
+                        "value":  "; ¿quiénes"
+                    },
+                    {
+                        "name":  "a abajo",
+                        "value":  "abajo"
+                    },
+                    {
+                        "name":  "a bajado",
+                        "value":  "ha bajado"
+                    },
+                    {
+                        "name":  "a basto",
+                        "value":  "abasto"
+                    },
+                    {
+                        "name":  "a bebido",
+                        "value":  "ha bebido"
+                    },
+                    {
+                        "name":  "a comentado",
+                        "value":  "ha comentado"
+                    },
+                    {
+                        "name":  "a comido",
+                        "value":  "ha comido"
+                    },
+                    {
+                        "name":  "a corrido",
+                        "value":  "ha corrido"
+                    },
+                    {
+                        "name":  "a drede",
+                        "value":  "adrede"
+                    },
+                    {
+                        "name":  "a grosso",
+                        "value":  "grosso"
+                    },
+                    {
+                        "name":  "a guardado",
+                        "value":  "ha guardado"
+                    },
+                    {
+                        "name":  "a ido",
+                        "value":  "ha ido"
+                    },
+                    {
+                        "name":  "a imprimido",
+                        "value":  "ha impreso"
+                    },
+                    {
+                        "name":  "a llamado",
+                        "value":  "ha llamado"
+                    },
+                    {
+                        "name":  "a pensado",
+                        "value":  "ha pensado"
+                    },
+                    {
+                        "name":  "a reído",
+                        "value":  "ha reído"
+                    },
+                    {
+                        "name":  "a roto",
+                        "value":  "ha roto"
+                    },
+                    {
+                        "name":  "a seleccionado",
+                        "value":  "ha seleccionado"
+                    },
+                    {
+                        "name":  "a sombreado",
+                        "value":  "ha sombreado"
+                    },
+                    {
+                        "name":  "a subido",
+                        "value":  "ha subido"
+                    },
+                    {
+                        "name":  "a surgido",
+                        "value":  "ha surgido"
+                    },
+                    {
+                        "name":  "a venido",
+                        "value":  "ha venido"
+                    },
+                    {
+                        "name":  "a visto",
+                        "value":  "ha visto"
+                    },
+                    {
+                        "name":  "a vuelto",
+                        "value":  "ha vuelto"
+                    },
+                    {
+                        "name":  "abajo de",
+                        "value":  "debajo de"
+                    },
+                    {
+                        "name":  "ablar",
+                        "value":  "hablar"
+                    },
+                    {
+                        "name":  "ablo",
+                        "value":  "hablo"
+                    },
+                    {
+                        "name":  "abló",
+                        "value":  "habló"
+                    },
+                    {
+                        "name":  "abogación",
+                        "value":  "abogacía"
+                    },
+                    {
+                        "name":  "abordo de",
+                        "value":  "a bordo de"
+                    },
+                    {
+                        "name":  "abordo del",
+                        "value":  "a bordo del"
+                    },
+                    {
+                        "name":  "absenteísmo",
+                        "value":  "absentismo"
+                    },
+                    {
+                        "name":  "absorvidos",
+                        "value":  "absorbidos"
+                    },
+                    {
+                        "name":  "accesorois",
+                        "value":  "accesorios"
+                    },
+                    {
+                        "name":  "acer",
+                        "value":  "hacer"
+                    },
+                    {
+                        "name":  "acesorios",
+                        "value":  "accesorios"
+                    },
+                    {
+                        "name":  "acia",
+                        "value":  "hacia"
+                    },
+                    {
+                        "name":  "acojer",
+                        "value":  "acoger"
+                    },
+                    {
+                        "name":  "acordarse que",
+                        "value":  "acordarse de que"
+                    },
+                    {
+                        "name":  "acredor",
+                        "value":  "acreedor"
+                    },
+                    {
+                        "name":  "acrobacía",
+                        "value":  "acrobacia"
+                    },
+                    {
+                        "name":  "adelante de",
+                        "value":  "delante de"
+                    },
+                    {
+                        "name":  "adesion",
+                        "value":  "adhesión"
+                    },
+                    {
+                        "name":  "adquicicion",
+                        "value":  "adquisición"
+                    },
+                    {
+                        "name":  "aduciste",
+                        "value":  "adujiste"
+                    },
+                    {
+                        "name":  "aereolito",
+                        "value":  "aerolito"
+                    },
+                    {
+                        "name":  "aereonauta",
+                        "value":  "aeronauta"
+                    },
+                    {
+                        "name":  "aereoplano",
+                        "value":  "aeroplano"
+                    },
+                    {
+                        "name":  "aereostática",
+                        "value":  "aerostática"
+                    },
+                    {
+                        "name":  "aerodromo",
+                        "value":  "aeródromo"
+                    },
+                    {
+                        "name":  "aflijir",
+                        "value":  "afligir"
+                    },
+                    {
+                        "name":  "agluno",
+                        "value":  "alguno"
+                    },
+                    {
+                        "name":  "agtimatismo",
+                        "value":  "astigmatismo"
+                    },
+                    {
+                        "name":  "agtismatismo",
+                        "value":  "astigmatismo"
+                    },
+                    {
+                        "name":  "agua fiestas",
+                        "value":  "aguafiestas"
+                    },
+                    {
+                        "name":  "aguero",
+                        "value":  "agüero"
+                    },
+                    {
+                        "name":  "ahi",
+                        "value":  "ahí"
+                    },
+                    {
+                        "name":  "ahy",
+                        "value":  "hay"
+                    },
+                    {
+                        "name":  "al rededor",
+                        "value":  "alrededor"
+                    },
+                    {
+                        "name":  "alante",
+                        "value":  "adelante"
+                    },
+                    {
+                        "name":  "alcol",
+                        "value":  "alcohol"
+                    },
+                    {
+                        "name":  "alegrarse que",
+                        "value":  "alegrarse de que"
+                    },
+                    {
+                        "name":  "alfabetisacion",
+                        "value":  "alfabetización"
+                    },
+                    {
+                        "name":  "algodon",
+                        "value":  "algodón"
+                    },
+                    {
+                        "name":  "alguon",
+                        "value":  "alguno"
+                    },
+                    {
+                        "name":  "alrededor mía",
+                        "value":  "alrededor mío"
+                    },
+                    {
+                        "name":  "alrededor suya",
+                        "value":  "alrededor suyo"
+                    },
+                    {
+                        "name":  "alrededor tuya",
+                        "value":  "alrededor tuyo"
+                    },
+                    {
+                        "name":  "alucion",
+                        "value":  "alusión"
+                    },
+                    {
+                        "name":  "ambiguedad",
+                        "value":  "ambigüedad"
+                    },
+                    {
+                        "name":  "amro",
+                        "value":  "amor"
+                    },
+                    {
+                        "name":  "andaron",
+                        "value":  "anduvieron"
+                    },
+                    {
+                        "name":  "andé",
+                        "value":  "anduve"
+                    },
+                    {
+                        "name":  "anecdota",
+                        "value":  "anécdota"
+                    },
+                    {
+                        "name":  "anexionamiento",
+                        "value":  "anexión"
+                    },
+                    {
+                        "name":  "ante anoche",
+                        "value":  "anteanoche"
+                    },
+                    {
+                        "name":  "ante ayer",
+                        "value":  "anteayer"
+                    },
+                    {
+                        "name":  "ante víspera",
+                        "value":  "antevíspera"
+                    },
+                    {
+                        "name":  "anti-disturbios",
+                        "value":  "antidisturbios"
+                    },
+                    {
+                        "name":  "anti-europeo",
+                        "value":  "antieuropeo"
+                    },
+                    {
+                        "name":  "anti-nuclear",
+                        "value":  "antinuclear"
+                    },
+                    {
+                        "name":  "anti-robo",
+                        "value":  "antirrobo"
+                    },
+                    {
+                        "name":  "antidiluviano",
+                        "value":  "antediluviano"
+                    },
+                    {
+                        "name":  "antiguedad",
+                        "value":  "antigüedad"
+                    },
+                    {
+                        "name":  "aohra",
+                        "value":  "ahora"
+                    },
+                    {
+                        "name":  "aora",
+                        "value":  "ahora"
+                    },
+                    {
+                        "name":  "apesar",
+                        "value":  "a pesar"
+                    },
+                    {
+                        "name":  "apesar de",
+                        "value":  "a pesar de"
+                    },
+                    {
+                        "name":  "aplicacion",
+                        "value":  "aplicación"
+                    },
+                    {
+                        "name":  "aplicacoin",
+                        "value":  "aplicación"
+                    },
+                    {
+                        "name":  "aplicacóin",
+                        "value":  "aplicación"
+                    },
+                    {
+                        "name":  "aplopejía",
+                        "value":  "apoplejía"
+                    },
+                    {
+                        "name":  "apriori",
+                        "value":  "a priori"
+                    },
+                    {
+                        "name":  "aqello",
+                        "value":  "aquello"
+                    },
+                    {
+                        "name":  "aquelo",
+                        "value":  "aquello"
+                    },
+                    {
+                        "name":  "aqueyo",
+                        "value":  "aquello"
+                    },
+                    {
+                        "name":  "aqui",
+                        "value":  "aquí"
+                    },
+                    {
+                        "name":  "aquéllo",
+                        "value":  "aquello"
+                    },
+                    {
+                        "name":  "aqí",
+                        "value":  "aquí"
+                    },
+                    {
+                        "name":  "arguir",
+                        "value":  "argüir"
+                    },
+                    {
+                        "name":  "arrecada",
+                        "value":  "arracada"
+                    },
+                    {
+                        "name":  "artitris",
+                        "value":  "artritis"
+                    },
+                    {
+                        "name":  "artitrismo",
+                        "value":  "artritismo"
+                    },
+                    {
+                        "name":  "astismatismo",
+                        "value":  "astigmatismo"
+                    },
+                    {
+                        "name":  "atiempo",
+                        "value":  "a tiempo"
+                    },
+                    {
+                        "name":  "atigmatismo",
+                        "value":  "astigmatismo"
+                    },
+                    {
+                        "name":  "atismatismo",
+                        "value":  "astigmatismo"
+                    },
+                    {
+                        "name":  "atne",
+                        "value":  "ante"
+                    },
+                    {
+                        "name":  "atras",
+                        "value":  "atrás"
+                    },
+                    {
+                        "name":  "atriculo",
+                        "value":  "artículo"
+                    },
+                    {
+                        "name":  "atárs",
+                        "value":  "atrás"
+                    },
+                    {
+                        "name":  "audeincia",
+                        "value":  "audiencia"
+                    },
+                    {
+                        "name":  "audiencai",
+                        "value":  "audiencia"
+                    },
+                    {
+                        "name":  "auqello",
+                        "value":  "aquello"
+                    },
+                    {
+                        "name":  "auqueyo",
+                        "value":  "aquello"
+                    },
+                    {
+                        "name":  "averigué",
+                        "value":  "averigüé"
+                    },
+                    {
+                        "name":  "axfisia",
+                        "value":  "asfixia"
+                    },
+                    {
+                        "name":  "baj oel",
+                        "value":  "bajo el"
+                    },
+                    {
+                        "name":  "baj ola",
+                        "value":  "bajo la"
+                    },
+                    {
+                        "name":  "baj olas",
+                        "value":  "bajo las"
+                    },
+                    {
+                        "name":  "baj olos",
+                        "value":  "bajo los"
+                    },
+                    {
+                        "name":  "baj oun",
+                        "value":  "bajo un"
+                    },
+                    {
+                        "name":  "baj ouna",
+                        "value":  "bajo una"
+                    },
+                    {
+                        "name":  "baj ounas",
+                        "value":  "bajo unas"
+                    },
+                    {
+                        "name":  "baj ounos",
+                        "value":  "bajo unos"
+                    },
+                    {
+                        "name":  "bajoe l",
+                        "value":  "bajo el"
+                    },
+                    {
+                        "name":  "bajol a",
+                        "value":  "bajo la"
+                    },
+                    {
+                        "name":  "bajol as",
+                        "value":  "bajo las"
+                    },
+                    {
+                        "name":  "bajol os",
+                        "value":  "bajo los"
+                    },
+                    {
+                        "name":  "bajou n",
+                        "value":  "bajo un"
+                    },
+                    {
+                        "name":  "bajou na",
+                        "value":  "bajo una"
+                    },
+                    {
+                        "name":  "bajou nas",
+                        "value":  "bajo unas"
+                    },
+                    {
+                        "name":  "bajou nos",
+                        "value":  "bajo unos"
+                    },
+                    {
+                        "name":  "bentana",
+                        "value":  "ventana"
+                    },
+                    {
+                        "name":  "bentanas",
+                        "value":  "ventanas"
+                    },
+                    {
+                        "name":  "ber",
+                        "value":  "ver"
+                    },
+                    {
+                        "name":  "berdad",
+                        "value":  "verdad"
+                    },
+                    {
+                        "name":  "berdadero",
+                        "value":  "verdadero"
+                    },
+                    {
+                        "name":  "bevida",
+                        "value":  "bebida"
+                    },
+                    {
+                        "name":  "bibir",
+                        "value":  "vivir"
+                    },
+                    {
+                        "name":  "bida",
+                        "value":  "vida"
+                    },
+                    {
+                        "name":  "bien venida",
+                        "value":  "bienvenida"
+                    },
+                    {
+                        "name":  "bilingue",
+                        "value":  "bilingüe"
+                    },
+                    {
+                        "name":  "cafe",
+                        "value":  "café"
+                    },
+                    {
+                        "name":  "cais",
+                        "value":  "casi"
+                    },
+                    {
+                        "name":  "camviar",
+                        "value":  "cambiar"
+                    },
+                    {
+                        "name":  "camvio",
+                        "value":  "cambio"
+                    },
+                    {
+                        "name":  "canbiar",
+                        "value":  "cambiar"
+                    },
+                    {
+                        "name":  "canbio",
+                        "value":  "cambio"
+                    },
+                    {
+                        "name":  "caracter",
+                        "value":  "carácter"
+                    },
+                    {
+                        "name":  "carácteres",
+                        "value":  "caracteres"
+                    },
+                    {
+                        "name":  "cerca mía",
+                        "value":  "cerca de mí"
+                    },
+                    {
+                        "name":  "cerca mío",
+                        "value":  "cerca de mí"
+                    },
+                    {
+                        "name":  "cerca tuya",
+                        "value":  "cerca de ti"
+                    },
+                    {
+                        "name":  "cerca tuyo",
+                        "value":  "cerca de ti"
+                    },
+                    {
+                        "name":  "cigueña",
+                        "value":  "cigüeña"
+                    },
+                    {
+                        "name":  "cigueñal",
+                        "value":  "cigüeñal"
+                    },
+                    {
+                        "name":  "circiuto",
+                        "value":  "circuito"
+                    },
+                    {
+                        "name":  "circustancia",
+                        "value":  "circunstancia"
+                    },
+                    {
+                        "name":  "claramnete",
+                        "value":  "claramente"
+                    },
+                    {
+                        "name":  "cno",
+                        "value":  "con"
+                    },
+                    {
+                        "name":  "co nel",
+                        "value":  "con el"
+                    },
+                    {
+                        "name":  "co nla",
+                        "value":  "con la"
+                    },
+                    {
+                        "name":  "co nlas",
+                        "value":  "con las"
+                    },
+                    {
+                        "name":  "co nlos",
+                        "value":  "con los"
+                    },
+                    {
+                        "name":  "co nun",
+                        "value":  "con un"
+                    },
+                    {
+                        "name":  "co nuna",
+                        "value":  "con una"
+                    },
+                    {
+                        "name":  "co nunas",
+                        "value":  "con unas"
+                    },
+                    {
+                        "name":  "co nunos",
+                        "value":  "con unos"
+                    },
+                    {
+                        "name":  "cojer",
+                        "value":  "coger"
+                    },
+                    {
+                        "name":  "coleccion",
+                        "value":  "colección"
+                    },
+                    {
+                        "name":  "colecion",
+                        "value":  "colección"
+                    },
+                    {
+                        "name":  "coleción",
+                        "value":  "colección"
+                    },
+                    {
+                        "name":  "comeinzo",
+                        "value":  "comienzo"
+                    },
+                    {
+                        "name":  "comistes",
+                        "value":  "comiste"
+                    },
+                    {
+                        "name":  "comite",
+                        "value":  "comité"
+                    },
+                    {
+                        "name":  "companía",
+                        "value":  "compañía"
+                    },
+                    {
+                        "name":  "compar",
+                        "value":  "comprar"
+                    },
+                    {
+                        "name":  "compañia",
+                        "value":  "compañía"
+                    },
+                    {
+                        "name":  "completamnete",
+                        "value":  "completamente"
+                    },
+                    {
+                        "name":  "composision",
+                        "value":  "composición"
+                    },
+                    {
+                        "name":  "comunicacion",
+                        "value":  "comunicación"
+                    },
+                    {
+                        "name":  "comunicacoin",
+                        "value":  "comunicación"
+                    },
+                    {
+                        "name":  "comunicacóin",
+                        "value":  "comunicación"
+                    },
+                    {
+                        "name":  "con creto",
+                        "value":  "concreto"
+                    },
+                    {
+                        "name":  "con sigo",
+                        "value":  "consigo"
+                    },
+                    {
+                        "name":  "concideración",
+                        "value":  "consideración"
+                    },
+                    {
+                        "name":  "conduceindo",
+                        "value":  "conduciendo"
+                    },
+                    {
+                        "name":  "cone l",
+                        "value":  "con el"
+                    },
+                    {
+                        "name":  "cone lla",
+                        "value":  "con ella"
+                    },
+                    {
+                        "name":  "cone llas",
+                        "value":  "con ellas"
+                    },
+                    {
+                        "name":  "cone llos",
+                        "value":  "con ellos"
+                    },
+                    {
+                        "name":  "conexion",
+                        "value":  "conexión"
+                    },
+                    {
+                        "name":  "conl a",
+                        "value":  "con la"
+                    },
+                    {
+                        "name":  "conl as",
+                        "value":  "con las"
+                    },
+                    {
+                        "name":  "conl os",
+                        "value":  "con los"
+                    },
+                    {
+                        "name":  "conocre",
+                        "value":  "conocer"
+                    },
+                    {
+                        "name":  "conpañía",
+                        "value":  "compañía"
+                    },
+                    {
+                        "name":  "conpletamente",
+                        "value":  "completamente"
+                    },
+                    {
+                        "name":  "conpletar",
+                        "value":  "completar"
+                    },
+                    {
+                        "name":  "conpleto",
+                        "value":  "completo"
+                    },
+                    {
+                        "name":  "conprar",
+                        "value":  "comprar"
+                    },
+                    {
+                        "name":  "consecion",
+                        "value":  "concesión"
+                    },
+                    {
+                        "name":  "consegiur",
+                        "value":  "conseguir"
+                    },
+                    {
+                        "name":  "consigiuendo",
+                        "value":  "consiguiendo"
+                    },
+                    {
+                        "name":  "contra ceptivo",
+                        "value":  "contraceptivo"
+                    },
+                    {
+                        "name":  "contradecido",
+                        "value":  "contradicho"
+                    },
+                    {
+                        "name":  "contraxion",
+                        "value":  "contracción"
+                    },
+                    {
+                        "name":  "conu n",
+                        "value":  "con un"
+                    },
+                    {
+                        "name":  "conu na",
+                        "value":  "con una"
+                    },
+                    {
+                        "name":  "conu nas",
+                        "value":  "con unas"
+                    },
+                    {
+                        "name":  "conu nos",
+                        "value":  "con unos"
+                    },
+                    {
+                        "name":  "convercion",
+                        "value":  "conversión"
+                    },
+                    {
+                        "name":  "coné l",
+                        "value":  "con él"
+                    },
+                    {
+                        "name":  "coopropietario",
+                        "value":  "copropietario"
+                    },
+                    {
+                        "name":  "copai",
+                        "value":  "copia"
+                    },
+                    {
+                        "name":  "copair",
+                        "value":  "copiar"
+                    },
+                    {
+                        "name":  "cordinacion",
+                        "value":  "coordinación"
+                    },
+                    {
+                        "name":  "costancia",
+                        "value":  "constancia"
+                    },
+                    {
+                        "name":  "costante",
+                        "value":  "constante"
+                    },
+                    {
+                        "name":  "costipado",
+                        "value":  "constipado"
+                    },
+                    {
+                        "name":  "cotovelo",
+                        "value":  "cotobelo"
+                    },
+                    {
+                        "name":  "crere",
+                        "value":  "creer"
+                    },
+                    {
+                        "name":  "crocodrilo",
+                        "value":  "cocodrilo"
+                    },
+                    {
+                        "name":  "croe",
+                        "value":  "creo"
+                    },
+                    {
+                        "name":  "crugir",
+                        "value":  "crujir"
+                    },
+                    {
+                        "name":  "cuatro cientos",
+                        "value":  "cuatrocientos"
+                    },
+                    {
+                        "name":  "d eun",
+                        "value":  "de un"
+                    },
+                    {
+                        "name":  "d euna",
+                        "value":  "de una"
+                    },
+                    {
+                        "name":  "d eunas",
+                        "value":  "de unas"
+                    },
+                    {
+                        "name":  "d eunos",
+                        "value":  "de unos"
+                    },
+                    {
+                        "name":  "de imprevisto",
+                        "value":  "de improviso"
+                    },
+                    {
+                        "name":  "de motu",
+                        "value":  "motu"
+                    },
+                    {
+                        "name":  "dea quel",
+                        "value":  "de aquel"
+                    },
+                    {
+                        "name":  "dea quella",
+                        "value":  "de aquella"
+                    },
+                    {
+                        "name":  "dea quellas",
+                        "value":  "de aquellas"
+                    },
+                    {
+                        "name":  "dea quello",
+                        "value":  "de aquellos"
+                    },
+                    {
+                        "name":  "dea quellos",
+                        "value":  "de aquellas"
+                    },
+                    {
+                        "name":  "deasrrollo",
+                        "value":  "desarrollo"
+                    },
+                    {
+                        "name":  "debajo llave",
+                        "value":  "bajo llave"
+                    },
+                    {
+                        "name":  "debajo mía",
+                        "value":  "debajo de mí"
+                    },
+                    {
+                        "name":  "debajo mío",
+                        "value":  "debajo de mí"
+                    },
+                    {
+                        "name":  "debajo tuya",
+                        "value":  "debajo de ti"
+                    },
+                    {
+                        "name":  "debajo tuyo",
+                        "value":  "debajo de ti"
+                    },
+                    {
+                        "name":  "debenir",
+                        "value":  "devenir"
+                    },
+                    {
+                        "name":  "deberaí",
+                        "value":  "debería"
+                    },
+                    {
+                        "name":  "decicion",
+                        "value":  "decisión"
+                    },
+                    {
+                        "name":  "dee lla",
+                        "value":  "de ella"
+                    },
+                    {
+                        "name":  "dee llas",
+                        "value":  "de ellas"
+                    },
+                    {
+                        "name":  "dee llo",
+                        "value":  "de ello"
+                    },
+                    {
+                        "name":  "dee llos",
+                        "value":  "de ellas"
+                    },
+                    {
+                        "name":  "dee sa",
+                        "value":  "de esa"
+                    },
+                    {
+                        "name":  "dee sas",
+                        "value":  "de esas"
+                    },
+                    {
+                        "name":  "dee se",
+                        "value":  "de ese"
+                    },
+                    {
+                        "name":  "dee so",
+                        "value":  "de eso"
+                    },
+                    {
+                        "name":  "dee sos",
+                        "value":  "de esos"
+                    },
+                    {
+                        "name":  "dee sta",
+                        "value":  "de esta"
+                    },
+                    {
+                        "name":  "dee stas",
+                        "value":  "de estas"
+                    },
+                    {
+                        "name":  "dee ste",
+                        "value":  "de este"
+                    },
+                    {
+                        "name":  "dee sto",
+                        "value":  "de esto"
+                    },
+                    {
+                        "name":  "dee stos",
+                        "value":  "de estos"
+                    },
+                    {
+                        "name":  "definitiba",
+                        "value":  "definitiva"
+                    },
+                    {
+                        "name":  "definitibamente",
+                        "value":  "definitivamente"
+                    },
+                    {
+                        "name":  "definitivamnete",
+                        "value":  "definitivamente"
+                    },
+                    {
+                        "name":  "delante mía",
+                        "value":  "delante de mí"
+                    },
+                    {
+                        "name":  "delante mío",
+                        "value":  "delante de mí"
+                    },
+                    {
+                        "name":  "delante tuya",
+                        "value":  "delante de ti"
+                    },
+                    {
+                        "name":  "delante tuyo",
+                        "value":  "delante de ti"
+                    },
+                    {
+                        "name":  "delen",
+                        "value":  "denle"
+                    },
+                    {
+                        "name":  "dentrífico",
+                        "value":  "dentífrico"
+                    },
+                    {
+                        "name":  "depronto",
+                        "value":  "de pronto"
+                    },
+                    {
+                        "name":  "derepente",
+                        "value":  "de repente"
+                    },
+                    {
+                        "name":  "deribacion",
+                        "value":  "derivación"
+                    },
+                    {
+                        "name":  "derivasion",
+                        "value":  "derivación"
+                    },
+                    {
+                        "name":  "derrogar",
+                        "value":  "derogar"
+                    },
+                    {
+                        "name":  "desarollo",
+                        "value":  "desarrollo"
+                    },
+                    {
+                        "name":  "desarrolo",
+                        "value":  "desarrollo"
+                    },
+                    {
+                        "name":  "desaveniencia",
+                        "value":  "desavenencia"
+                    },
+                    {
+                        "name":  "descuvierta",
+                        "value":  "descubierta"
+                    },
+                    {
+                        "name":  "descuvierto",
+                        "value":  "descubierto"
+                    },
+                    {
+                        "name":  "desd el",
+                        "value":  "desde el"
+                    },
+                    {
+                        "name":  "desdel",
+                        "value":  "desde el"
+                    },
+                    {
+                        "name":  "desdel a",
+                        "value":  "desde la"
+                    },
+                    {
+                        "name":  "desdel as",
+                        "value":  "desde las"
+                    },
+                    {
+                        "name":  "desdel os",
+                        "value":  "desde los"
+                    },
+                    {
+                        "name":  "desdeu n",
+                        "value":  "desde un"
+                    },
+                    {
+                        "name":  "desdeu na",
+                        "value":  "desde una"
+                    },
+                    {
+                        "name":  "desdeu nas",
+                        "value":  "desde unas"
+                    },
+                    {
+                        "name":  "desdeu nos",
+                        "value":  "desde unos"
+                    },
+                    {
+                        "name":  "desed",
+                        "value":  "desde"
+                    },
+                    {
+                        "name":  "desicion",
+                        "value":  "decisión"
+                    },
+                    {
+                        "name":  "desilucion",
+                        "value":  "desilusión"
+                    },
+                    {
+                        "name":  "desorientamiento",
+                        "value":  "desorientación"
+                    },
+                    {
+                        "name":  "destornillarse de risa",
+                        "value":  "desternillarse de risa"
+                    },
+                    {
+                        "name":  "detenieron",
+                        "value":  "detuvieron"
+                    },
+                    {
+                        "name":  "detenimos",
+                        "value":  "detuvimos"
+                    },
+                    {
+                        "name":  "detení",
+                        "value":  "detuve"
+                    },
+                    {
+                        "name":  "detras",
+                        "value":  "detrás"
+                    },
+                    {
+                        "name":  "detrás mía",
+                        "value":  "detrás de mí"
+                    },
+                    {
+                        "name":  "detrás mío",
+                        "value":  "detrás de mí"
+                    },
+                    {
+                        "name":  "detrás tuya",
+                        "value":  "detrás de ti"
+                    },
+                    {
+                        "name":  "detrás tuyo",
+                        "value":  "detrás de ti"
+                    },
+                    {
+                        "name":  "deu n",
+                        "value":  "de un"
+                    },
+                    {
+                        "name":  "deu na",
+                        "value":  "de una"
+                    },
+                    {
+                        "name":  "deu nas",
+                        "value":  "de unas"
+                    },
+                    {
+                        "name":  "deu nos",
+                        "value":  "de unos"
+                    },
+                    {
+                        "name":  "deve",
+                        "value":  "debe"
+                    },
+                    {
+                        "name":  "devería",
+                        "value":  "debería"
+                    },
+                    {
+                        "name":  "diabetis",
+                        "value":  "diabetes"
+                    },
+                    {
+                        "name":  "dicionario",
+                        "value":  "diccionario"
+                    },
+                    {
+                        "name":  "diezmil",
+                        "value":  "diez mil"
+                    },
+                    {
+                        "name":  "diferiencia",
+                        "value":  "diferencia"
+                    },
+                    {
+                        "name":  "difernete",
+                        "value":  "diferente"
+                    },
+                    {
+                        "name":  "difreente",
+                        "value":  "diferente"
+                    },
+                    {
+                        "name":  "discucion",
+                        "value":  "discusión"
+                    },
+                    {
+                        "name":  "disgresión",
+                        "value":  "digresión"
+                    },
+                    {
+                        "name":  "dispocicion",
+                        "value":  "disposición"
+                    },
+                    {
+                        "name":  "distribuicion",
+                        "value":  "distribución"
+                    },
+                    {
+                        "name":  "distribuición",
+                        "value":  "distribución"
+                    },
+                    {
+                        "name":  "diverger",
+                        "value":  "divergir"
+                    },
+                    {
+                        "name":  "dió",
+                        "value":  "dio"
+                    },
+                    {
+                        "name":  "dle",
+                        "value":  "del"
+                    },
+                    {
+                        "name":  "dniero",
+                        "value":  "dinero"
+                    },
+                    {
+                        "name":  "dolar",
+                        "value":  "dólar"
+                    },
+                    {
+                        "name":  "dsde",
+                        "value":  "desde"
+                    },
+                    {
+                        "name":  "dsede",
+                        "value":  "desde"
+                    },
+                    {
+                        "name":  "e comentado",
+                        "value":  "he comentado"
+                    },
+                    {
+                        "name":  "e comido",
+                        "value":  "he comido"
+                    },
+                    {
+                        "name":  "e corrido",
+                        "value":  "he corrido"
+                    },
+                    {
+                        "name":  "e dicho",
+                        "value":  "he dicho"
+                    },
+                    {
+                        "name":  "e escrito",
+                        "value":  "he escrito"
+                    },
+                    {
+                        "name":  "e hielo",
+                        "value":  "y hielo"
+                    },
+                    {
+                        "name":  "e hiena",
+                        "value":  "y hiena"
+                    },
+                    {
+                        "name":  "e hierba",
+                        "value":  "y hierba"
+                    },
+                    {
+                        "name":  "e hierro",
+                        "value":  "y hierro"
+                    },
+                    {
+                        "name":  "e llamado",
+                        "value":  "he llamado"
+                    },
+                    {
+                        "name":  "e nel",
+                        "value":  "en el"
+                    },
+                    {
+                        "name":  "e nella",
+                        "value":  "en ella"
+                    },
+                    {
+                        "name":  "e nellas",
+                        "value":  "en ellas"
+                    },
+                    {
+                        "name":  "e nellos",
+                        "value":  "en ellos"
+                    },
+                    {
+                        "name":  "e nla",
+                        "value":  "en la"
+                    },
+                    {
+                        "name":  "e nlas",
+                        "value":  "en las"
+                    },
+                    {
+                        "name":  "e nlos",
+                        "value":  "en los"
+                    },
+                    {
+                        "name":  "e nun",
+                        "value":  "en un"
+                    },
+                    {
+                        "name":  "e nuna",
+                        "value":  "en una"
+                    },
+                    {
+                        "name":  "e nunas",
+                        "value":  "en unas"
+                    },
+                    {
+                        "name":  "e nunos",
+                        "value":  "en unos"
+                    },
+                    {
+                        "name":  "e nél",
+                        "value":  "en él"
+                    },
+                    {
+                        "name":  "e oído",
+                        "value":  "he oído"
+                    },
+                    {
+                        "name":  "e pensado",
+                        "value":  "he pensado"
+                    },
+                    {
+                        "name":  "el apotema",
+                        "value":  "la apotema"
+                    },
+                    {
+                        "name":  "el apoteosis",
+                        "value":  "la apoteosis"
+                    },
+                    {
+                        "name":  "elejir",
+                        "value":  "elegir"
+                    },
+                    {
+                        "name":  "eliga",
+                        "value":  "elija"
+                    },
+                    {
+                        "name":  "enbiado",
+                        "value":  "enviado"
+                    },
+                    {
+                        "name":  "enbiar",
+                        "value":  "enviar"
+                    },
+                    {
+                        "name":  "encautar",
+                        "value":  "incautar"
+                    },
+                    {
+                        "name":  "encima mía",
+                        "value":  "encima de mí"
+                    },
+                    {
+                        "name":  "encima mío",
+                        "value":  "encima de mí"
+                    },
+                    {
+                        "name":  "encima tuya",
+                        "value":  "encima de ti"
+                    },
+                    {
+                        "name":  "encima tuyo",
+                        "value":  "encima de ti"
+                    },
+                    {
+                        "name":  "encontar",
+                        "value":  "encontrar"
+                    },
+                    {
+                        "name":  "enl a",
+                        "value":  "en la"
+                    },
+                    {
+                        "name":  "enl as",
+                        "value":  "en las"
+                    },
+                    {
+                        "name":  "enl o",
+                        "value":  "en lo"
+                    },
+                    {
+                        "name":  "enl os",
+                        "value":  "en los"
+                    },
+                    {
+                        "name":  "enmedio",
+                        "value":  "en medio"
+                    },
+                    {
+                        "name":  "enquencle",
+                        "value":  "enclenque"
+                    },
+                    {
+                        "name":  "enu n",
+                        "value":  "en un"
+                    },
+                    {
+                        "name":  "enu na",
+                        "value":  "en una"
+                    },
+                    {
+                        "name":  "enu nas",
+                        "value":  "en unas"
+                    },
+                    {
+                        "name":  "enu nos",
+                        "value":  "en unos"
+                    },
+                    {
+                        "name":  "eqiupo",
+                        "value":  "equipo"
+                    },
+                    {
+                        "name":  "eqiupos",
+                        "value":  "equipos"
+                    },
+                    {
+                        "name":  "escitación",
+                        "value":  "excitación"
+                    },
+                    {
+                        "name":  "escitado",
+                        "value":  "excitado"
+                    },
+                    {
+                        "name":  "escojer",
+                        "value":  "escoger"
+                    },
+                    {
+                        "name":  "escrive",
+                        "value":  "escribe"
+                    },
+                    {
+                        "name":  "escrivir",
+                        "value":  "escribir"
+                    },
+                    {
+                        "name":  "ese agua",
+                        "value":  "esa agua"
+                    },
+                    {
+                        "name":  "ese área",
+                        "value":  "esa área"
+                    },
+                    {
+                        "name":  "esnucar",
+                        "value":  "desnucar"
+                    },
+                    {
+                        "name":  "esparcer",
+                        "value":  "esparcir"
+                    },
+                    {
+                        "name":  "esquimala",
+                        "value":  "esquimal"
+                    },
+                    {
+                        "name":  "estandard",
+                        "value":  "estándar"
+                    },
+                    {
+                        "name":  "estaís",
+                        "value":  "estáis"
+                    },
+                    {
+                        "name":  "este agua",
+                        "value":  "esta agua"
+                    },
+                    {
+                        "name":  "este hacha",
+                        "value":  "esta hacha"
+                    },
+                    {
+                        "name":  "este área",
+                        "value":  "esta área"
+                    },
+                    {
+                        "name":  "estranjero",
+                        "value":  "extranjero"
+                    },
+                    {
+                        "name":  "estres",
+                        "value":  "estrés"
+                    },
+                    {
+                        "name":  "estudianta",
+                        "value":  "estudiante"
+                    },
+                    {
+                        "name":  "estuvistes",
+                        "value":  "estuviste"
+                    },
+                    {
+                        "name":  "estándard",
+                        "value":  "estándar"
+                    },
+                    {
+                        "name":  "etso",
+                        "value":  "esto"
+                    },
+                    {
+                        "name":  "ex-",
+                        "value":  "ex"
+                    },
+                    {
+                        "name":  "excaso",
+                        "value":  "escaso"
+                    },
+                    {
+                        "name":  "excitacion",
+                        "value":  "excitación"
+                    },
+                    {
+                        "name":  "exepcion",
+                        "value":  "excepción"
+                    },
+                    {
+                        "name":  "exito",
+                        "value":  "éxito"
+                    },
+                    {
+                        "name":  "expancion",
+                        "value":  "expansión"
+                    },
+                    {
+                        "name":  "expocicion",
+                        "value":  "exposición"
+                    },
+                    {
+                        "name":  "extrangero",
+                        "value":  "extranjero"
+                    },
+                    {
+                        "name":  "extraradio",
+                        "value":  "extrarradio"
+                    },
+                    {
+                        "name":  "extrema unción",
+                        "value":  "extremaunción"
+                    },
+                    {
+                        "name":  "eya",
+                        "value":  "ella"
+                    },
+                    {
+                        "name":  "eyas",
+                        "value":  "ellas"
+                    },
+                    {
+                        "name":  "eyos",
+                        "value":  "ellos"
+                    },
+                    {
+                        "name":  "familair",
+                        "value":  "familiar"
+                    },
+                    {
+                        "name":  "feura",
+                        "value":  "fuera"
+                    },
+                    {
+                        "name":  "feurza",
+                        "value":  "fuerza"
+                    },
+                    {
+                        "name":  "finalemnte",
+                        "value":  "finalmente"
+                    },
+                    {
+                        "name":  "finjir",
+                        "value":  "fingir"
+                    },
+                    {
+                        "name":  "fuear",
+                        "value":  "fuera"
+                    },
+                    {
+                        "name":  "fuersa",
+                        "value":  "fuerza"
+                    },
+                    {
+                        "name":  "fuistes",
+                        "value":  "fuiste"
+                    },
+                    {
+                        "name":  "funjir",
+                        "value":  "fungir"
+                    },
+                    {
+                        "name":  "fustrar",
+                        "value":  "frustrar"
+                    },
+                    {
+                        "name":  "fué",
+                        "value":  "fue"
+                    },
+                    {
+                        "name":  "fuí",
+                        "value":  "fui"
+                    },
+                    {
+                        "name":  "garn",
+                        "value":  "gran"
+                    },
+                    {
+                        "name":  "geráneo",
+                        "value":  "geranio"
+                    },
+                    {
+                        "name":  "gobeirno",
+                        "value":  "gobierno"
+                    },
+                    {
+                        "name":  "govierno",
+                        "value":  "gobierno"
+                    },
+                    {
+                        "name":  "guarda bosque",
+                        "value":  "guardabosque"
+                    },
+                    {
+                        "name":  "guarda meta",
+                        "value":  "guardameta"
+                    },
+                    {
+                        "name":  "guarda polvo",
+                        "value":  "guardapolvo"
+                    },
+                    {
+                        "name":  "guardias civil",
+                        "value":  "guardias civiles"
+                    },
+                    {
+                        "name":  "guero",
+                        "value":  "güero"
+                    },
+                    {
+                        "name":  "ha echo",
+                        "value":  "ha hecho"
+                    },
+                    {
+                        "name":  "hablastes",
+                        "value":  "hablaste"
+                    },
+                    {
+                        "name":  "habrán habido",
+                        "value":  "habrá habido"
+                    },
+                    {
+                        "name":  "habéis echo",
+                        "value":  "habéis hecho"
+                    },
+                    {
+                        "name":  "habían habido",
+                        "value":  "había habido"
+                    },
+                    {
+                        "name":  "hacia bajo",
+                        "value":  "hacia abajo"
+                    },
+                    {
+                        "name":  "hacre",
+                        "value":  "hacer"
+                    },
+                    {
+                        "name":  "han echo",
+                        "value":  "han hecho"
+                    },
+                    {
+                        "name":  "han habido",
+                        "value":  "ha habido"
+                    },
+                    {
+                        "name":  "has echo",
+                        "value":  "has hecho"
+                    },
+                    {
+                        "name":  "hasia",
+                        "value":  "hacia"
+                    },
+                    {
+                        "name":  "hast ala",
+                        "value":  "hasta la"
+                    },
+                    {
+                        "name":  "hast alas",
+                        "value":  "hasta las"
+                    },
+                    {
+                        "name":  "hast alo",
+                        "value":  "hasta lo"
+                    },
+                    {
+                        "name":  "hast alos",
+                        "value":  "hasta los"
+                    },
+                    {
+                        "name":  "hastae l",
+                        "value":  "hasta el"
+                    },
+                    {
+                        "name":  "hastal a",
+                        "value":  "hasta la"
+                    },
+                    {
+                        "name":  "hastal as",
+                        "value":  "hasta las"
+                    },
+                    {
+                        "name":  "hastal o",
+                        "value":  "hasta lo"
+                    },
+                    {
+                        "name":  "hastal os",
+                        "value":  "hasta los"
+                    },
+                    {
+                        "name":  "hastau n",
+                        "value":  "hasta un"
+                    },
+                    {
+                        "name":  "hastau na",
+                        "value":  "hasta una"
+                    },
+                    {
+                        "name":  "hastau nas",
+                        "value":  "hasta unas"
+                    },
+                    {
+                        "name":  "hastau nos",
+                        "value":  "hasta unos"
+                    },
+                    {
+                        "name":  "hayan habido",
+                        "value":  "haya habido"
+                    },
+                    {
+                        "name":  "hayuda",
+                        "value":  "ayuda"
+                    },
+                    {
+                        "name":  "hazmereír",
+                        "value":  "hazmerreír"
+                    },
+                    {
+                        "name":  "he echo",
+                        "value":  "he hecho"
+                    },
+                    {
+                        "name":  "hemos echo",
+                        "value":  "hemos hecho"
+                    },
+                    {
+                        "name":  "heroina",
+                        "value":  "heroína"
+                    },
+                    {
+                        "name":  "hipocondria",
+                        "value":  "hipocondría"
+                    },
+                    {
+                        "name":  "hoi",
+                        "value":  "hoy"
+                    },
+                    {
+                        "name":  "horas puntas",
+                        "value":  "horas punta"
+                    },
+                    {
+                        "name":  "horfo",
+                        "value":  "orfo"
+                    },
+                    {
+                        "name":  "hsitoria",
+                        "value":  "historia"
+                    },
+                    {
+                        "name":  "hsitorieta",
+                        "value":  "historieta"
+                    },
+                    {
+                        "name":  "http:\\\\",
+                        "value":  "http://"
+                    },
+                    {
+                        "name":  "hubieran habido",
+                        "value":  "hubiera habido"
+                    },
+                    {
+                        "name":  "humadera",
+                        "value":  "humareda"
+                    },
+                    {
+                        "name":  "hya",
+                        "value":  "hay"
+                    },
+                    {
+                        "name":  "idae",
+                        "value":  "idea"
+                    },
+                    {
+                        "name":  "ideosincrasia",
+                        "value":  "idiosincrasia"
+                    },
+                    {
+                        "name":  "igaul",
+                        "value":  "igual"
+                    },
+                    {
+                        "name":  "ileíble",
+                        "value":  "ilegible"
+                    },
+                    {
+                        "name":  "imagenes",
+                        "value":  "imágenes"
+                    },
+                    {
+                        "name":  "immediatamente",
+                        "value":  "inmediatamente"
+                    },
+                    {
+                        "name":  "immediato",
+                        "value":  "inmediato"
+                    },
+                    {
+                        "name":  "imposision",
+                        "value":  "imposición"
+                    },
+                    {
+                        "name":  "impresion",
+                        "value":  "impresión"
+                    },
+                    {
+                        "name":  "imágen",
+                        "value":  "imagen"
+                    },
+                    {
+                        "name":  "inaguración",
+                        "value":  "inauguración"
+                    },
+                    {
+                        "name":  "inaplacable",
+                        "value":  "implacable"
+                    },
+                    {
+                        "name":  "inclusivemente",
+                        "value":  "inclusivamente"
+                    },
+                    {
+                        "name":  "inclusives",
+                        "value":  "inclusive"
+                    },
+                    {
+                        "name":  "indecicion",
+                        "value":  "indecisión"
+                    },
+                    {
+                        "name":  "indesision",
+                        "value":  "indecisión"
+                    },
+                    {
+                        "name":  "inflingir",
+                        "value":  "infligir"
+                    },
+                    {
+                        "name":  "inovaciones",
+                        "value":  "innovaciones"
+                    },
+                    {
+                        "name":  "inovación",
+                        "value":  "innovación"
+                    },
+                    {
+                        "name":  "inovador",
+                        "value":  "innovador"
+                    },
+                    {
+                        "name":  "inovadora",
+                        "value":  "innovadora"
+                    },
+                    {
+                        "name":  "inovadoras",
+                        "value":  "innovadoras"
+                    },
+                    {
+                        "name":  "inovadores",
+                        "value":  "innovadores"
+                    },
+                    {
+                        "name":  "inovar",
+                        "value":  "innovar"
+                    },
+                    {
+                        "name":  "inracional",
+                        "value":  "irracional"
+                    },
+                    {
+                        "name":  "inrompible",
+                        "value":  "irrompible"
+                    },
+                    {
+                        "name":  "instruccion",
+                        "value":  "instrucción"
+                    },
+                    {
+                        "name":  "instrución",
+                        "value":  "instrucción"
+                    },
+                    {
+                        "name":  "intrínsico",
+                        "value":  "intrínseco"
+                    },
+                    {
+                        "name":  "istoria",
+                        "value":  "historia"
+                    },
+                    {
+                        "name":  "istorieta",
+                        "value":  "historieta"
+                    },
+                    {
+                        "name":  "istrucción",
+                        "value":  "instrucción"
+                    },
+                    {
+                        "name":  "jefactura",
+                        "value":  "jefatura"
+                    },
+                    {
+                        "name":  "la agua",
+                        "value":  "el agua"
+                    },
+                    {
+                        "name":  "la asta",
+                        "value":  "el asta"
+                    },
+                    {
+                        "name":  "la candidato",
+                        "value":  "la candidata"
+                    },
+                    {
+                        "name":  "la director",
+                        "value":  "la directora"
+                    },
+                    {
+                        "name":  "la filólogo",
+                        "value":  "la filóloga"
+                    },
+                    {
+                        "name":  "la filósofo",
+                        "value":  "la filósofa"
+                    },
+                    {
+                        "name":  "la geógrafo",
+                        "value":  "la geógrafa"
+                    },
+                    {
+                        "name":  "la geólogo",
+                        "value":  "la geóloga"
+                    },
+                    {
+                        "name":  "la hacha",
+                        "value":  "el hacha"
+                    },
+                    {
+                        "name":  "la hambre",
+                        "value":  "el hambre"
+                    },
+                    {
+                        "name":  "la águila",
+                        "value":  "el águila"
+                    },
+                    {
+                        "name":  "la álgebra",
+                        "value":  "el álgebra"
+                    },
+                    {
+                        "name":  "la área",
+                        "value":  "el área"
+                    },
+                    {
+                        "name":  "las avestruces",
+                        "value":  "los avestruces"
+                    },
+                    {
+                        "name":  "lejos mía",
+                        "value":  "lejos de mí"
+                    },
+                    {
+                        "name":  "lejos mío",
+                        "value":  "lejos de mí"
+                    },
+                    {
+                        "name":  "lejos tuya",
+                        "value":  "lejos de ti"
+                    },
+                    {
+                        "name":  "lejos tuyo",
+                        "value":  "lejos de ti"
+                    },
+                    {
+                        "name":  "lengueta",
+                        "value":  "lengüeta"
+                    },
+                    {
+                        "name":  "lengüista",
+                        "value":  "lingüista"
+                    },
+                    {
+                        "name":  "liberría",
+                        "value":  "librería"
+                    },
+                    {
+                        "name":  "libreraí",
+                        "value":  "librería"
+                    },
+                    {
+                        "name":  "libreria",
+                        "value":  "librería"
+                    },
+                    {
+                        "name":  "limpai",
+                        "value":  "limpia"
+                    },
+                    {
+                        "name":  "limpair",
+                        "value":  "limpiar"
+                    },
+                    {
+                        "name":  "linguista",
+                        "value":  "lingüista"
+                    },
+                    {
+                        "name":  "linguistica",
+                        "value":  "lingüística"
+                    },
+                    {
+                        "name":  "linguística",
+                        "value":  "lingüística"
+                    },
+                    {
+                        "name":  "linguístico",
+                        "value":  "lingüístico"
+                    },
+                    {
+                        "name":  "lingüistica",
+                        "value":  "lingüística"
+                    },
+                    {
+                        "name":  "linpia",
+                        "value":  "limpia"
+                    },
+                    {
+                        "name":  "linpiar",
+                        "value":  "limpiar"
+                    },
+                    {
+                        "name":  "lisencia",
+                        "value":  "licencia"
+                    },
+                    {
+                        "name":  "logarismo",
+                        "value":  "logaritmo"
+                    },
+                    {
+                        "name":  "londonense",
+                        "value":  "londinense"
+                    },
+                    {
+                        "name":  "lugra",
+                        "value":  "lugar"
+                    },
+                    {
+                        "name":  "manuntención",
+                        "value":  "manutención"
+                    },
+                    {
+                        "name":  "mapa mundi",
+                        "value":  "mapamundi"
+                    },
+                    {
+                        "name":  "me se",
+                        "value":  "se me"
+                    },
+                    {
+                        "name":  "metereología",
+                        "value":  "meteorología"
+                    },
+                    {
+                        "name":  "motu propio",
+                        "value":  "motu proprio"
+                    },
+                    {
+                        "name":  "msimo",
+                        "value":  "mismo"
+                    },
+                    {
+                        "name":  "mucah",
+                        "value":  "mucha"
+                    },
+                    {
+                        "name":  "mucoh",
+                        "value":  "mucho"
+                    },
+                    {
+                        "name":  "myu",
+                        "value":  "muy"
+                    },
+                    {
+                        "name":  "naide",
+                        "value":  "nadie"
+                    },
+                    {
+                        "name":  "necesarai",
+                        "value":  "necesaria"
+                    },
+                    {
+                        "name":  "necesaroi",
+                        "value":  "necesario"
+                    },
+                    {
+                        "name":  "nesesaria",
+                        "value":  "necesaria"
+                    },
+                    {
+                        "name":  "nesesario",
+                        "value":  "necesario"
+                    },
+                    {
+                        "name":  "nesesita",
+                        "value":  "necesita"
+                    },
+                    {
+                        "name":  "nesesito",
+                        "value":  "necesito"
+                    },
+                    {
+                        "name":  "nibel",
+                        "value":  "nivel"
+                    },
+                    {
+                        "name":  "noceh",
+                        "value":  "noche"
+                    },
+                    {
+                        "name":  "noosotars",
+                        "value":  "nosotras"
+                    },
+                    {
+                        "name":  "noosotors",
+                        "value":  "nosotros"
+                    },
+                    {
+                        "name":  "noosotras",
+                        "value":  "nosotras"
+                    },
+                    {
+                        "name":  "noosotros",
+                        "value":  "nosotros"
+                    },
+                    {
+                        "name":  "nosotars",
+                        "value":  "nosotras"
+                    },
+                    {
+                        "name":  "nosotors",
+                        "value":  "nosotros"
+                    },
+                    {
+                        "name":  "nozotars",
+                        "value":  "nosotras"
+                    },
+                    {
+                        "name":  "nozotors",
+                        "value":  "nosotros"
+                    },
+                    {
+                        "name":  "nozotra",
+                        "value":  "nosotras"
+                    },
+                    {
+                        "name":  "nozotro",
+                        "value":  "nosotros"
+                    },
+                    {
+                        "name":  "nu",
+                        "value":  "un"
+                    },
+                    {
+                        "name":  "nuebo",
+                        "value":  "nuevo"
+                    },
+                    {
+                        "name":  "o hora",
+                        "value":  "u hora"
+                    },
+                    {
+                        "name":  "o obsesión",
+                        "value":  "u obsesión"
+                    },
+                    {
+                        "name":  "o ocasión",
+                        "value":  "u ocasión"
+                    },
+                    {
+                        "name":  "o ocho",
+                        "value":  "u ocho"
+                    },
+                    {
+                        "name":  "o octavo",
+                        "value":  "u octavo"
+                    },
+                    {
+                        "name":  "o oculto",
+                        "value":  "u oculto"
+                    },
+                    {
+                        "name":  "o odio",
+                        "value":  "u odio"
+                    },
+                    {
+                        "name":  "o oeste",
+                        "value":  "u oeste"
+                    },
+                    {
+                        "name":  "o once",
+                        "value":  "u once"
+                    },
+                    {
+                        "name":  "o oscuro",
+                        "value":  "u oscuro"
+                    },
+                    {
+                        "name":  "o otro",
+                        "value":  "u otro"
+                    },
+                    {
+                        "name":  "ocasion",
+                        "value":  "ocasión"
+                    },
+                    {
+                        "name":  "ocasoin",
+                        "value":  "ocasión"
+                    },
+                    {
+                        "name":  "ocasóin",
+                        "value":  "ocasión"
+                    },
+                    {
+                        "name":  "ocurencia",
+                        "value":  "ocurrencia"
+                    },
+                    {
+                        "name":  "ocurrencai",
+                        "value":  "ocurrencia"
+                    },
+                    {
+                        "name":  "operacion",
+                        "value":  "operación"
+                    },
+                    {
+                        "name":  "orferinato",
+                        "value":  "orfanato"
+                    },
+                    {
+                        "name":  "organizacion",
+                        "value":  "organización"
+                    },
+                    {
+                        "name":  "organizacoin",
+                        "value":  "organización"
+                    },
+                    {
+                        "name":  "organizacóin",
+                        "value":  "organización"
+                    },
+                    {
+                        "name":  "otar",
+                        "value":  "otra"
+                    },
+                    {
+                        "name":  "otars",
+                        "value":  "otras"
+                    },
+                    {
+                        "name":  "otors",
+                        "value":  "otros"
+                    },
+                    {
+                        "name":  "otrsa",
+                        "value":  "otras"
+                    },
+                    {
+                        "name":  "otrso",
+                        "value":  "otros"
+                    },
+                    {
+                        "name":  "paar",
+                        "value":  "para"
+                    },
+                    {
+                        "name":  "palabar",
+                        "value":  "palabra"
+                    },
+                    {
+                        "name":  "palavra",
+                        "value":  "palabra"
+                    },
+                    {
+                        "name":  "pantomina",
+                        "value":  "pantomima"
+                    },
+                    {
+                        "name":  "par ael",
+                        "value":  "para el"
+                    },
+                    {
+                        "name":  "par aella",
+                        "value":  "para ella"
+                    },
+                    {
+                        "name":  "par aellas",
+                        "value":  "para ellas"
+                    },
+                    {
+                        "name":  "par aellos",
+                        "value":  "para ellos"
+                    },
+                    {
+                        "name":  "par ala",
+                        "value":  "para la"
+                    },
+                    {
+                        "name":  "par alas",
+                        "value":  "para las"
+                    },
+                    {
+                        "name":  "par alo",
+                        "value":  "para lo"
+                    },
+                    {
+                        "name":  "par alos",
+                        "value":  "para los"
+                    },
+                    {
+                        "name":  "par auna",
+                        "value":  "para una"
+                    },
+                    {
+                        "name":  "par aunas",
+                        "value":  "para unas"
+                    },
+                    {
+                        "name":  "par aunos",
+                        "value":  "para unos"
+                    },
+                    {
+                        "name":  "par aél",
+                        "value":  "para él"
+                    },
+                    {
+                        "name":  "parae lla",
+                        "value":  "para ella"
+                    },
+                    {
+                        "name":  "parae llas",
+                        "value":  "para ellas"
+                    },
+                    {
+                        "name":  "parae llos",
+                        "value":  "para ellos"
+                    },
+                    {
+                        "name":  "paral a",
+                        "value":  "para la"
+                    },
+                    {
+                        "name":  "paral as",
+                        "value":  "para las"
+                    },
+                    {
+                        "name":  "paral o",
+                        "value":  "para lo"
+                    },
+                    {
+                        "name":  "paral os",
+                        "value":  "para los"
+                    },
+                    {
+                        "name":  "parau na",
+                        "value":  "para una"
+                    },
+                    {
+                        "name":  "parau nas",
+                        "value":  "para unas"
+                    },
+                    {
+                        "name":  "parau nos",
+                        "value":  "para unos"
+                    },
+                    {
+                        "name":  "paraé l",
+                        "value":  "para él"
+                    },
+                    {
+                        "name":  "peinso",
+                        "value":  "pienso"
+                    },
+                    {
+                        "name":  "peqeuño",
+                        "value":  "pequeño"
+                    },
+                    {
+                        "name":  "pequeno",
+                        "value":  "pequeño"
+                    },
+                    {
+                        "name":  "pergunta",
+                        "value":  "pregunta"
+                    },
+                    {
+                        "name":  "pinguino",
+                        "value":  "pingüino"
+                    },
+                    {
+                        "name":  "pirmero",
+                        "value":  "primero"
+                    },
+                    {
+                        "name":  "pisos pilotos",
+                        "value":  "pisos piloto"
+                    },
+                    {
+                        "name":  "po rel",
+                        "value":  "por el"
+                    },
+                    {
+                        "name":  "po rella",
+                        "value":  "por ella"
+                    },
+                    {
+                        "name":  "po rellas",
+                        "value":  "por ellas"
+                    },
+                    {
+                        "name":  "po rellos",
+                        "value":  "por ellos"
+                    },
+                    {
+                        "name":  "po rla",
+                        "value":  "por la"
+                    },
+                    {
+                        "name":  "po rlas",
+                        "value":  "por las"
+                    },
+                    {
+                        "name":  "po rlo",
+                        "value":  "por lo"
+                    },
+                    {
+                        "name":  "po rlos",
+                        "value":  "por los"
+                    },
+                    {
+                        "name":  "po run",
+                        "value":  "por un"
+                    },
+                    {
+                        "name":  "po runa",
+                        "value":  "por una"
+                    },
+                    {
+                        "name":  "po runas",
+                        "value":  "por unas"
+                    },
+                    {
+                        "name":  "po runos",
+                        "value":  "por unos"
+                    },
+                    {
+                        "name":  "po rél",
+                        "value":  "por él"
+                    },
+                    {
+                        "name":  "poblema",
+                        "value":  "problema"
+                    },
+                    {
+                        "name":  "pocso",
+                        "value":  "pocos"
+                    },
+                    {
+                        "name":  "podraí",
+                        "value":  "podría"
+                    },
+                    {
+                        "name":  "por contra",
+                        "value":  "por el contrario"
+                    },
+                    {
+                        "name":  "por motu",
+                        "value":  "motu"
+                    },
+                    {
+                        "name":  "pore l",
+                        "value":  "por el"
+                    },
+                    {
+                        "name":  "pore lla",
+                        "value":  "por ella"
+                    },
+                    {
+                        "name":  "pore llas",
+                        "value":  "por ellas"
+                    },
+                    {
+                        "name":  "pore llos",
+                        "value":  "por ellos"
+                    },
+                    {
+                        "name":  "porl a",
+                        "value":  "por la"
+                    },
+                    {
+                        "name":  "porl as",
+                        "value":  "por las"
+                    },
+                    {
+                        "name":  "porl o",
+                        "value":  "por lo"
+                    },
+                    {
+                        "name":  "porl os",
+                        "value":  "por los"
+                    },
+                    {
+                        "name":  "porqe",
+                        "value":  "porque"
+                    },
+                    {
+                        "name":  "porqeu",
+                        "value":  "porque"
+                    },
+                    {
+                        "name":  "porsupuesto",
+                        "value":  "por supuesto"
+                    },
+                    {
+                        "name":  "poru n",
+                        "value":  "por un"
+                    },
+                    {
+                        "name":  "poru na",
+                        "value":  "por una"
+                    },
+                    {
+                        "name":  "poru nas",
+                        "value":  "por unas"
+                    },
+                    {
+                        "name":  "poru nos",
+                        "value":  "por unos"
+                    },
+                    {
+                        "name":  "poré l",
+                        "value":  "por él"
+                    },
+                    {
+                        "name":  "poseción",
+                        "value":  "posesión"
+                    },
+                    {
+                        "name":  "pra",
+                        "value":  "para"
+                    },
+                    {
+                        "name":  "prea",
+                        "value":  "pera"
+                    },
+                    {
+                        "name":  "precicion",
+                        "value":  "precisión"
+                    },
+                    {
+                        "name":  "preo",
+                        "value":  "pero"
+                    },
+                    {
+                        "name":  "presona",
+                        "value":  "persona"
+                    },
+                    {
+                        "name":  "preveyendo",
+                        "value":  "previendo"
+                    },
+                    {
+                        "name":  "preveyera",
+                        "value":  "previera"
+                    },
+                    {
+                        "name":  "preveyó",
+                        "value":  "previó"
+                    },
+                    {
+                        "name":  "problematica",
+                        "value":  "problemática"
+                    },
+                    {
+                        "name":  "problematico",
+                        "value":  "problemático"
+                    },
+                    {
+                        "name":  "propriedad",
+                        "value":  "propiedad"
+                    },
+                    {
+                        "name":  "proprietario",
+                        "value":  "propietario"
+                    },
+                    {
+                        "name":  "proqe",
+                        "value":  "porque"
+                    },
+                    {
+                        "name":  "proque",
+                        "value":  "porque"
+                    },
+                    {
+                        "name":  "protejer",
+                        "value":  "proteger"
+                    },
+                    {
+                        "name":  "protejido",
+                        "value":  "protegido"
+                    },
+                    {
+                        "name":  "pudeira",
+                        "value":  "pudiera"
+                    },
+                    {
+                        "name":  "puntos claves",
+                        "value":  "puntos clave"
+                    },
+                    {
+                        "name":  "qerer",
+                        "value":  "querer"
+                    },
+                    {
+                        "name":  "qeu",
+                        "value":  "que"
+                    },
+                    {
+                        "name":  "qeurer",
+                        "value":  "querer"
+                    },
+                    {
+                        "name":  "qiere",
+                        "value":  "quiere"
+                    },
+                    {
+                        "name":  "qiuen",
+                        "value":  "quien"
+                    },
+                    {
+                        "name":  "qiuere",
+                        "value":  "quiere"
+                    },
+                    {
+                        "name":  "razgo",
+                        "value":  "rasgo"
+                    },
+                    {
+                        "name":  "realize",
+                        "value":  "realice"
+                    },
+                    {
+                        "name":  "realizemos",
+                        "value":  "realicemos"
+                    },
+                    {
+                        "name":  "realizen",
+                        "value":  "realicen"
+                    },
+                    {
+                        "name":  "realizes",
+                        "value":  "realices"
+                    },
+                    {
+                        "name":  "recivir",
+                        "value":  "recibir"
+                    },
+                    {
+                        "name":  "recivo",
+                        "value":  "recibo"
+                    },
+                    {
+                        "name":  "recojer",
+                        "value":  "recoger"
+                    },
+                    {
+                        "name":  "recomendacion",
+                        "value":  "recomendación"
+                    },
+                    {
+                        "name":  "recomendacoin",
+                        "value":  "recomendación"
+                    },
+                    {
+                        "name":  "recomendacóin",
+                        "value":  "recomendación"
+                    },
+                    {
+                        "name":  "reconoceindo",
+                        "value":  "reconociendo"
+                    },
+                    {
+                        "name":  "registar",
+                        "value":  "registrar"
+                    },
+                    {
+                        "name":  "registor",
+                        "value":  "registro"
+                    },
+                    {
+                        "name":  "religoiso",
+                        "value":  "religioso"
+                    },
+                    {
+                        "name":  "revindicación",
+                        "value":  "reivindicación"
+                    },
+                    {
+                        "name":  "rujir",
+                        "value":  "rugir"
+                    },
+                    {
+                        "name":  "sabelo todo",
+                        "value":  "sabelotodo"
+                    },
+                    {
+                        "name":  "san seacabó",
+                        "value":  "sanseacabó"
+                    },
+                    {
+                        "name":  "santi amén",
+                        "value":  "santiamén"
+                    },
+                    {
+                        "name":  "saver",
+                        "value":  "saber"
+                    },
+                    {
+                        "name":  "segir",
+                        "value":  "seguir"
+                    },
+                    {
+                        "name":  "segiur",
+                        "value":  "seguir"
+                    },
+                    {
+                        "name":  "segnu",
+                        "value":  "según"
+                    },
+                    {
+                        "name":  "segnú",
+                        "value":  "según"
+                    },
+                    {
+                        "name":  "segun",
+                        "value":  "según"
+                    },
+                    {
+                        "name":  "seguri",
+                        "value":  "seguir"
+                    },
+                    {
+                        "name":  "seleccion",
+                        "value":  "selección"
+                    },
+                    {
+                        "name":  "selecionar",
+                        "value":  "seleccionar"
+                    },
+                    {
+                        "name":  "seleción",
+                        "value":  "selección"
+                    },
+                    {
+                        "name":  "sentencai",
+                        "value":  "sentencia"
+                    },
+                    {
+                        "name":  "sezgo",
+                        "value":  "sesgo"
+                    },
+                    {
+                        "name":  "siemper",
+                        "value":  "siempre"
+                    },
+                    {
+                        "name":  "sienpre",
+                        "value":  "siempre"
+                    },
+                    {
+                        "name":  "sin equanon",
+                        "value":  "sine qua non"
+                    },
+                    {
+                        "name":  "sinceramnete",
+                        "value":  "sinceramente"
+                    },
+                    {
+                        "name":  "sine l",
+                        "value":  "sin el"
+                    },
+                    {
+                        "name":  "sine lla",
+                        "value":  "sin ella"
+                    },
+                    {
+                        "name":  "sine llos",
+                        "value":  "sin ellos"
+                    },
+                    {
+                        "name":  "sinembargo",
+                        "value":  "sin embargo"
+                    },
+                    {
+                        "name":  "sinfin",
+                        "value":  "sinfín"
+                    },
+                    {
+                        "name":  "sinl a",
+                        "value":  "sin la"
+                    },
+                    {
+                        "name":  "sinl as",
+                        "value":  "sin las"
+                    },
+                    {
+                        "name":  "sinl os",
+                        "value":  "sin los"
+                    },
+                    {
+                        "name":  "sinu n",
+                        "value":  "sin un"
+                    },
+                    {
+                        "name":  "sinu na",
+                        "value":  "sin una"
+                    },
+                    {
+                        "name":  "sinu nas",
+                        "value":  "sin unas"
+                    },
+                    {
+                        "name":  "sinu nos",
+                        "value":  "sin unos"
+                    },
+                    {
+                        "name":  "siné l",
+                        "value":  "sin él"
+                    },
+                    {
+                        "name":  "sni",
+                        "value":  "sin"
+                    },
+                    {
+                        "name":  "sno",
+                        "value":  "son"
+                    },
+                    {
+                        "name":  "sobr eel",
+                        "value":  "sobre el"
+                    },
+                    {
+                        "name":  "sobr eella",
+                        "value":  "sobre ella"
+                    },
+                    {
+                        "name":  "sobr eellas",
+                        "value":  "sobre ellas"
+                    },
+                    {
+                        "name":  "sobr eellos",
+                        "value":  "sobre ellos"
+                    },
+                    {
+                        "name":  "sobr ela",
+                        "value":  "sobre la"
+                    },
+                    {
+                        "name":  "sobr elas",
+                        "value":  "sobre las"
+                    },
+                    {
+                        "name":  "sobr elo",
+                        "value":  "sobre lo"
+                    },
+                    {
+                        "name":  "sobr elos",
+                        "value":  "sobre los"
+                    },
+                    {
+                        "name":  "sobr euna",
+                        "value":  "sobre una"
+                    },
+                    {
+                        "name":  "sobr eunas",
+                        "value":  "sobre unas"
+                    },
+                    {
+                        "name":  "sobr eunos",
+                        "value":  "sobre unos"
+                    },
+                    {
+                        "name":  "sobr eél",
+                        "value":  "sobre él"
+                    },
+                    {
+                        "name":  "sobree lla",
+                        "value":  "sobre ella"
+                    },
+                    {
+                        "name":  "sobree llas",
+                        "value":  "sobre ellas"
+                    },
+                    {
+                        "name":  "sobree llos",
+                        "value":  "sobre ellos"
+                    },
+                    {
+                        "name":  "sobrel a",
+                        "value":  "sobre la"
+                    },
+                    {
+                        "name":  "sobrel as",
+                        "value":  "sobre las"
+                    },
+                    {
+                        "name":  "sobrel o",
+                        "value":  "sobre lo"
+                    },
+                    {
+                        "name":  "sobrel os",
+                        "value":  "sobre los"
+                    },
+                    {
+                        "name":  "sobreu na",
+                        "value":  "sobre una"
+                    },
+                    {
+                        "name":  "sobreu nas",
+                        "value":  "sobre unas"
+                    },
+                    {
+                        "name":  "sobreu nos",
+                        "value":  "sobre unos"
+                    },
+                    {
+                        "name":  "sobreé l",
+                        "value":  "sobre él"
+                    },
+                    {
+                        "name":  "sondio",
+                        "value":  "sonido"
+                    },
+                    {
+                        "name":  "sordo-mudo",
+                        "value":  "sordomudo"
+                    },
+                    {
+                        "name":  "sre",
+                        "value":  "ser"
+                    },
+                    {
+                        "name":  "standar",
+                        "value":  "estándar"
+                    },
+                    {
+                        "name":  "stándar",
+                        "value":  "estándar"
+                    },
+                    {
+                        "name":  "sub-índice",
+                        "value":  "subíndice"
+                    },
+                    {
+                        "name":  "sucecion",
+                        "value":  "sucesión"
+                    },
+                    {
+                        "name":  "sucedio",
+                        "value":  "sucedió"
+                    },
+                    {
+                        "name":  "sucetible",
+                        "value":  "susceptible"
+                    },
+                    {
+                        "name":  "sueldos bases",
+                        "value":  "sueldos base"
+                    },
+                    {
+                        "name":  "supertición",
+                        "value":  "superstición"
+                    },
+                    {
+                        "name":  "supremacia",
+                        "value":  "supremacía"
+                    },
+                    {
+                        "name":  "surjir",
+                        "value":  "surgir"
+                    },
+                    {
+                        "name":  "suseder",
+                        "value":  "suceder"
+                    },
+                    {
+                        "name":  "susedió",
+                        "value":  "sucedió"
+                    },
+                    {
+                        "name":  "suspencion",
+                        "value":  "suspensión"
+                    },
+                    {
+                        "name":  "sábelo todo",
+                        "value":  "sabelotodo"
+                    },
+                    {
+                        "name":  "sábelotodo",
+                        "value":  "sabelotodo"
+                    },
+                    {
+                        "name":  "sólamente",
+                        "value":  "solamente"
+                    },
+                    {
+                        "name":  "tan pésima",
+                        "value":  "tan mala"
+                    },
+                    {
+                        "name":  "tan pésimas",
+                        "value":  "tan malas"
+                    },
+                    {
+                        "name":  "tan pésimo",
+                        "value":  "tan malo"
+                    },
+                    {
+                        "name":  "tan pésimos",
+                        "value":  "tan malos"
+                    },
+                    {
+                        "name":  "tan óptima",
+                        "value":  "tan buena"
+                    },
+                    {
+                        "name":  "tan óptimas",
+                        "value":  "tan buenas"
+                    },
+                    {
+                        "name":  "tan óptimo",
+                        "value":  "tan bueno"
+                    },
+                    {
+                        "name":  "tan óptimos",
+                        "value":  "tan buenos"
+                    },
+                    {
+                        "name":  "targeta",
+                        "value":  "tarjeta"
+                    },
+                    {
+                        "name":  "tars",
+                        "value":  "tras"
+                    },
+                    {
+                        "name":  "te se",
+                        "value":  "se te"
+                    },
+                    {
+                        "name":  "tege",
+                        "value":  "teje"
+                    },
+                    {
+                        "name":  "teger",
+                        "value":  "tejer"
+                    },
+                    {
+                        "name":  "teine",
+                        "value":  "tiene"
+                    },
+                    {
+                        "name":  "teje maneje",
+                        "value":  "tejemaneje"
+                    },
+                    {
+                        "name":  "tendraí",
+                        "value":  "tendría"
+                    },
+                    {
+                        "name":  "tenre",
+                        "value":  "tener"
+                    },
+                    {
+                        "name":  "tienpo",
+                        "value":  "tiempo"
+                    },
+                    {
+                        "name":  "tira buzón",
+                        "value":  "tirabuzón"
+                    },
+                    {
+                        "name":  "tneer",
+                        "value":  "tener"
+                    },
+                    {
+                        "name":  "tra sel",
+                        "value":  "tras el"
+                    },
+                    {
+                        "name":  "tra sla",
+                        "value":  "tras la"
+                    },
+                    {
+                        "name":  "tra slas",
+                        "value":  "tras las"
+                    },
+                    {
+                        "name":  "tra slos",
+                        "value":  "tras los"
+                    },
+                    {
+                        "name":  "tra sél",
+                        "value":  "tras él"
+                    },
+                    {
+                        "name":  "traba lenguas",
+                        "value":  "trabalenguas"
+                    },
+                    {
+                        "name":  "trase l",
+                        "value":  "tras el"
+                    },
+                    {
+                        "name":  "trase lla",
+                        "value":  "tras ella"
+                    },
+                    {
+                        "name":  "trase llas",
+                        "value":  "tras ellas"
+                    },
+                    {
+                        "name":  "trase llos",
+                        "value":  "tras ellos"
+                    },
+                    {
+                        "name":  "trasl a",
+                        "value":  "tras la"
+                    },
+                    {
+                        "name":  "trasl as",
+                        "value":  "tras las"
+                    },
+                    {
+                        "name":  "trasl os",
+                        "value":  "tras los"
+                    },
+                    {
+                        "name":  "trasu n",
+                        "value":  "tras un"
+                    },
+                    {
+                        "name":  "trasu na",
+                        "value":  "tras una"
+                    },
+                    {
+                        "name":  "trasu nas",
+                        "value":  "tras unas"
+                    },
+                    {
+                        "name":  "trasu nos",
+                        "value":  "tras unos"
+                    },
+                    {
+                        "name":  "trasé l",
+                        "value":  "tras él"
+                    },
+                    {
+                        "name":  "travajando",
+                        "value":  "trabajando"
+                    },
+                    {
+                        "name":  "travajar",
+                        "value":  "trabajar"
+                    },
+                    {
+                        "name":  "travajo",
+                        "value":  "trabajo"
+                    },
+                    {
+                        "name":  "trás",
+                        "value":  "tras"
+                    },
+                    {
+                        "name":  "tubiera",
+                        "value":  "tuviera"
+                    },
+                    {
+                        "name":  "tí",
+                        "value":  "ti"
+                    },
+                    {
+                        "name":  "uans",
+                        "value":  "unas"
+                    },
+                    {
+                        "name":  "uass",
+                        "value":  "usas"
+                    },
+                    {
+                        "name":  "ubicacion",
+                        "value":  "ubicación"
+                    },
+                    {
+                        "name":  "un otro",
+                        "value":  "otro"
+                    },
+                    {
+                        "name":  "un sin fin",
+                        "value":  "un sinfín"
+                    },
+                    {
+                        "name":  "un sin fín",
+                        "value":  "un sinfín"
+                    },
+                    {
+                        "name":  "un sólo",
+                        "value":  "un solo"
+                    },
+                    {
+                        "name":  "una otra",
+                        "value":  "otra"
+                    },
+                    {
+                        "name":  "una poca",
+                        "value":  "un poco"
+                    },
+                    {
+                        "name":  "una área",
+                        "value":  "un área"
+                    },
+                    {
+                        "name":  "unguento",
+                        "value":  "ungüento"
+                    },
+                    {
+                        "name":  "unsa",
+                        "value":  "unas"
+                    },
+                    {
+                        "name":  "unso",
+                        "value":  "unos"
+                    },
+                    {
+                        "name":  "uon",
+                        "value":  "uno"
+                    },
+                    {
+                        "name":  "uons",
+                        "value":  "unos"
+                    },
+                    {
+                        "name":  "uos",
+                        "value":  "uso"
+                    },
+                    {
+                        "name":  "uoss",
+                        "value":  "usos"
+                    },
+                    {
+                        "name":  "uvicación",
+                        "value":  "ubicación"
+                    },
+                    {
+                        "name":  "va y ven",
+                        "value":  "vaivén"
+                    },
+                    {
+                        "name":  "vailar",
+                        "value":  "bailar"
+                    },
+                    {
+                        "name":  "valance",
+                        "value":  "balance"
+                    },
+                    {
+                        "name":  "ve nido",
+                        "value":  "venido"
+                    },
+                    {
+                        "name":  "vebida",
+                        "value":  "bebida"
+                    },
+                    {
+                        "name":  "ventinueve",
+                        "value":  "veintinueve"
+                    },
+                    {
+                        "name":  "ventiuno",
+                        "value":  "veintiuno"
+                    },
+                    {
+                        "name":  "verguenza",
+                        "value":  "vergüenza"
+                    },
+                    {
+                        "name":  "vertir",
+                        "value":  "verter"
+                    },
+                    {
+                        "name":  "vever",
+                        "value":  "beber"
+                    },
+                    {
+                        "name":  "vibrasión",
+                        "value":  "vibración"
+                    },
+                    {
+                        "name":  "vice almirante",
+                        "value":  "vicealmirante"
+                    },
+                    {
+                        "name":  "vice cónsul",
+                        "value":  "vicecónsul"
+                    },
+                    {
+                        "name":  "vice presidente",
+                        "value":  "vicepresidente"
+                    },
+                    {
+                        "name":  "vice rector",
+                        "value":  "vicerrector"
+                    },
+                    {
+                        "name":  "vice secretario",
+                        "value":  "vicesecretario"
+                    },
+                    {
+                        "name":  "vice versa",
+                        "value":  "viceversa"
+                    },
+                    {
+                        "name":  "vistobueno",
+                        "value":  "visto bueno"
+                    },
+                    {
+                        "name":  "voosotars",
+                        "value":  "vosotras"
+                    },
+                    {
+                        "name":  "voosotors",
+                        "value":  "vosotros"
+                    },
+                    {
+                        "name":  "voosotras",
+                        "value":  "vosotras"
+                    },
+                    {
+                        "name":  "voosotros",
+                        "value":  "vosotros"
+                    },
+                    {
+                        "name":  "vosotars",
+                        "value":  "vosotras"
+                    },
+                    {
+                        "name":  "vosotors",
+                        "value":  "vosotros"
+                    },
+                    {
+                        "name":  "vosotra",
+                        "value":  "vosotras"
+                    },
+                    {
+                        "name":  "vosotro",
+                        "value":  "vosotros"
+                    },
+                    {
+                        "name":  "vrillar",
+                        "value":  "brillar"
+                    },
+                    {
+                        "name":  "y hija",
+                        "value":  "e hija"
+                    },
+                    {
+                        "name":  "y hijas",
+                        "value":  "e hijas"
+                    },
+                    {
+                        "name":  "y hijo",
+                        "value":  "e hijo"
+                    },
+                    {
+                        "name":  "y hijos",
+                        "value":  "e hijos"
+                    },
+                    {
+                        "name":  "y iba",
+                        "value":  "e iba"
+                    },
+                    {
+                        "name":  "y ibais",
+                        "value":  "e ibais"
+                    },
+                    {
+                        "name":  "y iban",
+                        "value":  "e iban"
+                    },
+                    {
+                        "name":  "y ibas",
+                        "value":  "e ibas"
+                    },
+                    {
+                        "name":  "y icono",
+                        "value":  "e icono"
+                    },
+                    {
+                        "name":  "y iconos",
+                        "value":  "e iconos"
+                    },
+                    {
+                        "name":  "y idea",
+                        "value":  "e idea"
+                    },
+                    {
+                        "name":  "y ideas",
+                        "value":  "e ideas"
+                    },
+                    {
+                        "name":  "y identificador",
+                        "value":  "e identificador"
+                    },
+                    {
+                        "name":  "y identificadores",
+                        "value":  "e identificadores"
+                    },
+                    {
+                        "name":  "y idioma",
+                        "value":  "e idioma"
+                    },
+                    {
+                        "name":  "y idiomas",
+                        "value":  "e idiomas"
+                    },
+                    {
+                        "name":  "y ignorancia",
+                        "value":  "e ignorancia"
+                    },
+                    {
+                        "name":  "y ignorar",
+                        "value":  "e ignorar"
+                    },
+                    {
+                        "name":  "y igual",
+                        "value":  "e igual"
+                    },
+                    {
+                        "name":  "y igualada",
+                        "value":  "e igualada"
+                    },
+                    {
+                        "name":  "y igualadas",
+                        "value":  "e igualadas"
+                    },
+                    {
+                        "name":  "y igualado",
+                        "value":  "e igualado"
+                    },
+                    {
+                        "name":  "y igualados",
+                        "value":  "e igualados"
+                    },
+                    {
+                        "name":  "y igualar",
+                        "value":  "e igualar"
+                    },
+                    {
+                        "name":  "y ilegal",
+                        "value":  "e ilegal"
+                    },
+                    {
+                        "name":  "y ilegales",
+                        "value":  "e ilegales"
+                    },
+                    {
+                        "name":  "y ilegible",
+                        "value":  "e ilegible"
+                    },
+                    {
+                        "name":  "y ilegibles",
+                        "value":  "e ilegibles"
+                    },
+                    {
+                        "name":  "y ilimitada",
+                        "value":  "e ilimitada"
+                    },
+                    {
+                        "name":  "y ilimitadas",
+                        "value":  "e ilimitadas"
+                    },
+                    {
+                        "name":  "y ilimitado",
+                        "value":  "e ilimitado"
+                    },
+                    {
+                        "name":  "y ilimitados",
+                        "value":  "e ilimitados"
+                    },
+                    {
+                        "name":  "y iluminación",
+                        "value":  "e iluminación"
+                    },
+                    {
+                        "name":  "y iluminada",
+                        "value":  "e iluminada"
+                    },
+                    {
+                        "name":  "y iluminadas",
+                        "value":  "e iluminadas"
+                    },
+                    {
+                        "name":  "y iluminado",
+                        "value":  "e iluminado"
+                    },
+                    {
+                        "name":  "y iluminados",
+                        "value":  "e iluminados"
+                    },
+                    {
+                        "name":  "y ilusionado",
+                        "value":  "e ilusionado"
+                    },
+                    {
+                        "name":  "y ilusiones",
+                        "value":  "e ilusiones"
+                    },
+                    {
+                        "name":  "y ilusión",
+                        "value":  "e ilusión"
+                    },
+                    {
+                        "name":  "y ilustraciones",
+                        "value":  "e ilustraciones"
+                    },
+                    {
+                        "name":  "y ilustración",
+                        "value":  "e ilustración"
+                    },
+                    {
+                        "name":  "y ilustre",
+                        "value":  "e ilustre"
+                    },
+                    {
+                        "name":  "y ilustres",
+                        "value":  "e ilustres"
+                    },
+                    {
+                        "name":  "y imagen",
+                        "value":  "e imagen"
+                    },
+                    {
+                        "name":  "y imaginario",
+                        "value":  "e imaginario"
+                    },
+                    {
+                        "name":  "y imaginarios",
+                        "value":  "e imaginarios"
+                    },
+                    {
+                        "name":  "y imbatible",
+                        "value":  "e imbatible"
+                    },
+                    {
+                        "name":  "y imbatibles",
+                        "value":  "e imbatibles"
+                    },
+                    {
+                        "name":  "y imborrable",
+                        "value":  "e imborrable"
+                    },
+                    {
+                        "name":  "y imborrables",
+                        "value":  "e imborrables"
+                    },
+                    {
+                        "name":  "y imitable",
+                        "value":  "e imitable"
+                    },
+                    {
+                        "name":  "y imitables",
+                        "value":  "e imitables"
+                    },
+                    {
+                        "name":  "y imitar",
+                        "value":  "e imitar"
+                    },
+                    {
+                        "name":  "y impaciencia",
+                        "value":  "e impaciencia"
+                    },
+                    {
+                        "name":  "y impaciente",
+                        "value":  "e impaciente"
+                    },
+                    {
+                        "name":  "y impacientemente",
+                        "value":  "e impacientemente"
+                    },
+                    {
+                        "name":  "y impacientes",
+                        "value":  "e impacientes"
+                    },
+                    {
+                        "name":  "y impacto",
+                        "value":  "e impacto"
+                    },
+                    {
+                        "name":  "y impactos",
+                        "value":  "e impactos"
+                    },
+                    {
+                        "name":  "y impar",
+                        "value":  "e impar"
+                    },
+                    {
+                        "name":  "y imparable",
+                        "value":  "e imparable"
+                    },
+                    {
+                        "name":  "y imparables",
+                        "value":  "e imparables"
+                    },
+                    {
+                        "name":  "y imparcial",
+                        "value":  "e imparcial"
+                    },
+                    {
+                        "name":  "y imparciales",
+                        "value":  "e imparciales"
+                    },
+                    {
+                        "name":  "y impares",
+                        "value":  "e impares"
+                    },
+                    {
+                        "name":  "y impartir",
+                        "value":  "e impartir"
+                    },
+                    {
+                        "name":  "y impasible",
+                        "value":  "e impasible"
+                    },
+                    {
+                        "name":  "y impasibles",
+                        "value":  "e impasibles"
+                    },
+                    {
+                        "name":  "y impedimento",
+                        "value":  "e impedimento"
+                    },
+                    {
+                        "name":  "y impedimentos",
+                        "value":  "e impedimentos"
+                    },
+                    {
+                        "name":  "y impedir",
+                        "value":  "e impedir"
+                    },
+                    {
+                        "name":  "y impensable",
+                        "value":  "e impensable"
+                    },
+                    {
+                        "name":  "y imperativo",
+                        "value":  "e imperativo"
+                    },
+                    {
+                        "name":  "y imperceptible",
+                        "value":  "e imperceptible"
+                    },
+                    {
+                        "name":  "y imperceptibles",
+                        "value":  "e imperceptibles"
+                    },
+                    {
+                        "name":  "y imperfecta",
+                        "value":  "e imperfecta"
+                    },
+                    {
+                        "name":  "y imperfectas",
+                        "value":  "e imperfectas"
+                    },
+                    {
+                        "name":  "y imperfecto",
+                        "value":  "e imperfecto"
+                    },
+                    {
+                        "name":  "y imperfectos",
+                        "value":  "e imperfectos"
+                    },
+                    {
+                        "name":  "y impersonal",
+                        "value":  "e impersonal"
+                    },
+                    {
+                        "name":  "y impidió",
+                        "value":  "e impidió"
+                    },
+                    {
+                        "name":  "y implementar",
+                        "value":  "e implementar"
+                    },
+                    {
+                        "name":  "y implicado",
+                        "value":  "e implicado"
+                    },
+                    {
+                        "name":  "y implicados",
+                        "value":  "e implicados"
+                    },
+                    {
+                        "name":  "y implicar",
+                        "value":  "e implicar"
+                    },
+                    {
+                        "name":  "y imponer",
+                        "value":  "e imponer"
+                    },
+                    {
+                        "name":  "y importación",
+                        "value":  "e importación"
+                    },
+                    {
+                        "name":  "y importancia",
+                        "value":  "e importancia"
+                    },
+                    {
+                        "name":  "y importante",
+                        "value":  "e importante"
+                    },
+                    {
+                        "name":  "y importantes",
+                        "value":  "e importantes"
+                    },
+                    {
+                        "name":  "y importar",
+                        "value":  "e importar"
+                    },
+                    {
+                        "name":  "y imposible",
+                        "value":  "e imposible"
+                    },
+                    {
+                        "name":  "y impreciso",
+                        "value":  "e impreciso"
+                    },
+                    {
+                        "name":  "y imprecisos",
+                        "value":  "e imprecisos"
+                    },
+                    {
+                        "name":  "y impredecible",
+                        "value":  "e impredecible"
+                    },
+                    {
+                        "name":  "y impredecibles",
+                        "value":  "e impredecibles"
+                    },
+                    {
+                        "name":  "y imprenta",
+                        "value":  "e imprenta"
+                    },
+                    {
+                        "name":  "y imprentas",
+                        "value":  "e imprentas"
+                    },
+                    {
+                        "name":  "y impreso",
+                        "value":  "e impreso"
+                    },
+                    {
+                        "name":  "y impresos",
+                        "value":  "e impresos"
+                    },
+                    {
+                        "name":  "y imprimir",
+                        "value":  "e imprimir"
+                    },
+                    {
+                        "name":  "y improbable",
+                        "value":  "e improbable"
+                    },
+                    {
+                        "name":  "y improvisada",
+                        "value":  "e improvisada"
+                    },
+                    {
+                        "name":  "y improvisado",
+                        "value":  "e improvisado"
+                    },
+                    {
+                        "name":  "y improvisar",
+                        "value":  "e improvisar"
+                    },
+                    {
+                        "name":  "y impulsar",
+                        "value":  "e impulsar"
+                    },
+                    {
+                        "name":  "y imágenes",
+                        "value":  "e imágenes"
+                    },
+                    {
+                        "name":  "y inaccesible",
+                        "value":  "e inaccesible"
+                    },
+                    {
+                        "name":  "y inaccesibles",
+                        "value":  "e inaccesibles"
+                    },
+                    {
+                        "name":  "y inactivo",
+                        "value":  "e inactivo"
+                    },
+                    {
+                        "name":  "y inactivos",
+                        "value":  "e inactivos"
+                    },
+                    {
+                        "name":  "y inamovible",
+                        "value":  "e inamovible"
+                    },
+                    {
+                        "name":  "y inapelable",
+                        "value":  "e inapelable"
+                    },
+                    {
+                        "name":  "y inaudible",
+                        "value":  "e inaudible"
+                    },
+                    {
+                        "name":  "y incalculable",
+                        "value":  "e incalculable"
+                    },
+                    {
+                        "name":  "y incalculables",
+                        "value":  "e incalculables"
+                    },
+                    {
+                        "name":  "y incapaces",
+                        "value":  "e incapaces"
+                    },
+                    {
+                        "name":  "y incapacitado",
+                        "value":  "e incapacitado"
+                    },
+                    {
+                        "name":  "y incapacitados",
+                        "value":  "e incapacitados"
+                    },
+                    {
+                        "name":  "y incapaz",
+                        "value":  "e incapaz"
+                    },
+                    {
+                        "name":  "y incitar",
+                        "value":  "e incitar"
+                    },
+                    {
+                        "name":  "y incivilizada",
+                        "value":  "e incivilizada"
+                    },
+                    {
+                        "name":  "y incivilizadas",
+                        "value":  "e incivilizadas"
+                    },
+                    {
+                        "name":  "y incivilizado",
+                        "value":  "e incivilizado"
+                    },
+                    {
+                        "name":  "y incivilizados",
+                        "value":  "e incivilizados"
+                    },
+                    {
+                        "name":  "y inclinar",
+                        "value":  "e inclinar"
+                    },
+                    {
+                        "name":  "y incluido",
+                        "value":  "e incluido"
+                    },
+                    {
+                        "name":  "y incluidos",
+                        "value":  "e incluidos"
+                    },
+                    {
+                        "name":  "y incluir",
+                        "value":  "e incluir"
+                    },
+                    {
+                        "name":  "y incompleta",
+                        "value":  "e incompleta"
+                    },
+                    {
+                        "name":  "y incompletas",
+                        "value":  "e incompletas"
+                    },
+                    {
+                        "name":  "y incompleto",
+                        "value":  "e incompleto"
+                    },
+                    {
+                        "name":  "y incompletos",
+                        "value":  "e incompletos"
+                    },
+                    {
+                        "name":  "y inconexo",
+                        "value":  "e inconexo"
+                    },
+                    {
+                        "name":  "y inconexos",
+                        "value":  "e inconexos"
+                    },
+                    {
+                        "name":  "y inconsciente",
+                        "value":  "e inconsciente"
+                    },
+                    {
+                        "name":  "y inconscientes",
+                        "value":  "e inconscientes"
+                    },
+                    {
+                        "name":  "y incorrecto",
+                        "value":  "e incorrecto"
+                    },
+                    {
+                        "name":  "y incorrectos",
+                        "value":  "e incorrectos"
+                    },
+                    {
+                        "name":  "y incumplir",
+                        "value":  "e incumplir"
+                    },
+                    {
+                        "name":  "y incógnita",
+                        "value":  "e incógnita"
+                    },
+                    {
+                        "name":  "y incógnitas",
+                        "value":  "e incógnitas"
+                    },
+                    {
+                        "name":  "y incómoda",
+                        "value":  "e incómoda"
+                    },
+                    {
+                        "name":  "y incómodas",
+                        "value":  "e incómodas"
+                    },
+                    {
+                        "name":  "y incómodo",
+                        "value":  "e incómodo"
+                    },
+                    {
+                        "name":  "y incómodos",
+                        "value":  "e incómodos"
+                    },
+                    {
+                        "name":  "y independiente",
+                        "value":  "e independiente"
+                    },
+                    {
+                        "name":  "y independientes",
+                        "value":  "e independientes"
+                    },
+                    {
+                        "name":  "y indicaciones",
+                        "value":  "e indicaciones"
+                    },
+                    {
+                        "name":  "y indicar",
+                        "value":  "e indicar"
+                    },
+                    {
+                        "name":  "y indispensable",
+                        "value":  "e indispensable"
+                    },
+                    {
+                        "name":  "y indispensables",
+                        "value":  "e indispensables"
+                    },
+                    {
+                        "name":  "y individual",
+                        "value":  "e individual"
+                    },
+                    {
+                        "name":  "y individuales",
+                        "value":  "e individuales"
+                    },
+                    {
+                        "name":  "y industria",
+                        "value":  "e industria"
+                    },
+                    {
+                        "name":  "y industrias",
+                        "value":  "e industrias"
+                    },
+                    {
+                        "name":  "y infantil",
+                        "value":  "e infantil"
+                    },
+                    {
+                        "name":  "y infantiles",
+                        "value":  "e infantiles"
+                    },
+                    {
+                        "name":  "y ingleses",
+                        "value":  "e ingleses"
+                    },
+                    {
+                        "name":  "y inglés",
+                        "value":  "e inglés"
+                    },
+                    {
+                        "name":  "y iniciar",
+                        "value":  "e iniciar"
+                    },
+                    {
+                        "name":  "y inmediatamente",
+                        "value":  "e inmediatamente"
+                    },
+                    {
+                        "name":  "y insatisfactoria",
+                        "value":  "e insatisfactoria"
+                    },
+                    {
+                        "name":  "y insatisfactorias",
+                        "value":  "e insatisfactorias"
+                    },
+                    {
+                        "name":  "y insatisfactorio",
+                        "value":  "e insatisfactorio"
+                    },
+                    {
+                        "name":  "y insatisfactorios",
+                        "value":  "e insatisfactorios"
+                    },
+                    {
+                        "name":  "y insensible",
+                        "value":  "e insensible"
+                    },
+                    {
+                        "name":  "y insensibles",
+                        "value":  "e insensibles"
+                    },
+                    {
+                        "name":  "y insertar",
+                        "value":  "e insertar"
+                    },
+                    {
+                        "name":  "y inserte",
+                        "value":  "e inserte"
+                    },
+                    {
+                        "name":  "y insignificante",
+                        "value":  "e insignificante"
+                    },
+                    {
+                        "name":  "y insultar",
+                        "value":  "e insultar"
+                    },
+                    {
+                        "name":  "y insultos",
+                        "value":  "e insultos"
+                    },
+                    {
+                        "name":  "y intelectuales",
+                        "value":  "e intelectuales"
+                    },
+                    {
+                        "name":  "y intelectualmente",
+                        "value":  "e intelectualmente"
+                    },
+                    {
+                        "name":  "y inteligente",
+                        "value":  "e inteligente"
+                    },
+                    {
+                        "name":  "y inteligentes",
+                        "value":  "e inteligentes"
+                    },
+                    {
+                        "name":  "y interesante",
+                        "value":  "e interesante"
+                    },
+                    {
+                        "name":  "y interesantes",
+                        "value":  "e interesantes"
+                    },
+                    {
+                        "name":  "y interesar",
+                        "value":  "e interesar"
+                    },
+                    {
+                        "name":  "y interesarse",
+                        "value":  "e interesarse"
+                    },
+                    {
+                        "name":  "y internacional",
+                        "value":  "e internacional"
+                    },
+                    {
+                        "name":  "y internacionales",
+                        "value":  "e internacionales"
+                    },
+                    {
+                        "name":  "y internacionalmente",
+                        "value":  "e internacionalmente"
+                    },
+                    {
+                        "name":  "y interrogaciones",
+                        "value":  "e interrogaciones"
+                    },
+                    {
+                        "name":  "y interrogación",
+                        "value":  "e interrogación"
+                    },
+                    {
+                        "name":  "y interrogar",
+                        "value":  "e interrogar"
+                    },
+                    {
+                        "name":  "y intervenciones",
+                        "value":  "e intervenciones"
+                    },
+                    {
+                        "name":  "y intervenir",
+                        "value":  "e intervenir"
+                    },
+                    {
+                        "name":  "y introducir",
+                        "value":  "e introducir"
+                    },
+                    {
+                        "name":  "y invadir",
+                        "value":  "e invadir"
+                    },
+                    {
+                        "name":  "y invariable",
+                        "value":  "e invariable"
+                    },
+                    {
+                        "name":  "y invariables",
+                        "value":  "e invariables"
+                    },
+                    {
+                        "name":  "y inversiones",
+                        "value":  "e inversiones"
+                    },
+                    {
+                        "name":  "y invertir",
+                        "value":  "e invertir"
+                    },
+                    {
+                        "name":  "y investigaciones",
+                        "value":  "e investigaciones"
+                    },
+                    {
+                        "name":  "y investigación",
+                        "value":  "e investigación"
+                    },
+                    {
+                        "name":  "y investigar",
+                        "value":  "e investigar"
+                    },
+                    {
+                        "name":  "y invitaciones",
+                        "value":  "e invitaciones"
+                    },
+                    {
+                        "name":  "y invitación",
+                        "value":  "e invitación"
+                    },
+                    {
+                        "name":  "y invitar",
+                        "value":  "e invitar"
+                    },
+                    {
+                        "name":  "y ir",
+                        "value":  "e ir"
+                    },
+                    {
+                        "name":  "y iremos",
+                        "value":  "e iremos"
+                    },
+                    {
+                        "name":  "y irlandeses",
+                        "value":  "e irlandeses"
+                    },
+                    {
+                        "name":  "y irlandés",
+                        "value":  "e irlandés"
+                    },
+                    {
+                        "name":  "y irregular",
+                        "value":  "e irregular"
+                    },
+                    {
+                        "name":  "y irregulares",
+                        "value":  "e irregulares"
+                    },
+                    {
+                        "name":  "y irá",
+                        "value":  "e irá"
+                    },
+                    {
+                        "name":  "y irán",
+                        "value":  "e irán"
+                    },
+                    {
+                        "name":  "y irás",
+                        "value":  "e irás"
+                    },
+                    {
+                        "name":  "y iré",
+                        "value":  "e iré"
+                    },
+                    {
+                        "name":  "y iréis",
+                        "value":  "e iréis"
+                    },
+                    {
+                        "name":  "y iría",
+                        "value":  "e iría"
+                    },
+                    {
+                        "name":  "y iríais",
+                        "value":  "e iríais"
+                    },
+                    {
+                        "name":  "y iríamos",
+                        "value":  "e iríamos"
+                    },
+                    {
+                        "name":  "y irían",
+                        "value":  "e irían"
+                    },
+                    {
+                        "name":  "y irías",
+                        "value":  "e irías"
+                    },
+                    {
+                        "name":  "y islas",
+                        "value":  "e islas"
+                    },
+                    {
+                        "name":  "y izquierda",
+                        "value":  "e izquierda"
+                    },
+                    {
+                        "name":  "y íbamos",
+                        "value":  "e íbamos"
+                    },
+                    {
+                        "name":  "y íntegro",
+                        "value":  "e íntegro"
+                    },
+                    {
+                        "name":  "zezgo",
+                        "value":  "sesgo"
+                    },
+                    {
+                        "name":  "zig zag",
+                        "value":  "zigzag"
+                    },
+                    {
+                        "name":  "¡cuanto",
+                        "value":  "¡Cuánto"
+                    },
+                    {
+                        "name":  "¿a donde",
+                        "value":  "¿A dónde"
+                    },
+                    {
+                        "name":  "¿como",
+                        "value":  "¿Cómo"
+                    },
+                    {
+                        "name":  "¿cual",
+                        "value":  "¿Cuál"
+                    },
+                    {
+                        "name":  "¿cuales",
+                        "value":  "¿Cuáles"
+                    },
+                    {
+                        "name":  "¿cuando",
+                        "value":  "¿Cuándo"
+                    },
+                    {
+                        "name":  "¿cuanta",
+                        "value":  "¿Cuánta"
+                    },
+                    {
+                        "name":  "¿cuantas",
+                        "value":  "¿Cuántas"
+                    },
+                    {
+                        "name":  "¿cuanto",
+                        "value":  "¿Cuánto"
+                    },
+                    {
+                        "name":  "¿cuantos",
+                        "value":  "¿Cuántos"
+                    },
+                    {
+                        "name":  "¿donde",
+                        "value":  "¿Dónde"
+                    },
+                    {
+                        "name":  "¿para quien",
+                        "value":  "¿Para quién"
+                    },
+                    {
+                        "name":  "¿por cuanto",
+                        "value":  "¿Por cuánto"
+                    },
+                    {
+                        "name":  "¿por que",
+                        "value":  "¿Por qué"
+                    },
+                    {
+                        "name":  "¿porque",
+                        "value":  "¿Por qué"
+                    },
+                    {
+                        "name":  "¿que",
+                        "value":  "¿Qué"
+                    },
+                    {
+                        "name":  "¿quien",
+                        "value":  "¿Quién"
+                    },
+                    {
+                        "name":  "¿quienes",
+                        "value":  "¿Quiénes"
+                    },
+                    {
+                        "name":  "éso",
+                        "value":  "eso"
+                    },
+                    {
+                        "name":  "ésto",
+                        "value":  "esto"
+                    },
+                    {
+                        "name":  ";)",
+                        "value":  "**"
+                    },
+                    {
+                        "name":  ";-)",
+                        "value":  "**"
+                    },
+                    {
+                        "name":  ":-(",
+                        "value":  "*"
+                    },
+                    {
+                        "name":  ":(",
+                        "value":  "*"
+                    },
+                    {
+                        "name":  ":-|",
+                        "value":  "**"
+                    },
+                    {
+                        "name":  ":|",
+                        "value":  "**"
+                    },
+                    {
+                        "name":  ":)",
+                        "value":  "**"
+                    },
+                    {
+                        "name":  ":-)",
+                        "value":  "**"
+                    },
+                    {
+                        "name":  "\u003c=\u003e",
+                        "value":  "*"
+                    },
+                    {
+                        "name":  "==\u003e",
+                        "value":  "*"
+                    },
+                    {
+                        "name":  "\u003c==",
+                        "value":  "*"
+                    },
+                    {
+                        "name":  "--\u003e",
+                        "value":  "*"
+                    },
+                    {
+                        "name":  "\u003c--",
+                        "value":  "*"
+                    }
+                ],
+    "cases":  [
+                  {
+                      "lang":  "es",
+                      "typed":  "hola. mañana (c) dijo \"si\" y mide 1/2 ",
+                      "word":  "Hola. Mañana © dijo “si” y mide ½ ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "tambien ",
+                      "word":  "Tambien ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "porfavor ",
+                      "word":  "Porfavor ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "talvez ",
+                      "word":  "Talvez ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "TOdo bien ",
+                      "word":  "Todo bien ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "la 1.o vez y la 2.a ",
+                      "word":  "La 1.o vez y la 2.a ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "a --\u003e b \u003c-- c ==\u003e d ",
+                      "word":  "A ( b ( c ( d ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "fin... ",
+                      "word":  "Fin… ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "el sr. perez llego. luego se fue ",
+                      "word":  "El sr. Perez llego. Luego se fue ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "pag. 3 etc. y mas ",
+                      "word":  "Pag. 3 etc. Y mas ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "a -- b ",
+                      "word":  "A – b ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "es",
+                      "typed":  "(r) (tm) (e) ",
+                      "word":  "® ™ € ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "teh ",
+                      "word":  "The ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "dont ",
+                      "word":  "Don’t ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "definately ",
+                      "word":  "Definitely ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "i think so ",
+                      "word":  "I think so ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "hello. world ",
+                      "word":  "Hello. World ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "the 1st and 2nd and 3rd ",
+                      "word":  "The 1st and 2nd and 3rd ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "mr. smith said so. then left ",
+                      "word":  "Mr. smith said so. Then left ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "(c) (r) (tm) ",
+                      "word":  "© ® ™ ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "\"hi\" and \u0027x\u0027 ",
+                      "word":  "“hi” and ‘x’ ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "TWo cats ",
+                      "word":  "Two cats ",
+                      "error":  ""
+                  },
+                  {
+                      "lang":  "en",
+                      "typed":  "1/2 and 3/4 ",
+                      "word":  "½ and ¾ ",
+                      "error":  ""
+                  }
+              ]
+}

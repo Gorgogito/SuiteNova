@@ -118,7 +118,7 @@ await check('the shared AutoCorrect list: a replacement added in Writer applies 
   const body = page.getByLabel('Cuerpo del mensaje');
   await body.click();
   await page.keyboard.type('bss ');
-  assert.equal(await body.inputValue(), 'buenos días ');
+  assert.equal(await body.inputValue(), 'Buenos días ');
   await page.evaluate(() => localStorage.removeItem('nova.writer.autocorrect'));
 });
 

@@ -1,0 +1,58 @@
+Casos tecleados: 23; resultado idéntico en Word y Nova: 15.
+Entradas de Word (lista del idioma del teclado): 1166 (486 palabras sueltas); Nova trae 22 en español y 23 en inglés; coinciden exactamente: 7.
+Casillas de Word al contrastar: replaceText=true, capSentences=true, twoInitial=true, quotes=true, ordinals=true, fractions=true, dashes=true.
+
+= es «hola. mañana (c) dijo "si" y mide 1/2 »
+    Word: «Hola. Mañana © dijo “si” y mide ½ »
+≠ es «tambien »
+    Word: «Tambien »
+    Nova: «También »
+≠ es «porfavor »
+    Word: «Porfavor »
+    Nova: «Por favor »
+≠ es «talvez »
+    Word: «Talvez »
+    Nova: «Tal vez »
+= es «TOdo bien »
+    Word: «Todo bien »
+≠ es «la 1.o vez y la 2.a »
+    Word: «La 1.o vez y la 2.a »
+    Nova: «La 1.º vez y la 2.ª »
+≠ es «a --> b <-- c ==> d »
+    Word: «A ( b ( c ( d »
+    Nova: «A → b ← c ⇒ d »
+= es «fin... »
+    Word: «Fin… »
+≠ es «el sr. perez llego. luego se fue »
+    Word: «El sr. Perez llego. Luego se fue »
+    Nova: «El sr. perez llego. Luego se fue »
+≠ es «pag. 3 etc. y mas »
+    Word: «Pag. 3 etc. Y mas »
+    Nova: «Pag. 3 etc. y mas »
+= es «a -- b »
+    Word: «A – b »
+= es «(r) (tm) (e) »
+    Word: «® ™ € »
+= en «teh »
+    Word: «The »
+= en «dont »
+    Word: «Don’t »
+= en «definately »
+    Word: «Definitely »
+= en «i think so »
+    Word: «I think so »
+= en «hello. world »
+    Word: «Hello. World »
+= en «the 1st and 2nd and 3rd »
+    Word: «The 1st and 2nd and 3rd »
+= en «mr. smith said so. then left »
+    Word: «Mr. smith said so. Then left »
+= en «(c) (r) (tm) »
+    Word: «© ® ™ »
+= en «"hi" and 'x' »
+    Word: «“hi” and ‘x’ »
+≠ en «TWo cats »
+    Word: «Two cats »
+    Nova: «TWo cats »
+= en «1/2 and 3/4 »
+    Word: «½ and ¾ »

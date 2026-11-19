@@ -22,8 +22,12 @@ describe('autocorrección de campos de texto sin formato', () => {
     expect(type('flecha --', '>')).toBe('flecha →');
     expect(type('mide 1/2', ' ')).toBe('mide ½ ');
   });
+  it('el reemplazo al empezar una oración lleva mayúscula y el apóstrofo sale tipográfico (como Word)', () => {
+    expect(type('dont', ' ', { ...loadAutoCorrectFrom(null, 'en') })).toBe('Don’t ');
+    expect(type('dont', ' ', { ...loadAutoCorrectFrom(null, 'en'), smartQuotes: false, capitalizeSentences: false })).toBe("don't ");
+  });
   it('reemplazos propios', () => {
-    expect(type('hola', ' ', { ...o, custom: { hola: 'buenos días' } })).toBe('buenos días ');
+    expect(type('hola', ' ', { ...o, custom: { hola: 'buenos días' } })).toBe('Buenos días ');
   });
   it('el cursor queda después de lo escrito, también en medio del texto', () => {
     const prev = 'uno dos tres';

@@ -199,7 +199,12 @@ export function correctWord(word: string, before: string, o: AutoCorrectOptions)
   const lc = word.toLocaleLowerCase();
   if (o.exceptions.other.some((x) => x.toLocaleLowerCase() === lc)) return null;
   const custom = replacementFor(o.custom, word);
-  if (custom !== undefined) return { text: custom };
+  if (custom !== undefined) {
+    // como en Word: el apóstrofo del reemplazo sale tipográfico y, al empezar una oración, con mayúscula inicial (`teh` → `The`, `dont` → `Don’t`)
+    let t = o.smartQuotes ? custom.replace(/'/g, '’') : custom;
+    if (o.capitalizeSentences && isLetter(t[0] ?? '') && t[0] === lower(t[0]!) && startsSentence(before, o.exceptions.firstLetter)) t = upper(t[0]!) + t.slice(1);
+    return { text: t };
+  }
   if (o.symbols && SYMBOLS[word]) return { text: SYMBOLS[word]! };
   if (o.fractions && FRACTIONS[word]) return { text: FRACTIONS[word]! };
   if (o.dashes && word === '--') return { text: '–' };

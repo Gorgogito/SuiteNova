@@ -134,7 +134,7 @@ await check('la excepción tiene efecto al escribir: la palabra de «otras corre
   await page.locator('.ProseMirror').click();
   await page.keyboard.type('tambien hola. Dato xyz. mañana ');
   const t = await ev(() => window.__novaWriter.ctl.mainView.state.doc.textContent);
-  assert.ok(t.includes('también'), t);
+  assert.ok(t.startsWith('También'), t);
   await page.keyboard.type('Ya. zzz ');
   const t2 = await ev(() => window.__novaWriter.ctl.mainView.state.doc.textContent);
   assert.ok(t2.includes('Zzz'), t2);
