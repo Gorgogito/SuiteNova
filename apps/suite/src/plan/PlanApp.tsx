@@ -11,6 +11,8 @@ import { addRecent } from '../recents';
 import { planCommands, type PlanDialog, type PlanUI } from './commands';
 import { PlanCtl, fmtDate } from './ctl';
 import { cellText, columnDef } from './columns';
+import { RecordMacroDialog, RecordingStatus } from '../macros/RecordDialogs';
+import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
 import { BaselinesDialog, CalendarDialog, ColumnsDialog, CustomFieldsDialog, FiltersDialog, GroupsDialog, LevelDialog, ProjectDialog, SplitDialog, TaskDialog } from './Dialogs';
 import { NetworkView, ReportsView, ResourceGraph, ResourceSheet, UsageView } from './Views';
 import { Gantt, type GanttHandle } from './Gantt';
@@ -94,7 +96,7 @@ export function PlanApp({ module }: { module: ModuleInfo }) {
   const saveNow = useCallback(
     async (saveAs: boolean, silent = false) => {
       try {
-        const data = new TextEncoder().encode(serializeProject(ctl.project));
+        const data = new TextEncoder().encode(serializeProject(ctl.saved));
         const base = (ctl.fileName ?? ctl.project.name).replace(/\.[^.]+$/, '');
         const keep = !saveAs && ctl.filePath?.toLowerCase().endsWith('.novaplan') ? ctl.filePath : null;
         const saved = await saveBytes(`${safeName(base)}.novaplan`, data, PLAN_FILTERS, keep);
@@ -393,6 +395,7 @@ export function PlanApp({ module }: { module: ModuleInfo }) {
             </span>
           )}
           {s && s.overallocations.length > 0 && <span role="status">⚠ {t('Recursos sobreasignados')}: {new Set(s.overallocations.map((o) => o.resource)).size}</span>}
+          {ctl.recording && <RecordingStatus name={ctl.recording.name} paused={ctl.recording.paused} onPause={() => ctl.pauseRecording()} onStop={() => ctl.stopRecording()} />}
           {ctl.message && <span role="alert" className="pl-msg">{t(ctl.message)}</span>}
           {saveState && <span aria-live="polite">{saveState}</span>}
         </>
@@ -400,6 +403,16 @@ export function PlanApp({ module }: { module: ModuleInfo }) {
       contentFill
     >
       <div className="pl-app">
+        {!ctl.contentEnabled && ctl.macros.length > 0 && (
+          <div className="pl-secbar" role="alert">
+            <span>
+              <strong>{t('ADVERTENCIA DE SEGURIDAD:')}</strong> {t('se deshabilitó el contenido activo (macros) de este proyecto.')}
+            </span>
+            <button type="button" onClick={() => ctl.enableContent()}>
+              {t('Habilitar contenido')}
+            </button>
+          </div>
+        )}
         {nTasks === 0 && ctl.view === 'gantt' && (
           <div className="pl-hint">
             <p>{t('El proyecto está vacío.')}</p>
@@ -415,6 +428,9 @@ export function PlanApp({ module }: { module: ModuleInfo }) {
         {ctl.view === 'resourceSheet' && <ResourceSheet ctl={ctl} />}
         {ctl.view === 'resourceGraph' && <ResourceGraph ctl={ctl} />}
         {ctl.view === 'reports' && <ReportsView ctl={ctl} />}
+        {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={closeDialog} onEdit={() => setDialog('macroEditor')} />}
+        {dialog === 'recordMacro' && <RecordMacroDialog taken={ctl.macroRt.procedures().map((p) => p.name)} onStart={(n, d) => ctl.startRecording(n, d)} onClose={closeDialog} />}
+        {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={closeDialog} />}
         <TaskDialog ctl={ctl} open={dialog === 'task'} onClose={closeDialog} />
         <ProjectDialog ctl={ctl} open={dialog === 'project'} onClose={closeDialog} />
         <LevelDialog ctl={ctl} open={dialog === 'level'} onClose={closeDialog} />

@@ -117,4 +117,5 @@ Plan de 5 fases en `docs/diseno-macros.md`: biblioteca global por producto; alca
 - [x] **Fase 1 HECHA:** intérprete con depurador (puntos de interrupción, pasos, variables, pila, inmediato con la ejecución detenida), núcleo y editor compartidos por Writer, Calc y Base; e2e nueva (9).
 - [x] **Fase 2 HECHA:** grabadora de macros en Writer y Calc (Grabar, Pausar, Detener; módulo «Grabadas»); lo que no se puede grabar queda como comentario; pruebas que reproducen la macro y comparan; e2e nueva (4).
 - [x] **Fase 3 HECHA:** modelos de objetos de PowerPoint (Slides, con macros en el `.pptx` y barra de seguridad) y de Outlook (Mail, macros del programa, permiso al enviar); pestaña Programador en los dos; sin grabadora porque Office no la tiene en esos productos; e2e nueva (6).
-- [ ] Fases 4 y 5: Plan y Diagram (con grabadora: Project y Visio la tienen); biblioteca global, seguridad y cierre con Office real.
+- [x] **Fase 4 HECHA:** modelos de objetos de Project (Plan) y de Visio (Diagram) con macros en el `.novaplan` y el `.novadiagram` y barra de seguridad; grabadora por comparación de versiones (Project y Visio sí la tienen); pestaña Programador en ambos; e2e nueva (6).
+- [ ] Fase 5: biblioteca global por producto, seguridad y firma, y cierre con Office real por COM.

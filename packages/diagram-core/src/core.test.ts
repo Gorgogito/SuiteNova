@@ -325,3 +325,11 @@ describe('SVG export', () => {
     expect(exportArea(blank(), { area: 'content' })).toEqual({ x: 0, y: 0, w: 1123, h: 794 });
   });
 });
+
+describe('macros in the diagram file', () => {
+  it('are written to and read from a .novadiagram, and a diagram without them has none', () => {
+    const d = { ...newDiagram('X'), macros: [{ name: 'Modulo1', code: 'Sub A()\nEnd Sub' }] };
+    expect(parseDiagram(serializeDiagram(d)).diagram.macros).toEqual(d.macros);
+    expect(parseDiagram(serializeDiagram(newDiagram('Y'))).diagram.macros).toBeUndefined();
+  });
+});

@@ -5,6 +5,11 @@ import {
   styleShapes, updateConnectors, updatePage, updateShapes, type AlignMode, type Arrow, type Group, type Layer, type DataField, type ShapeImage, type ShapeLink, type Connector, type Diagram, type Dash, type End, type Font, type Page, type Routing, type Shape, type Style,
 } from '@suitenova/diagram-core';
 
+import { t } from '@suitenova/core-ui';
+import { MacroRecorder } from '../macros/recorder';
+import { DiagramRuntime } from './macros';
+import { recordChange } from './recorder';
+
 const MAX_UNDO = 100;
 
 export type Tool = 'select' | 'connector';
@@ -44,6 +49,43 @@ export class DiagramCtl {
   onImageFiles?: (files: File[], at: { x: number; y: number }) => void;
   /** Pane shown at the right of the canvas. */
   pane: 'none' | 'data' | 'layers' = 'none';
+  /** The macro modules of the diagram (Nova Basic with the objects of Visio). */
+  macros: { name: string; code: string }[] = [];
+  /** Active content (macros) may run. A file that arrives with macros starts with it disabled. */
+  contentEnabled = true;
+  private runtime: DiagramRuntime | null = null;
+  get macroRt(): DiagramRuntime {
+    return (this.runtime ??= new DiagramRuntime(this));
+  }
+  enableContent(): void {
+    this.contentEnabled = true;
+    this.touch();
+  }
+  /** The diagram to save: with its macros. */
+  get saved(): Diagram {
+    return this.macros.length ? { ...this.diagram, macros: this.macros } : this.diagram;
+  }
+  /** The macro being recorded, if any: every change of the diagram is translated to code (see `describeChange`). */
+  recording: MacroRecorder | null = null;
+  startRecording(name: string, description: string): void {
+    if (this.recording) return;
+    this.recording = new MacroRecorder(name, description, 'Visio');
+    this.touch();
+  }
+  pauseRecording(): void {
+    if (!this.recording) return;
+    this.recording.paused = !this.recording.paused;
+    this.touch();
+  }
+  /** Ends the recording and writes the macro in the module of recorded macros. */
+  stopRecording(): void {
+    const r = this.recording;
+    if (!r) return;
+    this.recording = null;
+    const module = r.saveInto(this.macros);
+    this.dirty = true;
+    this.say(r.isEmpty ? t('No se grabó ninguna acción en «{n}».', { n: r.name }) : t('La macro «{n}» se guardó en el módulo «{m}».', { n: r.name, m: module }));
+  }
   private pasteCount = 0;
   private past: Diagram[] = [];
   private future: Diagram[] = [];
@@ -92,6 +134,7 @@ export class DiagramCtl {
 
   commit(next: Diagram): void {
     if (next === this.diagram) return;
+    if (this.recording && !this.macroRt.running) recordChange(this.recording, this.diagram, next, this.pageId);
     this.past.push(this.diagram);
     if (this.past.length > MAX_UNDO) this.past.shift();
     this.future = [];
@@ -112,15 +155,30 @@ export class DiagramCtl {
   get canRedo(): boolean {
     return this.future.length > 0;
   }
+  /** Runs `fn` so that everything it changes is one undo step (the macros use it). */
+  undoGroup(fn: () => void): void {
+    const before = this.past.length;
+    try {
+      fn();
+    } finally {
+      if (this.past.length > before) {
+        const first = this.past[before]!;
+        this.past.splice(before);
+        this.past.push(first);
+      }
+    }
+  }
   undo(): void {
     const d = this.past.pop();
     if (!d) return;
+    if (this.recording && !this.macroRt.running) this.recording.unsupported('deshacer');
     this.future.push(this.diagram);
     this.restore(d);
   }
   redo(): void {
     const d = this.future.pop();
     if (!d) return;
+    if (this.recording && !this.macroRt.running) this.recording.unsupported('rehacer');
     this.past.push(this.diagram);
     this.restore(d);
   }
@@ -139,7 +197,10 @@ export class DiagramCtl {
     this.selConnectors = this.selConnectors.filter((id) => p.connectors.some((c) => c.id === id));
   }
 
-  load(d: Diagram, name: string | null, path: string | null): void {
+  load(loaded: Diagram, name: string | null, path: string | null): void {
+    const { macros, ...d } = loaded;
+    this.macros = macros ?? [];
+    this.contentEnabled = this.macros.length === 0;
     this.diagram = d;
     this.pageId = d.pages[0]!.id;
     this.past = [];

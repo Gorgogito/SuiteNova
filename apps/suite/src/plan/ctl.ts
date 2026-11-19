@@ -6,6 +6,9 @@ import {
 } from '@suitenova/plan-core';
 import { t } from '@suitenova/core-ui';
 import { DEFAULT_COLUMNS, applyCell, isEditable } from './columns';
+import { MacroRecorder } from '../macros/recorder';
+import { PlanRuntime } from './macros';
+import { recordChange } from './recorder';
 
 export type Scale = 'hour' | 'day' | 'week' | 'month';
 export type PlanView = 'gantt' | 'network' | 'taskUsage' | 'resourceSheet' | 'resourceUsage' | 'resourceGraph' | 'reports';
@@ -46,6 +49,44 @@ export class PlanCtl {
   message = '';
   /** Draw every row and day (used to print); normally only the visible part is drawn. */
   fullRender = false;
+  /** The macro modules of the project (Nova Basic with the objects of a project manager). */
+  macros: { name: string; code: string }[] = [];
+  /** Active content (macros) may run. A file that arrives with macros starts with it disabled. */
+  contentEnabled = true;
+  private runtime: PlanRuntime | null = null;
+  get macroRt(): PlanRuntime {
+    return (this.runtime ??= new PlanRuntime(this));
+  }
+  /** The macro being recorded, if any: every change of the project is translated to code (see `describeChange`). */
+  recording: MacroRecorder | null = null;
+  startRecording(name: string, description: string): void {
+    if (this.recording) return;
+    this.recording = new MacroRecorder(name, description, 'Project');
+    this.touch();
+  }
+  pauseRecording(): void {
+    if (!this.recording) return;
+    this.recording.paused = !this.recording.paused;
+    this.touch();
+  }
+  /** Ends the recording and writes the macro in the module of recorded macros. */
+  stopRecording(): void {
+    const r = this.recording;
+    if (!r) return;
+    this.recording = null;
+    const module = r.saveInto(this.macros);
+    this.dirty = true;
+    this.message = r.isEmpty ? t('No se grabó ninguna acción en «{n}».', { n: r.name }) : t('La macro «{n}» se guardó en el módulo «{m}».', { n: r.name, m: module });
+    this.touch();
+  }
+  enableContent(): void {
+    this.contentEnabled = true;
+    this.touch();
+  }
+  /** The project to save: with its macros. */
+  get saved(): Project {
+    return this.macros.length ? { ...this.project, macros: this.macros } : this.project;
+  }
   private past: Project[] = [];
   private future: Project[] = [];
   private version = 0;
@@ -98,6 +139,7 @@ export class PlanCtl {
   /** Replace the project, remembering the old one for undo. */
   commit(next: Project): void {
     if (next === this.project) return;
+    if (this.recording && !this.macroRt.running) recordChange(this.recording, this.project, next);
     this.past.push(this.project);
     if (this.past.length > MAX_UNDO) this.past.shift();
     this.future = [];
@@ -113,9 +155,24 @@ export class PlanCtl {
   get canRedo(): boolean {
     return this.future.length > 0;
   }
+  /** Runs `fn` so that everything it changes is one undo step (the macros use it). */
+  undoGroup(fn: () => void): void {
+    const before = this.past.length;
+    try {
+      fn();
+    } finally {
+      if (this.past.length > before) {
+        // the first entry is the project before the macro; the rest are the steps in between
+        const first = this.past[before]!;
+        this.past.splice(before);
+        this.past.push(first);
+      }
+    }
+  }
   undo(): void {
     const p = this.past.pop();
     if (!p) return;
+    if (this.recording && !this.macroRt.running) this.recording.unsupported('deshacer');
     this.future.push(this.project);
     this.project = p;
     this.preview = null;
@@ -126,6 +183,7 @@ export class PlanCtl {
   redo(): void {
     const p = this.future.pop();
     if (!p) return;
+    if (this.recording && !this.macroRt.running) this.recording.unsupported('rehacer');
     this.past.push(this.project);
     this.project = p;
     this.preview = null;
@@ -138,7 +196,10 @@ export class PlanCtl {
     this.selected = this.selected.filter((i) => i < n);
   }
 
-  load(p: Project, name: string | null, path: string | null): void {
+  load(loaded: Project, name: string | null, path: string | null): void {
+    const { macros, ...p } = loaded;
+    this.macros = macros ?? [];
+    this.contentEnabled = this.macros.length === 0;
     this.project = p;
     this.past = [];
     this.future = [];

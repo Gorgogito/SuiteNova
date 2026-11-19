@@ -444,6 +444,26 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
   const view = viewTab();
   view.groups.unshift({ id: 'fit', label: 'Ventana', icon: 'zoomIn', items: [{ kind: 'button', command: 'diagram.fit', size: 'large', keytip: 'AJ' }] });
   void PAGE_SIZES;
-  return [home, arrange, insert, content, structure, design, view, helpTab()];
+  const developer: RibbonTab = {
+    id: 'developer',
+    label: 'Programador',
+    keytip: 'PR',
+    groups: [
+      {
+        id: 'code',
+        label: 'Código',
+        icon: 'code',
+        items: [
+          { kind: 'button', command: 'diagram.macroEditor', size: 'large', keytip: 'ED' },
+          { kind: 'button', command: 'diagram.macros', size: 'large', keytip: 'MA' },
+          { kind: 'button', command: 'diagram.macroRecord', size: 'small', keytip: 'GR' },
+          { kind: 'button', command: 'diagram.macroPause', size: 'small', keytip: 'PA' },
+          { kind: 'button', command: 'diagram.macroStop', size: 'small', keytip: 'DE' },
+          { kind: 'button', command: 'diagram.macroEnable', size: 'small', keytip: 'HC' },
+        ],
+      },
+    ],
+  };
+  return [home, arrange, insert, content, structure, design, view, developer, helpTab()];
 }
 

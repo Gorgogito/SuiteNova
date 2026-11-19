@@ -472,3 +472,11 @@ describe('reports and links', () => {
     expect(r.project.tasks[1]!.links[0]).toEqual({ task: p.tasks[0]!.id, type: 'FS', lag: 60, elapsed: true });
   });
 });
+
+describe('macros in the project file', () => {
+  it('are written to and read from a .novaplan, and a project without them has none', () => {
+    const p = { ...newProject('X'), macros: [{ name: 'Modulo1', code: 'Sub A()\nEnd Sub' }] };
+    expect(parseProject(serializeProject(p)).macros).toEqual(p.macros);
+    expect(parseProject(serializeProject(newProject('Y'))).macros).toBeUndefined();
+  });
+});

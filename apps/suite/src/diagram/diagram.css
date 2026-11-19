@@ -1,6 +1,7 @@
 @import '../writer/writer.css';
 
 .dg-app {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -279,3 +280,23 @@
 .dg-laneact circle { fill: #fff; stroke: #0f6cbd; stroke-width: 1; }
 .dg-laneact text { fill: #0f6cbd; pointer-events: none; user-select: none; }
 .dg-laneeditor { position: absolute; z-index: 5; font: 13px 'Segoe UI', sans-serif; padding: 3px 6px; border: 2px solid #0f6cbd; border-radius: 3px; }
+
+.dg-secbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #fff4ce;
+  color: #3b2f00;
+  border-bottom: 1px solid #c8a700;
+}
+.dg-secbar button {
+  padding: 2px 10px;
+  font: inherit;
+  cursor: pointer;
+}

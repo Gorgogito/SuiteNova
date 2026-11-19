@@ -9,6 +9,8 @@ import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { addRecent } from '../recents';
+import { RecordMacroDialog, RecordingStatus } from '../macros/RecordDialogs';
+import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
 import { diagramCommands, type DiagramDialog, type DiagramUI } from './commands';
 import { DiagramCtl } from './ctl';
 import './icons';
@@ -246,7 +248,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
   const saveNow = useCallback(
     async (saveAs: boolean, silent = false) => {
       try {
-        const data = new TextEncoder().encode(serializeDiagram(ctl.diagram));
+        const data = new TextEncoder().encode(serializeDiagram(ctl.saved));
         const base = (ctl.fileName ?? ctl.diagram.name).replace(/\.[^.]+$/, '');
         const keep = !saveAs && ctl.filePath?.toLowerCase().endsWith('.novadiagram') ? ctl.filePath : null;
         const saved = await saveBytes(`${safeName(base)}.novadiagram`, data, DG_FILTERS, keep);
@@ -509,6 +511,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
           </span>
           {selCount > 0 && <span>{t('{n} seleccionados', { n: selCount })}</span>}
           {ctl.tool === 'connector' && <span role="status">{t('Herramienta Conector: arrastra de una forma a otra')}</span>}
+          {ctl.recording && <RecordingStatus name={ctl.recording.name} paused={ctl.recording.paused} onPause={() => ctl.pauseRecording()} onStop={() => ctl.stopRecording()} />}
           {ctl.message && <span role="alert">{t(ctl.message)}</span>}
           {saveState && <span aria-live="polite">{saveState}</span>}
         </>
@@ -516,6 +519,16 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
       contentFill
     >
       <div className="dg-app">
+        {!ctl.contentEnabled && ctl.macros.length > 0 && (
+          <div className="dg-secbar" role="alert">
+            <span>
+              <strong>{t('ADVERTENCIA DE SEGURIDAD:')}</strong> {t('se deshabilitó el contenido activo (macros) de este diagrama.')}
+            </span>
+            <button type="button" onClick={() => ctl.enableContent()}>
+              {t('Habilitar contenido')}
+            </button>
+          </div>
+        )}
         <StencilPanel ctl={ctl} onImage={() => ui.insertImage()} />
         <div className="dg-main">
           <Stage ctl={ctl} />
@@ -542,6 +555,9 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         {ctl.pane === 'layers' && <LayersPane ctl={ctl} />}
         <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/bmp" multiple hidden aria-hidden="true" tabIndex={-1} data-testid="dg-image-input" onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; void onImageFiles(fs); }} />
       </div>
+      {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={close} onEdit={() => setDialog('macroEditor')} />}
+      {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={close} />}
+      {dialog === 'recordMacro' && <RecordMacroDialog taken={ctl.macroRt.procedures().map((p) => p.name)} onStart={(n, d) => ctl.startRecording(n, d)} onClose={close} />}
       <StickyDialog open={dialog === 'layout'} onClose={close}>
         {dialog === 'layout' && <LayoutForm ctl={ctl} onClose={close} />}
       </StickyDialog>

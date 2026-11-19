@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import './messages';
+import '../macros/messages';
 
 /** Every Spanish literal passed to t() (or shown as a label) in the Plan UI must have an English text. */
 function literals(file: string): string[] {

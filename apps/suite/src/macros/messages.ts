@@ -50,4 +50,13 @@ registerMessages('en', {
   'La macro «{n}» se guardó en el módulo «{m}».': 'Macro "{n}" was saved in module "{m}".',
   'No se grabó ninguna acción en «{n}».': 'No action was recorded in "{n}".',
   'F9 o un clic en el número de línea pone o quita un punto de interrupción. F5 ejecuta o continúa, F8 avanza paso a paso.': 'F9 or a click on the line number sets or clears a breakpoint. F5 runs or continues, F8 steps.',
+  'se deshabilitó el contenido activo (macros) de este proyecto.': 'the active content (macros) of this project was disabled.',
+  'Ejecuta una macro (un Sub de Nova Basic) del proyecto.': 'Runs a macro (a Nova Basic Sub) of the project.',
+  'Escribe y prueba macros en Nova Basic con los objetos de Project (Project, Task, Resource…).': 'Write and test Nova Basic macros with the Project objects (Project, Task, Resource…).',
+  'se deshabilitó el contenido activo (macros) de este diagrama.': 'the active content (macros) of this diagram was disabled.',
+  'Ejecuta una macro (un Sub de Nova Basic) del diagrama.': 'Runs a macro (a Nova Basic Sub) of the diagram.',
+  'Escribe y prueba macros en Nova Basic con los objetos de Visio (Document, Page, Shape…).': 'Write and test Nova Basic macros with the Visio objects (Document, Page, Shape…).',
+  'Graba lo que haces en el diagrama como una macro de Nova Basic.': 'Records what you do in the diagram as a Nova Basic macro.',
+  'Permite que se ejecuten las macros de este diagrama.': 'Lets the macros of this diagram run.',
+  'Permite que se ejecuten las macros de este proyecto.': 'Lets the macros of this project run.',
 });

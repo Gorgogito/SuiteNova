@@ -710,3 +710,19 @@ td.is-over {
 .pl-three > * {
   min-width: 0;
 }
+
+.pl-secbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #fff4ce;
+  color: #3b2f00;
+  border-bottom: 1px solid #c8a700;
+}
+.pl-secbar button {
+  padding: 2px 10px;
+  font: inherit;
+  cursor: pointer;
+}

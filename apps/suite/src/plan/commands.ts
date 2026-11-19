@@ -2,7 +2,7 @@ import type { CommandDef } from '@suitenova/core-ui';
 import { BUILTIN_FILTERS, REPORTS, newResource, type ReportId } from '@suitenova/plan-core';
 import type { PlanCtl, PlanView, Scale } from './ctl';
 
-export type PlanDialog = 'task' | 'project' | 'calendars' | 'baselines' | 'split' | 'customFields' | 'filters' | 'groups' | 'columns' | 'about' | 'shortcuts' | 'level';
+export type PlanDialog = 'task' | 'project' | 'calendars' | 'baselines' | 'split' | 'customFields' | 'filters' | 'groups' | 'columns' | 'about' | 'shortcuts' | 'level' | 'macros' | 'macroEditor' | 'recordMacro';
 
 export interface PlanUI {
   ctl: PlanCtl;
@@ -67,6 +67,12 @@ export function planCommands(ui: PlanUI): CommandDef[] {
   add({ id: 'plan.print.report', label: 'Imprimir el informe / PDF', icon: 'print', enabled: () => c.view === 'reports', run: () => ui.printReport() });
   add({ id: 'plan.export.csv', label: 'Exportar a CSV…', icon: 'exportFile', run: () => void ui.exportCsv() });
   add({ id: 'plan.print', label: 'Imprimir / PDF', icon: 'print', shortcut: 'Ctrl+P', enabled: gantt, run: () => ui.print() });
+  add({ id: 'plan.macros', label: 'Macros…', icon: 'run', shortcut: 'Alt+F8', description: 'Ejecuta una macro (un Sub de Nova Basic) del proyecto.', run: () => ui.openDialog('macros') });
+  add({ id: 'plan.macroEditor', label: 'Editor de código…', icon: 'code', shortcut: 'Alt+F11', description: 'Escribe y prueba macros en Nova Basic con los objetos de Project (Project, Task, Resource…).', run: () => ui.openDialog('macroEditor') });
+  add({ id: 'plan.macroRecord', label: 'Grabar macro…', icon: 'run', description: 'Graba lo que haces en el proyecto como una macro de Nova Basic.', enabled: () => !c.recording && c.contentEnabled, run: () => ui.openDialog('recordMacro') });
+  add({ id: 'plan.macroPause', label: 'Pausar grabación', icon: 'run', description: 'Pausa o reanuda la grabación de la macro.', enabled: () => !!c.recording, run: () => c.pauseRecording() });
+  add({ id: 'plan.macroStop', label: 'Detener grabación', icon: 'run', description: 'Termina la grabación y guarda la macro.', enabled: () => !!c.recording, run: () => c.stopRecording() });
+  add({ id: 'plan.macroEnable', label: 'Habilitar contenido', icon: 'run', enabled: () => !c.contentEnabled, description: 'Permite que se ejecuten las macros de este proyecto.', run: () => c.enableContent() });
   add({ id: 'plan.about', label: 'Acerca de Nova Plan', icon: 'info', run: () => ui.openDialog('about') });
   add({ id: 'help.shortcuts', label: 'Atajos de teclado', icon: 'keyboard', run: () => ui.openDialog('shortcuts') });
 

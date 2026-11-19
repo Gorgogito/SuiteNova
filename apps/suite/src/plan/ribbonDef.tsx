@@ -236,5 +236,25 @@ export function planTabs(): RibbonTab[] {
       ],
     },
   );
-  return [task, resource, project, view, helpTab()];
+  const developer: RibbonTab = {
+    id: 'developer',
+    label: 'Programador',
+    keytip: 'PR',
+    groups: [
+      {
+        id: 'code',
+        label: 'Código',
+        icon: 'code',
+        items: [
+          { kind: 'button', command: 'plan.macroEditor', size: 'large', keytip: 'ED' },
+          { kind: 'button', command: 'plan.macroRecord', size: 'small', keytip: 'GR' },
+          { kind: 'button', command: 'plan.macroPause', size: 'small', keytip: 'PA' },
+          { kind: 'button', command: 'plan.macroStop', size: 'small', keytip: 'DE' },
+          { kind: 'button', command: 'plan.macros', size: 'large', keytip: 'MA' },
+          { kind: 'button', command: 'plan.macroEnable', size: 'small', keytip: 'HC' },
+        ],
+      },
+    ],
+  };
+  return [task, resource, project, view, developer, helpTab()];
 }

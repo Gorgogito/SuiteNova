@@ -205,6 +205,7 @@ export function parseProject(text: string): Project {
     ...(raw.taskCalendarDays === true ? { taskCalendarDays: true } : {}),
     ...(typeof raw.timeZone === 'string' && validZone(raw.timeZone) ? { timeZone: raw.timeZone } : {}),
     ...(raw.weightedEarnedValue === true ? { weightedEarnedValue: true } : {}),
+    ...(Array.isArray(raw.macros) && raw.macros.length ? { macros: raw.macros.filter((m: any) => typeof m?.name === 'string' && typeof m?.code === 'string').map((m: any) => ({ name: m.name, code: m.code })) } : {}),
   };
 }
 

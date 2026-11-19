@@ -168,6 +168,8 @@ export interface Diagram {
   version: 1;
   name: string;
   pages: Page[];
+  /** Macro modules (Nova Basic) kept in the diagram file; the app holds them apart while it works, so editing them is not an undo step. */
+  macros?: { name: string; code: string }[];
 }
 
 let counter = 0;

@@ -228,5 +228,6 @@ export function parseDiagram(text: string): ParseResult {
       ...(typeof rp?.spread === 'number' && Number.isFinite(rp.spread) ? { spread: Math.min(60, Math.max(0, rp.spread)) } : {}),
     };
   });
-  return { diagram: { version: 1, name: str(raw.name, 'Diagrama').slice(0, 200), pages }, warnings };
+  const macros = Array.isArray(raw.macros) ? raw.macros.filter((m: any) => typeof m?.name === 'string' && typeof m?.code === 'string').map((m: any) => ({ name: m.name, code: m.code })) : [];
+  return { diagram: { version: 1, name: str(raw.name, 'Diagrama').slice(0, 200), pages, ...(macros.length ? { macros } : {}) }, warnings };
 }

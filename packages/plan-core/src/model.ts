@@ -267,6 +267,8 @@ export interface Project {
   timeZone?: string;
   /** Earned value follows the baseline distribution of work and cost instead of a straight percent. */
   weightedEarnedValue?: boolean;
+  /** Macro modules (Nova Basic) kept in the project file; the app holds them apart while it works, so editing them is not an undo step. */
+  macros?: { name: string; code: string }[];
 }
 
 let counter = 0;
