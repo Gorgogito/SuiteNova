@@ -2,7 +2,7 @@ import type { CommandDef } from '@suitenova/core-ui';
 import { BUILTIN_FILTERS, REPORTS, newResource, type ReportId } from '@suitenova/plan-core';
 import type { PlanCtl, PlanView, Scale } from './ctl';
 
-export type PlanDialog = 'task' | 'project' | 'calendars' | 'baselines' | 'split' | 'customFields' | 'filters' | 'groups' | 'columns' | 'about' | 'shortcuts' | 'level' | 'macros' | 'macroEditor' | 'recordMacro';
+export type PlanDialog = 'task' | 'project' | 'calendars' | 'baselines' | 'split' | 'customFields' | 'filters' | 'groups' | 'columns' | 'about' | 'shortcuts' | 'level' | 'macros' | 'macroEditor' | 'macroSecurity' | 'recordMacro';
 
 export interface PlanUI {
   ctl: PlanCtl;
@@ -72,6 +72,7 @@ export function planCommands(ui: PlanUI): CommandDef[] {
   add({ id: 'plan.macroRecord', label: 'Grabar macro…', icon: 'run', description: 'Graba lo que haces en el proyecto como una macro de Nova Basic.', enabled: () => !c.recording && c.contentEnabled, run: () => ui.openDialog('recordMacro') });
   add({ id: 'plan.macroPause', label: 'Pausar grabación', icon: 'run', description: 'Pausa o reanuda la grabación de la macro.', enabled: () => !!c.recording, run: () => c.pauseRecording() });
   add({ id: 'plan.macroStop', label: 'Detener grabación', icon: 'run', description: 'Termina la grabación y guarda la macro.', enabled: () => !!c.recording, run: () => c.stopRecording() });
+  add({ id: 'plan.macroSecurity', label: 'Centro de confianza…', icon: 'run', description: 'Nivel de seguridad, lugares de confianza, firma de las macros y biblioteca global.', run: () => ui.openDialog('macroSecurity') });
   add({ id: 'plan.macroEnable', label: 'Habilitar contenido', icon: 'run', enabled: () => !c.contentEnabled, description: 'Permite que se ejecuten las macros de este proyecto.', run: () => c.enableContent() });
   add({ id: 'plan.about', label: 'Acerca de Nova Plan', icon: 'info', run: () => ui.openDialog('about') });
   add({ id: 'help.shortcuts', label: 'Atajos de teclado', icon: 'keyboard', run: () => ui.openDialog('shortcuts') });

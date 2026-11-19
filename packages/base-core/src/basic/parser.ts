@@ -45,7 +45,7 @@ export interface Decl {
 export type CaseTest = { kind: 'value'; v: Expr } | { kind: 'range'; lo: Expr; hi: Expr } | { kind: 'is'; op: string; v: Expr };
 
 export type Stmt = { line: number } & (
-  | { k: 'dim'; decls: Decl[]; isConst: boolean; vis?: 'public' | 'private'; withEvents?: boolean }
+  | { k: 'dim'; decls: Decl[]; isConst: boolean; vis?: 'public' | 'private'; withEvents?: boolean; isStatic?: boolean }
   | { k: 'raiseevent'; name: string; args: (Arg | null)[] }
   | { k: 'redim'; preserve: boolean; decls: Decl[] }
   | { k: 'assign'; target: Expr; value: Expr }
@@ -626,7 +626,7 @@ export function parseModule(modName: string, src: string, opts: { labels?: boole
             next();
             withEvents = true;
           }
-          return done({ k: 'dim', line, decls: declList(isConst), isConst, vis: t.text === 'public' ? 'public' : 'private', ...(withEvents ? { withEvents } : {}) });
+          return done({ k: 'dim', line, decls: declList(isConst), isConst, vis: t.text === 'public' ? 'public' : 'private', ...(withEvents ? { withEvents } : {}), ...(t.text === 'static' ? { isStatic: true } : {}) });
         }
         case 'redim': {
           next();

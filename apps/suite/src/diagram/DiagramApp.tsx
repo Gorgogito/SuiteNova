@@ -10,7 +10,7 @@ import { backstageEntries, fileCommands } from '../options';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { addRecent } from '../recents';
 import { RecordMacroDialog, RecordingStatus } from '../macros/RecordDialogs';
-import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
+import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
 import { diagramCommands, type DiagramDialog, type DiagramUI } from './commands';
 import { DiagramCtl } from './ctl';
 import './icons';
@@ -557,6 +557,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
       </div>
       {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={close} onEdit={() => setDialog('macroEditor')} />}
       {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={close} />}
+      {dialog === 'macroSecurity' && <MacroSecurity ctl={ctl} onClose={close} />}
       {dialog === 'recordMacro' && <RecordMacroDialog taken={ctl.macroRt.procedures().map((p) => p.name)} onStart={(n, d) => ctl.startRecording(n, d)} onClose={close} />}
       <StickyDialog open={dialog === 'layout'} onClose={close}>
         {dialog === 'layout' && <LayoutForm ctl={ctl} onClose={close} />}

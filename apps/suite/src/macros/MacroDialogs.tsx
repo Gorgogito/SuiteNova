@@ -5,7 +5,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CodeEditor, type CodeEditorHandle } from './CodeEditor';
 import { DebugPanel } from './DebugPanel';
 import { ImmediateWindow } from './Immediate';
+import { saveBytes, pickAndRead } from '../fileio';
 import { checkModule, type DebugRun, type MacroModule, type MacroRuntime } from './runtime';
+import { LIBRARY_PREFIX, codeModules, libraryOf, saveLibrary, type LibraryId } from './security';
 import './macros.css';
 import './messages';
 
@@ -23,7 +25,24 @@ export interface MacroProject {
   version: number;
   /** The code of the first module of a file that has none. */
   sample: string;
+  /** The product keeps a global library (its modules are available in every file). */
+  libraryId?: LibraryId;
 }
+
+/** A module the editor shows: one of the file or one of the global library. */
+interface Entry {
+  key: string;
+  mod: MacroModule;
+  lib: boolean;
+  /** The name the interpreter knows it by (the library ones carry a prefix). */
+  interp: string;
+}
+const entriesOf = (project: MacroProject): Entry[] => [
+  ...codeModules(project.modules).map((mod): Entry => ({ key: `f:${mod.name}`, mod, lib: false, interp: mod.name })),
+  ...(project.libraryId ? libraryOf(project.libraryId).map((mod): Entry => ({ key: `l:${mod.name}`, mod, lib: true, interp: LIBRARY_PREFIX + mod.name })) : []),
+];
+/** How a procedure's module is shown to the user. */
+export const moduleLabel = (interp: string): string => (interp.startsWith(LIBRARY_PREFIX) ? `${interp.slice(LIBRARY_PREFIX.length)} (${t('global')})` : interp);
 
 /** The dialog frame (with the page given back when it closes, as the other dialogs do). */
 export function MacroModal({ title, onClose, children, actions, width = 520 }: { title: string; onClose: () => void; children: ReactNode; actions: ReactNode; width?: number }) {
@@ -98,7 +117,7 @@ export function MacroListDialog({ project, onClose, onEdit }: { project: MacroPr
         {procs.length === 0 && <li style={{ color: 'var(--colorNeutralForeground3)' }}>{t('No hay macros. Cree una en el editor de código.')}</li>}
         {procs.map((p) => (
           <li key={p.name} role="option" aria-selected={picked?.name === p.name} onClick={() => setSel(p.name)}>
-            {p.name} <small style={{ color: 'var(--colorNeutralForeground3)' }}>— {p.module}</small>
+            {p.name} <small style={{ color: 'var(--colorNeutralForeground3)' }}>— {moduleLabel(p.module)}</small>
           </li>
         ))}
       </ul>
@@ -111,12 +130,21 @@ type Msg = { ok: boolean; text: string; line?: number };
 
 /** The code editor: modules, code with line numbers and breakpoints, run and step through, syntax check and the immediate window. */
 export function MacroEditorDialog({ project, onClose }: { project: MacroProject; onClose: () => void }) {
-  const { rt, modules } = project;
+  const { rt } = project;
   const [, bump] = useState(0);
   const rerender = () => bump((x) => x + 1);
-  const [current, setCurrent] = useState(modules[0]?.name ?? '');
-  const mod = modules.find((m) => m.name === current);
+  const entries = entriesOf(project);
+  const [currentKey, setCurrentKey] = useState(entries[0]?.key ?? '');
+  const entry = entries.find((e) => e.key === currentKey);
+  const mod = entry?.mod;
+  /** The name of the current module for the interpreter, the breakpoints and the procedures. */
+  const current = entry?.interp ?? '';
   const [code, setCode] = useState(mod?.code ?? '');
+  /** Tells the product (or the library) that a module changed. */
+  const changed = (e: Entry | undefined = entry) => {
+    if (e?.lib && project.libraryId) saveLibrary(project.libraryId);
+    project.changed();
+  };
   const [msg, setMsg] = useState<Msg | null>(null);
   const [proc, setProc] = useState('');
   const [frame, setFrame] = useState(0);
@@ -133,7 +161,8 @@ export function MacroEditorDialog({ project, onClose }: { project: MacroProject;
   useEffect(() => {
     if (!mod || mod.code === code) return;
     mod.code = code;
-    project.changed();
+    changed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, mod, project]);
 
   // leaving the dialog ends a run that is stopped
@@ -145,10 +174,15 @@ export function MacroEditorDialog({ project, onClose }: { project: MacroProject;
     [],
   );
 
-  const select = (name: string) => {
-    setCurrent(name);
-    setCode(modules.find((m) => m.name === name)?.code ?? '');
+  const select = (key: string) => {
+    setCurrentKey(key);
+    setCode(entriesOf(project).find((e) => e.key === key)?.mod.code ?? '');
     setMsg(null);
+  };
+  /** The editor goes to the module the interpreter calls this (a pause or an error in it). */
+  const selectInterp = (interp: string) => {
+    const e = entriesOf(project).find((x) => x.interp === interp);
+    if (e) select(e.key);
   };
   const keys = () => [...breaks.current].flatMap(([m, set]) => [...set].map((l) => `${m}:${l}`));
   const toggleBreakpoint = (line: number) => {
@@ -159,35 +193,68 @@ export function MacroEditorDialog({ project, onClose }: { project: MacroProject;
     rerender();
   };
 
+  const taken = (name: string, except?: MacroModule) => entriesOf(project).some((e) => e.mod !== except && e.mod.name.toLowerCase() === name.toLowerCase());
   const newModule = () => {
-    let n = modules.length + 1;
-    while (modules.some((m) => m.name === `Modulo${n}`)) n++;
+    const files = codeModules(project.modules);
+    let n = entriesOf(project).length + 1;
+    while (taken(`Modulo${n}`)) n++;
     const name = `Modulo${n}`;
-    modules.push({ name, code: modules.length === 0 ? project.sample : `Sub Macro1()\n    \nEnd Sub\n` });
+    project.modules.push({ name, code: files.length === 0 ? project.sample : `Sub Macro1()\n    \nEnd Sub\n` });
     project.changed();
-    select(name);
+    select(`f:${name}`);
     rerender();
   };
   const renameModule = () => {
     const to = window.prompt(t('Nombre del módulo:'), current);
     if (!to || !mod) return;
-    if (!/^[A-Za-z_][\w]*$/.test(to) || modules.some((m) => m !== mod && m.name.toLowerCase() === to.toLowerCase())) return window.alert(t('El nombre no es válido o ya existe.'));
+    if (!/^[A-Za-z_][\w]*$/.test(to) || taken(to, mod)) return window.alert(t('El nombre no es válido o ya existe.'));
     const set = breaks.current.get(current);
     if (set) {
       breaks.current.delete(current);
-      breaks.current.set(to, set);
+      breaks.current.set(entry!.lib ? LIBRARY_PREFIX + to : to, set);
     }
     mod.name = to;
-    setCurrent(to);
-    project.changed();
+    setCurrentKey(`${entry!.lib ? 'l' : 'f'}:${to}`);
+    changed();
     rerender();
   };
   const removeModule = () => {
     if (!mod || !window.confirm(t('¿Eliminar el módulo "{name}"?', { name: mod.name }))) return;
-    breaks.current.delete(mod.name);
-    modules.splice(modules.indexOf(mod), 1);
+    breaks.current.delete(current);
+    const list = entry!.lib ? libraryOf(project.libraryId!) : project.modules;
+    list.splice(list.indexOf(mod), 1);
+    changed();
+    select(entriesOf(project)[0]?.key ?? '');
+    rerender();
+  };
+  /** Between the file and the global library (as dragging a module between projects in the editor of Office). */
+  const moveModule = () => {
+    if (!mod || !entry || !project.libraryId) return;
+    const from = entry.lib ? libraryOf(project.libraryId) : project.modules;
+    const to = entry.lib ? project.modules : libraryOf(project.libraryId);
+    if (to.some((m) => m.name.toLowerCase() === mod.name.toLowerCase())) return window.alert(t('Ya hay un módulo con ese nombre en el destino.'));
+    breaks.current.delete(current);
+    from.splice(from.indexOf(mod), 1);
+    to.push(mod);
+    saveLibrary(project.libraryId);
     project.changed();
-    select(modules[0]?.name ?? '');
+    select(`${entry.lib ? 'f' : 'l'}:${mod.name}`);
+    rerender();
+  };
+  const exportModule = async () => {
+    if (!mod) return;
+    await saveBytes(`${mod.name}.bas`, new TextEncoder().encode(mod.code.replace(/\r?\n/g, '\r\n')), [{ name: 'Módulo de Nova Basic', extensions: ['bas'] }]);
+  };
+  const importModule = async () => {
+    const f = await pickAndRead([{ name: 'Módulo de Nova Basic', extensions: ['bas', 'txt'] }]);
+    if (!f) return;
+    let name = f.name.replace(/\.[^.]+$/, '').replace(/[^\w]/g, '_');
+    if (!/^[A-Za-z_]/.test(name)) name = `M_${name}`;
+    const base = name;
+    for (let n = 2; taken(name); n++) name = `${base}${n}`;
+    project.modules.push({ name, code: new TextDecoder('utf-8').decode(f.data).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n') });
+    project.changed();
+    select(`f:${name}`);
     rerender();
   };
 
@@ -207,7 +274,7 @@ export function MacroEditorDialog({ project, onClose }: { project: MacroProject;
   const settle = (run: DebugRun, name: string) => {
     if (run.state === 'paused') {
       const p = run.pause!;
-      if (p.module !== current) select(p.module);
+      if (p.module !== current) selectInterp(p.module);
       setFrame(0);
       setMsg(null);
     } else {
@@ -217,7 +284,8 @@ export function MacroEditorDialog({ project, onClose }: { project: MacroProject;
       else {
         const at = rt.lastAt;
         setMsg({ ok: false, text: res.error ?? '', line: at?.module === current ? at.line : undefined });
-        if (at?.module === current) editor.current?.goTo(at.line);
+        if (at && at.module !== current && entriesOf(project).some((e) => e.interp === at.module)) selectInterp(at.module);
+        if (at) editor.current?.goTo(at.line);
       }
     }
     rerender();
@@ -277,7 +345,7 @@ export function MacroEditorDialog({ project, onClose }: { project: MacroProject;
     pendingDebug = null;
     if (!name) return;
     const owner = rt.procedures().find((p) => p.name === name)?.module;
-    if (owner && owner !== current) select(owner);
+    if (owner && owner !== current) selectInterp(owner);
     setTimeout(() => startDebug(name, true), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -307,11 +375,11 @@ export function MacroEditorDialog({ project, onClose }: { project: MacroProject;
         <div className="nv-mac__bar">
           <label>
             {t('Módulo')}{' '}
-            <Select aria-label={t('Módulo')} value={current} disabled={debugging} onChange={(_e, v) => select(v.value)} style={{ minWidth: 150 }}>
-              {modules.length === 0 && <option value="">{t('(sin módulos)')}</option>}
-              {modules.map((m) => (
-                <option key={m.name} value={m.name}>
-                  {m.name}
+            <Select aria-label={t('Módulo')} value={currentKey} disabled={debugging} onChange={(_e, v) => select(v.value)} style={{ minWidth: 150 }}>
+              {entries.length === 0 && <option value="">{t('(sin módulos)')}</option>}
+              {entries.map((e) => (
+                <option key={e.key} value={e.key}>
+                  {e.lib ? `${e.mod.name} (${t('global')})` : e.mod.name}
                 </option>
               ))}
             </Select>
@@ -319,6 +387,13 @@ export function MacroEditorDialog({ project, onClose }: { project: MacroProject;
           <Button size="small" disabled={debugging} onClick={newModule}>{t('Nuevo módulo')}</Button>
           <Button size="small" disabled={!mod || debugging} onClick={renameModule}>{t('Cambiar nombre')}</Button>
           <Button size="small" disabled={!mod || debugging} onClick={removeModule}>{t('Eliminar')}</Button>
+          {project.libraryId && (
+            <Button size="small" disabled={!mod || debugging} onClick={moveModule} title={t('La biblioteca global está disponible en todos los archivos de este producto.')}>
+              {entry?.lib ? t('Mover al archivo') : t('Mover a la biblioteca global')}
+            </Button>
+          )}
+          <Button size="small" disabled={!mod} onClick={() => void exportModule()}>{t('Exportar módulo…')}</Button>
+          <Button size="small" disabled={debugging} onClick={() => void importModule()}>{t('Importar módulo…')}</Button>
           <span className="nv-mac__sep" />
           <label>
             {t('Procedimiento')}{' '}
@@ -372,7 +447,7 @@ export function MacroEditorDialog({ project, onClose }: { project: MacroProject;
             onFrame={(i) => {
               setFrame(i);
               const f = runRef.current!.stack()[i];
-              if (f && f.module !== current) select(f.module);
+              if (f && f.module !== current) selectInterp(f.module);
             }}
             locals={runRef.current!.locals(frame)}
             onStep={step}

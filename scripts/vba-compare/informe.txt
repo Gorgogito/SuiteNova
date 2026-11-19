@@ -1,0 +1,15 @@
+Comparación de Nova Basic con VBA de Excel 16.0 (separador decimal «.», cultura es-PE)
+42 fragmentos: 38 idénticos, 4 distintos.
+
+## formato-numeros
+  Excel: "1,234.50|25.6%|005|(5.0)|0.333|1234.50|.5"
+  Nova : "1.234,50|25,6%|005|(5,0)|0,333|1234,50|,5"
+## formato-fechas
+  Excel: "2024-03-05|14:05:09|2:05 PM|mar|Marzo"
+  Nova : "2024-03-05|14:05:09|2:05 PM|mar|marzo"
+## mid-instruccion
+  Excel: "Jola MUNDO"
+  Nova : "⚠ #ERROR Sub o Function no definido: Mid"
+## numeros-grandes
+  Excel: "#ERROR 6"
+  Nova : "2147483648|2147483648|1E+15|1E+16|1E+15|123456789000|0.3|1000000000000"

@@ -1,4 +1,5 @@
 import { MacroEditorDialog as SharedEditor, MacroListDialog as SharedList, type MacroProject } from '../macros/MacroDialogs';
+import { MacroSecurityDialog } from '../macros/SecurityDialog';
 import type { CalcUI } from './commands';
 
 const SAMPLE = `' Nova Basic: un subconjunto de VBA con los objetos de la hoja (Range, Cells, Worksheets…).
@@ -30,6 +31,7 @@ const projectOf = (ui: CalcUI): MacroProject => {
     },
     version: d.getVersion(),
     sample: SAMPLE,
+    libraryId: 'calc',
   };
 };
 
@@ -41,4 +43,9 @@ export function MacroListDialog({ ui, onClose, onEdit }: { ui: CalcUI; onClose: 
 /** The code editor (the shared dialog with the workbook project). */
 export function MacroEditorDialog({ ui, onClose }: { ui: CalcUI; onClose: () => void }) {
   return <SharedEditor project={projectOf(ui)} onClose={onClose} />;
+}
+
+/** The trust centre of the macros (level, trusted folders, signature and library). */
+export function MacroSecurity({ ui, onClose }: { ui: CalcUI; onClose: () => void }) {
+  return <MacroSecurityDialog project={projectOf(ui)} onClose={onClose} />;
 }

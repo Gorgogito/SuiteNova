@@ -6,6 +6,7 @@ import {
 } from '@suitenova/plan-core';
 import { t } from '@suitenova/core-ui';
 import { DEFAULT_COLUMNS, applyCell, isEditable } from './columns';
+import { applyOpenPolicy, type SignatureInfo } from '../macros/security';
 import { MacroRecorder } from '../macros/recorder';
 import { PlanRuntime } from './macros';
 import { recordChange } from './recorder';
@@ -53,6 +54,7 @@ export class PlanCtl {
   macros: { name: string; code: string }[] = [];
   /** Active content (macros) may run. A file that arrives with macros starts with it disabled. */
   contentEnabled = true;
+  macroSignature?: SignatureInfo;
   private runtime: PlanRuntime | null = null;
   get macroRt(): PlanRuntime {
     return (this.runtime ??= new PlanRuntime(this));
@@ -199,7 +201,7 @@ export class PlanCtl {
   load(loaded: Project, name: string | null, path: string | null): void {
     const { macros, ...p } = loaded;
     this.macros = macros ?? [];
-    this.contentEnabled = this.macros.length === 0;
+    applyOpenPolicy(this, this.macros, path);
     this.project = p;
     this.past = [];
     this.future = [];

@@ -1,7 +1,7 @@
 import type { CommandDef } from '@suitenova/core-ui';
 import type { MailCtl } from './ctl';
 
-export type MailDialog = 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor';
+export type MailDialog = 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
 export type ImportKind = 'eml' | 'mbox' | 'ics' | 'contacts' | 'outlook';
 
 export interface MailUI {
@@ -31,6 +31,7 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   add({ id: 'mail.saveAs', label: 'Guardar como…', icon: 'save', shortcut: 'Ctrl+Shift+S', run: () => void ui.save(true) });
   add({ id: 'mail.macros', label: 'Macros…', icon: 'run', shortcut: 'Alt+F8', description: 'Ejecuta una macro (un Sub de Nova Basic) de Nova Mail.', run: () => ui.openDialog('macros') });
   add({ id: 'mail.macroEditor', label: 'Editor de código…', icon: 'code', shortcut: 'Alt+F11', description: 'Escribe y prueba macros en Nova Basic con los objetos de Outlook (Application, NameSpace, Folder, MailItem…).', run: () => ui.openDialog('macroEditor') });
+  add({ id: 'mail.trustCentre', label: 'Centro de confianza…', icon: 'shield', description: 'Nivel de seguridad de las macros, firma y biblioteca global.', run: () => ui.openDialog('macroSecurity') });
   add({ id: 'mail.macroSecurity', label: 'Seguridad de macros', icon: 'shield', description: 'Permite o impide que se ejecuten las macros de Nova Mail.', checked: () => c.macrosEnabled, run: () => c.setMacrosEnabled(!c.macrosEnabled) });
   add({ id: 'mail.about', label: 'Acerca de Nova Mail', icon: 'info', run: () => ui.openDialog('about') });
   add({ id: 'help.shortcuts', label: 'Atajos de teclado', icon: 'keyboard', run: () => ui.openDialog('shortcuts') });

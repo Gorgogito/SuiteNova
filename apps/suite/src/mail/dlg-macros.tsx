@@ -1,4 +1,5 @@
 import { MacroEditorDialog as SharedEditor, MacroListDialog as SharedList, type MacroProject } from '../macros/MacroDialogs';
+import { MacroSecurityDialog } from '../macros/SecurityDialog';
 import type { MailCtl } from './ctl';
 
 const SAMPLE = `' Nova Basic: un subconjunto de VBA con los objetos de Outlook (Application, NameSpace, Folder, MailItem…).
@@ -33,6 +34,7 @@ const projectOf = (ctl: MailCtl): MacroProject => ({
   },
   version: ctl.getVersion(),
   sample: SAMPLE,
+  libraryId: 'mail',
 });
 
 /** The list of macros to run (the shared dialog with the mail project). */
@@ -43,4 +45,9 @@ export function MacroListDialog({ ctl, onClose, onEdit }: { ctl: MailCtl; onClos
 /** The code editor (the shared dialog with the mail project). */
 export function MacroEditorDialog({ ctl, onClose }: { ctl: MailCtl; onClose: () => void }) {
   return <SharedEditor project={projectOf(ctl)} onClose={onClose} />;
+}
+
+/** The trust centre of the macros (level, trusted folders, signature and library). */
+export function MacroSecurity({ ctl, onClose }: { ctl: MailCtl; onClose: () => void }) {
+  return <MacroSecurityDialog project={projectOf(ctl)} onClose={onClose} />;
 }

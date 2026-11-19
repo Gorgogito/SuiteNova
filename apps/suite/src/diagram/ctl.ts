@@ -6,6 +6,7 @@ import {
 } from '@suitenova/diagram-core';
 
 import { t } from '@suitenova/core-ui';
+import { applyOpenPolicy, type SignatureInfo } from '../macros/security';
 import { MacroRecorder } from '../macros/recorder';
 import { DiagramRuntime } from './macros';
 import { recordChange } from './recorder';
@@ -53,6 +54,7 @@ export class DiagramCtl {
   macros: { name: string; code: string }[] = [];
   /** Active content (macros) may run. A file that arrives with macros starts with it disabled. */
   contentEnabled = true;
+  macroSignature?: SignatureInfo;
   private runtime: DiagramRuntime | null = null;
   get macroRt(): DiagramRuntime {
     return (this.runtime ??= new DiagramRuntime(this));
@@ -200,7 +202,7 @@ export class DiagramCtl {
   load(loaded: Diagram, name: string | null, path: string | null): void {
     const { macros, ...d } = loaded;
     this.macros = macros ?? [];
-    this.contentEnabled = this.macros.length === 0;
+    applyOpenPolicy(this, this.macros, path);
     this.diagram = d;
     this.pageId = d.pages[0]!.id;
     this.past = [];

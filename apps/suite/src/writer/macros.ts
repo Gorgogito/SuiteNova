@@ -1,3 +1,4 @@
+import type { LibraryId } from '../macros/security';
 import { basic } from '@suitenova/base-core';
 import { nodeTypes, writerSchema } from '@suitenova/writer-core';
 import { closeHistory } from 'prosemirror-history';
@@ -118,6 +119,9 @@ export class WriterRuntime extends MacroRuntime {
     super();
   }
 
+  get libraryId(): LibraryId | undefined {
+    return 'writer';
+  }
   get modules(): { name: string; code: string }[] {
     return this.ctl.macros;
   }

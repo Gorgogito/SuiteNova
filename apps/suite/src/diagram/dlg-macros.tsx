@@ -1,4 +1,5 @@
 import { MacroEditorDialog as SharedEditor, MacroListDialog as SharedList, type MacroProject } from '../macros/MacroDialogs';
+import { MacroSecurityDialog } from '../macros/SecurityDialog';
 import type { DiagramCtl } from './ctl';
 
 const SAMPLE = `' Nova Basic: un subconjunto de VBA con los objetos de Visio (ActiveDocument, ActivePage, Shapes, Shape.Cells…).
@@ -25,6 +26,7 @@ const projectOf = (ctl: DiagramCtl): MacroProject => ({
   },
   version: ctl.getVersion(),
   sample: SAMPLE,
+  libraryId: 'diagram',
 });
 
 /** The list of macros to run (the shared dialog with the diagram). */
@@ -35,4 +37,9 @@ export function MacroListDialog({ ctl, onClose, onEdit }: { ctl: DiagramCtl; onC
 /** The code editor (the shared dialog with the diagram). */
 export function MacroEditorDialog({ ctl, onClose }: { ctl: DiagramCtl; onClose: () => void }) {
   return <SharedEditor project={projectOf(ctl)} onClose={onClose} />;
+}
+
+/** The trust centre of the macros (level, trusted folders, signature and library). */
+export function MacroSecurity({ ctl, onClose }: { ctl: DiagramCtl; onClose: () => void }) {
+  return <MacroSecurityDialog project={projectOf(ctl)} onClose={onClose} />;
 }

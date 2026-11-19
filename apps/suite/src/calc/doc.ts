@@ -1,3 +1,4 @@
+import { applyOpenPolicy, type SignatureInfo } from '../macros/security';
 import {
   FormulaSyntaxError,
   MAX_COLS,
@@ -184,6 +185,8 @@ export class CalcDoc {
   }
   /** Macros and functions of the code modules run only when this is true (a file that comes with code opens with it off). */
   contentEnabled = true;
+  /** What the signature of the macros of the file says. */
+  macroSignature?: SignatureInfo;
   /** A short message for the status bar (why something was not done). */
   notice: string | null = null;
   /** The table whose filter menu is open (the sheet's own filter when null). */
@@ -229,7 +232,7 @@ export class CalcDoc {
     this.unsubscribeWb = wb.subscribe(() => this.touch());
     this.hookMacros();
     // code that comes with a file does not run until the user says so
-    this.contentEnabled = wb.macros.length === 0;
+    applyOpenPolicy(this, wb.macros, path);
     this.macros.clearConsole();
     this.activeSheetId = wb.sheets[0]!.id;
     this.views.clear();

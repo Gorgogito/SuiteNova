@@ -1,0 +1,217 @@
+{
+  "decimal": ".",
+  "results": [
+    {
+      "id": "aritmetica",
+      "value": "3|1|1024|3.5|-3|-1|0",
+      "error": null
+    },
+    {
+      "id": "redondeo",
+      "value": "2|4|2.35|-3|-2|2|4|0",
+      "error": null
+    },
+    {
+      "id": "cadenas-basicas",
+      "value": "Hola|mundo|mun|la|6|4|3",
+      "error": null
+    },
+    {
+      "id": "cadenas-recorte",
+      "value": "[x][x  ][  x]ABCabc",
+      "error": null
+    },
+    {
+      "id": "cadenas-reemplazo",
+      "value": "a+b+c|cba|xxx|4|bba|xbx",
+      "error": null
+    },
+    {
+      "id": "caracteres",
+      "value": "A|97|FF|10|Verdadero|FFFF|233",
+      "error": null
+    },
+    {
+      "id": "formato-numeros",
+      "value": "1,234.50|25.6%|005|(5.0)|0.333|1234.50|.5",
+      "error": null
+    },
+    {
+      "id": "formato-fechas",
+      "value": "2024-03-05|14:05:09|2:05 PM|mar|Marzo",
+      "error": null
+    },
+    {
+      "id": "fechas",
+      "value": "2024-02-29|60|3|202435|2024-03-01|3|2025-01-01",
+      "error": null
+    },
+    {
+      "id": "select-case",
+      "value": "low,mid,high,",
+      "error": null
+    },
+    {
+      "id": "bucles",
+      "value": "10,7,4,1,23|4",
+      "error": null
+    },
+    {
+      "id": "matrices",
+      "value": "2|3|a-b-c-d|3|xyz|0|1",
+      "error": null
+    },
+    {
+      "id": "matrices-2d",
+      "value": "12|1|2",
+      "error": null
+    },
+    {
+      "id": "error-resume",
+      "value": "11|Verdadero|0",
+      "error": null
+    },
+    {
+      "id": "error-goto",
+      "value": "error 9",
+      "error": null
+    },
+    {
+      "id": "error-desbordamiento",
+      "value": "6|6",
+      "error": null
+    },
+    {
+      "id": "error-raise",
+      "value": "1234|Origen|Mi error",
+      "error": null
+    },
+    {
+      "id": "coercion",
+      "value": "7|34|0|Falso|Verdadero|Verdadero|Verdadero|Falso|105",
+      "error": null
+    },
+    {
+      "id": "comparacion",
+      "value": "Falso|Verdadero|Falso|1|0|Verdadero|Verdadero|Falso",
+      "error": null
+    },
+    {
+      "id": "tipos",
+      "value": "Integer|Double|String|Empty|Null|Boolean|Variant()|Date|Long|2|8",
+      "error": null
+    },
+    {
+      "id": "es-funciones",
+      "value": "Verdadero|Verdadero|Falso|Verdadero|Verdadero|Verdadero|Verdadero|Falso|Verdadero",
+      "error": null
+    },
+    {
+      "id": "val",
+      "value": "12|350|255|0|123|-0.5",
+      "error": null
+    },
+    {
+      "id": "conversion-texto",
+      "value": "0.333333333333333|1E+20|0.3|100000000000000|1.5|-0.00001|123456789012|Verdadero|1.5|0.1",
+      "error": null
+    },
+    {
+      "id": "decimales-locale",
+      "value": "1.5x| 1.5|-5| 5|0.666666666666667|0.3",
+      "error": null
+    },
+    {
+      "id": "mid-instruccion",
+      "value": "Jola MUNDO",
+      "error": null
+    },
+    {
+      "id": "variant-vacio",
+      "value": "Verdadero|1|[]|Verdadero|Verdadero",
+      "error": null
+    },
+    {
+      "id": "recursion",
+      "value": "120|3628800|2.43290200817664E+18",
+      "error": null
+    },
+    {
+      "id": "byref-byval",
+      "value": "2|1",
+      "error": null
+    },
+    {
+      "id": "static",
+      "value": "3",
+      "error": null
+    },
+    {
+      "id": "opcionales",
+      "value": "111|103|6|16|10",
+      "error": null
+    },
+    {
+      "id": "coleccion",
+      "value": "3|dos|tres|2|dos,dos,tres",
+      "error": null
+    },
+    {
+      "id": "iif-choose",
+      "value": "si|b|y",
+      "error": null
+    },
+    {
+      "id": "matematicas",
+      "value": "4|3|-1|2.7183|2|3.141593|0|1|7|0.01",
+      "error": null
+    },
+    {
+      "id": "bits",
+      "value": "1|7|6|-6|Falso|Verdadero|8|Falso",
+      "error": null
+    },
+    {
+      "id": "instr-opciones",
+      "value": "2|0|5|1|0",
+      "error": null
+    },
+    {
+      "id": "filtro-union",
+      "value": "2|pera,piña|1/2/3|-1",
+      "error": null
+    },
+    {
+      "id": "mid-fuera-rango",
+      "value": "|5|abc||0",
+      "error": null
+    },
+    {
+      "id": "salida-funcion",
+      "value": "hallado 2|no",
+      "error": null
+    },
+    {
+      "id": "with-bloque",
+      "value": "2",
+      "error": null
+    },
+    {
+      "id": "cadenas-formato-especiales",
+      "value": "ABC|ab|  |B|áb|5|Hola Mundo",
+      "error": null
+    },
+    {
+      "id": "numeros-grandes",
+      "value": "#ERROR 6",
+      "error": null
+    },
+    {
+      "id": "division-entera-errores",
+      "value": "11|11|5|5",
+      "error": null
+    }
+  ],
+  "version": "16.0",
+  "culture": "es-PE"
+}

@@ -1,3 +1,4 @@
+import { applyOpenPolicy, type SignatureInfo } from '../macros/security';
 import { autoCorrectPlugin, autoListRules, ruleLineCommand, type AutoCorrectOptions } from './autocorrect';
 import { getAutoCorrect, langAtPos, setAutoCorrect } from '../spell';
 import { applyFormat, type CopiedFormat } from './format-tools';
@@ -264,6 +265,8 @@ export class WriterCtl {
   isTemplate = false;
   /** Active content (macros) may run. A document that arrives with macros starts with it disabled, as in Word. */
   contentEnabled = true;
+  /** What the signature of the macros of the file says (the bar of security shows it). */
+  macroSignature?: SignatureInfo;
   private runtime: WriterRuntime | null = null;
   get macroRt(): WriterRuntime {
     return (this.runtime ??= new WriterRuntime(this));
@@ -620,7 +623,7 @@ export class WriterCtl {
     this.citeStyle = doc.citeStyle;
     this.notesOptions = doc.notes;
     this.macros = doc.macros;
-    this.contentEnabled = doc.macros.length === 0;
+    applyOpenPolicy(this, doc.macros, filePath);
     this.runtime?.load(true);
     this.mailMerge = doc.mailMerge;
     this.signature = doc.signature;

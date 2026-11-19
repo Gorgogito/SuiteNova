@@ -135,9 +135,27 @@ export function dateToText(d: Date): string {
 
 // ------------------------------------------------------------------------------------------------ conversions
 
+/**
+ * How text is compared: with `text` (the default; Access's `Option Compare Database`) case does not matter, with `binary` (the default of Word,
+ * Excel, PowerPoint and Outlook) it does. The interpreter sets it when it starts to run (`HostHooks.compareText`).
+ */
+let textCompare = true;
+export const setTextCompare = (on: boolean): void => {
+  textCompare = on;
+};
+export const isTextCompare = (): boolean => textCompare;
+/** The `compare` argument of the string functions when it is not given or is `vbUseCompareOption`: 1 text, 0 binary. */
+export const defaultCompare = (arg: BVal): number => (arg === undefined || toNum(arg) === -1 ? (textCompare ? 1 : 0) : toNum(arg));
+
 export function numberText(n: number): string {
   if (!Number.isFinite(n)) return Number.isNaN(n) ? 'NaN' : n > 0 ? '1E+308' : '-1E+308';
   if (Number.isInteger(n) && Math.abs(n) < 1e15) return String(n);
+  // from 1E+15 VBA writes in scientific notation, with 15 digits at most
+  if (Math.abs(n) >= 1e15) {
+    const [m, e] = n.toExponential(14).split('e') as [string, string];
+    const mant = m.includes('.') ? m.replace(/0+$/, '').replace(/\.$/, '') : m;
+    return `${mant}E${e!.startsWith('-') ? '-' : '+'}${e!.replace(/^[-+]/, '').padStart(2, '0')}`;
+  }
   let s = String(Number(n.toPrecision(15)));
   if (/e/i.test(s)) s = s.replace(/e\+?(-?)(\d+)/i, (_m, sign, d) => `E${sign || '+'}${String(d).padStart(2, '0')}`);
   return s;
@@ -169,7 +187,7 @@ export function toNum(v: BVal): number {
   if (v instanceof Date) return toSerial(v);
   if (typeof v === 'string') {
     const s = v.trim();
-    if (/^&h[0-9a-f]+$/i.test(s)) return parseInt(s.slice(2), 16);
+    if (/^&h[0-9a-f]+&?$/i.test(s)) return parseInt(s.slice(2).replace('&', ''), 16);
     const n = /^[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$/.test(s) ? Number(s) : /^[-+]?\d+,\d+$/.test(s) ? Number(s.replace(',', '.')) : NaN;
     if (Number.isNaN(n)) throw ERR.typeMismatch();
     return n;
@@ -184,7 +202,7 @@ export function toNum(v: BVal): number {
   throw ERR.typeMismatch();
 }
 
-export const isNumericText = (s: string): boolean => /^\s*[-+]?(\d+([.,]\d*)?|[.,]\d+)([eE][-+]?\d+)?\s*$/.test(s);
+export const isNumericText = (s: string): boolean => /^\s*[-+]?(\d+([.,]\d*)?|[.,]\d+)([eE][-+]?\d+)?\s*$/.test(s) || /^\s*&[hH][0-9a-fA-F]+&?\s*$/.test(s);
 
 export function toBool(v: BVal): boolean {
   if (v === undefined) return false;
@@ -219,8 +237,10 @@ export function roundHalfEven(x: number, digits = 0): number {
   const y = x * f;
   const r = Math.round(y);
   const diff = Math.abs(y - Math.trunc(y));
-  const out = Math.abs(diff - 0.5) < 1e-9 ? (Math.floor(y) % 2 === 0 ? Math.floor(y) : Math.ceil(y)) : r;
-  return out / f;
+  // a tie goes to the even neighbour, but only when the number really is a tie: 2.345 is a hair above, as VBA sees it (2.35)
+  if (diff === 0.5) return (Math.floor(y) % 2 === 0 ? Math.floor(y) : Math.ceil(y)) / f;
+  if (Math.abs(diff - 0.5) < 1e-9) return Number(x.toFixed(Math.max(0, digits)));
+  return r / f;
 }
 
 /** Make a value fit a declared type (`Dim x As Integer`). Variant and unknown types keep the value as it is. */
@@ -295,11 +315,14 @@ const isNum = (v: BVal): v is number => typeof v === 'number';
 export function compareValues(a: BVal, b: BVal): number | null {
   if (a === null || b === null) return null;
   if (a === undefined && b === undefined) return 0;
+  // Empty is "" next to a text
+  if (a === undefined && typeof b === 'string') a = '';
+  if (b === undefined && typeof a === 'string') b = '';
   if (a instanceof Date && b instanceof Date) return Math.sign(a.getTime() - b.getTime());
   const bothText = typeof a === 'string' && typeof b === 'string';
   if (bothText) {
-    const x = (a as string).toLowerCase();
-    const y = (b as string).toLowerCase();
+    const x = textCompare ? (a as string).toLowerCase() : (a as string);
+    const y = textCompare ? (b as string).toLowerCase() : (b as string);
     return x < y ? -1 : x > y ? 1 : 0;
   }
   const aText = typeof a === 'string' && !isNumericText(a);
@@ -308,8 +331,8 @@ export function compareValues(a: BVal, b: BVal): number | null {
   if (aText && !bText && b !== undefined) return 1;
   if (bText && !aText && a !== undefined) return -1;
   if (aText && bText) {
-    const x = (a as string).toLowerCase();
-    const y = (b as string).toLowerCase();
+    const x = textCompare ? (a as string).toLowerCase() : (a as string);
+    const y = textCompare ? (b as string).toLowerCase() : (b as string);
     return x < y ? -1 : x > y ? 1 : 0;
   }
   const x = toNum(a);
@@ -337,7 +360,7 @@ export function likeMatch(text: string, pattern: string): boolean {
       }
     } else re += c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
-  return new RegExp(re + '$', 'is').test(text);
+  return new RegExp(re + '$', textCompare ? 'is' : 's').test(text);
 }
 
 const toInt32 = (n: number): number => {

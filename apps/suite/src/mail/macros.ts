@@ -1,3 +1,4 @@
+import type { LibraryId } from '../macros/security';
 import { basic } from '@suitenova/base-core';
 import { addRaw, newContact, newEvent, newTask, parseMessage, rawOf, inFolder, type CalEvent, type Contact, type MailRecord, type TaskItem } from '@suitenova/mail-core';
 import { msgBox } from '../base/runtime';
@@ -39,6 +40,9 @@ function parseFilter(filter: string): { field: string; op: string; value: string
 export class MailRuntime extends MacroRuntime {
   constructor(readonly ctl: MailCtl) {
     super();
+  }
+  get libraryId(): LibraryId | undefined {
+    return 'mail';
   }
   get modules(): { name: string; code: string }[] {
     return this.ctl.macros;

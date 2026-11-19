@@ -1,3 +1,4 @@
+import type { LibraryId } from '../macros/security';
 import { basic } from '@suitenova/base-core';
 import {
   E,
@@ -97,6 +98,9 @@ export class CalcRuntime extends MacroRuntime {
     super();
   }
 
+  get libraryId(): LibraryId | undefined {
+    return 'calc';
+  }
   get modules(): { name: string; code: string }[] {
     return this.doc.wb.macros;
   }

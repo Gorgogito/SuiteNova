@@ -2,7 +2,7 @@ import type { CommandDef } from '@suitenova/core-ui';
 import { STENCILS, type Arrow, type Dash, type Routing } from '@suitenova/diagram-core';
 import type { DiagramCtl } from './ctl';
 
-export type DiagramDialog = 'page' | 'rename' | 'png' | 'about' | 'shortcuts' | 'link' | 'layout' | 'macros' | 'macroEditor' | 'recordMacro';
+export type DiagramDialog = 'page' | 'rename' | 'png' | 'about' | 'shortcuts' | 'link' | 'layout' | 'macros' | 'macroEditor' | 'macroSecurity' | 'recordMacro';
 
 export interface DiagramUI {
   ctl: DiagramCtl;
@@ -56,6 +56,7 @@ export function diagramCommands(ui: DiagramUI): CommandDef[] {
   add({ id: 'diagram.macroRecord', label: 'Grabar macro…', icon: 'run', description: 'Graba lo que haces en el diagrama como una macro de Nova Basic.', enabled: () => !ui.ctl.recording && ui.ctl.contentEnabled, run: () => ui.openDialog('recordMacro') });
   add({ id: 'diagram.macroPause', label: 'Pausar grabación', icon: 'run', description: 'Pausa o reanuda la grabación de la macro.', enabled: () => !!ui.ctl.recording, run: () => ui.ctl.pauseRecording() });
   add({ id: 'diagram.macroStop', label: 'Detener grabación', icon: 'run', description: 'Termina la grabación y guarda la macro.', enabled: () => !!ui.ctl.recording, run: () => ui.ctl.stopRecording() });
+  add({ id: 'diagram.macroSecurity', label: 'Centro de confianza…', icon: 'run', description: 'Nivel de seguridad, lugares de confianza, firma de las macros y biblioteca global.', run: () => ui.openDialog('macroSecurity') });
   add({ id: 'diagram.macroEnable', label: 'Habilitar contenido', icon: 'run', enabled: () => !ui.ctl.contentEnabled, description: 'Permite que se ejecuten las macros de este diagrama.', run: () => ui.ctl.enableContent() });
   add({ id: 'diagram.about', label: 'Acerca de Nova Diagram', icon: 'info', run: () => ui.openDialog('about') });
   add({ id: 'help.shortcuts', label: 'Atajos de teclado', icon: 'keyboard', run: () => ui.openDialog('shortcuts') });

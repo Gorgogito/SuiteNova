@@ -17,7 +17,7 @@ import './messages';
 import { setTransport } from './remote';
 import { ComposeBody, FolderTree, LinkConfirm, MessageList, ReadingPane } from './MailViews';
 import { StickyDialog } from './StickyDialog';
-import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
+import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
 import { ContactsView, TasksView } from './PeopleViews';
 import { mailTabs } from './ribbonDef';
 import './mail.css';
@@ -499,6 +499,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
         <LinkConfirm link={link} onClose={() => setLink(null)} />
         {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={() => setDialog(null)} onEdit={() => setDialog('macroEditor')} />}
         {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={() => setDialog(null)} />}
+        {dialog === 'macroSecurity' && <MacroSecurity ctl={ctl} onClose={() => setDialog(null)} />}
         <StickyDialog open={dialog !== null && dialog !== 'macros' && dialog !== 'macroEditor'} onClose={() => setDialog(null)} width={dialog === 'accounts' ? 640 : undefined}>
           {dialog === 'settings' && <SettingsDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'accounts' && <AccountsDialog ctl={ctl} onClose={() => setDialog(null)} />}

@@ -1,3 +1,4 @@
+import type { LibraryId } from '../macros/security';
 import { basic } from '@suitenova/base-core';
 import {
   addElements,
@@ -165,6 +166,9 @@ const firstRun = (doc: unknown, scope: number | null): RunProps => {
 export class SlidesRuntime extends MacroRuntime {
   constructor(readonly ctl: SlidesCtl) {
     super();
+  }
+  get libraryId(): LibraryId | undefined {
+    return 'slides';
   }
   get modules(): { name: string; code: string }[] {
     return this.ctl.macros;

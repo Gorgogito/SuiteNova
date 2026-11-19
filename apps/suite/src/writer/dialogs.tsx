@@ -18,7 +18,7 @@ import { AccessibilityDialog, CompareDialog, DocPropsDialog, WordCountDialog } f
 import { TableConvertDialog, TablePropsDialog, TableSortDialog } from './dlg-table';
 import { StyleEditDialog, StylesDialog } from './dlg-styles';
 import { TemplatesDialog } from './dlg-templates';
-import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
+import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
 import { RecordMacroDialog } from '../macros/RecordDialogs';
 import { EncryptDialog, SignDialog, SignatureInfoDialog } from './dlg-security';
 import { DictionaryDialog, ReviewDialog, ReviewOptionsDialog } from '../spell';
@@ -325,6 +325,8 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
       return <MacroListDialog ui={ui} onClose={onClose} onEdit={() => (ui.openDialog('macroEditor'))} />;
     case 'macroEditor':
       return <MacroEditorDialog ui={ui} onClose={onClose} />;
+    case 'macroSecurity':
+      return <MacroSecurity ui={ui} onClose={onClose} />;
     case 'recordMacro':
       return <RecordMacroDialog taken={ui.ctl.macroRt.procedures().map((p) => p.name)} onStart={(n, d) => ui.ctl.startRecording(n, d)} onClose={() => { onClose(); focusDocSoon(ui); }} />;
     case 'encrypt':

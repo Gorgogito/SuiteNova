@@ -1,3 +1,4 @@
+import { applyOpenPolicy, type SignatureInfo } from '../macros/security';
 import {
   addElements,
   addSlide,
@@ -195,6 +196,8 @@ export class SlidesCtl {
   macros: { name: string; code: string }[] = [];
   /** Active content (macros) may run. A file that arrives with macros starts with it disabled, as in PowerPoint. */
   contentEnabled = true;
+  /** What the signature of the macros of the file says. */
+  macroSignature?: SignatureInfo;
   private runtime: SlidesRuntime | null = null;
   get macroRt(): SlidesRuntime {
     return (this.runtime ??= new SlidesRuntime(this));
@@ -882,7 +885,7 @@ export class SlidesCtl {
     this.masterTarget = null;
     this.warnings = warnings;
     this.macros = macros;
-    this.contentEnabled = macros.length === 0;
+    applyOpenPolicy(this, macros, path);
     this.touch();
   }
   newDoc(): void {

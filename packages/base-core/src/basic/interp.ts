@@ -1,7 +1,7 @@
 import { BUILTIN_NAMES, builtin, createObject, type BuiltinCtx } from './builtins';
 import { BasicSyntaxError } from './lexer';
 import { parseExpression, parseModule, parseStatements, type Arg, type CaseTest, type Decl, type EnumDef, type Expr, type ModuleAst, type Param, type Proc, type Stmt, type TypeDef } from './parser';
-import { BasicError, ERR, NOTHING, VArray, binaryOp, coerceTo, compareValues, dateToText, defaultFor, isNothing, isObject, negate, not, toNum, toStr, truthy, type BObject, type BVal } from './values';
+import { setTextCompare, BasicError, ERR, NOTHING, VArray, binaryOp, coerceTo, compareValues, dateToText, defaultFor, isNothing, isObject, negate, not, toNum, toStr, truthy, type BObject, type BVal } from './values';
 
 /** What the program can reach in the host application. */
 /** The files a program can use: a flat store of text files that lives inside the database (it never touches the disk). */
@@ -22,6 +22,8 @@ export interface HostHooks {
   objects?: Record<string, BVal>;
   /** Functions by name that are not in the standard library: DLookup, DCount… (lower case). */
   functions?: Record<string, (args: BVal[], named: Record<string, BVal>) => BVal>;
+  /** Text is compared ignoring case (default, as Access) or exactly (`false`, as Word, Excel, PowerPoint and Outlook). */
+  compareText?: boolean;
   /** Replaces the clock (tests). */
   now?: () => Date;
 }
@@ -598,7 +600,21 @@ export class Interpreter {
 
   // ---------------------------------------------------------------------------------------- running
 
+  /** The `Static` variables of each procedure: they keep their value from one call to the next. */
+  private statics = new Map<Proc, Map<string, Ref>>();
+  private keepStatics(f: Frame, decls: { name: string }[]): void {
+    let store = this.statics.get(f.proc!);
+    if (!store) this.statics.set(f.proc!, (store = new Map()));
+    for (const d of decls) {
+      const k = lc(d.name);
+      const saved = store.get(k);
+      if (saved) f.vars.set(k, saved);
+      else if (f.vars.has(k)) store.set(k, f.vars.get(k)!);
+    }
+  }
+
   private begin(): void {
+    setTextCompare(this.host.compareText ?? true);
     this.steps = 0;
     this.depth = 0;
     this.startedAt = Date.now();
@@ -697,6 +713,7 @@ export class Interpreter {
       step(mode) {
         if (session.state !== 'paused') return;
         const d = me.dbg!;
+        setTextCompare(me.host.compareText ?? true);
         d.mode = mode === 'continue' ? 'run' : mode;
         d.depth = session.pause?.depth ?? 0;
         me.startedAt += Date.now() - pausedAt; // the time spent looking is not the program's
@@ -715,6 +732,7 @@ export class Interpreter {
       evaluate(src, frame = 0) {
         const f = me.stack[me.stack.length - 1 - frame];
         if (!f) throw new BasicError(5, 'El programa no está detenido.');
+        setTextCompare(me.host.compareText ?? true);
         const trimmed = src.trim();
         const asValue = trimmed.startsWith('?');
         const text = asValue ? trimmed.slice(1).trim() : trimmed;
@@ -919,7 +937,7 @@ export class Interpreter {
   }
 
   private setErr(e: BasicError): void {
-    this.err = { number: e.number, description: e.description, source: e.module ?? '' };
+    this.err = { number: e.number, description: e.description, source: (e as { source?: string }).source ?? e.module ?? '' };
   }
 
   // ---------------------------------------------------------------------------------------- statements
@@ -1073,6 +1091,7 @@ export class Interpreter {
     switch (s.k) {
       case 'dim':
         this.declare(s.decls, s.isConst, f, f.vars);
+        if (s.isStatic && f.proc) this.keepStatics(f, s.decls);
         return undefined;
       case 'redim':
         for (const d of s.decls) this.redim(d, s.preserve, f);
@@ -1681,7 +1700,7 @@ export class Interpreter {
             interp.err = { number: 0, description: '', source: '' };
             return undefined;
           case 'raise':
-            throw new BasicError(Math.trunc(toNum(args[0])), args[2] === undefined ? 'Error definido por la aplicación o el objeto' : toStr(args[2]));
+            throw Object.assign(new BasicError(Math.trunc(toNum(args[0])), args[2] === undefined ? 'Error definido por la aplicación o el objeto' : toStr(args[2])), { source: args[1] === undefined ? undefined : toStr(args[1]) });
         }
         throw ERR.notSupported(member);
       },

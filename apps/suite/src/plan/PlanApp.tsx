@@ -12,7 +12,7 @@ import { planCommands, type PlanDialog, type PlanUI } from './commands';
 import { PlanCtl, fmtDate } from './ctl';
 import { cellText, columnDef } from './columns';
 import { RecordMacroDialog, RecordingStatus } from '../macros/RecordDialogs';
-import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
+import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
 import { BaselinesDialog, CalendarDialog, ColumnsDialog, CustomFieldsDialog, FiltersDialog, GroupsDialog, LevelDialog, ProjectDialog, SplitDialog, TaskDialog } from './Dialogs';
 import { NetworkView, ReportsView, ResourceGraph, ResourceSheet, UsageView } from './Views';
 import { Gantt, type GanttHandle } from './Gantt';
@@ -431,6 +431,7 @@ export function PlanApp({ module }: { module: ModuleInfo }) {
         {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={closeDialog} onEdit={() => setDialog('macroEditor')} />}
         {dialog === 'recordMacro' && <RecordMacroDialog taken={ctl.macroRt.procedures().map((p) => p.name)} onStart={(n, d) => ctl.startRecording(n, d)} onClose={closeDialog} />}
         {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={closeDialog} />}
+        {dialog === 'macroSecurity' && <MacroSecurity ctl={ctl} onClose={closeDialog} />}
         <TaskDialog ctl={ctl} open={dialog === 'task'} onClose={closeDialog} />
         <ProjectDialog ctl={ctl} open={dialog === 'project'} onClose={closeDialog} />
         <LevelDialog ctl={ctl} open={dialog === 'level'} onClose={closeDialog} />

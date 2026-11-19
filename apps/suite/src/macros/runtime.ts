@@ -1,5 +1,6 @@
 import { basic } from '@suitenova/base-core';
 import { msgBox } from '../base/runtime';
+import { codeModules, levelAllows, libraryForInterpreter, LIBRARY_PREFIX, type LibraryId } from './security';
 import { DebugRun, reportError, type MacroModule, type MacroRun, type SyntaxProblem } from './debug';
 
 export { DebugRun, reportError, type MacroModule, type MacroRun, type RunGuard, type SyntaxProblem } from './debug';
@@ -40,6 +41,14 @@ export abstract class MacroRuntime {
   }
 
   abstract get modules(): MacroModule[];
+  /** The global library of the product (its modules are loaded with the ones of the file), or none. */
+  get libraryId(): LibraryId | undefined {
+    return undefined;
+  }
+  /** The modules the interpreter loads: the library (as `Global_Name`) and then the code of the file. */
+  protected sources(): MacroModule[] {
+    return [...(this.libraryId ? libraryForInterpreter(this.libraryId) : []), ...codeModules(this.modules)];
+  }
   /** Active content is enabled (a file that carries macros opens with them off). */
   protected abstract enabled(): boolean;
   /** Something the screen shows changed (the console…). */
@@ -68,14 +77,34 @@ export abstract class MacroRuntime {
       inputBox: (p, t, d) => (typeof window.prompt === 'function' ? window.prompt(`${t}\n\n${p}`, d) : null),
       objects: this.hostObjects(),
       functions: { rgb: rgbFunction },
+      compareText: false, // Word, Excel, PowerPoint and Outlook compare text exactly (Option Compare Binary); only Access ignores case
     };
   }
 
   load(force = false): { module: string; line: number; message: string }[] {
-    const key = JSON.stringify(this.modules);
+    let src = this.sources();
+    const key = JSON.stringify(src);
     if (!force && this.interp && key === this.key) return this.errors;
-    this.interp = new basic.Interpreter(this.hooks(), this.limits);
-    this.errors = this.interp.load(this.modules.map((m) => ({ name: m.name, source: m.code }))).map((e) => ({ module: e.module, line: e.line, message: e.message }));
+    const attempt = () => {
+      this.interp = new basic.Interpreter(this.hooks(), this.limits);
+      this.errors = this.interp.load(src.map((m) => ({ name: m.name, source: m.code }))).map((e) => ({ module: e.module, line: e.line, message: e.message }));
+    };
+    attempt();
+    // a procedure of the file with the name of one of the library wins (as the project of a document does over Normal): the module of the library is left out
+    const clash = new Set<string>();
+    for (const e of this.errors) {
+      const m = /ya está definido en (\S+?)\.$/.exec(e.message);
+      if (!m) continue;
+      // the library module that was loaded first, or (two library modules that clash) the one that came second
+      if (m[1]!.startsWith(LIBRARY_PREFIX)) clash.add(m[1]!);
+      else if (e.module.startsWith(LIBRARY_PREFIX)) clash.add(e.module);
+    }
+    if (clash.size) {
+      src = src.filter((m) => !clash.has(m.name));
+      attempt();
+      // said once in the console (without redrawing: this runs while the dialogs draw)
+      for (const m of clash) this.console.push(`⚠ ${m.slice(LIBRARY_PREFIX.length)} (biblioteca): no se cargó, un procedimiento suyo tiene el mismo nombre que otro del archivo.`);
+    }
     this.key = key;
     return this.errors;
   }
@@ -98,6 +127,8 @@ export abstract class MacroRuntime {
   protected cannotStart(name: string): MacroRun | null {
     this.lastAt = undefined;
     if (!this.enabled()) return { ok: false, error: 'El contenido activo está deshabilitado en este archivo.' };
+    const level = levelAllows(this.modules);
+    if (!level.ok) return { ok: false, error: level.reason };
     const errors = this.load();
     if (errors.length) {
       this.lastAt = { module: errors[0]!.module, line: errors[0]!.line };
@@ -115,6 +146,8 @@ export abstract class MacroRuntime {
 
   immediate(src: string): MacroRun {
     if (!this.enabled()) return { ok: false, error: 'El contenido activo está deshabilitado en este archivo.' };
+    const level = levelAllows(this.modules);
+    if (!level.ok) return { ok: false, error: level.reason };
     this.load();
     return this.guarded(() => {
       this.interp!.immediate(src);

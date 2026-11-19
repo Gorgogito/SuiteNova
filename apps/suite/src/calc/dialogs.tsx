@@ -10,7 +10,7 @@ import { ChartFormatDialog } from './dlg-chart';
 import { CalcSpellDialog } from './dlg-spell';
 import { AutoCorrectDialog, DictionaryDialog, ReviewOptionsDialog, defaultFieldLang, getAutoCorrect, setAutoCorrect } from '../spell';
 import { EntryAlertDialog, HyperlinkDialog, NoteDialog, ValidationDialog } from './dlg-data';
-import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
+import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
 import { RecordMacroDialog } from '../macros/RecordDialogs';
 import { PageSetupDialog, PrintPreviewDialog } from './dlg-page';
 import { ShapeFormatDialog } from './dlg-shape';
@@ -687,6 +687,8 @@ export function DialogHost({ ui, registry, kind, arg, onClose }: { ui: CalcUI; r
       return <MacroListDialog ui={ui} onClose={close} onEdit={() => ui.openDialog('macroEditor')} />;
     case 'macroEditor':
       return <MacroEditorDialog ui={ui} onClose={close} />;
+    case 'macroSecurity':
+      return <MacroSecurity ui={ui} onClose={close} />;
     case 'recordMacro':
       return <RecordMacroDialog taken={ui.doc.macros.procedures().map((p) => p.name)} onStart={(n, d) => ui.doc.startRecording(n, d)} onClose={close} />;
   }

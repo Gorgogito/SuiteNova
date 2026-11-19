@@ -252,6 +252,7 @@ export function planTabs(): RibbonTab[] {
           { kind: 'button', command: 'plan.macroStop', size: 'small', keytip: 'DE' },
           { kind: 'button', command: 'plan.macros', size: 'large', keytip: 'MA' },
           { kind: 'button', command: 'plan.macroEnable', size: 'small', keytip: 'HC' },
+          { kind: 'button', command: 'plan.macroSecurity', size: 'small', keytip: 'SE' },
         ],
       },
     ],

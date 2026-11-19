@@ -195,6 +195,7 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
           { kind: 'button', command: 'mail.macroEditor', size: 'large', keytip: 'ED' },
           { kind: 'button', command: 'mail.macros', size: 'large', keytip: 'MA' },
           { kind: 'button', command: 'mail.macroSecurity', size: 'small', keytip: 'SG' },
+          { kind: 'button', command: 'mail.trustCentre', size: 'small', keytip: 'CC' },
         ],
       },
     ],

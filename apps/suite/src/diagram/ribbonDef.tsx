@@ -460,6 +460,7 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
           { kind: 'button', command: 'diagram.macroPause', size: 'small', keytip: 'PA' },
           { kind: 'button', command: 'diagram.macroStop', size: 'small', keytip: 'DE' },
           { kind: 'button', command: 'diagram.macroEnable', size: 'small', keytip: 'HC' },
+          { kind: 'button', command: 'diagram.macroSecurity', size: 'small', keytip: 'SE' },
         ],
       },
     ],

@@ -1,3 +1,4 @@
+import type { LibraryId } from '../macros/security';
 import { basic } from '@suitenova/base-core';
 import { addTask, deleteResource, deleteTasks, formatPredecessors, linkTasks, newResource, setDuration, setWork, shiftOutline, type Project, type Task } from '@suitenova/plan-core';
 import '../macros/messages';
@@ -40,6 +41,9 @@ const asDate = (v: BVal): Date => {
 export class PlanRuntime extends MacroRuntime {
   constructor(readonly ctl: PlanCtl) {
     super();
+  }
+  get libraryId(): LibraryId | undefined {
+    return 'plan';
   }
   get modules(): { name: string; code: string }[] {
     return this.ctl.macros;

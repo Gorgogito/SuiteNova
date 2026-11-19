@@ -1,3 +1,4 @@
+import type { LibraryId } from '../macros/security';
 import { basic } from '@suitenova/base-core';
 import { STENCILS, addConnector, addPage, addShape, centerOf, deleteItems, deletePage, newConnector, reorder, stencilOf, type Connector, type Page, type Shape } from '@suitenova/diagram-core';
 import '../macros/messages';
@@ -46,6 +47,9 @@ function parseColour(v: BVal): string {
 export class DiagramRuntime extends MacroRuntime {
   constructor(readonly ctl: DiagramCtl) {
     super();
+  }
+  get libraryId(): LibraryId | undefined {
+    return 'diagram';
   }
   get modules(): { name: string; code: string }[] {
     return this.ctl.macros;

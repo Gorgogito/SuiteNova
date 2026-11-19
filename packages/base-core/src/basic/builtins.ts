@@ -1,4 +1,4 @@
-import { BasicError, ERR, NOTHING, VArray, binaryOp, coerceTo, compareValues, basicFormat, fromSerial, isNumericText, isObject, parseDateText, roundHalfEven, toBool, toDate, toNum, toSerial, toStr, truthy, type BObject, type BVal } from './values';
+import { defaultCompare, BasicError, ERR, NOTHING, VArray, binaryOp, coerceTo, compareValues, basicFormat, fromSerial, isNumericText, isObject, parseDateText, roundHalfEven, toBool, toDate, toNum, toSerial, toStr, truthy, type BObject, type BVal } from './values';
 
 export interface BuiltinCtx {
   now(): Date;
@@ -202,7 +202,7 @@ function instr(a: BVal[]): BVal {
   const s1 = a[i];
   const s2 = a[i + 1];
   if (nullIn(s1, s2)) return null;
-  const cmp = a[i + 2] === undefined ? 1 : toNum(a[i + 2]);
+  const cmp = defaultCompare(a[i + 2]);
   const x = toStr(s1);
   const y = toStr(s2);
   if (start < 1) throw ERR.invalidCall();
@@ -219,7 +219,7 @@ function replace(a: BVal[]): BVal {
   const rep = toStr(a[2]);
   const start = a[3] === undefined ? 1 : toNum(a[3]);
   const count = a[4] === undefined ? -1 : toNum(a[4]);
-  const cmp = a[5] === undefined ? 1 : toNum(a[5]);
+  const cmp = defaultCompare(a[5]);
   if (find === '') return s.slice(start - 1);
   const head = s.slice(start - 1);
   const re = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), cmp === 0 ? 'g' : 'gi');
@@ -273,7 +273,7 @@ const F: Record<string, Fn> = {
   },
   strcomp: (a) => {
     if (nullIn(a[0], a[1])) return null;
-    const cmp = a[2] === undefined ? 1 : toNum(a[2]);
+    const cmp = defaultCompare(a[2]);
     const x = cmp === 0 ? toStr(a[0]) : toStr(a[0]).toLowerCase();
     const y = cmp === 0 ? toStr(a[1]) : toStr(a[1]).toLowerCase();
     return x < y ? -1 : x > y ? 1 : 0;
@@ -302,7 +302,21 @@ const F: Record<string, Fn> = {
     const n = num(a, 0);
     return n >= 0 ? ` ${toStr(n)}` : toStr(n);
   },
+  hex: (a) => (nullIn(a[0]) ? null : ((n: number) => (n < 0 && n >= -32768 ? n & 0xffff : n >>> 0))(Math.trunc(num(a, 0))).toString(16).toUpperCase()),
+  oct: (a) => (nullIn(a[0]) ? null : ((n: number) => (n < 0 && n >= -32768 ? n & 0xffff : n >>> 0))(Math.trunc(num(a, 0))).toString(8)),
+  ismissing: (a) => a[0] === undefined,
+  filter: (a) => {
+    if (!(a[0] instanceof VArray)) throw ERR.typeMismatch();
+    const find = toStr(a[1]);
+    const keep = a[2] === undefined ? true : toBool(a[2]);
+    const text = defaultCompare(a[3]) === 1;
+    const has = (s: string) => (text ? s.toLowerCase().includes(find.toLowerCase()) : s.includes(find));
+    const out = a[0].data.map(toStr).filter((s) => has(s) === keep);
+    return VArray.of(out);
+  },
   val: (a) => {
+    const hexm = /^\s*&[hH]([0-9a-fA-F]+)&?/.exec(toStr(a[0]));
+    if (hexm) return parseInt(hexm[1]!, 16);
     const m = /^\s*[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?/.exec(toStr(a[0]).replace(/\s+/g, (s, i) => (i === 0 ? s : '')));
     return m ? Number(m[0]) : 0;
   },

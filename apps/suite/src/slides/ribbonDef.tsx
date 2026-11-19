@@ -539,7 +539,7 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     label: 'Programador',
     keytip: 'PR',
     groups: [
-      { id: 'code', label: 'Código', icon: 'code', items: [L('slides.macroEditor', 'ED'), L('slides.macros', 'MA'), S('slides.macroEnable', 'HC')] },
+      { id: 'code', label: 'Código', icon: 'code', items: [L('slides.macroEditor', 'ED'), L('slides.macros', 'MA'), S('slides.macroEnable', 'HC'), S('slides.macroSecurity', 'SE')] },
     ],
   };
   return [home, insert, design, transitions, animations, show, review, viewExtra, developer, format, tableDesign, tableLayout, picFormat, chartTools, smartTools, masterTab, helpTab()];
