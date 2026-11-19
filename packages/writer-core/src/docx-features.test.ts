@@ -138,6 +138,16 @@ describe('DOCX: notas, marcadores, campos y tabulaciones', () => {
     expect(blocks[0]!.attrs.shade).toBe('#ffff00');
     expect(blocks[0]!.attrs.border.color).toBe('#ff0000');
   });
+
+  it('la línea de borde inferior (--- === ###) se guarda solo abajo y conserva su estilo', async () => {
+    const { blocks, zip } = await rt(wd([p([], { border: { sides: 'bottom', style: 'double', width: 0.75, color: '#000000', space: 1 } }), p([], { border: { sides: 'bottom', style: 'single', width: 2.25, color: '#000000', space: 1 } }), p('caja', { border: { width: 1, color: '#ff0000', space: 2 } })]));
+    expect(blocks[0]!.attrs.border).toMatchObject({ sides: 'bottom', style: 'double' });
+    expect(blocks[1]!.attrs.border).toMatchObject({ sides: 'bottom', style: 'single', width: 2.25 });
+    expect(blocks[2]!.attrs.border.sides).toBeUndefined();
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('<w:pBdr><w:bottom w:val="double"');
+    expect(xml).not.toMatch(/<w:pBdr><w:bottom[^>]*\/><w:top/);
+  });
 });
 
 describe('DOCX: ecuaciones, formas y controles de contenido', () => {

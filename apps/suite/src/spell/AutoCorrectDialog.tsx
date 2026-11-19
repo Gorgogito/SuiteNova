@@ -34,10 +34,12 @@ const FLAGS_AF: [Flag, string][] = [
   ['dashes', 'Guiones: -- por raya corta y --- por raya'],
   ['fractions', 'Fracciones: 1/2 ½  1/4 ¼  3/4 ¾'],
   ['ordinals', 'Ordinales: 1.o por 1.º y 2.a por 2.ª (en inglés, 1st con superíndice)'],
+  ['markup', '*Negrita* y _cursiva_ con formato'],
+  ['borders', 'Líneas de borde: --- ___ === *** ~~~ ### y Intro'],
   ['autoLinks', 'Convertir direcciones web y de correo en vínculos'],
   ['autoLists', 'Listas automáticas al escribir (1. a. i. y guion al empezar un párrafo)'],
 ];
-/** Las casillas que valen sin formato (campos de texto, celdas): vínculos y listas necesitan un documento con formato; los ordinales con superíndice también, pero los del español no. */
+/** Las casillas que valen sin formato (campos de texto, celdas): vínculos, listas, marcado y bordes necesitan un documento con formato; los ordinales con superíndice también, pero los del español no. */
 const PLAIN = new Set<Flag>(['smartQuotes', 'symbols', 'fractions', 'dashes', 'capitalizeSentences', 'fixTwoInitialCaps', 'ordinals']);
 
 const LANG_NAMES: Record<AutoLang, string> = { es: 'Español', en: 'English' };
@@ -187,9 +189,9 @@ function WordList({ words, onChange, help, label }: { words: string[]; onChange:
 /**
  * Cuadro «Opciones de autocorrección», el mismo en todos los productos y con tres pestañas: Autocorrección (reemplazos y excepciones, por idioma),
  * Autoformato (lo que se da formato al escribir) y Matemática (la lista de las ecuaciones). `plain` oculta lo que solo tiene sentido con formato
- * (vínculos, listas) y la pestaña Matemática. Guarda los dos idiomas y la lista matemática; `onSave` recibe las opciones del idioma con que se abrió.
+ * (vínculos, listas, marcado, bordes) y la pestaña Matemática; `hide` quita casillas concretas (Slides no tiene vínculos, listas ni bordes automáticos). Guarda los dos idiomas y la lista matemática; `onSave` recibe las opciones del idioma con que se abrió.
  */
-export function AutoCorrectDialog({ initial, onSave, onClose, product, plain }: { initial: AutoCorrectOptions; onSave: (o: AutoCorrectOptions) => void; onClose: () => void; product: string; plain?: boolean }) {
+export function AutoCorrectDialog({ initial, onSave, onClose, product, plain, hide }: { initial: AutoCorrectOptions; onSave: (o: AutoCorrectOptions) => void; onClose: () => void; product: string; plain?: boolean; hide?: Flag[] }) {
   const [by, setBy] = useState<Record<AutoLang, AutoCorrectOptions>>(() => {
     const load = (l: AutoLang): AutoCorrectOptions => {
       try {
@@ -213,7 +215,7 @@ export function AutoCorrectDialog({ initial, onSave, onClose, product, plain }: 
   const patch = (p: Partial<AutoCorrectOptions>) => setBy((b) => ({ ...b, [lang]: { ...b[lang], ...p } }));
   const flags = (list: [Flag, string][]) =>
     list
-      .filter(([k]) => !plain || PLAIN.has(k))
+      .filter(([k]) => (!plain || PLAIN.has(k)) && !hide?.includes(k))
       .map(([k, label]) => <Checkbox key={k} label={t(label)} checked={!!o[k]} onChange={(_e, v) => setFlag(k, !!v.checked)} />);
 
   const reset = () => {

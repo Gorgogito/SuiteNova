@@ -15,5 +15,5 @@ export { ProofTextarea, defaultFieldLang } from './ProofTextarea';
 export { reviewPlainText, applyFixToText } from './plain';
 export { ProofMemo } from './ProofMemo';
 export { ThesaurusDialog, ThesaurusPane, pmThesaurusHost, type ThesaurusHost } from './ThesaurusPane';
-export { findSynonyms, loadThesaurus, loadedThesaurus, thesaurusLangOf, useSynonyms, wordAtSelection } from './thesaurus';
+export { findSynonyms, loadThesaurus, langAtPos, loadedThesaurus, thesaurusLangOf, useSynonyms, wordAtSelection } from './thesaurus';
 export { WordMenu, WordMenuView, wordUnderPointer, type WordMenuActions, type WordTarget } from './WordMenu';

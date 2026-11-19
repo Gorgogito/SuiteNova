@@ -134,7 +134,8 @@ function paragraphDOM(node: PMNode): DOMOutputSpec {
   if (a.spaceAfter !== null) css.push(`margin-bottom:${ptCss(a.spaceAfter)}`);
   if (a.lineHeight) css.push(`line-height:${a.lineRule === 'exact' || a.lineRule === 'atLeast' ? `${a.lineHeight}pt` : a.lineHeight}`);
   if (a.shade) css.push(`background-color:${a.shade}`);
-  if (a.border) css.push(`border:${a.border.width ?? 0.5}pt solid ${a.border.color ?? '#000'};padding:${a.border.space ?? 1}pt`);
+  if (a.border && a.border.sides === 'bottom') css.push(`border-bottom:${a.border.width ?? 0.5}pt ${({ double: 'double', triple: 'double', dotted: 'dotted', wave: 'dashed' } as Record<string, string>)[a.border.style as string] ?? 'solid'} ${a.border.color ?? '#000'};padding-bottom:${a.border.space ?? 1}pt`);
+  else if (a.border) css.push(`border:${a.border.width ?? 0.5}pt solid ${a.border.color ?? '#000'};padding:${a.border.space ?? 1}pt`);
   const attrs: Record<string, string> = { class: `nw-p ${styleClass(a.style)}${a.ins ? ' nw-pins' : ''}${a.del ? ' nw-pdel' : ''}` };
   if (css.length) attrs.style = css.join(';');
   if (a.tag) attrs['data-tag'] = a.tag;
@@ -258,7 +259,7 @@ const nodes: Record<string, NodeSpec> = {
       /** Tracked change on the paragraph mark: inserted or deleted (merged with the next paragraph when accepted). */
       ins: { default: null },
       del: { default: null },
-      /** Paragraph shading (#rrggbb) and a box border. */
+      /** Paragraph shading (#rrggbb) and a border: a box, or only the line below (`sides: 'bottom'`, with a Word line `style`: single, double, dotted, wave, triple). */
       shade: { default: null },
       border: { default: null },
     },

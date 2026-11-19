@@ -1,6 +1,6 @@
 import { documentFormulas } from '@suitenova/notes-core';
-import { getAutoCorrect, spellPlugin } from '../spell';
-import { autoCorrectPlugin } from '../writer/autocorrect';
+import { getAutoCorrect, langAtPos, spellPlugin } from '../spell';
+import { autoCorrectPlugin, ruleLineCommand } from '../writer/autocorrect';
 import { nodeTypes } from '@suitenova/writer-core';
 import { baseKeymap } from 'prosemirror-commands';
 import { history } from 'prosemirror-history';
@@ -121,6 +121,7 @@ export function textPlugins(ctl: NotesCtl): Plugin[] {
   return [
     history(),
     inputRules({ rules: [wrappingInputRule(/^\s*([-+*•])\s$/, nodeTypes.bullet_list!), wrappingInputRule(/^(\d+)\.\s$/, nodeTypes.ordered_list!, (m) => ({ start: Number(m[1]), format: 'decimal' }))] }),
+    keymap({ Enter: ruleLineCommand(getAutoCorrect) }),
     keymap({ Enter: enterCommand, Tab: tabCommand, 'Shift-Tab': shiftTabCommand, Backspace: backspaceCommand, Delete: deleteCommand }),
     keymap(baseKeymap),
     columnResizing({ cellMinWidth: 30 }),
@@ -131,6 +132,6 @@ export function textPlugins(ctl: NotesCtl): Plugin[] {
     painterPlugin(ctl),
     formulaPlugin(),
     spellPlugin(),
-    autoCorrectPlugin(getAutoCorrect),
+    autoCorrectPlugin(getAutoCorrect, (v, p) => langAtPos(v, p - 1) ?? ctl.spellLang),
   ];
 }

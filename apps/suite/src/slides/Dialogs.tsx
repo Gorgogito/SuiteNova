@@ -10,6 +10,7 @@ import { SmartArtDialog } from './SmartArtUi';
 import { ExportMediaDialog } from './FormDialogs8';
 import { ReplaceFontsDialog, SymbolDialog } from './dlg-text2';
 import { PrintDialog } from './dlg-print';
+import { AutoCorrectDialog, getAutoCorrect, setAutoCorrect } from '../spell';
 import { NarrationDialog } from './dlg-narration';
 import { AccessibilityDialog, CompareDeckDialog, DocPropsDialog, ReuseSlidesDialog, ZoomDialog } from './dlg-review';
 import { AlbumDialog, CompressDialog, IconsDialog, RemoveBackgroundDialog } from './dlg-picture2';
@@ -112,6 +113,7 @@ export function Dialogs({ ui, dialog, onClose }: { ui: SlidesUI; dialog: { kind:
   if (kind === 'comment') return <CommentDialog ui={ui} onClose={onClose} />;
   if (kind === 'sections') return <SectionsDialog ui={ui} onClose={onClose} />;
   if (kind === 'spelling') return <SpellingDialog ui={ui} onClose={onClose} />;
+  if (kind === 'autocorrect') return <AutoCorrectDialog product="Nova Slides" initial={getAutoCorrect()} onSave={setAutoCorrect} hide={['autoLinks', 'autoLists', 'borders']} onClose={onClose} />;
   if (kind === 'themes') return <ThemesDialog ui={ui} onClose={onClose} />;
   if (kind === 'position') return <PositionDialog ui={ui} onClose={onClose} />;
   if (kind === 'altText') return <AltTextDialog ui={ui} onClose={onClose} />;

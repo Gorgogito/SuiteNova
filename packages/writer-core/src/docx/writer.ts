@@ -542,9 +542,10 @@ export function paragraphXml(p: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, 
   if (a.noLineNumbers) ppr += '<w:suppressLineNumbers/>';
   if (list) ppr += `<w:numPr><w:ilvl w:val="${list.level}"/><w:numId w:val="${list.numId}"/></w:numPr>`;
   if (a.border) {
-    const b = a.border as { width?: number; color?: string; space?: number };
-    const side = (s: string) => `<w:${s} w:val="single" w:sz="${Math.round((b.width ?? 0.5) * 8)}" w:space="${Math.round(b.space ?? 1)}" w:color="${hex(b.color ?? '#000000')}"/>`;
-    ppr += `<w:pBdr>${side('top')}${side('left')}${side('bottom')}${side('right')}</w:pBdr>`;
+    const b = a.border as { width?: number; color?: string; space?: number; sides?: string; style?: string };
+    const val = ['single', 'double', 'dotted', 'wave', 'triple'].includes(b.style ?? '') ? b.style : 'single';
+    const side = (s: string) => `<w:${s} w:val="${val}" w:sz="${Math.round((b.width ?? 0.5) * 8)}" w:space="${Math.round(b.space ?? 1)}" w:color="${hex(b.color ?? '#000000')}"/>`;
+    ppr += b.sides === 'bottom' ? `<w:pBdr>${side('bottom')}</w:pBdr>` : `<w:pBdr>${side('top')}${side('left')}${side('bottom')}${side('right')}</w:pBdr>`;
   }
   if (a.shade) ppr += `<w:shd w:val="clear" w:color="auto" w:fill="${hex(a.shade)}"/>`;
   if (Array.isArray(a.tabs) && a.tabs.length) {

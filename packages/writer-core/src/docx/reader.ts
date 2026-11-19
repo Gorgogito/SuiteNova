@@ -241,7 +241,9 @@ function parsePPr(n: XNode | undefined): PP {
         const side = findKid(k, 'top') ?? findKid(k, 'bottom') ?? findKid(k, 'left') ?? findKid(k, 'right');
         if (side && attrOf(side, 'val') !== 'nil' && attrOf(side, 'val') !== 'none') {
           const c = attrOf(side, 'color');
-          pp.border = { width: (num(attrOf(side, 'sz')) ?? 4) / 8, color: c && c !== 'auto' && /^[0-9a-f]{6}$/i.test(c) ? '#' + c.toLowerCase() : '#000000', space: num(attrOf(side, 'space')) ?? 1 };
+          const onlyBottom = !!findKid(k, 'bottom') && !findKid(k, 'top') && !findKid(k, 'left') && !findKid(k, 'right');
+          const v = attrOf(side, 'val') ?? 'single';
+          pp.border = { width: (num(attrOf(side, 'sz')) ?? 4) / 8, color: c && c !== 'auto' && /^[0-9a-f]{6}$/i.test(c) ? '#' + c.toLowerCase() : '#000000', space: num(attrOf(side, 'space')) ?? 1, ...(onlyBottom ? { sides: 'bottom', style: ['double', 'dotted', 'wave', 'triple'].includes(v) ? v : 'single' } : {}) };
         }
         break;
       }

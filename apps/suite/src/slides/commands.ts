@@ -41,6 +41,7 @@ export type SlidesDialog =
   | 'setupShow'
   | 'comment'
   | 'spelling'
+  | 'autocorrect'
   | 'sections'
   | 'customShows'
   | 'exportImages'
@@ -385,6 +386,7 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
   add({ id: 'slides.anim.later', label: 'Mover después', icon: 'moveDown', enabled: () => !!c.selEffect, run: () => c.selEffect && moveEffect(c, c.selEffect, 1) });
   add({ id: 'slides.show.custom', label: 'Presentaciones personalizadas…', icon: 'list', run: () => ui.openDialog('customShows') });
   add({ id: 'slides.review.spelling', label: 'Revisar ortografía', icon: 'spell', shortcut: 'F7', run: () => ui.openDialog('spelling') });
+  add({ id: 'slides.review.autocorrect', label: 'Opciones de autocorrección…', icon: 'spell', description: 'Qué se corrige al escribir (comillas, símbolos, mayúsculas, *negrita*…) y los reemplazos propios, los mismos de todos los productos.', run: () => ui.openDialog('autocorrect') });
   add({ id: 'slides.review.thesaurus', label: 'Sinónimos', icon: 'book', shortcut: 'Shift+F7', description: 'Busca sinónimos de la palabra del cursor o de la selección y permite reemplazarla.', checked: () => c.showThesaurus, run: () => { c.showThesaurus = !c.showThesaurus; c.touch(); } });
   for (const l of SPELL_LANGS)
     add({

@@ -1,5 +1,5 @@
-import { autoCorrectPlugin, autoListRules, type AutoCorrectOptions } from './autocorrect';
-import { getAutoCorrect, setAutoCorrect } from '../spell';
+import { autoCorrectPlugin, autoListRules, ruleLineCommand, type AutoCorrectOptions } from './autocorrect';
+import { getAutoCorrect, langAtPos, setAutoCorrect } from '../spell';
 import { applyFormat, type CopiedFormat } from './format-tools';
 import { baseKeymap, chainCommands } from 'prosemirror-commands';
 import { history, redo, undo } from 'prosemirror-history';
@@ -407,8 +407,9 @@ export class WriterCtl {
     return [
       history(),
       autoListRules(() => this.autoCorrect),
-      autoCorrectPlugin(() => this.autoCorrect),
+      autoCorrectPlugin(() => this.autoCorrect, (v, p) => langAtPos(v, p - 1) ?? this.spellLang),
       keymap({ Enter: editSelectedMath }),
+      keymap({ Enter: ruleLineCommand(() => this.autoCorrect) }),
       keymap({
         Enter: enterCommand,
         Tab: tabCommand,

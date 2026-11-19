@@ -4,10 +4,12 @@
  * de ProseMirror solo la aplica cuando se completa una palabra.
  */
 import { InputRule, inputRules, wrappingInputRule } from 'prosemirror-inputrules';
+import { TextSelection } from 'prosemirror-state';
+import type { EditorView } from 'prosemirror-view';
 import { closeHistory } from 'prosemirror-history';
 import { Plugin, type EditorState, type Transaction } from 'prosemirror-state';
 import { markTypes, nodeTypes } from '@suitenova/writer-core';
-import { AUTOCORRECT_KEY, DEFAULT_AUTOCORRECT, FRACTIONS, SYMBOLS, correctWord, loadAutoCorrectFrom, saveAutoCorrectTo, smartQuote, startsSentence, type AutoCorrectOptions, type Correction } from '@suitenova/spell-core';
+import { AUTOCORRECT_KEY, DEFAULT_AUTOCORRECT, FRACTIONS, SYMBOLS, autoLangOf, correctWord, findMarkup, loadAutoCorrectFrom, ruleLineKind, saveAutoCorrectTo, smartQuote, startsSentence, type AutoCorrectOptions, type Correction, type RuleKind } from '@suitenova/spell-core';
 
 export { AUTOCORRECT_KEY, DEFAULT_AUTOCORRECT, FRACTIONS, SYMBOLS, correctWord, smartQuote, startsSentence, type AutoCorrectOptions, type Correction };
 
@@ -43,12 +45,79 @@ function wordBefore(state: EditorState, pos: number): { from: number; word: stri
   return { from: pos - word.length, word, before: text.slice(0, i).replace(/\u0001/g, ' ') };
 }
 
-/** Completa la palabra anterior al carácter escrito, o pone la comilla tipográfica. */
-export function autoCorrectPlugin(getOptions: () => AutoCorrectOptions): Plugin {
+/** Las opciones con la lista y las excepciones del idioma que pide el texto (`null`, `off` o el mismo idioma: las de siempre). */
+function optionsFor(base: AutoCorrectOptions, tag: string | null | undefined): AutoCorrectOptions {
+  if (!tag || tag === 'off') return base;
+  const lang = autoLangOf(tag);
+  if (lang === base.lang) return base;
+  try {
+    const l = loadAutoCorrectFrom(localStorage, lang);
+    return { ...base, lang, exceptions: l.exceptions, custom: l.custom };
+  } catch {
+    return base;
+  }
+}
+
+/** `*negrita*` y `_cursiva_`: al escribir el marcador de cierre, los marcadores desaparecen y el texto de en medio toma el formato. */
+function applyMarkup(view: EditorView, from: number, text: string): boolean {
+  const state = view.state;
+  const $from = state.doc.resolve(from);
+  const before = $from.parent.textBetween(0, $from.parentOffset, undefined, '') + text;
+  const m = findMarkup(before);
+  if (!m) return false;
+  const mark = m.kind === 'bold' ? markTypes.strong : markTypes.em;
+  if (!mark) return false;
+  const base = $from.start();
+  const openPos = base + m.open;
+  const tr = closeHistory(state.tr);
+  tr.addMark(openPos + 1, from, mark.create());
+  tr.delete(openPos, openPos + 1);
+  const end = tr.mapping.map(from);
+  tr.setSelection(TextSelection.create(tr.doc, end));
+  tr.removeStoredMark(mark);
+  view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
+const RULE_LOOK: Record<RuleKind, { style: string; width: number }> = {
+  thin: { style: 'single', width: 0.75 },
+  thick: { style: 'single', width: 2.25 },
+  double: { style: 'double', width: 0.75 },
+  dotted: { style: 'dotted', width: 0.75 },
+  wavy: { style: 'wave', width: 0.75 },
+  triple: { style: 'triple', width: 0.75 },
+};
+
+/** Intro en un párrafo que solo trae `---`, `___`, `===`, `***`, `~~~` o `###`: el texto se quita, el párrafo toma el borde inferior y debajo queda un párrafo nuevo. */
+export function ruleLineCommand(getOptions: () => AutoCorrectOptions): (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean {
+  return (state, dispatch) => {
+    if (!getOptions().borders) return false;
+    const { $from, empty } = state.selection;
+    if (!empty || !$from.parent.isTextblock || $from.parent.type !== nodeTypes.paragraph || $from.parentOffset !== $from.parent.content.size) return false;
+    const kind = ruleLineKind($from.parent.textContent);
+    if (!kind || $from.parent.childCount !== 1 || !$from.parent.firstChild?.isText) return false;
+    if (dispatch) {
+      const look = RULE_LOOK[kind];
+      const start = $from.start();
+      const end = $from.end();
+      const tr = closeHistory(state.tr);
+      tr.delete(start, end);
+      tr.setNodeMarkup($from.before(), undefined, { ...$from.parent.attrs, border: { sides: 'bottom', style: look.style, width: look.width, color: '#000000', space: 1 } });
+      const after = tr.mapping.map($from.after());
+      tr.insert(after, nodeTypes.paragraph!.create({ ...$from.parent.attrs, border: null }));
+      tr.setSelection(TextSelection.create(tr.doc, after + 1));
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  };
+}
+
+/** Completa la palabra anterior al carácter escrito, o pone la comilla tipográfica. `getLang` da el idioma del texto de una posición (la lista y las excepciones son las de ese idioma). */
+export function autoCorrectPlugin(getOptions: () => AutoCorrectOptions, getLang?: (view: EditorView, pos: number) => string | null | undefined): Plugin {
   return new Plugin({
     props: {
       handleTextInput(view, from, to, text) {
-        const o = getOptions();
+        const o = optionsFor(getOptions(), getLang?.(view, from));
         const state = view.state;
         if (state.selection.$from.parent.type.spec.code) return false;
         const $from = state.doc.resolve(from);
@@ -60,6 +129,8 @@ export function autoCorrectPlugin(getOptions: () => AutoCorrectOptions): Plugin 
           view.dispatch(closeHistory(state.tr).insertText(q, from, to));
           return true;
         }
+        // *negrita* y _cursiva_
+        if (o.markup && (text === '*' || text === '_') && from === to && applyMarkup(view, from, text)) return true;
         // símbolos que se sustituyen en cuanto se escribe su última tecla: (c) (r) (tm) (e) ... --> <-- ==> <== <=>
         if (o.symbols && text.length === 1 && from === to) {
           const before = $from.parent.textBetween(0, $from.parentOffset, undefined, '') + text;
@@ -82,7 +153,7 @@ export function autoCorrectPlugin(getOptions: () => AutoCorrectOptions): Plugin 
         // un punto o una coma dentro de «...» / «3.5» no cierran palabra: solo espacios y signos tras letras o símbolos
         if (/[.,;:!?)\]]/.test(text) && /^[.,;:!?)\]\d]+$/.test(w.word)) return false;
         const fix = correctWord(w.word, w.before, o);
-        if (!fix || (fix.text === w.word && !fix.href)) return false;
+        if (!fix || (fix.text === w.word && !fix.href && !fix.sup)) return false;
         const tr: Transaction = closeHistory(state.tr);
         const marks = state.doc.resolve(from).marks();
         const mapped = fix.href ? [...marks.filter((m) => m.type !== markTypes.link), markTypes.link!.create({ href: fix.href })] : marks;
@@ -90,6 +161,8 @@ export function autoCorrectPlugin(getOptions: () => AutoCorrectOptions): Plugin 
         tr.insertText(text, tr.mapping.map(from));
         // lo que se escribe después de un vínculo no hereda el vínculo
         if (fix.href) tr.removeStoredMark(markTypes.link!);
+        // ordinales en inglés: las letras en superíndice
+        if (fix.sup && markTypes.superscript) tr.addMark(w.from + fix.sup[0], w.from + fix.sup[1], markTypes.superscript.create());
         view.dispatch(tr.scrollIntoView());
         return true;
       },

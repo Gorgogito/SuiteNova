@@ -7,6 +7,7 @@ import { EditorState, Plugin, PluginKey, TextSelection, type Command, type Trans
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { spellPlugin } from '../../spell';
 import { slidesMarkInfo } from '../spell';
+import { slidesAutoCorrectPlugin } from './autocorrect';
 import { cssText, effectiveParaProps, numberParas, paraInfo, runStyle, type TextEnv } from '../render/TextView';
 
 /*
@@ -225,6 +226,7 @@ export function editPlugins(ec: () => EditContext, initial: EditContext): Plugin
     history(),
     decorationPlugin(initial),
     spellPlugin(slidesMarkInfo),
+    slidesAutoCorrectPlugin(),
     keymap({
       Enter: makeEnter(ec),
       'Shift-Enter': softBreak,

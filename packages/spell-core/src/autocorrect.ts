@@ -19,6 +19,8 @@ export interface AutoFlags {
   autoLists: boolean;
   /** Ordinales: `1.o` → `1.º` (español) y `1st` → 1ˢᵗ (inglés, solo donde hay formato). */
   ordinals: boolean;
+  /** Líneas de borde: `---` + Intro y similares. */
+  borders: boolean;
   /** `*negrita*` y `_cursiva_` (solo donde hay formato). */
   markup: boolean;
 }
@@ -43,6 +45,7 @@ export const DEFAULT_FLAGS: AutoFlags = {
   autoLists: true,
   ordinals: true,
   markup: true,
+  borders: true,
 };
 
 /** Opciones sin lista de reemplazos (la de fábrica llega con `resolveAutoCorrect`). */

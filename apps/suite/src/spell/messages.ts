@@ -51,6 +51,8 @@ registerMessages('en', {
   'Lo que {p} corrige mientras escribe. Los reemplazos propios valen en todos los productos.': 'What {p} corrects as you type. Custom replacements apply in all products.',
   'Autocorrección': 'AutoCorrect',
   'Nueva palabra': 'New word',
+  '*Negrita* y _cursiva_ con formato': '*Bold* and _italic_ with formatting',
+  'Líneas de borde: --- ___ === *** ~~~ ### y Intro': 'Border lines: --- ___ === *** ~~~ ### and Enter',
   'Autoformato': 'AutoFormat As You Type',
   'Autocorrección matemática': 'Math AutoCorrect',
   'Idioma de la lista': 'List language',
