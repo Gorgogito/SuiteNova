@@ -119,3 +119,12 @@ Plan de 5 fases en `docs/diseno-macros.md`: biblioteca global por producto; alca
 - [x] **Fase 3 HECHA:** modelos de objetos de PowerPoint (Slides, con macros en el `.pptx` y barra de seguridad) y de Outlook (Mail, macros del programa, permiso al enviar); pestaña Programador en los dos; sin grabadora porque Office no la tiene en esos productos; e2e nueva (6).
 - [x] **Fase 4 HECHA:** modelos de objetos de Project (Plan) y de Visio (Diagram) con macros en el `.novaplan` y el `.novadiagram` y barra de seguridad; grabadora por comparación de versiones (Project y Visio sí la tienen); pestaña Programador en ambos; e2e nueva (6).
 - [x] **Fase 5 HECHA:** biblioteca global por producto, Centro de confianza (niveles, lugares y publicadores de confianza), firma de macros con certificado personal, y cierre con Excel real por COM (42 fragmentos de VBA: 25 → 38 idénticos tras corregir comparación de texto, `Static`, `Hex`, `Filter`, `&H`, notación científica, `Round` y `Err.Source`); e2e nueva (5). **Macros terminado (5 fases).**
+
+## Imágenes (producto auxiliar compartido, plan en `docs/diseno-imagenes.md`)
+Decisiones del usuario (2026-11-19): alcance como Office (completo en Writer, Calc, Slides y Mail; reducido en Notes y Diagram; control de imagen en Base y Forms) y núcleo compartido `image-core` con efectos como propiedades reversibles.
+- [ ] Fase 1: núcleo `image-core`.
+- [ ] Fase 2: interfaz compartida y Slides como referencia.
+- [ ] Fase 3: Writer.
+- [ ] Fase 4: Calc y Mail.
+- [ ] Fase 5: Notes, Diagram, Base y Forms.
+- [ ] Fase 6: orígenes de imagen y cierre con Office real por COM.
