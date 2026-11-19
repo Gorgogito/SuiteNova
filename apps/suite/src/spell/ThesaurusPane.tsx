@@ -1,12 +1,12 @@
 import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import type { SpellLang } from '@suitenova/spell-core';
+import { type SpellLang } from '@suitenova/spell-core';
 import { matchCase, type Pos } from '@suitenova/thesaurus-core';
 import { TextSelection } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { useEffect, useRef, useState } from 'react';
 import type { ReviewHost } from './ui';
-import { useSynonyms, wordAtSelection } from './thesaurus';
+import { langAtPos, useSynonyms, wordAtSelection } from './thesaurus';
 import './messages';
 import './spell.css';
 
@@ -15,8 +15,8 @@ export interface ThesaurusHost {
   /** Idioma de revisión (el tesauro se elige por él); `off` si está desactivado. */
   lang: SpellLang | 'off';
   readOnly?: boolean;
-  /** La palabra bajo el cursor o la selección, o `null`. */
-  current(): { word: string } | null;
+  /** La palabra bajo el cursor o la selección y, si el texto tiene idioma propio, ese idioma; o `null`. */
+  current(): { word: string; lang?: SpellLang } | null;
   /** Reemplaza la palabra actual por otra (conserva la mayúscula inicial o sostenida). */
   insert(text: string): void;
   focus(): void;
@@ -42,7 +42,9 @@ export function pmThesaurusHost(host: ReviewHost): ThesaurusHost {
     current: () => {
       const v = pick();
       const w = v ? wordAtSelection(v) : null;
-      return w ? { word: w.word } : null;
+      if (!v || !w) return null;
+      const lang = langAtPos(v, w.from, host.markInfo);
+      return lang ? { word: w.word, lang } : { word: w.word };
     },
     insert: (text) => {
       const v = pick();
@@ -61,18 +63,22 @@ const POS_LABEL: Record<Pos, string> = { noun: 'Sustantivo', verb: 'Verbo', adj:
 /** El panel «Sinónimos» (Mayús+F7): los significados de la palabra por categoría, con «Insertar», «Copiar» y «Buscar» para seguir de palabra en palabra. */
 export function ThesaurusPane({ host, onClose, initialWord }: { host: ThesaurusHost; onClose: () => void; initialWord?: string }) {
   const [word, setWord] = useState(initialWord ?? host.current()?.word ?? '');
+  const [textLang, setTextLang] = useState<SpellLang | undefined>(() => (initialWord ? undefined : host.current()?.lang));
+  const lang = textLang ?? host.lang;
   const [typed, setTyped] = useState(word);
   const [history, setHistory] = useState<string[]>([]);
   const [picked, setPicked] = useState<string | null>(null);
   const seen = useRef(word);
-  const { result, loading, error } = useSynonyms(word, host.lang);
+  const { result, loading, error } = useSynonyms(word, lang);
 
   // si el cursor pasa a otra palabra del documento, el panel la sigue (como en Office); lo que se busca desde el panel se queda
   useEffect(() => {
     const id = setInterval(() => {
-      const w = host.current()?.word ?? '';
-      if (w && w !== seen.current) {
+      const cur = host.current();
+      const w = cur?.word ?? '';
+      if (w && (w !== seen.current || cur?.lang !== textLang)) {
         seen.current = w;
+        setTextLang(cur?.lang);
         setWord(w);
         setTyped(w);
         setHistory([]);
@@ -80,7 +86,7 @@ export function ThesaurusPane({ host, onClose, initialWord }: { host: ThesaurusH
       }
     }, 500);
     return () => clearInterval(id);
-  }, [host]);
+  }, [host, textLang]);
 
   const go = (w: string, push = true) => {
     const x = w.trim();
@@ -98,7 +104,7 @@ export function ThesaurusPane({ host, onClose, initialWord }: { host: ThesaurusH
     go(w, false);
   };
   const lookup = result?.lookup ?? null;
-  const off = host.lang === 'off';
+  const off = lang === 'off';
 
   const words = (list: string[], kind: string) => (
     <ul className="nv-th-words" aria-label={t(kind)}>

@@ -102,7 +102,7 @@ import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
 import { TextSelection } from 'prosemirror-state';
 import { isSpellLang, type SpellLang } from '@suitenova/spell-core';
-import { loadSpeller, onReviewOptions, setSpell, type Issue } from '../spell';
+import { loadSpeller, onReviewOptions, setSpell, type Issue, type WordTarget } from '../spell';
 
 export { SECTION_COLORS, displayTitle, pageText };
 
@@ -155,7 +155,9 @@ export class NotesCtl {
   })();
   /** Panel «Editor» abierto. */
   showEditor = false;
-  onSpellMenu: (m: { issue: Issue; viewId: string; x: number; y: number }) => void = () => {};
+  onSpellMenu: (m: { issue: Issue | null; word: WordTarget | null; viewId: string; x: number; y: number }) => void = () => {};
+  /** Panel «Sinónimos» abierto. */
+  showThesaurus = false;
   private offReview: (() => void) | null = null;
 
   /** Activa (o apaga) el subrayado en los cuadros de texto, una vez cargado el diccionario. */

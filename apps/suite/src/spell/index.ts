@@ -16,3 +16,4 @@ export { reviewPlainText, applyFixToText } from './plain';
 export { ProofMemo } from './ProofMemo';
 export { ThesaurusPane, pmThesaurusHost, type ThesaurusHost } from './ThesaurusPane';
 export { findSynonyms, loadThesaurus, loadedThesaurus, thesaurusLangOf, useSynonyms, wordAtSelection } from './thesaurus';
+export { WordMenu, wordUnderPointer, type WordTarget } from './WordMenu';

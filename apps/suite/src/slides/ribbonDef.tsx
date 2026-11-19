@@ -286,6 +286,7 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     groups: [
       { id: 'proof', label: 'Revisión', icon: 'spell', items: [
         L('slides.review.spelling', 'OR'),
+        L('slides.review.thesaurus', 'SN'),
         {
           kind: 'dropdown',
           id: 'slideLangMenu',

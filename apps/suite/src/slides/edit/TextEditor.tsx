@@ -1,7 +1,7 @@
 import { docNode, emptyDocJson, slidesSchema, updateElement, type ShapeEl, type SlideElement, type TableEl } from '@suitenova/slides-core';
 import { EditorView } from 'prosemirror-view';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { issueAt, onReviewOptions, ReviewMenu, setSpell, type Issue } from '../../spell';
+import { issueAt, onReviewOptions, ReviewMenu, setSpell, WordMenu, wordUnderPointer, type Issue, type WordTarget } from '../../spell';
 import { enableSpell, slidesHost } from '../spell';
 import { useAutofit } from '../render/autofit';
 import { shapeLayout, textBoxStyle, xfOf, type CanvasCtx } from '../render/SlideCanvas';
@@ -14,7 +14,7 @@ export function ShapeTextEditor({ ctl, el, ctx }: { ctl: SlidesCtl; el: ShapeEl;
   const host = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const [menu, setMenu] = useState<{ issue: Issue; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ issue: Issue | null; word: WordTarget | null; x: number; y: number } | null>(null);
   const { x, g, look, tc, body } = shapeLayout(ctx, el);
   const ec: EditContext = { tc, env: ctx.env, ph: look.fillClr };
   const ecRef = useRef(ec);
@@ -43,9 +43,10 @@ export function ShapeTextEditor({ ctl, el, ctx }: { ctl: SlidesCtl; el: ShapeEl;
         contextmenu(v, event) {
           const at = v.posAtCoords({ left: event.clientX, top: event.clientY });
           const issue = at ? issueAt(v, at.pos) : null;
-          if (!issue) return false;
+          const word = issue ? null : wordUnderPointer(v, event);
+          if (!issue && !word) return false;
           event.preventDefault();
-          setMenu({ issue, x: event.clientX, y: event.clientY });
+          setMenu({ issue, word, x: event.clientX, y: event.clientY });
           return true;
         },
       },
@@ -75,7 +76,8 @@ export function ShapeTextEditor({ ctl, el, ctx }: { ctl: SlidesCtl; el: ShapeEl;
   const colStyle: React.CSSProperties = body.numCol && body.numCol > 1 ? { columnCount: body.numCol, columnGap: body.spcCol ?? 0 } : {};
   return (
     <div className="sl-edit-wrap" style={wrap} data-editing={el.id}>
-      {menu && viewRef.current && <ReviewMenu host={slidesHost(viewRef.current)} viewId="edit" issue={menu.issue} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
+      {menu?.issue && viewRef.current && <ReviewMenu host={slidesHost(viewRef.current)} viewId="edit" issue={menu.issue} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
+      {menu && !menu.issue && menu.word && viewRef.current && <WordMenu host={slidesHost(viewRef.current)} view={viewRef.current} target={menu.word} x={menu.x} y={menu.y} onClose={() => setMenu(null)} onThesaurus={() => { ctl.showThesaurus = true; ctl.touch(); }} />}
       <div ref={box} className="sl-text sl-edit" style={{ ...style, pointerEvents: 'auto' }}>
         <div ref={host} style={{ width: body.wrap === 'none' ? undefined : '100%', ...colStyle }} />
       </div>

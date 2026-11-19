@@ -1,6 +1,6 @@
 import { Button } from '@fluentui/react-components';
-import { AutoCorrectDialog, getAutoCorrect, setAutoCorrect, DictionaryDialog, EditorPane, ReviewMenu, ReviewOptionsDialog, type Issue } from '../spell';
-import { notesHost } from './review-host';
+import { AutoCorrectDialog, getAutoCorrect, setAutoCorrect, DictionaryDialog, EditorPane, ReviewMenu, ReviewOptionsDialog, ThesaurusPane, WordMenu, type Issue, type WordTarget } from '../spell';
+import { notesHost, notesThesaurusHost } from './review-host';
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
 import { displayTitle, isLocked, newPage, newTextContainer, pageToMarkdown, parseNotebook, tagCss, type Container } from '@suitenova/notes-core';
 import { DEFAULT_DOC_DEFAULTS, defaultStyles, docFromText, flattenSections, readDocx, styleCss, writerSchema } from '@suitenova/writer-core';
@@ -146,7 +146,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   const [dialog, setDialog] = useState<{ kind: NotesDialog; arg?: unknown } | null>(null);
-  const [spellMenu, setSpellMenu] = useState<{ issue: Issue; viewId: string; x: number; y: number } | null>(null);
+  const [spellMenu, setSpellMenu] = useState<{ issue: Issue | null; word: WordTarget | null; viewId: string; x: number; y: number } | null>(null);
   useEffect(() => {
     ctl.onSpellMenu = (m) => setSpellMenu(m);
     return ctl.watchReview();
@@ -757,6 +757,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
               </>
             )}
           </div>
+          {ctl.showThesaurus && <ThesaurusPane host={notesThesaurusHost(ctl)} onClose={() => ((ctl.showThesaurus = false), ctl.touch())} />}
           {ctl.showEditor && <EditorPane host={notesHost(ctl)} onClose={() => ((ctl.showEditor = false), ctl.touch())} onOptions={() => setDialog({ kind: 'reviewOptions' })} />}
           {!ctl.fullPage && (
           <nav className="nn-pages" aria-label={t('Páginas')}>
@@ -853,8 +854,9 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         {dlg === 'reviewOptions' && <ReviewOptionsDialog lang={ctl.spellLang} onClose={closeDialog} onDictionary={() => setDialog({ kind: 'userDict' })} />}
         {dlg === 'autocorrect' && <AutoCorrectDialog product="Nova Notes" initial={getAutoCorrect()} onSave={setAutoCorrect} onClose={closeDialog} />}
         {dlg === 'userDict' && <DictionaryDialog onClose={closeDialog} />}
-        {spellMenu && <ReviewMenu host={notesHost(ctl)} viewId={spellMenu.viewId} issue={spellMenu.issue} x={spellMenu.x} y={spellMenu.y} onClose={() => setSpellMenu(null)} onOptions={() => setDialog({ kind: 'reviewOptions' })} />}
+        {spellMenu?.issue && <ReviewMenu host={notesHost(ctl)} viewId={spellMenu.viewId} issue={spellMenu.issue} x={spellMenu.x} y={spellMenu.y} onClose={() => setSpellMenu(null)} onOptions={() => setDialog({ kind: 'reviewOptions' })} />}
         {dlg === 'read' && <ReadDialog ctl={ctl} onClose={closeDialog} />}
+        {spellMenu && !spellMenu.issue && spellMenu.word && ctl.views.get(spellMenu.viewId) && <WordMenu host={notesHost(ctl)} view={ctl.views.get(spellMenu.viewId)!} target={spellMenu.word} x={spellMenu.x} y={spellMenu.y} onClose={() => setSpellMenu(null)} onThesaurus={() => ((ctl.showThesaurus = true), ctl.touch())} />}
         {dlg === 'symbol' && <SymbolDialog ctl={ctl} onClose={closeDialog} />}
         {dlg === 'inkText' && <InkToTextDialog ctl={ctl} lang={ocrLang} onClose={closeDialog} />}
         {dlg === 'tableSort' && <NotesTableSortDialog ctl={ctl} onClose={closeDialog} />}

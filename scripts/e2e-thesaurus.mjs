@@ -13,7 +13,7 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && !/Keyborg/.test(m.text()) && errors.push(m.text()));
-page.on('dialog', (d) => (errors.push(`dialog: ${d.message()}`), d.dismiss()));
+page.on('dialog', (d) => (d.type() === 'beforeunload' ? d.accept() : (errors.push(`dialog: ${d.message()}`), d.dismiss())));
 let step = 0;
 const shot = async (name) => {
   if (!shotsDir) return;
@@ -45,6 +45,26 @@ const newDoc = async (text) => {
 };
 const pane = () => page.getByRole('complementary', { name: 'Sinónimos' });
 const docText = () => page.locator('.ProseMirror').innerText();
+/** Right click exactly on a word inside an element (by its text), not on the middle of the paragraph. */
+const rightClickWord = async (sel, word) => {
+  const p = await page.evaluate(([sel, word]) => {
+    for (const root of document.querySelectorAll(sel)) {
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const i = n.textContent.indexOf(word);
+        if (i < 0) continue;
+        const r = document.createRange();
+        r.setStart(n, i);
+        r.setEnd(n, i + word.length);
+        const b = r.getBoundingClientRect();
+        if (b.width) return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+      }
+    }
+    return null;
+  }, [sel, word]);
+  assert.ok(p, `no se encontró «${word}»`);
+  await page.mouse.click(p.x, p.y, { button: 'right' });
+};
 const look = async (word) => {
   await pane().getByLabel('Palabra a buscar').fill(word);
   await pane().getByRole('button', { name: 'Buscar sinónimos' }).first().click();
@@ -141,6 +161,84 @@ await check('right click on a flagged single word offers its synonyms in the men
   assert.ok((await open.count()) > 0, 'el menú no ofrece sinónimos para «Habían»');
   await open.click();
   await pane().waitFor();
+});
+
+
+await check('Writer: right click on any word gives Cut/Copy/Paste and its synonyms; picking one replaces the word', async () => {
+  await newDoc('Una casa grande');
+  await settle(1200);
+  await rightClickWord('.ProseMirror', 'casa');
+  const menu = page.locator('.nv-sp-menu');
+  await menu.waitFor();
+  for (const n of ['Cortar', 'Copiar', 'Pegar']) assert.equal(await menu.getByRole('menuitem', { name: n, exact: true }).count(), 1, n);
+  assert.equal(await menu.getByRole('menuitem', { name: 'Cortar', exact: true }).getAttribute('aria-disabled'), 'true');
+  await shot('word-menu');
+  await menu.locator('.nv-sp-syn', { hasText: /^apartamento$/ }).click();
+  await settle(200);
+  assert.equal((await docText()).trim(), 'Una apartamento grande');
+});
+
+await check('Writer: a word with its own language is looked up in that language', async () => {
+  await newDoc('Un happy día');
+  await page.keyboard.press('Home');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Shift+ArrowRight');
+  await page.getByRole('tab', { name: 'Revisar', exact: true }).click();
+  await page.getByRole('button', { name: /^Idioma del texto/ }).first().click();
+  await page.getByRole('menuitem', { name: 'Idioma de la selección: English' }).click();
+  await ev(() => window.__novaWriter.ctl.mainView.focus());
+  await page.waitForFunction(() => /Antónimos/.test(document.querySelector('.nv-th')?.textContent ?? '') || !!document.querySelector('.nv-th-head'), null, { timeout: 5000 }).catch(() => {});
+  if ((await pane().count()) === 0) await page.keyboard.press('Shift+F7');
+  await pane().waitFor();
+  await page.waitForFunction(() => document.querySelector('.nv-th-head')?.textContent?.trim() === 'happy', null, { timeout: 15000 });
+  assert.match(await pane().innerText(), /glad/);
+});
+
+await check('Notes: Shift+F7 and the word menu work on a text box', async () => {
+  await page.goto('http://localhost:1420/?app=notes', { waitUntil: 'networkidle' });
+  await page.waitForSelector('.nn-canvas');
+  await page.waitForFunction(() => !!window.__novaNotes);
+  await ev(() => { const c = window.__novaNotes.ctl; c.addPage(); c.setTool('select'); });
+  const b = await page.locator('.nn-canvas').boundingBox();
+  await page.mouse.click(b.x + 80, b.y + 60);
+  await page.keyboard.type('Una casa grande');
+  await settle(1200);
+  await page.keyboard.press('Shift+F7');
+  const np = page.getByRole('complementary', { name: 'Sinónimos' });
+  await np.waitFor();
+  await page.waitForFunction(() => document.querySelector('.nv-th-head')?.textContent?.trim() === 'grande', null, { timeout: 20000 });
+  await np.locator('.nv-th-word', { hasText: /^enorme$/ }).first().click().catch(() => {});
+  await rightClickWord('.nn-doc', 'casa');
+  const menu = page.locator('.nv-sp-menu');
+  await menu.waitFor();
+  await menu.locator('.nv-sp-syn', { hasText: /^apartamento$/ }).click();
+  await settle(300);
+  assert.match(await ev(() => window.__novaNotes.ctl.textOfPage()), /Una apartamento grande/);
+  await shot('notes');
+});
+
+await check('Slides: the pane follows the word being edited and Insert replaces it', async () => {
+  await page.goto('http://localhost:1420/?app=slides', { waitUntil: 'networkidle' });
+  await page.waitForSelector('.sl-surface');
+  await ev(() => { const c = window.__novaSlides.ctl; c.newDoc(); c.goTo(0); });
+  const box = await page.locator('.sl-surface').boundingBox();
+  const z = (await ev(() => window.__novaSlides.ctl.zoom || window.__novaSlides.ctl.fitPercent)) / 100;
+  await page.mouse.click(box.x + 480 * z, box.y + 200 * z);
+  await settle();
+  if (!(await ev(() => window.__novaSlides.ctl.editing))) await page.keyboard.press('Enter');
+  await settle();
+  await page.keyboard.type('Una casa grande');
+  for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowLeft');
+  await settle(900);
+  await page.keyboard.press('Shift+F7');
+  const sp = page.getByRole('complementary', { name: 'Sinónimos' });
+  await sp.waitFor();
+  await page.waitForFunction(() => document.querySelector('.nv-th-head')?.textContent?.trim() === 'casa', null, { timeout: 20000 });
+  await sp.locator('.nv-th-word', { hasText: /^vivienda$/ }).first().click();
+  await sp.getByRole('button', { name: 'Insertar' }).click();
+  await settle(300);
+  assert.match(await page.locator('.sl-pm').innerText(), /Una vivienda grande/);
+  await shot('slides');
 });
 
 await check('no console errors', async () => {

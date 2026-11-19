@@ -513,6 +513,7 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
         items: [
           L('notes.spell', 'large', 'SP'),
           { kind: 'button', command: 'notes.spell.editor', size: 'large', keytip: 'ED' },
+          { kind: 'button', command: 'notes.spell.thesaurus', size: 'large', keytip: 'SN' },
           {
             kind: 'dropdown',
             id: 'spellOptionsMenu',

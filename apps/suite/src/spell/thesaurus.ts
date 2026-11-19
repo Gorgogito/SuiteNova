@@ -1,7 +1,9 @@
 import { thesaurusLangFor, Thesaurus, THESAURUS_LANGS, type Lookup, type ThesaurusLang } from '@suitenova/thesaurus-core';
-import type { SpellLang } from '@suitenova/spell-core';
+import { langForTag, type SpellLang } from '@suitenova/spell-core';
 import { useEffect, useState } from 'react';
+import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView } from 'prosemirror-view';
+import { writerMarkInfo, type MarkInfo } from './engine';
 import { loadedEngine } from './load';
 
 // Los tesauros son archivos aparte (6 MB el inglés): se piden al usarlos, no entran en el paquete de la aplicación
@@ -92,7 +94,12 @@ export function wordAtSelection(view: EditorView): { word: string; from: number;
     const lead = raw.indexOf(word);
     return { word, from: selection.from + lead, to: selection.from + lead + word.length };
   }
-  const $pos = selection.$from;
+  return wordAround(doc, selection.from);
+}
+
+/** La palabra que contiene una posición del documento (o que termina justo ahí), con el tramo que ocupa. */
+export function wordAround(doc: PMNode, pos: number): { word: string; from: number; to: number } | null {
+  const $pos = doc.resolve(pos);
   if (!$pos.parent.isTextblock) return null;
   const text = $pos.parent.textBetween(0, $pos.parent.content.size, undefined, '￼');
   const off = $pos.parentOffset;
@@ -109,3 +116,9 @@ export function wordAtSelection(view: EditorView): { word: string; from: number;
 }
 
 export { THESAURUS_LANGS };
+
+/** El idioma propio del texto que hay en una posición (por su marca de idioma), o `null` si usa el del documento. */
+export function langAtPos(view: EditorView, pos: number, markInfo: MarkInfo = writerMarkInfo): SpellLang | null {
+  const node = view.state.doc.nodeAt(pos);
+  return node?.isText ? langForTag(markInfo(node).lang) : null;
+}

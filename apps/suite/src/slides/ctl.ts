@@ -164,6 +164,8 @@ export class SlidesCtl {
   snap = true;
   showRuler = false;
   showNotes = true;
+  /** Panel «Sinónimos» abierto. */
+  showThesaurus = false;
   pane: 'none' | 'format' | 'animations' | 'comments' | 'selection' = 'none';
   message = '';
   /** the animation selected in the animation pane */

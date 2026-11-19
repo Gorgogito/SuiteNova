@@ -101,4 +101,5 @@ En Office es un componente compartido (motor y diccionarios, diccionario persona
 ## Diccionario de sinónimos (`thesaurus-core`, plan en `docs/diseno-sinonimos.md`)
 - [x] **Fase 1 HECHA:** motor y datos (es: OpenThesaurus, en: WordNet; 10 pruebas).
 - [x] **Fase 2 HECHA:** interfaz compartida (panel «Sinónimos», sinónimos en el menú del corrector, Mayús+F7) y Writer como producto de referencia; e2e `e2e-thesaurus` (10).
-- [ ] Fase 3: Writer, Notes y Slides. Fase 4: Mail, Plan, Forms y Base. Fase 5: cierre con Word real.
+- [x] **Fase 3 HECHA:** Writer, Notes y Slides (panel, Mayús+F7, cinta, menú del botón derecho sobre cualquier palabra con Cortar, Copiar, Pegar y sinónimos, idioma por texto); e2e `e2e-thesaurus` 14.
+- [ ] Fase 4: Mail, Plan, Forms y Base. Fase 5: cierre con Word real.

@@ -11,6 +11,8 @@ import { slidesCommands, type SlidesDialog, type SlidesUI } from './commands';
 import { SlidesCtl } from './ctl';
 import { Dialogs } from './Dialogs';
 import { FormatPane } from './FormatPane';
+import { ThesaurusPane } from '../spell';
+import { slidesThesaurusHost } from './spell';
 import { AnimPane } from './animUi';
 import { CommentsPane } from './comments';
 import { SelectionPane } from './SelectionPane';
@@ -468,6 +470,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
             </>
           )}
         </div>
+        {ctl.showThesaurus && <ThesaurusPane host={slidesThesaurusHost(ctl)} onClose={() => { ctl.showThesaurus = false; ctl.touch(); }} />}
         {ctl.pane === 'format' && <FormatPane ui={ui} />}
         {ctl.pane === 'animations' && <AnimPane ui={ui} />}
         {ctl.pane === 'comments' && <CommentsPane ui={ui} />}

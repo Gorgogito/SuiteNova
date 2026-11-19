@@ -1,7 +1,8 @@
 import { isSpellLang, type SpellLang } from '@suitenova/spell-core';
 import type { RunProps } from '@suitenova/slides-core';
 import type { EditorState } from 'prosemirror-state';
-import { loadSpeller, setSpell, type MarkInfo, type ReviewHost } from '../spell';
+import { loadSpeller, pmThesaurusHost, setSpell, type MarkInfo, type ReviewHost, type ThesaurusHost } from '../spell';
+import type { SlidesCtl } from './ctl';
 import type { EditorView } from 'prosemirror-view';
 
 /** En una diapositiva el idioma y el «no revisar» van en las propiedades del tramo (`a:rPr lang`, `noProof`); los vínculos no se revisan. */
@@ -74,4 +75,23 @@ export function runNoProofOf(state: EditorState): boolean {
     return true;
   });
   return any && all;
+}
+
+const thHosts = new WeakMap<SlidesCtl, ThesaurusHost>();
+
+/** El panel «Sinónimos» sobre el texto que se está editando en la diapositiva (si no se edita ninguno, el panel espera). */
+export function slidesThesaurusHost(ctl: SlidesCtl): ThesaurusHost {
+  let h = thHosts.get(ctl);
+  if (!h) {
+    h = pmThesaurusHost({
+      get lang() {
+        return slidesLang();
+      },
+      views: () => (ctl.editor && !ctl.editor.isDestroyed ? [{ id: 'edit', view: ctl.editor }] : []),
+      focus: () => ctl.editor?.focus(),
+      markInfo: slidesMarkInfo,
+    });
+    thHosts.set(ctl, h);
+  }
+  return h;
 }

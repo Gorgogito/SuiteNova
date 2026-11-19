@@ -63,7 +63,7 @@ import { tabsPlugin } from './tabs';
 import { formsPlugin } from './forms';
 import { WriterRuntime } from './macros';
 import { isSpellLang } from '@suitenova/spell-core';
-import { issueAt, loadSpeller, onReviewOptions, setSpell, spellPlugin, type Issue, type SpellLang } from '../spell';
+import { issueAt, loadSpeller, onReviewOptions, setSpell, spellPlugin, wordUnderPointer, type Issue, type SpellLang, type WordTarget } from '../spell';
 import { getLocale } from '@suitenova/core-ui';
 import { hookMathCopy, mathClipboardProps } from '../math/clipboard';
 import { ControlView, FieldView, GroupView, MathView, ShapeView, editSelectedMath, type NodeViewHost } from './nodeviews';
@@ -291,7 +291,7 @@ export class WriterCtl {
     return getLocale() === 'en' ? 'en' : 'es';
   })();
   spellLoading = false;
-  onSpellMenu: (m: { issue: Issue; x: number; y: number }) => void = () => {};
+  onSpellMenu: (m: { issue: Issue | null; word: WordTarget | null; x: number; y: number }) => void = () => {};
   /** Panel «Editor» (ortografía y gramática) abierto. */
   showEditor = false;
   /** Panel «Sinónimos» abierto. */
@@ -496,9 +496,10 @@ export class WriterCtl {
         contextmenu: (v, event) => {
           const at = v.posAtCoords({ left: event.clientX, top: event.clientY });
           const m = at ? issueAt(v, at.pos) : null;
-          if (!m) return false;
+          const w = m ? null : wordUnderPointer(v, event);
+          if (!m && !w) return false;
           event.preventDefault();
-          this.onSpellMenu({ issue: m, x: event.clientX, y: event.clientY });
+          this.onSpellMenu({ issue: m, word: w, x: event.clientX, y: event.clientY });
           return true;
         },
         dblclick: (_v, event) => {

@@ -1,5 +1,5 @@
 import { Button, Input } from '@fluentui/react-components';
-import { issueAt } from '../spell';
+import { issueAt, wordUnderPointer } from '../spell';
 import { t } from '@suitenova/core-ui';
 import { contentNode, pageExtent, recognizeShape, replayAt, simplify, snap, snapToRuler, strokeBounds, strokePath, strokesInRect, type Container, type FileContainer, type ImageContainer, type MediaContainer, type Page, type Ruler, type Stroke, type TextContainer } from '@suitenova/notes-core';
 import { EditorState } from 'prosemirror-state';
@@ -34,9 +34,10 @@ function TextBox({ ctl, c, openDialog }: { ctl: NotesCtl; c: TextContainer; open
         contextmenu(v, event) {
           const at = v.posAtCoords({ left: event.clientX, top: event.clientY });
           const issue = at ? issueAt(v, at.pos) : null;
-          if (!issue) return false;
+          const word = issue ? null : wordUnderPointer(v, event);
+          if (!issue && !word) return false;
           event.preventDefault();
-          ctl.onSpellMenu({ issue, viewId: c.id, x: event.clientX, y: event.clientY });
+          ctl.onSpellMenu({ issue, word, viewId: c.id, x: event.clientX, y: event.clientY });
           return true;
         },
         focus() {

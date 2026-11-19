@@ -1,4 +1,4 @@
-import type { ReviewHost } from '../spell';
+import { pmThesaurusHost, type ReviewHost, type ThesaurusHost } from '../spell';
 import type { NotesCtl } from './ctl';
 
 const hosts = new WeakMap<NotesCtl, ReviewHost>();
@@ -23,6 +23,18 @@ export function notesHost(ctl: NotesCtl): ReviewHost {
       focus: () => setTimeout(() => ctl.focusEditor(), 80),
     };
     hosts.set(ctl, h);
+  }
+  return h;
+}
+
+const thHosts = new WeakMap<NotesCtl, ThesaurusHost>();
+
+/** El panel «Sinónimos» sobre los cuadros de texto de Notes. */
+export function notesThesaurusHost(ctl: NotesCtl): ThesaurusHost {
+  let h = thHosts.get(ctl);
+  if (!h) {
+    h = pmThesaurusHost(notesHost(ctl));
+    thHosts.set(ctl, h);
   }
   return h;
 }

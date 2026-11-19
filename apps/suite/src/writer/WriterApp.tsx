@@ -11,7 +11,7 @@ import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { writerCommands, type WriterDialog, type WriterUI } from './commands';
 import { DialogHost } from './dialogs';
 import { ControlPopup } from './ControlPopup';
-import { EditorPane, ReviewMenu, ThesaurusPane } from '../spell';
+import { EditorPane, ReviewMenu, ThesaurusPane, WordMenu } from '../spell';
 import { writerHost, writerThesaurusHost } from './review-host';
 import { OpenPasswordDialog } from './dlg-security';
 import { PAGE_GAP, WriterCtl, findKey } from './doc';
@@ -219,7 +219,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
   zoomRef.current = zoom;
   const [dialog, setDialog] = useState<WriterDialog | null>(null);
   const [dialogArg, setDialogArg] = useState<unknown>(undefined);
-  const [spellTarget, setSpellTarget] = useState<{ issue: import('../spell').Issue; x: number; y: number } | null>(null);
+  const [spellTarget, setSpellTarget] = useState<{ issue: import('../spell').Issue | null; word: import('../spell').WordTarget | null; x: number; y: number } | null>(null);
   const [pwPrompt, setPwPrompt] = useState<{ name: string; path: string | null; data: Uint8Array } | null>(null);
   const [controlPos, setControlPos] = useState<number | null>(null);
   const [find, setFind] = useState<{ replace: boolean } | null>(null);
@@ -558,6 +558,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
         {ctl.showThesaurus && <ThesaurusPane host={writerThesaurusHost(ctl)} onClose={() => { ctl.showThesaurus = false; ctl.touch(); }} />}
         {ctl.showEditor && <EditorPane host={writerHost(ctl)} onClose={() => { ctl.showEditor = false; ctl.touch(); }} onOptions={() => { setDialogArg(undefined); setDialog('reviewOptions'); }} />}
         </div>
+        {spellTarget && !spellTarget.issue && spellTarget.word && ctl.mainView && <WordMenu host={writerHost(ctl)} view={ctl.mainView} target={spellTarget.word} x={spellTarget.x} y={spellTarget.y} onClose={() => setSpellTarget(null)} onThesaurus={() => { ctl.showThesaurus = true; ctl.touch(); }} />}
         {ctl.noteEdit && <NotePopup ctl={ctl} />}
         {!ctl.contentEnabled && ctl.macros.length > 0 && (
           <div className="nw-secbar" role="alert">
@@ -584,7 +585,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
             }}
           />
         )}
-        {spellTarget && <ReviewMenu host={writerHost(ctl)} viewId="main" issue={spellTarget.issue} x={spellTarget.x} y={spellTarget.y} onClose={() => setSpellTarget(null)} onThesaurus={() => { ctl.showThesaurus = true; ctl.touch(); }} onOptions={() => { setDialogArg(undefined); setDialog('reviewOptions'); }} />}
+        {spellTarget?.issue && <ReviewMenu host={writerHost(ctl)} viewId="main" issue={spellTarget.issue} x={spellTarget.x} y={spellTarget.y} onClose={() => setSpellTarget(null)} onThesaurus={() => { ctl.showThesaurus = true; ctl.touch(); }} onOptions={() => { setDialogArg(undefined); setDialog('reviewOptions'); }} />}
         {controlPos !== null && <ControlPopup ctl={ctl} pos={controlPos} onClose={() => setControlPos(null)} />}
         <input
           ref={fileRef}
