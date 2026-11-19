@@ -104,3 +104,7 @@ En Office es un componente compartido (motor y diccionarios, diccionario persona
 - [x] **Fase 3 HECHA:** Writer, Notes y Slides (panel, Mayús+F7, cinta, menú del botón derecho sobre cualquier palabra con Cortar, Copiar, Pegar y sinónimos, idioma por texto); e2e `e2e-thesaurus` 14.
 - [x] **Fase 4 HECHA:** Mail, Plan, Forms y Base (campos con `ProofTextarea`: menú del botón derecho sobre cualquier palabra, Mayús+F7 con el panel en un cuadro); e2e `e2e-thesaurus` 18.
 - [x] **Fase 5 HECHA:** cierre con Word real por COM (`SynonymInfo`, 55 palabras: ambos la encuentran en 53, ninguno en 3; coincidencia media del 38 % en español y 33 % en inglés, fuentes distintas). **Diccionario de sinónimos terminado (5 fases).**
+
+## Autocorrección (en `spell-core`, plan en `docs/diseno-autocorreccion.md`)
+- [x] **Fase 1 HECHA:** motor (lista y excepciones por idioma, reemplazos de fábrica, mayúscula de lo escrito, ordinales, `*negrita*`, líneas de borde, migración); `spell-core` 66 pruebas.
+- [ ] Fase 2: cuadro único (con Excepciones, Autoformato y Matemática; importar y exportar). Fase 3: Writer, Notes y Slides. Fase 4: Calc, Mail, Plan, Forms y Base. Fase 5: cierre con Word real.

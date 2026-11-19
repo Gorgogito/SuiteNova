@@ -116,8 +116,8 @@ await check('el cuadro de opciones apaga correcciones y guarda reemplazos propio
   assert.ok(s.includes('"hola"'), s); // comillas rectas: apagado
   assert.ok(s.includes('porque si'), s);
   const saved = await ev(() => JSON.parse(localStorage.getItem('nova.writer.autocorrect')));
-  assert.equal(saved.smartQuotes, false);
-  assert.equal(saved.custom.pq, 'porque');
+  assert.equal(saved.flags.smartQuotes, false);
+  assert.equal(saved.lists.es.pq, 'porque');
 });
 
 await check('sin errores de consola', async () => {

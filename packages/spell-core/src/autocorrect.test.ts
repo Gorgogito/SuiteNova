@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_AUTOCORRECT, autoCorrectTyped, loadAutoCorrectFrom, saveAutoCorrectTo, AUTOCORRECT_KEY } from './autocorrect';
+import { DEFAULT_AUTOCORRECT, autoCorrectTyped, defaultReplacements, loadAutoCorrectFrom, saveAutoCorrectTo, AUTOCORRECT_KEY } from './autocorrect';
 
 const o = DEFAULT_AUTOCORRECT;
 /** Escribe `ch` al final de `text` y devuelve lo que queda. */
@@ -50,7 +50,7 @@ describe('autocorrección de campos de texto sin formato', () => {
     saveAutoCorrectTo(s, { ...o, smartQuotes: false, custom: { a: 'b' } });
     expect(loadAutoCorrectFrom(s)).toMatchObject({ smartQuotes: false, custom: { a: 'b' } });
     m.set(AUTOCORRECT_KEY, '{roto');
-    expect(loadAutoCorrectFrom(s)).toEqual({ ...o, custom: {} });
-    expect(loadAutoCorrectFrom(null)).toEqual({ ...o, custom: {} });
+    expect(loadAutoCorrectFrom(s)).toEqual({ ...o, custom: defaultReplacements('es') });
+    expect(loadAutoCorrectFrom(null)).toEqual({ ...o, custom: defaultReplacements('es') });
   });
 });

@@ -3,7 +3,12 @@
  * iniciales y reemplazos propios. Es la lógica común de todos los productos (Writer, Notes, Mail, Calc…); cada uno la aplica a su manera.
  */
 
-export interface AutoCorrectOptions {
+import { defaultExceptions, defaultReplacements, type AutoExceptions, type AutoLang } from './autocorrect-data';
+
+export { AUTO_LANGS, autoLangOf, defaultExceptions, defaultReplacements, isAutoLang, type AutoExceptions, type AutoLang } from './autocorrect-data';
+
+/** Lo que se activa o no: es común a todos los idiomas. */
+export interface AutoFlags {
   smartQuotes: boolean;
   symbols: boolean;
   fractions: boolean;
@@ -12,11 +17,22 @@ export interface AutoCorrectOptions {
   fixTwoInitialCaps: boolean;
   autoLinks: boolean;
   autoLists: boolean;
-  /** Reemplazos propios: lo que se escribe → lo que queda. */
+  /** Ordinales: `1.o` → `1.º` (español) y `1st` → 1ˢᵗ (inglés, solo donde hay formato). */
+  ordinals: boolean;
+  /** `*negrita*` y `_cursiva_` (solo donde hay formato). */
+  markup: boolean;
+}
+
+/** Las opciones de autocorrección ya resueltas para un idioma: lo que usa `correctWord`. */
+export interface AutoCorrectOptions extends AutoFlags {
+  /** El idioma de la lista y de las excepciones. */
+  lang: AutoLang;
+  exceptions: AutoExceptions;
+  /** Reemplazos: lo que se escribe → lo que queda (los de fábrica del idioma más los propios). */
   custom: Record<string, string>;
 }
 
-export const DEFAULT_AUTOCORRECT: AutoCorrectOptions = {
+export const DEFAULT_FLAGS: AutoFlags = {
   smartQuotes: true,
   symbols: true,
   fractions: true,
@@ -25,28 +41,82 @@ export const DEFAULT_AUTOCORRECT: AutoCorrectOptions = {
   fixTwoInitialCaps: true,
   autoLinks: true,
   autoLists: true,
-  custom: {},
+  ordinals: true,
+  markup: true,
 };
+
+/** Opciones sin lista de reemplazos (la de fábrica llega con `resolveAutoCorrect`). */
+export const DEFAULT_AUTOCORRECT: AutoCorrectOptions = { ...DEFAULT_FLAGS, lang: 'es', exceptions: defaultExceptions('es'), custom: {} };
 
 /** La clave de siempre: la lista de reemplazos es una sola para todos los productos (como el archivo .acl de Office). */
 export const AUTOCORRECT_KEY = 'nova.writer.autocorrect';
 
-export function loadAutoCorrectFrom(store: { getItem(k: string): string | null } | null): AutoCorrectOptions {
-  try {
-    const raw = store?.getItem(AUTOCORRECT_KEY);
-    if (raw) {
-      const v = JSON.parse(raw) as Partial<AutoCorrectOptions>;
-      return { ...DEFAULT_AUTOCORRECT, ...v, custom: { ...(v.custom ?? {}) } };
-    }
-  } catch {
-    /* sin almacenamiento o datos dañados: valores por omisión */
-  }
-  return { ...DEFAULT_AUTOCORRECT, custom: {} };
+/** Lo que se guarda: las casillas, y por idioma la lista de reemplazos y las excepciones (las que faltan valen las de fábrica). */
+export interface AutoCorrectStore {
+  version: 2;
+  flags: AutoFlags;
+  lists: Partial<Record<AutoLang, Record<string, string>>>;
+  exceptions: Partial<Record<AutoLang, AutoExceptions>>;
 }
 
-export function saveAutoCorrectTo(store: { setItem(k: string, v: string): void } | null, o: AutoCorrectOptions): void {
+export const emptyAutoCorrectStore = (): AutoCorrectStore => ({ version: 2, flags: { ...DEFAULT_FLAGS }, lists: {}, exceptions: {} });
+
+const strings = (x: unknown): string[] => (Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string') : []);
+const pairs = (x: unknown): Record<string, string> => {
+  const out: Record<string, string> = {};
+  if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) if (typeof v === 'string' && k) out[k] = v;
+  return out;
+};
+
+/** Lee lo guardado; entiende también el formato anterior (una sola lista, que pasa a ser la del español). */
+export function parseAutoCorrectStore(raw: string | null | undefined): AutoCorrectStore {
+  const out = emptyAutoCorrectStore();
+  if (!raw) return out;
   try {
-    store?.setItem(AUTOCORRECT_KEY, JSON.stringify(o));
+    const v = JSON.parse(raw) as Record<string, unknown>;
+    if (!v || typeof v !== 'object') return out;
+    const flagSrc = (v.version === 2 ? (v.flags as Record<string, unknown>) : v) ?? {};
+    for (const k of Object.keys(DEFAULT_FLAGS) as (keyof AutoFlags)[]) if (typeof flagSrc[k] === 'boolean') out.flags[k] = flagSrc[k] as boolean;
+    if (v.version === 2) {
+      for (const l of ['es', 'en'] as const) {
+        const list = (v.lists as Record<string, unknown> | undefined)?.[l];
+        if (list && typeof list === 'object') out.lists[l] = pairs(list);
+        const ex = (v.exceptions as Record<string, Record<string, unknown>> | undefined)?.[l];
+        if (ex && typeof ex === 'object') out.exceptions[l] = { firstLetter: strings(ex.firstLetter), twoInitialCaps: strings(ex.twoInitialCaps), other: strings(ex.other) };
+      }
+    } else {
+      out.lists.es = { ...defaultReplacements('es'), ...pairs(v.custom) };
+    }
+  } catch {
+    /* datos dañados: valores de fábrica */
+  }
+  return out;
+}
+
+/** Las opciones de un idioma a partir de lo guardado. */
+export function resolveAutoCorrect(s: AutoCorrectStore, lang: AutoLang): AutoCorrectOptions {
+  const ex = s.exceptions[lang] ?? defaultExceptions(lang);
+  return { ...s.flags, lang, exceptions: { firstLetter: [...ex.firstLetter], twoInitialCaps: [...ex.twoInitialCaps], other: [...ex.other] }, custom: { ...(s.lists[lang] ?? defaultReplacements(lang)) } };
+}
+
+export function loadAutoCorrectFrom(store: { getItem(k: string): string | null } | null, lang: AutoLang = 'es'): AutoCorrectOptions {
+  let raw: string | null = null;
+  try {
+    raw = store?.getItem(AUTOCORRECT_KEY) ?? null;
+  } catch {
+    /* sin almacenamiento */
+  }
+  return resolveAutoCorrect(parseAutoCorrectStore(raw), lang);
+}
+
+/** Guarda las opciones de un idioma sin tocar lo de los demás: las casillas valen para todos, la lista y las excepciones solo para `o.lang`. */
+export function saveAutoCorrectTo(store: { getItem?(k: string): string | null; setItem(k: string, v: string): void } | null, o: AutoCorrectOptions): void {
+  try {
+    const s = parseAutoCorrectStore(store?.getItem?.(AUTOCORRECT_KEY));
+    for (const k of Object.keys(DEFAULT_FLAGS) as (keyof AutoFlags)[]) s.flags[k] = o[k];
+    s.lists[o.lang] = { ...o.custom };
+    s.exceptions[o.lang] = { firstLetter: [...o.exceptions.firstLetter], twoInitialCaps: [...o.exceptions.twoInitialCaps], other: [...o.exceptions.other] };
+    store?.setItem(AUTOCORRECT_KEY, JSON.stringify(s));
   } catch {
     /* sin almacenamiento */
   }
@@ -71,8 +141,8 @@ export const SYMBOLS: Record<string, string> = {
 const IMMEDIATE = ['(c)', '(r)', '(tm)', '(e)', '...', '-->', '<--', '==>', '<==', '<=>'];
 export const FRACTIONS: Record<string, string> = { '1/2': '½', '1/4': '¼', '3/4': '¾' };
 
-/** Abreviaturas tras las que una palabra en minúscula no empieza oración. */
-const ABBREVIATIONS = new Set(['etc', 'sr', 'sra', 'srta', 'dr', 'dra', 'pág', 'págs', 'ud', 'uds', 'aprox', 'núm', 'tel', 'av', 'pp', 'vol', 'cap', 'fig', 'ej', 'p.ej', 'ee', 'uu', 'vs', 'cf', 'ibid', 'mr', 'mrs', 'ms', 'no', 'e.g', 'i.e']);
+/** Abreviaturas de las dos lenguas, para quien no dice cuáles (`startsSentence` sin excepciones). */
+const ABBREVIATIONS = new Set([...defaultExceptions('es').firstLetter, ...defaultExceptions('en').firstLetter]);
 
 const lower = (s: string) => s.toLocaleLowerCase();
 const upper = (s: string) => s.toLocaleUpperCase();
@@ -92,10 +162,13 @@ export interface Correction {
   text: string;
   /** Vínculo que lleva el texto, si es una dirección. */
   href?: string;
+  /** Tramo del texto (desplazamientos dentro de `text`) que debe ir en superíndice (los ordinales en inglés); solo donde hay formato. */
+  sup?: [number, number];
 }
 
-/** ¿Empieza oración una palabra que va tras `before`? */
-export function startsSentence(before: string): boolean {
+/** ¿Empieza oración una palabra que va tras `before`? `abbreviations` son las abreviaturas (sin el punto) tras las que no empieza; por omisión, las de fábrica. */
+export function startsSentence(before: string, abbreviations?: Iterable<string>): boolean {
+  const abbr = abbreviations ? new Set([...abbreviations].map((x) => x.toLowerCase())) : ABBREVIATIONS;
   const t = before.replace(/[\s ]+$/, '');
   if (t === '' && before === '') return true;
   if (t === '') return true;
@@ -103,7 +176,7 @@ export function startsSentence(before: string): boolean {
   if (!/[.!?¡¿:]/.test(last) || last === ':') return false;
   if (last === '.') {
     const word = /([\p{L}.]+)\.$/u.exec(t)?.[1]?.toLowerCase();
-    if (word && ABBREVIATIONS.has(word)) return false;
+    if (word && abbr.has(word)) return false;
     if (word && word.length === 1) return false; // «J. R. R.» y similares
   }
   // exige un espacio tras el signo: «3.5» no es final de oración
@@ -116,12 +189,18 @@ export function startsSentence(before: string): boolean {
  */
 export function correctWord(word: string, before: string, o: AutoCorrectOptions): Correction | null {
   if (!word) return null;
-  const custom = o.custom[word];
+  const lc = word.toLocaleLowerCase();
+  if (o.exceptions.other.some((x) => x.toLocaleLowerCase() === lc)) return null;
+  const custom = replacementFor(o.custom, word);
   if (custom !== undefined) return { text: custom };
   if (o.symbols && SYMBOLS[word]) return { text: SYMBOLS[word]! };
   if (o.fractions && FRACTIONS[word]) return { text: FRACTIONS[word]! };
   if (o.dashes && word === '--') return { text: '–' };
   if (o.dashes && word === '---') return { text: '—' };
+  if (o.ordinals) {
+    const ord = ordinalOf(word, o.lang);
+    if (ord) return ord;
+  }
   if (o.autoLinks) {
     if (/^(https?:\/\/)[^\s]+\.[^\s]+$/i.test(word)) return { text: word, href: word };
     if (/^www\.[^\s]+\.[^\s]+$/i.test(word)) return { text: word, href: `http://${word}` };
@@ -129,17 +208,79 @@ export function correctWord(word: string, before: string, o: AutoCorrectOptions)
   }
   if (/\d|@|\//.test(word) || /^(https?:|www\.)/i.test(word)) return null;
   const letters = [...word];
-  // dos mayúsculas iniciales: «COrrecto» → «Correcto» (no «ID», ni «IDs», ni siglas largas)
-  if (o.fixTwoInitialCaps && letters.length >= 4 && letters[0] === upper(letters[0]!) && isLetter(letters[0]!) && letters[1] === upper(letters[1]!) && isLetter(letters[1]!) && letters.slice(2).every((c) => c === lower(c) && isLetter(c))) {
+  // dos mayúsculas iniciales: «COrrecto» → «Correcto» (no «ID», ni «IDs», ni siglas largas, ni lo que dice la lista de excepciones)
+  if (o.fixTwoInitialCaps && letters.length >= 4 && letters[0] === upper(letters[0]!) && isLetter(letters[0]!) && letters[1] === upper(letters[1]!) && isLetter(letters[1]!) && letters.slice(2).every((c) => c === lower(c) && isLetter(c)) && !o.exceptions.twoInitialCaps.includes(word)) {
     const fixed = letters[0]! + lower(letters[1]!) + letters.slice(2).join('');
-    return { text: o.capitalizeSentences && startsSentence(before) ? upper(fixed[0]!) + fixed.slice(1) : fixed };
+    return { text: o.capitalizeSentences && startsSentence(before, o.exceptions.firstLetter) ? upper(fixed[0]!) + fixed.slice(1) : fixed };
   }
-  if (o.capitalizeSentences && isLetter(letters[0]!) && letters[0] === lower(letters[0]!) && startsSentence(before)) {
+  if (o.capitalizeSentences && isLetter(letters[0]!) && letters[0] === lower(letters[0]!) && startsSentence(before, o.exceptions.firstLetter)) {
     return { text: upper(letters[0]!) + letters.slice(1).join('') };
   }
   return null;
 }
 
+/**
+ * El reemplazo de una palabra en la lista. Se busca tal cual y, si no está, sin mayúsculas: lo que se escribe con mayúscula inicial o todo en
+ * mayúsculas da el reemplazo con la misma mayúscula (`Teh` → `The`, `TEH` → `THE`), como en Office. Solo para entradas escritas en minúsculas.
+ */
+export function replacementFor(list: Record<string, string>, word: string): string | undefined {
+  if (Object.prototype.hasOwnProperty.call(list, word)) return list[word];
+  const lc = lower(word);
+  if (lc === word || !Object.prototype.hasOwnProperty.call(list, lc)) return undefined;
+  const to = list[lc]!;
+  const ls = [...word].filter(isLetter);
+  if (ls.length > 1 && ls.every((c) => c === upper(c))) return upper(to);
+  if (word[0] === upper(word[0]!) && isLetter(word[0]!)) return upper(to[0]!) + to.slice(1);
+  return undefined;
+}
+
+/**
+ * Ordinales. En español `1.o` → `1.º` y `2.a` → `2.ª`. En inglés `1st`, `2nd`, `3rd` y `4th` llevan las letras en superíndice (`sup`), que solo
+ * se puede dar donde hay formato; si la terminación no corresponde al número (`2st`) no se toca.
+ */
+export function ordinalOf(word: string, lang: AutoLang): Correction | null {
+  if (lang === 'es') {
+    const m = /^(\d+)\.(o|a)$/.exec(word);
+    return m ? { text: `${m[1]}.${m[2] === 'o' ? 'º' : 'ª'}` } : null;
+  }
+  const m = /^(\d+)(st|nd|rd|th)$/.exec(word);
+  if (!m) return null;
+  const n = Number(m[1]);
+  const right = n % 100 >= 11 && n % 100 <= 13 ? 'th' : (({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th');
+  return right === m[2] ? { text: word, sup: [m[1]!.length, word.length] } : null;
+}
+
+/** Un trozo `*negrita*` o `_cursiva_` recién cerrado: dónde están los marcadores y el texto de en medio. */
+export interface MarkupMatch {
+  kind: 'bold' | 'italic';
+  /** Posición del marcador de apertura y del de cierre (el último carácter del texto dado). */
+  open: number;
+  close: number;
+  /** El texto entre los marcadores. */
+  inner: string;
+}
+
+/**
+ * ¿Acaba `before` (el texto del párrafo hasta el cursor, con el marcador de cierre ya escrito) en un trozo `*así*` o `_así_`? El marcador de apertura debe
+ * ir pegado a la primera letra y precedido de inicio, espacio o signo de apertura; el de cierre, pegado a la última.
+ */
+export function findMarkup(before: string): MarkupMatch | null {
+  const last = before.slice(-1);
+  if (last !== '*' && last !== '_') return null;
+  const e = last === '*' ? '\\*' : '_';
+  const m = new RegExp(`(^|[\\s(¿¡"“'‘«])${e}([^\\s${e}](?:[^${e}]*[^\\s${e}])?)${e}$`).exec(before);
+  if (!m) return null;
+  const open = m.index + m[1]!.length;
+  return { kind: last === '*' ? 'bold' : 'italic', open, close: before.length - 1, inner: m[2]! };
+}
+
+/** Líneas que, al pulsar Intro, se convierten en un borde de párrafo (`---` fina, `___` gruesa, `===` doble, `***` punteada, `~~~` ondulada, `###` triple). */
+export type RuleKind = 'thin' | 'thick' | 'double' | 'dotted' | 'wavy' | 'triple';
+export function ruleLineKind(line: string): RuleKind | null {
+  const t = line.trim();
+  if (!/^(-{3,}|_{3,}|={3,}|\*{3,}|~{3,}|#{3,})$/.test(t)) return null;
+  return ({ '-': 'thin', _: 'thick', '=': 'double', '*': 'dotted', '~': 'wavy', '#': 'triple' } as Record<string, RuleKind>)[t[0]!] ?? null;
+}
 
 /** Lo que queda de un texto de una línea o de varias tras escribir: la palabra completada se corrige en el sitio. */
 export interface TypedResult {
@@ -183,7 +324,7 @@ export function autoCorrectTyped(prev: string, next: string, caret: number, o: A
   if ((ch === '.' || ch === ')') && before.trim() === '' && /^([a-zA-Z]|[ivxlcdmIVXLCDM]{1,4}|\d+)$/.test(word)) return null;
   if (/[.,;:!?)\]]/.test(ch) && /^[.,;:!?)\]\d]+$/.test(word)) return null;
   const fix = correctWord(word, before.slice(Math.max(0, before.lastIndexOf('\n') + 1)), { ...o, autoLinks: false });
-  if (!fix || fix.text === word) return null;
+  if (!fix || fix.text === word || fix.sup) return null;
   const text = before + fix.text + ch + tail;
   return out(text, before.length + fix.text.length + 1);
 }
