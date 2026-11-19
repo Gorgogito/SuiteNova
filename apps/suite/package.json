@@ -20,6 +20,7 @@
     "@suitenova/core-ui": "workspace:*",
     "@suitenova/diagram-core": "workspace:*",
     "@suitenova/forms-core": "workspace:*",
+    "@suitenova/image-core": "workspace:*",
     "@suitenova/mail-core": "workspace:*",
     "@suitenova/math-core": "workspace:*",
     "@suitenova/notes-core": "workspace:*",

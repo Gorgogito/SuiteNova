@@ -196,6 +196,9 @@ importers:
       '@suitenova/forms-core':
         specifier: workspace:*
         version: link:../../packages/forms-core
+      '@suitenova/image-core':
+        specifier: workspace:*
+        version: link:../../packages/image-core
       '@suitenova/mail-core':
         specifier: workspace:*
         version: link:../../packages/mail-core
@@ -470,6 +473,15 @@ importers:
         specifier: ^3.2.0
         version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
 
+  packages/image-core:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
+
   packages/mail-core:
     devDependencies:
       '@types/node':
@@ -538,6 +550,9 @@ importers:
       '@suitenova/chart-core':
         specifier: workspace:*
         version: link:../chart-core
+      '@suitenova/image-core':
+        specifier: workspace:*
+        version: link:../image-core
       '@suitenova/shapes-core':
         specifier: workspace:*
         version: link:../shapes-core
