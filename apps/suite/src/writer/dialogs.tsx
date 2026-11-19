@@ -14,6 +14,9 @@ import { FontDialog, ParagraphDialog, SymbolDialog } from './dlg-format';
 import { AutoCorrectDialog } from './dlg-autocorrect';
 import { LineNumbersDialog, PageBordersDialog } from './dlg-page';
 import { ImageFormatDialog } from './dlg-image';
+import { FormatPictureDialog } from '../images/FormatPictureDialog';
+import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
+import { writerPictureHost } from './pichost';
 import { AccessibilityDialog, CompareDialog, DocPropsDialog, WordCountDialog } from './dlg-docreview';
 import { TableConvertDialog, TablePropsDialog, TableSortDialog } from './dlg-table';
 import { StyleEditDialog, StylesDialog } from './dlg-styles';
@@ -261,6 +264,14 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
       return <ParagraphDialog ui={ui} onClose={onClose} />;
     case 'symbol':
       return <SymbolDialog ui={ui} onClose={onClose} />;
+    case 'pictureCorrections':
+      return <FormatPictureDialog host={writerPictureHost(ui)} tab="corrections" onClose={onClose} />;
+    case 'pictureColor':
+      return <FormatPictureDialog host={writerPictureHost(ui)} tab="color" onClose={onClose} />;
+    case 'pictureArtistic':
+      return <FormatPictureDialog host={writerPictureHost(ui)} tab="artistic" onClose={onClose} />;
+    case 'removeBg':
+      return <RemoveBackgroundDialog host={writerPictureHost(ui)} onClose={onClose} />;
     case 'imageFormat':
       return <ImageFormatDialog ui={ui} onClose={onClose} />;
     case 'wordCount':

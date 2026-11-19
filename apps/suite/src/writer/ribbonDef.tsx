@@ -16,6 +16,9 @@ import { STRUCTURES, STRUCTURE_GROUPS, SYMBOL_GROUPS } from '@suitenova/math-cor
 import { SYMBOL_COMMANDS } from './commands-math';
 import { applyWordArtStyle, applyWordArtWarp, insertWordArt, wordArtTarget } from './commands-wordart';
 import { insertShapeKind } from './commands-objects';
+import { ArtisticItems, AspectItems } from '../images/galleries';
+import { PicPopover } from '../images/PicPopover';
+import { writerPictureHost } from './pichost';
 import { FONT_NAMES, FONT_SIZES, type WriterUI } from './commands';
 import { markAttr, selectionParagraph, setMark, setStyle } from './editing';
 
@@ -897,6 +900,17 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         items: [
           { kind: 'button', command: 'writer.image.format', size: 'large', keytip: 'KF' },
           { kind: 'button', command: 'writer.image.reset', size: 'large', keytip: 'KX' },
+        ],
+      },
+      {
+        id: 'imgAdjust',
+        label: 'Ajustar',
+        icon: 'contrast',
+        items: [
+          { kind: 'button', command: 'writer.image.removeBg', size: 'large', keytip: 'KB' },
+          { kind: 'dropdown', id: 'imgCorrections', label: 'Correcciones', icon: 'contrast', size: 'small', keytip: 'KC', entries: [{ kind: 'command', command: 'writer.image.corrections' }, { kind: 'command', command: 'writer.image.color' }] },
+          { kind: 'custom', id: 'imgArtistic', label: 'Efectos artísticos', keytip: 'KA', render: () => <PicPopover label="Efectos artísticos" icon="sparkles" size="small">{(close) => <ArtisticItems host={writerPictureHost(ui)} close={close} onOptions={() => ui.openDialog('pictureArtistic')} />}</PicPopover> },
+          { kind: 'custom', id: 'imgAspect', label: 'Relación de aspecto', keytip: 'KS', render: () => <PicPopover label="Relación de aspecto" icon="crop" size="small">{(close) => <AspectItems host={writerPictureHost(ui)} close={close} />}</PicPopover> },
         ],
       },
       {

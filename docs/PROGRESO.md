@@ -124,7 +124,7 @@ Plan de 5 fases en `docs/diseno-macros.md`: biblioteca global por producto; alca
 Decisiones del usuario (2026-11-19): alcance como Office (completo en Writer, Calc, Slides y Mail; reducido en Notes y Diagram; control de imagen en Base y Forms) y núcleo compartido `image-core` con efectos como propiedades reversibles.
 - [x] **Fase 1 HECHA:** paquete `image-core` (modelo de ediciones reversibles, motor de píxeles con orden fijo, correcciones, recolorear, efectos artísticos con intensidad, quitar fondo con áreas marcadas, recorte con relación de aspecto, comprimir, 13 estilos de imagen, separación de lo que Office entiende de forma nativa y lo que va ya aplicado, guardado en texto); 35 pruebas; los píxeles de Slides se movieron aquí sin cambiar su comportamiento.
 - [x] **Fase 2 HECHA:** interfaz compartida en `apps/suite/src/images/` (cuadro Formato de imagen con correcciones, color y efectos con intensidad; quitar fondo con áreas marcadas; galerías de estilos, efectos y relación de aspecto) y Slides como referencia: efectos reversibles (`orig` + `edits` en cada imagen, guardados en el `.pptx` en una parte propia), comprimir por ppp, restablecer y cambiar imagen conservan las ediciones; e2e 15/15.
-- [ ] Fase 3: Writer.
+- [x] **Fase 3 HECHA: Writer** (`PictureHost` sobre su átomo `image` con `orig` + `edits`, grupo «Ajustar» en la cinta: quitar fondo con marcas, correcciones y color, efectos artísticos, relación de aspecto; originales y ediciones en el `.docx` en una parte propia por nombre de archivo; e2e 11/11). Sin estilos de imagen ni comprimir (límites en el diseño).
 - [ ] Fase 4: Calc y Mail.
 - [ ] Fase 5: Notes, Diagram, Base y Forms.
 - [ ] Fase 6: orígenes de imagen y cierre con Office real por COM.

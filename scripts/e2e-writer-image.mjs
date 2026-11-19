@@ -158,6 +158,128 @@ await check('«Restablecer imagen» quita recorte, borde y ajuste y devuelve el 
   assert.deepEqual([a.crop, a.border, a.wrap, a.width, a.height], [null, null, null, 160, 100]);
 });
 
+
+// ---- shared picture tools (image-core): reversible effects, colour, background, aspect ratio, .docx
+const rich = () => ev(() => { let a = null; window.__novaWriter.ctl.state.doc.descendants((n) => { if (n.type.name === 'image' && n.attrs.alt === 'rica') a = n.attrs; }); return a && { src: a.src.length, srcHead: a.src.slice(0, 40), orig: a.orig ? a.orig.length : null, edits: a.edits, crop: a.crop, width: a.width, height: a.height }; });
+const centre = () => ev(async () => {
+  let src = null;
+  window.__novaWriter.ctl.state.doc.descendants((n) => { if (n.type.name === 'image' && n.attrs.alt === 'rica') src = n.attrs.src; });
+  const im = new Image(); im.src = src; await im.decode();
+  const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+  const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+  return [...g.getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1).data];
+});
+const pickRich = async () => {
+  await page.locator('.ProseMirror img[alt="rica"]').first().click();
+  await page.waitForTimeout(400);
+  await page.getByRole('tab', { name: /Formato de imagen/ }).click();
+};
+await ev(async () => {
+  const c = document.createElement('canvas'); c.width = 300; c.height = 200;
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 300, 200); g.fillStyle = '#e02020'; g.beginPath(); g.arc(150, 100, 60, 0, 7); g.fill();
+  const v = window.__novaWriter.ctl.mainView;
+  let pos = null;
+  v.state.doc.descendants((n, p) => { if (n.type.name === 'paragraph' && pos === null) pos = p + 1; });
+  v.dispatch(v.state.tr.insert(pos, v.state.schema.nodes.image.create({ src: c.toDataURL('image/png'), alt: 'rica', width: 300, height: 200 })));
+});
+
+await check('efecto artístico reversible: guarda el original, el efecto se cambia de intensidad y «Restablecer imagen» lo devuelve', async () => {
+  await pickRich();
+  const before = await rich();
+  assert.equal(before.orig, null);
+  await page.getByRole('button', { name: 'Efectos artísticos' }).click();
+  await page.getByRole('menuitemradio', { name: 'Mosaico' }).click();
+  await page.waitForTimeout(900);
+  const a = await rich();
+  assert.ok(a.orig, 'se guardó el original');
+  assert.equal(a.orig, before.src);
+  assert.deepEqual(a.edits, { artistic: { id: 'mosaic', level: 50 } });
+  await shot('efecto');
+  await page.getByRole('button', { name: 'Efectos artísticos' }).click();
+  await page.getByRole('menuitem', { name: /Opciones de efectos artísticos/ }).click();
+  await page.waitForTimeout(500);
+  await dialog().getByRole('slider', { name: 'Intensidad' }).fill('80');
+  await dialog().getByRole('button', { name: 'Aceptar' }).click();
+  await page.waitForTimeout(900);
+  assert.deepEqual((await rich()).edits, { artistic: { id: 'mosaic', level: 80 } });
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(400);
+  assert.equal((await rich()).edits.artistic.level, 50, 'un solo paso de deshacer por cambio');
+  await pickRich();
+  await page.getByRole('button', { name: 'Restablecer imagen' }).click();
+  await page.waitForTimeout(500);
+  const r = await rich();
+  assert.deepEqual([r.orig, r.edits, r.src], [null, null, before.src]);
+});
+
+await check('color: la saturación a cero deja la imagen en grises y el original sigue ahí', async () => {
+  await pickRich();
+  await page.getByRole('button', { name: 'Correcciones' }).click();
+  await page.getByRole('menuitem', { name: /Opciones de color de imagen/ }).click();
+  await page.waitForTimeout(500);
+  await dialog().getByRole('tab', { name: 'Color' }).click();
+  await dialog().getByRole('slider', { name: 'Saturación' }).fill('0');
+  await dialog().getByRole('button', { name: 'Aceptar' }).click();
+  await page.waitForTimeout(900);
+  const a = await rich();
+  assert.deepEqual(a.edits, { saturation: 0 });
+  const [r, g, b] = await centre();
+  assert.ok(Math.abs(r - g) < 4 && Math.abs(g - b) < 4, `centro ${r},${g},${b}`);
+  await page.getByRole('button', { name: 'Restablecer imagen' }).click();
+  await page.waitForTimeout(500);
+  assert.equal((await rich()).edits, null);
+});
+
+await check('quitar fondo con una zona marcada: las marcas se guardan y se pueden descartar', async () => {
+  await pickRich();
+  await page.getByRole('button', { name: 'Quitar fondo…' }).click();
+  await page.waitForTimeout(700);
+  await dialog().getByRole('radio', { name: 'Marcar áreas para quitar' }).check();
+  const box = await dialog().getByLabel('Vista previa').boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(300);
+  await dialog().getByRole('button', { name: 'Conservar los cambios' }).click();
+  await page.waitForTimeout(900);
+  const a = await rich();
+  assert.equal(a.edits.background.remove.length, 1);
+  const c = await centre();
+  assert.equal(c[3], 0, 'el disco marcado se quitó');
+  await page.getByRole('button', { name: 'Quitar fondo…' }).click();
+  await page.waitForTimeout(700);
+  await dialog().getByRole('button', { name: 'Descartar todos los cambios' }).click();
+  await page.waitForTimeout(700);
+  assert.equal((await rich()).edits, null);
+});
+
+await check('relación de aspecto 16:9 recorta y deja el tamaño visible con esa proporción', async () => {
+  await pickRich();
+  await page.getByRole('button', { name: 'Relación de aspecto' }).click();
+  await page.getByRole('menuitem', { name: 'Horizontal 16:9' }).click();
+  await page.waitForTimeout(500);
+  const a = await rich();
+  assert.ok(a.crop, 'recortada');
+  assert.ok(Math.abs(a.width / a.height - 16 / 9) < 0.03, `${a.width}x${a.height}`);
+});
+
+await check('guardar y abrir el .docx devuelve el original y las ediciones; Word ve la imagen ya editada', async () => {
+  await pickRich();
+  await page.getByRole('button', { name: 'Efectos artísticos' }).click();
+  await page.getByRole('menuitemradio', { name: 'Desenfoque' }).click();
+  await page.waitForTimeout(900);
+  const before = await rich();
+  const back = await ev(async () => {
+    const w = window.__novaWriter;
+    const { data } = await w.docx.writeDocx(w.ctl.toWriterDoc());
+    const d = (await w.docx.readDocx(data)).doc;
+    let a = null;
+    d.body.descendants((n) => { if (n.type.name === 'image' && n.attrs.alt === 'rica') a = n.attrs; });
+    return a && { edits: a.edits, orig: a.orig ? a.orig.length : null, src: a.src.length };
+  });
+  assert.deepEqual(back.edits, { artistic: { id: 'blur', level: 50 } });
+  assert.equal(back.orig, before.orig);
+  assert.equal(back.src, before.src);
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors, []);
 });

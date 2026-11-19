@@ -294,6 +294,8 @@ interface Shared {
   numbering: Map<number, { abstract: number; start: Map<number, number> }>;
   abstracts: Map<number, Map<number, { fmt: ListFormat | 'bullet'; start: number }>>;
   media: Map<string, string>; // zip path → data URI
+  /** The originals and edits of the pictures Nova edited, by the zip path of the media that shows them. */
+  pictures: Map<string, { orig: string; edits: unknown }>;
   /** Partes XML de SmartArt (`word/diagrams/…`) por ruta del archivo. */
   diagrams: Map<string, string>;
   /** Partes de gráfico (`word/charts/…`) por ruta del archivo. */
@@ -828,7 +830,8 @@ class Converter {
       this.warn(`Formato de imagen no admitido (${rel.target.split('.').pop()}); se omite.`);
       return null;
     }
-    return nodeTypes.image!.create({ src: uri, alt, width: w, height: h, ...extra }, null, marks.filter((m) => m.type.name === 'ins' || m.type.name === 'del' || m.type.name === 'comment'));
+    const made = this.sh.pictures.get(path.replace(/^word\/word\//, 'word/'));
+    return nodeTypes.image!.create({ src: uri, alt, width: w, height: h, ...(made ? { orig: made.orig, edits: made.edits } : {}), ...extra }, null, marks.filter((m) => m.type.name === 'ins' || m.type.name === 'del' || m.type.name === 'comment'));
   }
 
   private drawing(d: XNode, cur: () => PMNode[], marks: Mark[]) {
@@ -1558,6 +1561,24 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
       }),
   );
 
+  const pictures = new Map<string, { orig: string; edits: unknown }>();
+  {
+    const xml = await text(zip, 'customXml/novaPictures1.xml');
+    const m = xml && xml.includes('urn:suitenova:pictures:1') ? /<!\[CDATA\[([\s\S]*?)\]\]>/.exec(xml.replace(/\]\]\]\]><!\[CDATA\[>/g, ']]>')) : null;
+    if (m) {
+      try {
+        const index = JSON.parse(m[1]!) as Record<string, { file: string; edits: unknown }>;
+        for (const [name, v] of Object.entries(index)) {
+          const f = zip.file(`customXml/media/${v.file}`);
+          const mime = MIME[v.file.split('.').pop()!.toLowerCase()];
+          if (f && mime) pictures.set(`word/media/${name}`, { orig: `data:${mime};base64,${await f.async('base64')}`, edits: v.edits });
+        }
+      } catch {
+        /* the picture stays as it is */
+      }
+    }
+  }
+
   const diagrams = new Map<string, string>();
   await Promise.all(
     Object.keys(zip.files)
@@ -1600,7 +1621,7 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
 
   const commentsRead = readComments(await text(zip, 'word/comments.xml'), await text(zip, 'word/commentsExtended.xml'));
   const sh: Shared = {
-    zip, styles, baseRP, basePP, fonts, numbering, abstracts, media, diagrams, charts, chartRaw, warnings, counters: new Map(), sections: 0,
+    zip, styles, baseRP, basePP, fonts, numbering, abstracts, media, pictures, diagrams, charts, chartRaw, warnings, counters: new Map(), sections: 0,
     comments: commentsRead.info, footnotes: new Map(), endnotes: new Map(), noteSeq: 0, custom: new Map(),
   };
   await readNotes(zip, 'word/footnotes.xml', 'footnotes', sh, sh.footnotes);

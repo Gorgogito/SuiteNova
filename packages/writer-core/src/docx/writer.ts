@@ -27,6 +27,8 @@ export class Ctx {
   warnings = new Set<string>();
   media: { name: string; data: Uint8Array; ext: string }[] = [];
   mediaByKey = new Map<string, string>();
+  /** The original and the edits of each edited picture, by the name of its media (they go in a part of our own that Word ignores). */
+  pictures = new Map<string, { orig: string; edits: unknown }>();
   docPrId = 1;
   /** Partes de SmartArt (`word/diagrams/…`) que van al paquete. */
   diagrams: { path: string; xml: string; content: string }[] = [];
@@ -171,6 +173,38 @@ export function addMedia(src: string, ctx: Ctx): string | null {
   return name;
 }
 
+/**
+ * The originals and the edits of the edited pictures: `customXml/novaPictures1.xml` (by media name) and the original files. Word ignores
+ * them (and loses them when it saves); Nova gets the pictures back as they were edited. Returns the extensions of the files written.
+ */
+function writePictureOriginals(zip: JSZip, ctx: Ctx, mainRels: string[], overrides: [string, string][]): Set<string> {
+  const exts = new Set<string>();
+  if (!ctx.pictures.size) return exts;
+  const index: Record<string, { file: string; edits: unknown }> = {};
+  let n = 0;
+  const byOrig = new Map<string, string>();
+  for (const [name, p] of ctx.pictures) {
+    let file = byOrig.get(p.orig);
+    if (!file) {
+      const m = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(p.orig);
+      const ext = m && MIME_EXT[m[1]!.toLowerCase()];
+      if (!m || !ext) continue;
+      file = `novaorig${++n}.${ext}`;
+      zip.file(`customXml/media/${file}`, m[2] ? b64ToBytes(m[3]!) : new TextEncoder().encode(decodeURIComponent(m[3]!)));
+      exts.add(ext);
+      byOrig.set(p.orig, file);
+    }
+    index[name] = { file, edits: p.edits };
+  }
+  const json = JSON.stringify(index).replace(/\]\]>/g, ']]]]><![CDATA[>');
+  zip.file('customXml/novaPictures1.xml', `${XML_HEAD}<suitenova xmlns="urn:suitenova:pictures:1"><![CDATA[${json}]]></suitenova>`);
+  zip.file('customXml/novaPicturesProps1.xml', `${XML_HEAD}<ds:datastoreItem ds:itemID="{3C5E7A91-2B4D-4F68-9A0C-6E1D8B2F4A58}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="urn:suitenova:pictures:1"/></ds:schemaRefs></ds:datastoreItem>`);
+  zip.file('customXml/_rels/novaPictures1.xml.rels', relsXml([`<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="novaPicturesProps1.xml"/>`]));
+  mainRels.push(`<Relationship Id="rIdCustomPictures" Type="${REL.customXml}" Target="../customXml/novaPictures1.xml"/>`);
+  overrides.push(['/customXml/novaPicturesProps1.xml', 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml']);
+  return exts;
+}
+
 /** The media of a picture, stored in the package: its name and relationship id, or null (with a warning) when it cannot go in. */
 function embedPicture(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): { name: string; rid: string } | null {
   const src: string = node.attrs.src;
@@ -183,6 +217,8 @@ function embedPicture(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): { n
     ctx.warn(`Formato de imagen no admitido en DOCX: ${/^data:([^;,]+)/.exec(src)?.[1] ?? '?'}.`);
     return null;
   }
+  const orig: string | null = node.attrs.orig;
+  if (orig && node.attrs.edits && /^data:/.test(orig)) ctx.pictures.set(name, { orig, edits: node.attrs.edits });
   return { name, rid: rels.media(name, part) };
 }
 
@@ -966,6 +1002,8 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
     if (c.props) overrides.push([`/customXml/${c.propsFile}`, 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml']);
   });
 
+  const origExts = writePictureOriginals(zip, ctx, mainRels, overrides);
+
   zip.file('word/document.xml', `${XML_HEAD}<w:document ${W_NS}>${doc.pageColor ? `<w:background w:color="${hex(doc.pageColor)}"/>` : ''}<w:body>${bodyContent}${finalSect}</w:body></w:document>`);
   zip.file('word/styles.xml', stylesXml(doc));
   zip.file('word/numbering.xml', numberingXml(ctx));
@@ -982,7 +1020,7 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
     if (ct) overrides.push([`/${f.path}`, ct]);
   }
 
-  const exts = new Set(ctx.media.map((m) => m.ext));
+  const exts = new Set([...ctx.media.map((m) => m.ext), ...origExts]);
   const defaults = ['<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>', '<Default Extension="xml" ContentType="application/xml"/>'];
   const mimeFor: Record<string, string> = { png: 'image/png', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', svg: 'image/svg+xml', webp: 'image/webp' };
   if (ctx.chartFiles.length) defaults.push('<Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>');

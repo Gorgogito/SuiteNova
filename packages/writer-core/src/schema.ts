@@ -202,6 +202,8 @@ export function imageDOM(a: Record<string, any>): DOMOutputSpec {
   if (a.flipV) data['data-flipv'] = '1';
   if (bd) data['data-border'] = JSON.stringify(bd);
   if (a.wrap) data['data-wrap'] = a.wrap;
+  if (a.orig) data['data-orig'] = a.orig;
+  if (a.edits) data['data-edits'] = JSON.stringify(a.edits);
   if (a.wrap === 'front' || a.wrap === 'behind') {
     data['data-x'] = String(a.x ?? 0);
     data['data-y'] = String(a.y ?? 0);
@@ -311,6 +313,12 @@ const nodes: Record<string, NodeSpec> = {
       wrap: { default: null },
       x: { default: 0 },
       y: { default: 0 },
+      /**
+       * The original picture (data URI) and the edits made to its pixels (`PixelEdits` of image-core, as plain data): `src` is the original
+       * with those edits made. Without edits both are null and `src` is the picture itself.
+       */
+      orig: { default: null },
+      edits: { default: null },
     },
     parseDOM: [
       {
@@ -337,6 +345,8 @@ const nodes: Record<string, NodeSpec> = {
             wrap: el.dataset.wrap || null,
             x: Number(el.dataset.x) || 0,
             y: Number(el.dataset.y) || 0,
+            orig: el.dataset.orig || null,
+            edits: json('edits'),
           };
         },
       },

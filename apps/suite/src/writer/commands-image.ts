@@ -30,6 +30,10 @@ export function imageCommands(ui: WriterUI): CommandDef[] {
   const at = () => sel()?.attrs ?? {};
   const defs: CommandDef[] = [
     { id: 'writer.image.format', label: 'Formato de imagen…', icon: 'image', description: 'Texto alternativo, tamaño, recorte, giro, borde y ajuste de texto de la imagen seleccionada.', enabled: ready, run: () => ui.openDialog('imageFormat') },
+    { id: 'writer.image.corrections', label: 'Opciones de corrección de imagen…', icon: 'contrast', description: 'Brillo, contraste y nitidez de la imagen; no la cambian: se pueden quitar con «Restablecer imagen».', enabled: ready, run: () => ui.openDialog('pictureCorrections') },
+    { id: 'writer.image.color', label: 'Opciones de color de imagen…', icon: 'palette', description: 'Saturación, temperatura, transparencia y recolorear la imagen.', enabled: ready, run: () => ui.openDialog('pictureColor') },
+    { id: 'writer.image.artistic', label: 'Opciones de efectos artísticos…', icon: 'sparkles', description: 'Efecto artístico de la imagen y su intensidad.', enabled: ready, run: () => ui.openDialog('pictureArtistic') },
+    { id: 'writer.image.removeBg', label: 'Quitar fondo…', icon: 'eraser', description: 'Quita el fondo de la imagen; puede marcar las áreas que se mantienen o se quitan.', enabled: ready, run: () => ui.openDialog('removeBg') },
     { id: 'writer.image.rotateRight', label: 'Girar a la derecha', icon: 'arrowRight', description: 'Gira la imagen 90° en el sentido de las agujas del reloj.', enabled: ready, run: () => patchImage(ui, { rotate: (((at().rotate ?? 0) + 90) % 360) }) },
     { id: 'writer.image.rotateLeft', label: 'Girar a la izquierda', icon: 'arrowLeft', description: 'Gira la imagen 90° en sentido contrario.', enabled: ready, run: () => patchImage(ui, { rotate: (((at().rotate ?? 0) + 270) % 360) }) },
     { id: 'writer.image.flipH', label: 'Voltear horizontalmente', icon: 'columns2', enabled: ready, checked: () => !!at().flipH, run: () => patchImage(ui, { flipH: !at().flipH }) },
@@ -39,13 +43,14 @@ export function imageCommands(ui: WriterUI): CommandDef[] {
       label: 'Restablecer imagen',
       icon: 'eraser',
       description: 'Quita el recorte, el giro, el volteo, el borde y el ajuste de texto (el tamaño se conserva).',
-      enabled: () => ready() && (!!at().crop || !!at().rotate || !!at().flipH || !!at().flipV || !!at().border || !!at().wrap),
+      enabled: () => ready() && (!!at().edits || !!at().crop || !!at().rotate || !!at().flipH || !!at().flipV || !!at().border || !!at().wrap),
       run: () => {
         const a = at();
         const crop = a.crop as { l: number; t: number; r: number; b: number } | null;
         const kx = crop ? 1 - crop.l - crop.r : 1;
         const ky = crop ? 1 - crop.t - crop.b : 1;
-        patchImage(ui, { crop: null, rotate: 0, flipH: false, flipV: false, border: null, wrap: null, x: 0, y: 0, width: a.width ? Math.round(a.width / kx) : null, height: a.height ? Math.round(a.height / ky) : null });
+        // the picture goes back to its original too (the effects, the background removal and the colours)
+        patchImage(ui, { ...(a.edits ? { src: a.orig, orig: null, edits: null } : {}), crop: null, rotate: 0, flipH: false, flipV: false, border: null, wrap: null, x: 0, y: 0, width: a.width ? Math.round(a.width / kx) : null, height: a.height ? Math.round(a.height / ky) : null });
       },
     },
   ];

@@ -252,6 +252,24 @@ describe('DOCX: ecuaciones, formas y controles de contenido', () => {
     expect(r.warnings.join(' ')).not.toMatch(/en línea/);
   });
 
+  it('imagen editada: el original y las ediciones sobreviven al .docx en una parte propia, y la imagen que ve Word es la editada', async () => {
+    const ORIG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8AARAAGBwIB7aUKtAAAAABJRU5ErkJggg==';
+    const edits = { saturation: 0, artistic: { id: 'blur', level: 60 } };
+    const img = nodeTypes.image!.create({ src: PNG, orig: ORIG, edits, alt: 'Foto', width: 80, height: 40 });
+    const plain = nodeTypes.image!.create({ src: ORIG, alt: 'Normal', width: 20, height: 20 });
+    const { blocks, zip } = await rt(wd([p([t('a'), img, plain])]));
+    expect(Object.keys(zip.files).filter((f) => f.startsWith('customXml/media/novaorig'))).toHaveLength(1);
+    expect(await zip.file('[Content_Types].xml')!.async('string')).toContain('customXmlProperties');
+    const imgs: PMNode[] = [];
+    blocks[0]!.forEach((c) => c.type.name === 'image' && imgs.push(c));
+    expect(imgs).toHaveLength(2);
+    expect(imgs[0]!.attrs.orig).toBe(ORIG);
+    expect(imgs[0]!.attrs.edits).toEqual(edits);
+    expect(imgs[0]!.attrs.src).toBe(PNG);
+    expect(imgs[1]!.attrs.orig).toBeNull();
+    expect(imgs[1]!.attrs.edits).toBeNull();
+  });
+
   it('un grupo con imágenes (también anidado): cada imagen conserva sitio, tamaño, recorte, giro y texto alternativo', async () => {
     const base = { fill: '#ffffff', stroke: '#000000', strokeWidth: 1, wrap: 'front' };
     const rect = nodeTypes.shape!.create({ ...base, kind: 'rect', width: 100, height: 60, x: 0, y: 0 }, []);
