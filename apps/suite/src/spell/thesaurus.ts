@@ -127,6 +127,8 @@ export { THESAURUS_LANGS };
 
 /** El idioma propio del texto que hay en una posición (por su marca de idioma), o `null` si usa el del documento. */
 export function langAtPos(view: EditorView, pos: number, markInfo: MarkInfo = writerMarkInfo): SpellLang | null {
+  // writing over a «select all» asks for the character before position 0
+  if (pos < 0 || pos >= view.state.doc.content.size) return null;
   const node = view.state.doc.nodeAt(pos);
   return node?.isText ? langForTag(markInfo(node).lang) : null;
 }

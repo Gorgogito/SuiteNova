@@ -41,6 +41,7 @@ export type DialogKind =
   | 'printPreview'
   | 'macros'
   | 'macroEditor'
+  | 'recordMacro'
   | 'protectSheet'
   | 'protectBook'
   | 'unprotectSheet'

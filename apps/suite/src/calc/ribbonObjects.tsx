@@ -215,6 +215,9 @@ export function developerTab(): RibbonTab {
         items: [
           { kind: 'button', command: 'calc.macroEditor', size: 'large', keytip: 'ED' },
           { kind: 'button', command: 'calc.macros', size: 'large', keytip: 'MA' },
+          { kind: 'button', command: 'calc.macroRecord', size: 'small', keytip: 'GM' },
+          { kind: 'button', command: 'calc.macroStop', size: 'small', keytip: 'DG' },
+          { kind: 'button', command: 'calc.macroPause', size: 'small', keytip: 'PG' },
         ],
       },
       { id: 'security', label: 'Seguridad', icon: 'run', items: [{ kind: 'button', command: 'calc.macroEnable', size: 'large', keytip: 'HC' }] },

@@ -34,6 +34,7 @@ import { PivotPane } from './dlg-pivot';
 import { imageSize, pickImage } from './imagePick';
 import './calc.css';
 import './calc-objects.css';
+import { RecordingStatus } from '../macros/RecordDialogs';
 
 const XLSX_FILTERS = [{ name: 'Libro de Excel', extensions: ['xlsx'] }];
 const OPEN_FILTERS = [
@@ -78,6 +79,7 @@ function Status({ doc }: { doc: CalcDoc }) {
   const fmt = (n: number) => new Intl.NumberFormat(doc.locale === 'es' ? 'es-ES' : 'en-US', { maximumFractionDigits: 6 }).format(n);
   return (
     <>
+      {doc.recording && <RecordingStatus name={doc.recording.name} paused={doc.recording.paused} onPause={() => doc.pauseRecording()} onStop={() => doc.stopRecording()} />}
       <span>{doc.notice ?? (doc.edit ? (doc.edit.mode === 'edit' ? t('Modificar') : t('Introducir')) : counts ? t('{shown} de {total} registros encontrados', counts) : t('Listo'))}</span>
       {stats && (
         <>

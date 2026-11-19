@@ -1173,6 +1173,9 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         items: [
           { kind: 'button', command: 'writer.macros.edit', size: 'large', keytip: 'VB' },
           { kind: 'button', command: 'writer.macros.run', size: 'large', keytip: 'MC' },
+          { kind: 'button', command: 'writer.macros.record', size: 'small', keytip: 'GM' },
+          { kind: 'button', command: 'writer.macros.stop', size: 'small', keytip: 'DG' },
+          { kind: 'button', command: 'writer.macros.pause', size: 'small', keytip: 'PG' },
           { kind: 'button', command: 'writer.macros.enable', size: 'small', keytip: 'HC' },
         ],
       },

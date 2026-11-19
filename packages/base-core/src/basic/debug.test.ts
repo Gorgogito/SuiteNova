@@ -134,3 +134,11 @@ describe('Nova Basic: depurador', () => {
     expect(it.debug('Main').state).toBe('done'); // se puede volver a depurar
   });
 });
+
+describe('Nova Basic: argumentos con nombre', () => {
+  it('una palabra clave puede ser el nombre de un argumento (SetRange Start:=1, End:=3)', () => {
+    const it = new Interpreter({ print: () => undefined, msgBox: () => 1, inputBox: () => '' });
+    const src = ['Sub A()', '  Selection.SetRange Start:=1, End:=3', '  x = Foo(End:=2)', 'End Sub'].join(String.fromCharCode(10));
+    expect(it.load([{ name: 'M', source: src }])).toEqual([]);
+  });
+});

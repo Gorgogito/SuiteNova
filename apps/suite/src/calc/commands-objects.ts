@@ -273,6 +273,9 @@ export function objectCommands(ui: CalcUI): CommandDef[] {
   // ---- code
   add({ id: 'calc.macros', label: 'Macros…', icon: 'run', shortcut: 'Alt+F8', description: 'Ejecuta una macro (un Sub de Nova Basic) del libro.', run: () => ui.openDialog('macros') });
   add({ id: 'calc.macroEditor', label: 'Editor de código…', icon: 'code', shortcut: 'Alt+F11', description: 'Escribe módulos de Nova Basic: macros y funciones para usar en las celdas.', run: () => ui.openDialog('macroEditor') });
+  add({ id: 'calc.macroRecord', label: 'Grabar macro…', icon: 'run', description: 'Graba lo que haces en el libro como una macro de Nova Basic.', enabled: () => !d.recording && d.contentEnabled && !d.edit, run: () => ui.openDialog('recordMacro') });
+  add({ id: 'calc.macroPause', label: 'Pausar grabación', icon: 'run', description: 'Pausa o reanuda la grabación de la macro.', enabled: () => !!d.recording, run: () => d.pauseRecording() });
+  add({ id: 'calc.macroStop', label: 'Detener grabación', icon: 'run', description: 'Termina la grabación y guarda la macro.', enabled: () => !!d.recording, run: () => d.stopRecording() });
   add({ id: 'calc.macroEnable', label: 'Habilitar contenido', icon: 'run', enabled: () => !d.contentEnabled, description: 'Permite que las macros y funciones del archivo se ejecuten.', run: () => d.enableContent() });
 
   // ---- charts: one command per kind

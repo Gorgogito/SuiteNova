@@ -314,7 +314,7 @@ export function parseModule(modName: string, src: string, opts: { labels?: boole
         next();
         continue;
       }
-      if (peek().kind === 'id' && peek(1).kind === 'op' && peek(1).text === ':=') {
+      if ((peek().kind === 'id' || peek().kind === 'kw') && peek(1).kind === 'op' && peek(1).text === ':=') {
         const n = next().text;
         next();
         out.push({ name: n, value: expr() });
@@ -855,7 +855,7 @@ export function parseModule(modName: string, src: string, opts: { labels?: boole
             seps.push(next().text);
             continue;
           }
-          if (peek().kind === 'id' && peek(1).kind === 'op' && peek(1).text === ':=') {
+          if ((peek().kind === 'id' || peek().kind === 'kw') && peek(1).kind === 'op' && peek(1).text === ':=') {
             const n = next().text;
             next();
             list.push({ name: n, value: expr() });

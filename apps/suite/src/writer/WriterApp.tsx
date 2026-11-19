@@ -38,6 +38,7 @@ import { ReviewPane } from './ReviewPane';
 import { NotePopup } from './NotePopup';
 import { HRuler, TabKindButton, VRuler } from './Ruler';
 import { writerTabs } from './ribbonDef';
+import { RecordingStatus } from '../macros/RecordDialogs';
 import './writer.css';
 
 const DOCX_FILTERS = [{ name: 'Documento de Word', extensions: ['docx'] }];
@@ -205,6 +206,8 @@ function Status({ ctl }: { ctl: WriterCtl }) {
           {ctl.signatureStatus === 'valid' ? t('Firmado por {s}', { s: ctl.signature.signer }) : ctl.signatureStatus === 'modified' ? t('Firma no válida: el documento cambió') : ctl.signatureStatus === 'invalid' ? t('Firma alterada') : t('Firmado por {s}', { s: ctl.signature.signer })}
         </span>
       )}
+      {ctl.recording && <RecordingStatus name={ctl.recording.name} paused={ctl.recording.paused} onPause={() => ctl.pauseRecording()} onStop={() => ctl.stopRecordingWithNote()} />}
+      {ctl.recordNote && <span role="status">{ctl.recordNote}</span>}
       {ctl.password && <span>{t('Cifrado con contraseña')}</span>}
       <span>{w.selection !== null ? t('{n} de {total} palabras', { n: w.selection, total: w.total }) : t('{n} palabras', { n: w.total })}</span>
     </>

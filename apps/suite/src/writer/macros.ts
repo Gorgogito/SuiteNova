@@ -38,7 +38,7 @@ const STYLE_BY_NAME: Record<string, string> = {
   'heading 1': 'Heading1', 'heading 2': 'Heading2', 'heading 3': 'Heading3', 'heading 4': 'Heading4', 'heading 5': 'Heading5', 'heading 6': 'Heading6',
   'leyenda': 'Caption', caption: 'Caption',
 };
-const STYLE_LABEL: Record<string, string> = { Normal: 'Normal', Title: 'Título', Subtitle: 'Subtítulo', Quote: 'Cita', Caption: 'Leyenda', Heading1: 'Título 1', Heading2: 'Título 2', Heading3: 'Título 3', Heading4: 'Título 4', Heading5: 'Título 5', Heading6: 'Título 6' };
+export const STYLE_LABEL: Record<string, string> = { Normal: 'Normal', Title: 'Título', Subtitle: 'Subtítulo', Quote: 'Cita', Caption: 'Leyenda', Heading1: 'Título 1', Heading2: 'Título 2', Heading3: 'Título 3', Heading4: 'Título 4', Heading5: 'Título 5', Heading6: 'Título 6' };
 
 const bgrToHex = (n: number): string => {
   const v = Math.max(0, Math.trunc(n)) & 0xffffff;
@@ -61,6 +61,7 @@ const PARAMS: Record<string, string[]> = {
   endkey: ['unit', 'extend'],
   collapse: ['direction'],
   typetext: ['text'],
+  setrange: ['start', 'end'],
   insertafter: ['text'],
   insertbefore: ['text'],
 };
@@ -449,6 +450,7 @@ export class WriterRuntime extends MacroRuntime {
         },
         methods: {
           typetext: (a) => { const r = asRange(); const { start, end } = sel(); r.replace(toStr(a[0])); const n = start + toStr(a[0]).length; void end; setSel(n, n); return undefined; },
+          setrange: (a) => { const n = story().text.length; const x = a[0] === undefined ? sel().start : toNum(a[0]); const y = a[1] === undefined ? sel().end : toNum(a[1]); setSel(Math.max(0, Math.min(x, n)), Math.max(0, Math.min(y, n))); return undefined; },
           typeparagraph: () => { const v = view(); v.dispatch(v.state.tr.split(v.state.selection.from)); return undefined; },
           typebackspace: () => { const { start, end } = sel(); if (start !== end) asRange().delete(); else if (start > 0) new RangeImpl(rt, start - 1, start).delete(); return undefined; },
           insertafter: (a) => { asRange().insertAfter(toStr(a[0])); return undefined; },
@@ -555,7 +557,9 @@ class RangeImpl {
     const to = offsetToPos(s, this.end);
     const parts = text.split(/\r\n|\r|\n/);
     const tr = v.state.tr;
-    const marks = v.state.doc.resolve(from).marks();
+    // typing at the insertion point takes the format asked for there (`Selection.Font.Bold = True`), else the one of the text before it
+    const sel = v.state.selection;
+    const marks = (sel.empty && sel.from === from ? v.state.storedMarks : null) ?? v.state.doc.resolve(from).marks();
     if (to > from) tr.delete(from, to);
     let pos = from;
     parts.forEach((part, i) => {
@@ -595,9 +599,17 @@ class RangeImpl {
   }
   private applyMark(name: string, attrs: Record<string, unknown> | null, on: boolean) {
     const { from, to } = this.positions();
-    if (from >= to) return;
     const type = writerSchema.marks[name]!;
     const v = this.view;
+    if (from >= to) {
+      // at the insertion point the format is for what is typed next (as in Word: `Selection.Font.Bold = True`, then `TypeText`)
+      const sel = v.state.selection;
+      if (sel.empty && sel.from === from) {
+        const current = v.state.storedMarks ?? sel.$from.marks();
+        v.dispatch(v.state.tr.setStoredMarks(on ? type.create(attrs ?? undefined).addToSet(current) : type.removeFromSet(current)));
+      }
+      return;
+    }
     v.dispatch(on ? v.state.tr.addMark(from, to, type.create(attrs ?? undefined)) : v.state.tr.removeMark(from, to, type));
   }
   private hasMark(name: string): boolean {

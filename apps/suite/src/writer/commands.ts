@@ -41,7 +41,7 @@ import {
   updateParagraphs,
 } from './editing';
 
-export type WriterDialog = 'link' | 'pageSetup' | 'about' | 'shortcuts' | 'tableSize' | 'columns' | 'watermark' | 'protect' | 'unprotect' | 'user' | 'toc' | 'tof' | 'caption' | 'xref' | 'bookmark' | 'indexMark' | 'cite' | 'sources' | 'noteOptions' | 'equation' | 'shape' | 'control' | 'envelope' | 'labels' | 'recipients' | 'mergeField' | 'mergeBlock' | 'mergeRule' | 'finishMerge' | 'templates' | 'spell' | 'userDict' | 'reviewOptions' | 'encrypt' | 'sign' | 'signInfo' | 'macros' | 'macroEditor' | 'font' | 'paragraph' | 'symbol' | 'autocorrect' | 'styles' | 'styleEdit' | 'tableProps' | 'tableSort' | 'tableToText' | 'textToTable' | 'pageBorders' | 'lineNumbers' | 'wordCount' | 'docProps' | 'accessibility' | 'compare' | 'imageFormat' | 'wordart' | 'smartart' | 'chart';
+export type WriterDialog = 'link' | 'pageSetup' | 'about' | 'shortcuts' | 'tableSize' | 'columns' | 'watermark' | 'protect' | 'unprotect' | 'user' | 'toc' | 'tof' | 'caption' | 'xref' | 'bookmark' | 'indexMark' | 'cite' | 'sources' | 'noteOptions' | 'equation' | 'shape' | 'control' | 'envelope' | 'labels' | 'recipients' | 'mergeField' | 'mergeBlock' | 'mergeRule' | 'finishMerge' | 'templates' | 'spell' | 'userDict' | 'reviewOptions' | 'encrypt' | 'sign' | 'signInfo' | 'macros' | 'macroEditor' | 'recordMacro' | 'font' | 'paragraph' | 'symbol' | 'autocorrect' | 'styles' | 'styleEdit' | 'tableProps' | 'tableSort' | 'tableToText' | 'textToTable' | 'pageBorders' | 'lineNumbers' | 'wordCount' | 'docProps' | 'accessibility' | 'compare' | 'imageFormat' | 'wordart' | 'smartart' | 'chart';
 
 export interface WriterUI {
   ctl: WriterCtl;
@@ -286,6 +286,9 @@ export function writerCommands(ui: WriterUI): CommandDef[] {
   defs.push(
     { id: 'writer.macros.run', label: 'Macros…', icon: 'script', shortcut: 'Alt+F8', description: 'Ejecuta una macro del documento.', run: () => ui.openDialog('macros') },
     { id: 'writer.macros.edit', label: 'Editor de código…', icon: 'code', shortcut: 'Alt+F11', description: 'Escribe y prueba macros en Nova Basic (un subconjunto de VBA).', run: () => ui.openDialog('macroEditor') },
+    { id: 'writer.macros.record', label: 'Grabar macro…', icon: 'script', description: 'Graba lo que haces en el documento como una macro de Nova Basic.', enabled: () => !ui.ctl.recording && ui.ctl.contentEnabled, run: () => ui.openDialog('recordMacro') },
+    { id: 'writer.macros.pause', label: 'Pausar grabación', icon: 'script', description: 'Pausa o reanuda la grabación de la macro.', enabled: () => !!ui.ctl.recording, run: () => ui.ctl.pauseRecording() },
+    { id: 'writer.macros.stop', label: 'Detener grabación', icon: 'script', description: 'Termina la grabación y guarda la macro.', enabled: () => !!ui.ctl.recording, run: () => ui.ctl.stopRecordingWithNote() },
     { id: 'writer.macros.enable', label: 'Habilitar contenido', icon: 'shield', description: 'Permite que se ejecuten las macros de este documento.', enabled: () => !ui.ctl.contentEnabled, run: () => ui.ctl.enableContent() },
   );
   void docFromText;

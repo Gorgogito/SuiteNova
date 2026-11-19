@@ -64,7 +64,7 @@ import { formsPlugin } from './forms';
 import { WriterRuntime } from './macros';
 import { isSpellLang } from '@suitenova/spell-core';
 import { issueAt, loadSpeller, onReviewOptions, setSpell, spellPlugin, wordUnderPointer, type Issue, type SpellLang, type WordTarget } from '../spell';
-import { getLocale } from '@suitenova/core-ui';
+import { getLocale, t } from '@suitenova/core-ui';
 import { hookMathCopy, mathClipboardProps } from '../math/clipboard';
 import { ControlView, FieldView, GroupView, MathView, ShapeView, editSelectedMath, type NodeViewHost } from './nodeviews';
 import { ObjectView } from './objectview';
@@ -75,6 +75,8 @@ import { commentRanges, getUser, protectionPlugin, trackTransaction } from './re
 import { outlinePlugin, setOutlineActive } from './outline';
 import { joinSectionBackward, joinSectionForward } from './sections-edit';
 import { NOTE_SEP, PAGE_GAP, paginationKey, paginationPlugin, repaginate, sectionFixup, setPaginationOff, trailingParagraph, type PageSpec } from './paginate';
+import { MacroRecorder } from '../macros/recorder';
+import { WriterRecorder } from './recorder';
 
 export { PAGE_GAP, NOTE_SEP };
 
@@ -265,6 +267,47 @@ export class WriterCtl {
   private runtime: WriterRuntime | null = null;
   get macroRt(): WriterRuntime {
     return (this.runtime ??= new WriterRuntime(this));
+  }
+  /** The macro being recorded, if any (see `WriterRecorder`). */
+  recording: MacroRecorder | null = null;
+  private recorder: WriterRecorder | null = null;
+  startRecording(name: string, description: string): void {
+    const v = this.mainView;
+    if (!v || this.recording) return;
+    this.recording = new MacroRecorder(name, description, 'Word');
+    this.recorder = new WriterRecorder(this.recording, v.state);
+    this.touch();
+  }
+  /** Pauses or resumes the recording. */
+  pauseRecording(): void {
+    if (!this.recording) return;
+    this.recording.paused = !this.recording.paused;
+    this.touch();
+  }
+  /** A message about the macro just recorded (shown in the status bar for a few seconds). */
+  recordNote: string | null = null;
+  private recordNoteTimer: ReturnType<typeof setTimeout> | null = null;
+  stopRecordingWithNote(): void {
+    const r = this.stopRecording();
+    if (!r) return;
+    this.recordNote = r.empty ? t('No se grabó ninguna acción en «{n}».', { n: r.name }) : t('La macro «{n}» se guardó en el módulo «{m}».', { n: r.name, m: r.module });
+    if (this.recordNoteTimer) clearTimeout(this.recordNoteTimer);
+    this.recordNoteTimer = setTimeout(() => {
+      this.recordNote = null;
+      this.touch();
+    }, 7000);
+    this.touch();
+  }
+  /** Ends the recording and writes the macro in the module of recorded macros. Returns the macro, or null when nothing was being recorded. */
+  stopRecording(): { name: string; module: string; empty: boolean } | null {
+    const r = this.recording;
+    if (!r) return null;
+    this.recording = null;
+    this.recorder = null;
+    const module = r.saveInto(this.macros);
+    this.dirty = true;
+    this.touch();
+    return { name: r.name, module, empty: r.isEmpty };
   }
   enableContent(): void {
     this.contentEnabled = true;
@@ -485,7 +528,9 @@ export class WriterCtl {
         const v = this.mainView!;
         const tracking = !this.readOnly && (this.trackChanges || this.protection?.mode === 'trackedChanges');
         if (tracking) tr = trackTransaction(tr, v.state, getUser());
-        const next = v.state.apply(tr);
+        const prev = v.state;
+        const next = prev.apply(tr);
+        if (this.recorder && !this.macroRt.running) this.recorder.observe(tr, prev, next);
         v.updateState(next);
         if (tr.docChanged && !tr.getMeta('nw-load')) this.dirty = true;
         this.touch();

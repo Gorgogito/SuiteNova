@@ -179,3 +179,21 @@
   background: var(--colorBrandBackground2);
 }
 .nv-mac__help { color: var(--colorNeutralForeground3); font-size: 12px; }
+
+.nv-mac__rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.nv-mac__recdot {
+  color: #e53935;
+}
+.nv-mac__rec button {
+  padding: 0 6px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  cursor: pointer;
+}

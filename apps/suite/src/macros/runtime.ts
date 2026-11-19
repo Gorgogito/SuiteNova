@@ -34,6 +34,11 @@ export abstract class MacroRuntime {
   protected depth = 0;
   lastAt: { module: string; line: number } | undefined;
 
+  /** A macro is running (what it does to the document is not what the user does: it is not recorded). */
+  get running(): boolean {
+    return this.depth > 0;
+  }
+
   abstract get modules(): MacroModule[];
   /** Active content is enabled (a file that carries macros opens with them off). */
   protected abstract enabled(): boolean;

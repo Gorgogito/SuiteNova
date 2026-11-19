@@ -53,6 +53,9 @@ import { CalcRuntime } from './macros';
 import { DocObjects, ENTRY_PENDING, overlaps } from './doc-objects';
 import { MSG_BOOK, ProtectionGuard } from './protection';
 import { fillSeries } from './series';
+import { MacroRecorder } from '../macros/recorder';
+import { CalcRecorder } from './recorder';
+import { t } from '@suitenova/core-ui';
 
 /** The parts of `r` not covered by `cut` (up to four rectangles). */
 export function subtractRect(r: Rect, cut: Rect): Rect[] {
@@ -151,6 +154,34 @@ export class CalcDoc {
   readonly prot: ProtectionGuard = new ProtectionGuard(this);
   /** Runs the code modules of the workbook. */
   readonly macros: CalcRuntime = new CalcRuntime(this);
+  /** The macro being recorded, if any (see `CalcRecorder`). */
+  recording: MacroRecorder | null = null;
+  private recorder: CalcRecorder | null = null;
+  startRecording(name: string, description: string): void {
+    if (this.recording) return;
+    this.commitIfEditing();
+    this.recording = new MacroRecorder(name, description, 'Excel');
+    this.recorder = new CalcRecorder(this.recording, this);
+    this.touch();
+  }
+  /** Pauses or resumes the recording. While paused the selection is not followed: the macro continues from where the user is. */
+  pauseRecording(): void {
+    if (!this.recording) return;
+    this.recording.paused = !this.recording.paused;
+    this.touch();
+  }
+  /** Ends the recording and writes the macro in the module of recorded macros. */
+  stopRecording(): void {
+    const r = this.recording;
+    if (!r) return;
+    this.commitIfEditing();
+    this.recorder?.stop();
+    this.recorder = null;
+    this.recording = null;
+    const module = r.saveInto(this.wb.macros);
+    this.dirty = true;
+    this.setNotice(r.isEmpty ? t('No se grabó ninguna acción en «{n}».', { n: r.name }) : t('La macro «{n}» se guardó en el módulo «{m}».', { n: r.name, m: module }));
+  }
   /** Macros and functions of the code modules run only when this is true (a file that comes with code opens with it off). */
   contentEnabled = true;
   /** A short message for the status bar (why something was not done). */

@@ -85,6 +85,11 @@ class Fail extends BasicError {
 export class CalcRuntime extends MacroRuntime {
   /** While a worksheet function runs, cells cannot be changed. */
   private readOnly = 0;
+  /** The macro's changes are being written to the history (that is not the user doing something). */
+  private committing = false;
+  get running(): boolean {
+    return super.running || this.committing;
+  }
   /** Patches of the run in progress (one undo step for the whole macro). */
   private patches: ReturnType<CalcDoc['wb']['setInput']>[] | null = null;
 
@@ -125,7 +130,14 @@ export class CalcRuntime extends MacroRuntime {
       const done = this.patches!;
       this.patches = null;
       // whatever the macro changed is one step in the history, even if it stopped with an error
-      if (done.some((p) => p.length)) this.doc.run('Ejecutar macro', () => done);
+      if (done.some((p) => p.length)) {
+        this.committing = true;
+        try {
+          this.doc.run('Ejecutar macro', () => done);
+        } finally {
+          this.committing = false;
+        }
+      }
       this.doc.touch();
     }
     return result;
