@@ -17,6 +17,7 @@ import './messages';
 import { setTransport } from './remote';
 import { ComposeBody, FolderTree, LinkConfirm, MessageList, ReadingPane } from './MailViews';
 import { StickyDialog } from './StickyDialog';
+import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
 import { ContactsView, TasksView } from './PeopleViews';
 import { mailTabs } from './ribbonDef';
 import './mail.css';
@@ -293,6 +294,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
   // las cuentas viven en la parte de escritorio; aquí solo se piden sus datos (sin contraseña)
   useEffect(() => {
     ctl.startSync();
+    ctl.macroRt.runStartup();
     void ctl.loadAccounts().then(() => {
       if (ctl.accounts.length && ctl.autoMinutes > 0) void ctl.syncAll({ auto: true });
     });
@@ -495,7 +497,9 @@ export function MailApp({ module }: { module: ModuleInfo }) {
           {ctl.compose && <ComposeBody key={ctl.compose.id} ctl={ctl} c={ctl.compose} onExport={(raw, name) => void saveBytes(`${clean(name)}.eml`, new TextEncoder().encode(raw), [{ name: 'Mensaje', extensions: ['eml'] }])} />}
         </StickyDialog>
         <LinkConfirm link={link} onClose={() => setLink(null)} />
-        <StickyDialog open={dialog !== null} onClose={() => setDialog(null)} width={dialog === 'accounts' ? 640 : undefined}>
+        {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={() => setDialog(null)} onEdit={() => setDialog('macroEditor')} />}
+        {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={() => setDialog(null)} />}
+        <StickyDialog open={dialog !== null && dialog !== 'macros' && dialog !== 'macroEditor'} onClose={() => setDialog(null)} width={dialog === 'accounts' ? 640 : undefined}>
           {dialog === 'settings' && <SettingsDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'accounts' && <AccountsDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'about' && (

@@ -116,4 +116,5 @@ En Office es un componente compartido (motor y diccionarios, diccionario persona
 Plan de 5 fases en `docs/diseno-macros.md`: biblioteca global por producto; alcance Writer, Calc, Slides, Base, Mail, Plan y Diagram.
 - [x] **Fase 1 HECHA:** intérprete con depurador (puntos de interrupción, pasos, variables, pila, inmediato con la ejecución detenida), núcleo y editor compartidos por Writer, Calc y Base; e2e nueva (9).
 - [x] **Fase 2 HECHA:** grabadora de macros en Writer y Calc (Grabar, Pausar, Detener; módulo «Grabadas»); lo que no se puede grabar queda como comentario; pruebas que reproducen la macro y comparan; e2e nueva (4).
-- [ ] Fases 3 a 5: Slides y Mail; Plan y Diagram; biblioteca global, seguridad y cierre con Office real.
+- [x] **Fase 3 HECHA:** modelos de objetos de PowerPoint (Slides, con macros en el `.pptx` y barra de seguridad) y de Outlook (Mail, macros del programa, permiso al enviar); pestaña Programador en los dos; sin grabadora porque Office no la tiene en esos productos; e2e nueva (6).
+- [ ] Fases 4 y 5: Plan y Diagram (con grabadora: Project y Visio la tienen); biblioteca global, seguridad y cierre con Office real.

@@ -36,6 +36,7 @@ import {
   type TaskItem,
 } from '@suitenova/mail-core';
 import { canConnect, messageOf, protocolOf, remote, savesSentCopy, type RemoteAccount } from './remote';
+import { MailRuntime } from './macros';
 
 /** Mensajes más grandes que esto no se descargan. */
 export const MAX_MESSAGE_BYTES = 25 * 1024 * 1024;
@@ -46,6 +47,18 @@ export const DEFAULT_SYNC = { autoMinutes: 5, limit: 500 };
 export const AUTO_SYNC_CHOICES = [0, 1, 5, 15, 30, 60];
 export const SYNC_LIMIT_CHOICES = [100, 200, 500, 1000, 2000, 5000];
 const SETTINGS_KEY = 'novamail.sync';
+const MACROS_KEY = 'novamail.macros';
+
+/** The macros of the program (like Outlook's, they belong to the program and not to a mail file). */
+function readMacros(): { enabled: boolean; modules: { name: string; code: string }[] } {
+  try {
+    const v = JSON.parse(localStorage.getItem(MACROS_KEY) ?? '{}') as { enabled?: unknown; modules?: unknown };
+    const modules = Array.isArray(v.modules) ? v.modules.filter((m): m is { name: string; code: string } => !!m && typeof (m as { name?: unknown }).name === 'string' && typeof (m as { code?: unknown }).code === 'string').map((m) => ({ name: m.name, code: m.code })) : [];
+    return { enabled: v.enabled !== false, modules };
+  } catch {
+    return { enabled: true, modules: [] };
+  }
+}
 
 type OpInput = PendingOp extends infer O ? (O extends { id: string } ? Omit<O, 'id'> : never) : never;
 
@@ -124,6 +137,26 @@ export class MailCtl {
   private flushing = false;
   private version = 0;
   private listeners = new Set<() => void>();
+  /** The macro modules (Nova Basic with the objects of Outlook), kept in the program's settings. */
+  macros: { name: string; code: string }[] = readMacros().modules;
+  /** Macros may run. */
+  macrosEnabled = readMacros().enabled;
+  private runtime: MailRuntime | null = null;
+  get macroRt(): MailRuntime {
+    return (this.runtime ??= new MailRuntime(this));
+  }
+  saveMacros(): void {
+    try {
+      localStorage.setItem(MACROS_KEY, JSON.stringify({ enabled: this.macrosEnabled, modules: this.macros }));
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
+  setMacrosEnabled(on: boolean): void {
+    this.macrosEnabled = on;
+    this.saveMacros();
+    this.touch();
+  }
   /** Reminders already shown (event id + start). */
   dismissed = new Set<string>();
 

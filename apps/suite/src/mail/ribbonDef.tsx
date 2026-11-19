@@ -182,5 +182,22 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
 
   const view = viewTab({ zoom: false });
   view.groups.splice(1, 0, { id: 'pane', label: 'Disposición', icon: 'panelRight', items: [{ kind: 'button', command: 'mail.readingPane', size: 'large', keytip: 'PL' }] });
-  return [home, sync, data, view, helpTab()];
+  const developer: RibbonTab = {
+    id: 'developer',
+    label: 'Programador',
+    keytip: 'PR',
+    groups: [
+      {
+        id: 'code',
+        label: 'Código',
+        icon: 'code',
+        items: [
+          { kind: 'button', command: 'mail.macroEditor', size: 'large', keytip: 'ED' },
+          { kind: 'button', command: 'mail.macros', size: 'large', keytip: 'MA' },
+          { kind: 'button', command: 'mail.macroSecurity', size: 'small', keytip: 'SG' },
+        ],
+      },
+    ],
+  };
+  return [home, sync, data, developer, view, helpTab()];
 }

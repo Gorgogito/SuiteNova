@@ -78,7 +78,7 @@ function themeXml(t: Theme, ctx: WriteCtx): string {
 
 // ------------------------------------------------------------------------------------------------ the writer
 
-export async function writePptx(deck: Deck, opts: { slideshow?: boolean; template?: boolean } = {}): Promise<WriteResult> {
+export async function writePptx(deck: Deck, opts: { slideshow?: boolean; template?: boolean; macros?: { name: string; code: string }[] } = {}): Promise<WriteResult> {
   const zip = new JSZip();
   // el libro incrustado de cada gráfico nuevo o editado (generarlo es asíncrono; el resto de la escritura no)
   const chartPlans = new Map<string, Record<string, Uint8Array>>();
@@ -370,6 +370,14 @@ export async function writePptx(deck: Deck, opts: { slideshow?: boolean; templat
   addPartRaw('ppt/viewProps.xml', `${XML}<p:viewPr ${NS}><p:normalViewPr><p:restoredLeft sz="15620"/><p:restoredTop sz="94660"/></p:normalViewPr><p:slideViewPr><p:cSldViewPr><p:cViewPr varScale="1"><p:scale><a:sx n="100" d="100"/><a:sy n="100" d="100"/></p:scale><p:origin x="0" y="0"/></p:cViewPr>${guideXml}</p:cSldViewPr></p:slideViewPr><p:notesTextViewPr><p:cViewPr><p:scale><a:sx n="1" d="1"/><a:sy n="1" d="1"/></p:scale><p:origin x="0" y="0"/></p:cViewPr></p:notesTextViewPr><p:gridSpacing cx="76200" cy="76200"/></p:viewPr>`, 'application/vnd.openxmlformats-officedocument.presentationml.viewProps+xml');
   presRels.add(`${RT}/viewProps`, 'viewProps.xml');
   presRels.add(`${RT}/theme`, relative('ppt/presentation.xml', themePath.get(deck.themes[0]!.id)!));
+  // what PowerPoint has no place for (the macros of this suite) goes in a part of its own that PowerPoint ignores
+  if (opts.macros?.length) {
+    const json = JSON.stringify({ v: 1, macros: opts.macros.map((m) => ({ name: m.name, code: m.code })) }).replace(/]]>/g, ']]]]><![CDATA[>');
+    addPartRaw('customXml/novaSlides1.xml', `${XML}<suitenova xmlns="urn:suitenova:slides:1"><![CDATA[${json}]]></suitenova>`);
+    addPartRaw('customXml/novaSlidesProps1.xml', `${XML}<ds:datastoreItem ds:itemID="{7B1D2E4C-6A3F-4C58-8E0B-2D9A4F6C1B33}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="urn:suitenova:slides:1"/></ds:schemaRefs></ds:datastoreItem>`, 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml');
+    addPartRaw('customXml/_rels/novaSlides1.xml.rels', `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${RT}/customXmlProps" Target="novaSlidesProps1.xml"/></Relationships>`);
+    presRels.add(`${RT}/customXml`, '../customXml/novaSlides1.xml');
+  }
 
   // ---- presentation.xml
   const rmap = (presRels as unknown as { items: { id: string; type: string; target: string }[] }).items;

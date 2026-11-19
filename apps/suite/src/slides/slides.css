@@ -1,6 +1,7 @@
 @import '../writer/writer.css';
 
 .sl-app {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -644,3 +645,23 @@
 .sl-site { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; background: #fff; border-style: solid; border-color: #0f6cbd; pointer-events: none; box-sizing: border-box; }
 .sl-site--on { background: #0f6cbd; }
 
+
+.sl-secbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #fff4ce;
+  color: #3b2f00;
+  border-bottom: 1px solid #c8a700;
+}
+.sl-secbar button {
+  padding: 2px 10px;
+  font: inherit;
+  cursor: pointer;
+}

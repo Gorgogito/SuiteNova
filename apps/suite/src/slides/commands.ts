@@ -42,6 +42,9 @@ export type SlidesDialog =
   | 'comment'
   | 'spelling'
   | 'autocorrect'
+  | 'macros'
+  | 'macroEditor'
+  | 'recordMacro'
   | 'sections'
   | 'customShows'
   | 'exportImages'
@@ -386,6 +389,9 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
   add({ id: 'slides.anim.later', label: 'Mover después', icon: 'moveDown', enabled: () => !!c.selEffect, run: () => c.selEffect && moveEffect(c, c.selEffect, 1) });
   add({ id: 'slides.show.custom', label: 'Presentaciones personalizadas…', icon: 'list', run: () => ui.openDialog('customShows') });
   add({ id: 'slides.review.spelling', label: 'Revisar ortografía', icon: 'spell', shortcut: 'F7', run: () => ui.openDialog('spelling') });
+  add({ id: 'slides.macros', label: 'Macros…', icon: 'run', shortcut: 'Alt+F8', description: 'Ejecuta una macro (un Sub de Nova Basic) de la presentación.', run: () => ui.openDialog('macros') });
+  add({ id: 'slides.macroEditor', label: 'Editor de código…', icon: 'code', shortcut: 'Alt+F11', description: 'Escribe y prueba macros en Nova Basic con los objetos de PowerPoint (Presentation, Slide, Shape…).', run: () => ui.openDialog('macroEditor') });
+  add({ id: 'slides.macroEnable', label: 'Habilitar contenido', icon: 'run', enabled: () => !c.contentEnabled, description: 'Permite que se ejecuten las macros de esta presentación.', run: () => c.enableContent() });
   add({ id: 'slides.review.autocorrect', label: 'Opciones de autocorrección…', icon: 'spell', description: 'Qué se corrige al escribir (comillas, símbolos, mayúsculas, *negrita*…) y los reemplazos propios, los mismos de todos los productos.', run: () => ui.openDialog('autocorrect') });
   add({ id: 'slides.review.thesaurus', label: 'Sinónimos', icon: 'book', shortcut: 'Shift+F7', description: 'Busca sinónimos de la palabra del cursor o de la selección y permite reemplazarla.', checked: () => c.showThesaurus, run: () => { c.showThesaurus = !c.showThesaurus; c.touch(); } });
   for (const l of SPELL_LANGS)

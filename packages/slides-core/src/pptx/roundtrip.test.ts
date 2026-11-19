@@ -103,3 +103,15 @@ describe.skipIf(!dir)('real files survive a round trip', () => {
     expect(problems.filter((p) => /THROW|slides \d/.test(p)).length).toBeLessThan(files.length * 0.05);
   }, 900_000);
 });
+
+describe('macros of the suite in a .pptx', () => {
+  it('travel in a part of their own and come back; a file without them reads none', async () => {
+    const deck = newDeck();
+    const macros = [{ name: 'Modulo1', code: 'Sub A()\n  x = "]]>"\nEnd Sub' }];
+    const { data } = await writePptx(deck, { macros });
+    const back = await readPptx(data);
+    expect(back.macros).toEqual(macros);
+    expect((await readPptx((await writePptx(deck)).data)).macros).toEqual([]);
+    expect(back.warnings).toEqual(expect.not.arrayContaining([expect.stringContaining('macros')]));
+  });
+});

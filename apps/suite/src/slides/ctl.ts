@@ -69,6 +69,7 @@ import { writeChart } from '../chart/clipboard';
 import { mathClipText } from '@suitenova/math-core';
 import { writeMath } from '../math/clipboard';
 import type { EditorView } from 'prosemirror-view';
+import { SlidesRuntime } from './macros';
 import { AssetUrls } from './render/assets';
 
 export type SlidesView = 'normal' | 'sorter' | 'reading' | 'outline' | 'master' | 'notes';
@@ -190,6 +191,19 @@ export class SlidesCtl {
   /** show prompts of empty placeholders in the presentation */
   showPromptsInShow = true;
 
+  /** The macro modules of the presentation (Nova Basic with the objects of PowerPoint). */
+  macros: { name: string; code: string }[] = [];
+  /** Active content (macros) may run. A file that arrives with macros starts with it disabled, as in PowerPoint. */
+  contentEnabled = true;
+  private runtime: SlidesRuntime | null = null;
+  get macroRt(): SlidesRuntime {
+    return (this.runtime ??= new SlidesRuntime(this));
+  }
+  enableContent(): void {
+    this.contentEnabled = true;
+    this.touch();
+  }
+
   private undoStack: Snapshot[] = [];
   private redoStack: Snapshot[] = [];
   private version = 0;
@@ -275,6 +289,25 @@ export class SlidesCtl {
     this.realIndex = Math.min(this.realIndex, this.real.slides.length - 1);
     this.dirty = true;
     this.touch();
+  }
+
+  /** Runs `fn` so that everything it changes is one undo step (the macros use it). */
+  undoGroup(label: string, fn: () => void): void {
+    this.endEdit();
+    const before = this.undoStack.length;
+    const redo = this.redoStack;
+    try {
+      fn();
+    } finally {
+      const added = this.undoStack.length - before;
+      if (added > 0) {
+        // the first snapshot is the state before the macro: the rest are the steps in between
+        const first = this.undoStack[before]!;
+        this.undoStack.splice(before);
+        this.undoStack.push({ ...first, label });
+        this.redoStack = [];
+      } else this.redoStack = redo;
+    }
   }
 
   undo(): void {
@@ -830,7 +863,7 @@ export class SlidesCtl {
 
   // ------------------------------------------------------------------ documents
 
-  load(deck: Deck, name: string | null, path: string | null, warnings: string[] = []): void {
+  load(deck: Deck, name: string | null, path: string | null, warnings: string[] = [], macros: { name: string; code: string }[] = []): void {
     this.urls.dispose();
     this.view = 'normal';
     this.masterTarget = null;
@@ -848,6 +881,8 @@ export class SlidesCtl {
     this.view = 'normal';
     this.masterTarget = null;
     this.warnings = warnings;
+    this.macros = macros;
+    this.contentEnabled = macros.length === 0;
     this.touch();
   }
   newDoc(): void {

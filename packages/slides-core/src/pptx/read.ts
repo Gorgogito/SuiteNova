@@ -11,6 +11,8 @@ import { readTableStyles, readTheme } from './themexml';
 export interface ReadResult {
   deck: Deck;
   warnings: string[];
+  /** The macro modules this suite stored in the file (none for a file from elsewhere). */
+  macros: { name: string; code: string }[];
 }
 
 const MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', svg: 'image/svg+xml', webp: 'image/webp', tif: 'image/tiff', tiff: 'image/tiff', emf: 'image/x-emf', wmf: 'image/x-wmf', mp4: 'video/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', mov: 'video/quicktime', wmv: 'video/x-ms-wmv', avi: 'video/x-msvideo', webm: 'video/webm', ogg: 'audio/ogg', mpg: 'video/mpeg', mpeg: 'video/mpeg', wma: 'audio/x-ms-wma', m4v: 'video/mp4' };
@@ -402,7 +404,23 @@ export async function readPptx(data: Uint8Array): Promise<ReadResult> {
 
   // media bytes referenced by path
   for (const s of deck.slides) attachMedia(s.shapes, asset, getBytes);
-  return { deck, warnings };
+
+  // the macros this suite stored (PowerPoint's own VBA project is not read)
+  let macros: { name: string; code: string }[] = [];
+  for (const path of all) {
+    const xml = bytesCache.get(path) ? new TextDecoder('utf-8').decode(bytesCache.get(path)!) : '';
+    if (!/^customXml\/[^/]+\.xml$/i.test(path) || !xml.includes('urn:suitenova:slides:1')) continue;
+    // a «]]>» inside the text was written as two CDATA sections: all of them, joined, are the text
+    const json = [...xml.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map((m) => m[1]).join('');
+    try {
+      if (!json) continue; // the properties part of the item names the same schema
+      const part = JSON.parse(json) as { macros?: { name: unknown; code: unknown }[] };
+      macros = (part.macros ?? []).map((x) => ({ name: String(x.name), code: String(x.code) }));
+    } catch {
+      warn('No se pudieron leer las macros guardadas en el archivo y se ignoraron.');
+    }
+  }
+  return { deck, warnings, macros };
 }
 
 function attachMedia(shapes: SlideElement[], asset: (p: string) => string | undefined, bytes: (p: string) => Uint8Array | null): void {

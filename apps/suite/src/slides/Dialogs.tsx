@@ -1,3 +1,4 @@
+import { MacroEditorDialog, MacroListDialog } from './dlg-macros';
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -113,6 +114,8 @@ export function Dialogs({ ui, dialog, onClose }: { ui: SlidesUI; dialog: { kind:
   if (kind === 'comment') return <CommentDialog ui={ui} onClose={onClose} />;
   if (kind === 'sections') return <SectionsDialog ui={ui} onClose={onClose} />;
   if (kind === 'spelling') return <SpellingDialog ui={ui} onClose={onClose} />;
+  if (kind === 'macros') return <MacroListDialog ui={ui} onClose={onClose} onEdit={() => ui.openDialog('macroEditor')} />;
+  if (kind === 'macroEditor') return <MacroEditorDialog ui={ui} onClose={onClose} />;
   if (kind === 'autocorrect') return <AutoCorrectDialog product="Nova Slides" initial={getAutoCorrect()} onSave={setAutoCorrect} hide={['autoLinks', 'autoLists', 'borders']} onClose={onClose} />;
   if (kind === 'themes') return <ThemesDialog ui={ui} onClose={onClose} />;
   if (kind === 'position') return <PositionDialog ui={ui} onClose={onClose} />;

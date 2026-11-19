@@ -80,7 +80,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
     async (saveAs: boolean, silent = false) => {
       try {
         ctl.endEdit();
-        const { data, warnings } = await writePptx(ctl.realDeck);
+        const { data, warnings } = await writePptx(ctl.realDeck, { macros: ctl.macros });
         const base = (ctl.fileName ?? ctl.deck.props.title ?? 'Presentación').replace(/\.[^.]+$/, '');
         const keep = !saveAs && ctl.filePath && /\.pptx$/i.test(ctl.filePath) ? ctl.filePath : null;
         const saved = await saveBytes(`${baseName(base)}.pptx`, data, SAVE_FILTERS, keep);
@@ -109,13 +109,15 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
       try {
         let deck: Deck;
         let warnings: string[];
+        let macros: { name: string; code: string }[] = [];
         {
           const ext = /.([^.]+)$/.exec(file.name)?.[1]?.toLowerCase();
           const r = ext === 'odp' ? await readOdp(file.data) : ext === 'ppt' || ext === 'pps' ? readPpt(file.data) : await readPptx(file.data);
           deck = r.deck;
           warnings = r.warnings;
+          macros = (r as { macros?: { name: string; code: string }[] }).macros ?? [];
         }
-        ctl.load(deck, file.name, /\.(pptx)$/i.test(file.name) ? file.path : null, warnings);
+        ctl.load(deck, file.name, /\.(pptx)$/i.test(file.name) ? file.path : null, warnings, macros);
         addRecent({ path: file.path, name: file.name, app: 'slides' });
         if (warnings.length) setDialog({ kind: 'about', arg: { warnings, name: file.name } });
       } catch (e) {
@@ -379,7 +381,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
         ctl.addElement(e);
         return e.id;
       },
-      write: async () => [...(await writePptx(ctl.realDeck)).data],
+      write: async () => [...(await writePptx(ctl.realDeck, { macros: ctl.macros })).data],
     };
   }, [ctl, loadFile]);
 
@@ -449,6 +451,16 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
       contentFill
     >
       <div className="sl-app">
+        {!ctl.contentEnabled && ctl.macros.length > 0 && (
+          <div className="sl-secbar" role="alert">
+            <span>
+              <strong>{t('ADVERTENCIA DE SEGURIDAD:')}</strong> {t('se deshabilitó el contenido activo (macros) de esta presentación.')}
+            </span>
+            <button type="button" onClick={() => ctl.enableContent()}>
+              {t('Habilitar contenido')}
+            </button>
+          </div>
+        )}
         {(view === 'normal' || view === 'master') && (
           <div className="sl-panel">
             {view === 'master' ? <MasterPanel ctl={ctl} /> : <Thumbs ctl={ctl} />}

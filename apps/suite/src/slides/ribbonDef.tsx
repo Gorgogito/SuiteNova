@@ -534,7 +534,15 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     ],
   };
 
-  return [home, insert, design, transitions, animations, show, review, viewExtra, format, tableDesign, tableLayout, picFormat, chartTools, smartTools, masterTab, helpTab()];
+  const developer: RibbonTab = {
+    id: 'developer',
+    label: 'Programador',
+    keytip: 'PR',
+    groups: [
+      { id: 'code', label: 'Código', icon: 'code', items: [L('slides.macroEditor', 'ED'), L('slides.macros', 'MA'), S('slides.macroEnable', 'HC')] },
+    ],
+  };
+  return [home, insert, design, transitions, animations, show, review, viewExtra, developer, format, tableDesign, tableLayout, picFormat, chartTools, smartTools, masterTab, helpTab()];
 }
 
 export { Icon };
