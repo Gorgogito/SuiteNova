@@ -98,3 +98,6 @@ En Office es un componente compartido (motor y diccionarios, diccionario persona
 - [x] **Fase 5 HECHA:** Autocorrección compartida (lógica común en `spell-core`, una sola lista de reemplazos y un solo cuadro para todos los productos), campos de texto con corrector (`ProofTextarea`: Mail, Plan, Forms y memo de Base), Calc con F7 sobre celdas y autocorrección al escribir en la celda, Notes con autocorrección; 7 pruebas nuevas de autocorrección, 3 de texto sin formato y e2e nueva `e2e-proof-fields` (8).
 - [x] **Fase 6 HECHA:** cierre con Word real por COM (50 frases; idioma y «no revisar» de `.docx` correctos en Word; ortografía idéntica en 37/50, las demás son ortografía contextual de Word; `GrammarErrors` devolvió 0 en todo, sin criterio para la gramática). Ver `docs/diseno-corrector.md` y `scripts/word-compare/`. **Corrector terminado (6 fases).**
 
+## Diccionario de sinónimos (`thesaurus-core`, plan en `docs/diseno-sinonimos.md`)
+- [x] **Fase 1 HECHA:** motor y datos (es: OpenThesaurus, en: WordNet; 10 pruebas).
+- [ ] Fase 2: interfaz compartida. Fase 3: Writer, Notes y Slides. Fase 4: Mail, Plan, Forms y Base. Fase 5: cierre con Word real.
