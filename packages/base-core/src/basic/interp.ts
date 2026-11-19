@@ -1,7 +1,7 @@
 import { BUILTIN_NAMES, builtin, createObject, type BuiltinCtx } from './builtins';
 import { BasicSyntaxError } from './lexer';
 import { parseExpression, parseModule, parseStatements, type Arg, type CaseTest, type Decl, type EnumDef, type Expr, type ModuleAst, type Param, type Proc, type Stmt, type TypeDef } from './parser';
-import { BasicError, ERR, NOTHING, VArray, binaryOp, coerceTo, compareValues, defaultFor, isNothing, isObject, negate, not, toNum, toStr, truthy, type BObject, type BVal } from './values';
+import { BasicError, ERR, NOTHING, VArray, binaryOp, coerceTo, compareValues, dateToText, defaultFor, isNothing, isObject, negate, not, toNum, toStr, truthy, type BObject, type BVal } from './values';
 
 /** What the program can reach in the host application. */
 /** The files a program can use: a flat store of text files that lives inside the database (it never touches the disk). */
@@ -34,6 +34,58 @@ export interface Limits {
 }
 const DEFAULT_LIMITS: Limits = { maxSteps: 20_000_000, maxMillis: 20_000, maxDepth: 100 };
 
+/** Where a debug session stopped. `depth` is the number of procedures being run (1 = the one that was started). */
+export interface DebugPause {
+  module: string;
+  line: number;
+  proc: string;
+  depth: number;
+}
+
+export type DebugStep = 'into' | 'over' | 'out' | 'continue';
+
+export interface DebugVar {
+  name: string;
+  type: string;
+  value: string;
+}
+
+/** A program run that can stop at breakpoints and be stepped. Created by `Interpreter.debug`. */
+export interface DebugSession {
+  readonly state: 'paused' | 'done' | 'error';
+  /** Where it is stopped (state `paused`). */
+  readonly pause: DebugPause | null;
+  /** What the procedure returned (state `done`). */
+  readonly value: BVal;
+  /** What stopped it (state `error`). */
+  readonly error: unknown;
+  /** Goes on: `into` and `over` stop at the next statement (`over` skips what the procedures it calls do), `out` when the procedure ends, `continue` at the next breakpoint. */
+  step(mode: DebugStep): void;
+  /** The procedures being run, the innermost first. */
+  stack(): { proc: string; module: string; line: number }[];
+  /** The variables of a procedure of the stack (0 = the innermost) and the module-level ones. */
+  locals(frame?: number): DebugVar[];
+  /** Evaluates an expression or runs statements in the frame where it is stopped, and returns the text of the value. */
+  evaluate(src: string, frame?: number): string;
+  /** Changes the breakpoints (`module:line`) while it is stopped. */
+  setBreakpoints(list: Iterable<string>): void;
+  /** Ends the run (the procedures' cleanup still happens). */
+  stop(): void;
+}
+
+/** The text a debugger shows for a value. */
+export function describeValue(v: BVal): string {
+  if (v === null) return 'Null';
+  if (v === undefined) return 'Empty';
+  if (typeof v === 'string') return `"${v.length > 200 ? v.slice(0, 200) + '…' : v}"`;
+  if (typeof v === 'boolean') return v ? 'True' : 'False';
+  if (typeof v === 'number') return String(v);
+  if (v instanceof Date) return `#${dateToText(v)}#`;
+  if (v instanceof VArray) return `Matriz(${v.dims.map((d) => `${d.lo} a ${d.hi}`).join(', ')})`;
+  if (v === NOTHING) return 'Nothing';
+  return 'Objeto';
+}
+
 /** Thrown when the program has to stop for good (limits): scripts cannot catch it. */
 export class AbortRun extends Error {
   constructor(message: string) {
@@ -44,6 +96,8 @@ export class AbortRun extends Error {
 
 interface Ref {
   v: BVal;
+  /** The name as written (for the variables window). */
+  name?: string;
   type?: string;
   isConst?: boolean;
   /** A `WithEvents` field of a class: the object it holds is wired to the `field_Event` procedures of `owner`. */
@@ -227,6 +281,7 @@ const own = <T>(o: Record<string, T> | undefined, k: string): T | undefined => (
 const lc = (s: string) => s.toLowerCase().replace(/\$$/, '');
 
 const isLvalue = (e: Expr): boolean => e.k === 'id';
+const COMPOUND = new Set(['if', 'select', 'for', 'foreach', 'do', 'with']);
 const FILE_FNS = new Set(['eof', 'lof', 'freefile', 'dir', 'kill', 'filecopy', 'filelen']);
 
 export class Interpreter {
@@ -244,6 +299,9 @@ export class Interpreter {
   private live = new Set<ClassInstance>();
   private pending = new Set<ClassInstance>();
   private running = 0;
+  private sync = 0;
+  private stack: Frame[] = [];
+  private dbg: { breaks: Set<string>; mode: 'run' | 'into' | 'over' | 'out'; depth: number } | null = null;
   private limits: Limits;
   private steps = 0;
   private startedAt = 0;
@@ -585,6 +643,134 @@ export class Interpreter {
     }
   }
 
+  // ---------------------------------------------------------------------------------------- debugging
+
+  private pauseCheck(f: Frame, s: Stmt): DebugPause | null {
+    const d = this.dbg!;
+    const depth = this.stack.length;
+    const hit = d.breaks.has(`${f.module}:${s.line}`);
+    const step = d.mode === 'into' || (d.mode === 'over' && depth <= d.depth) || (d.mode === 'out' && depth < d.depth);
+    if (!hit && !step) return null;
+    d.mode = 'run';
+    f.line = s.line;
+    return { module: f.module, line: s.line, proc: f.proc?.name ?? '', depth };
+  }
+
+  private *debugRun(p: Proc, args: BVal[]): Generator<DebugPause, BVal, void> {
+    try {
+      const v = yield* this.callProcG(p, args.map((value) => ({ value })), null);
+      this.flushPending();
+      return v;
+    } catch (e) {
+      throw this.finish(e);
+    } finally {
+      this.dbg = null;
+      this.stack = [];
+      if (--this.running === 0) {
+        this.closeAllFiles();
+        this.flushPendingSafe();
+      }
+    }
+  }
+
+  /**
+   * Runs a procedure under a debugger. It stops at the first statement when `stopAtStart` is set, at the breakpoints (`module:line`) and as
+   * the steps ask. It only stops at the statements of the procedures: what a function does when it is called inside an expression
+   * (`x = F(2)`) runs without stopping; a procedure called as a statement (`Call F`, `F 2`) can be stepped into.
+   */
+  debug(name: string, args: BVal[] = [], opts: { breakpoints?: Iterable<string>; stopAtStart?: boolean } = {}): DebugSession {
+    const p = this.procs.get(lc(name));
+    if (!p) throw ERR.undefinedName(name);
+    if (this.running > 0) throw new BasicError(5, 'Ya hay un programa en ejecución.');
+    this.begin();
+    this.running++;
+    this.stack = [];
+    this.dbg = { breaks: new Set(opts.breakpoints ?? []), mode: opts.stopAtStart ? 'into' : 'run', depth: 0 };
+    const gen = this.debugRun(p, args);
+    const me = this;
+    let pausedAt = 0;
+    const session: { state: 'paused' | 'done' | 'error'; pause: DebugPause | null; value: BVal; error: unknown } & DebugSession = {
+      state: 'paused',
+      pause: null,
+      value: undefined,
+      error: undefined,
+      step(mode) {
+        if (session.state !== 'paused') return;
+        const d = me.dbg!;
+        d.mode = mode === 'continue' ? 'run' : mode;
+        d.depth = session.pause?.depth ?? 0;
+        me.startedAt += Date.now() - pausedAt; // the time spent looking is not the program's
+        advance();
+      },
+      stack: () => me.stack.map((f) => ({ proc: f.proc?.name ?? '', module: f.module, line: f.line })).reverse(),
+      locals(frame = 0) {
+        const f = me.stack[me.stack.length - 1 - frame];
+        if (!f) return [];
+        const out: DebugVar[] = [];
+        // a ByRef parameter is the caller's variable: it is shown with the name the procedure gives it
+        for (const [k, r] of f.vars) out.push({ name: f.proc?.params.find((x) => lc(x.name) === k)?.name ?? (r.name !== undefined && lc(r.name) === k ? r.name : k), type: r.type ?? 'Variant', value: describeValue(r.v) });
+        for (const [k, r] of me.globals) if (r.name !== undefined || !f.vars.has(k)) out.push({ name: r.name ?? k, type: r.type ?? 'Variant', value: describeValue(r.v) });
+        return out;
+      },
+      evaluate(src, frame = 0) {
+        const f = me.stack[me.stack.length - 1 - frame];
+        if (!f) throw new BasicError(5, 'El programa no está detenido.');
+        const trimmed = src.trim();
+        const asValue = trimmed.startsWith('?');
+        const text = asValue ? trimmed.slice(1).trim() : trimmed;
+        me.sync++;
+        try {
+          if (!asValue) {
+            // like the immediate window: statements run (`a = 100`); what is not a statement is an expression whose value is shown
+            let body: Stmt[] | null = null;
+            try {
+              body = parseStatements(text);
+            } catch (e) {
+              if (!(e instanceof BasicSyntaxError)) throw e;
+            }
+            if (body) {
+              me.execList(body, f, true);
+              return '';
+            }
+          }
+          return describeValue(me.evalText(text, f));
+        } finally {
+          me.sync--;
+        }
+      },
+      setBreakpoints(list) {
+        if (me.dbg) me.dbg.breaks = new Set(list);
+      },
+      stop() {
+        if (session.state === 'paused') {
+          session.state = 'done';
+          session.pause = null;
+          gen.return(undefined);
+        }
+      },
+    };
+    const advance = () => {
+      try {
+        const r = gen.next();
+        if (r.done) {
+          session.state = 'done';
+          session.pause = null;
+          session.value = r.value;
+        } else {
+          session.state = 'paused';
+          session.pause = r.value;
+          pausedAt = Date.now();
+        }
+      } catch (e) {
+        session.state = 'error';
+        session.pause = null;
+        session.error = e;
+      }
+    };
+    advance();
+    return session;
+  }
+
   private finish(raw: unknown): unknown {
     const e = this.asBasic(raw);
     if (e instanceof BasicError) {
@@ -609,14 +795,33 @@ export class Interpreter {
     return { proc, module, vars: new Map(), withs: [], handler: { mode: 'none' }, inHandler: false, top: 0, errTop: 0, line: 0 };
   }
 
+  /** Runs a generator to the end without ever pausing (breakpoints and steps only work in a debug session, at the statements of the procedures). */
+  private drive<T>(g: Generator<DebugPause, T, void>): T {
+    this.sync++;
+    try {
+      let r = g.next();
+      while (!r.done) r = g.next();
+      return r.value;
+    } finally {
+      this.sync--;
+    }
+  }
+
   private callProc(p: Proc, args: { name?: string; value?: BVal; ref?: Ref }[], caller: Frame | null, self?: ClassInstance): BVal {
+    return this.drive(this.callProcG(p, args, caller, self));
+  }
+
+  private *callProcG(p: Proc, args: { name?: string; value?: BVal; ref?: Ref }[], caller: Frame | null, self?: ClassInstance): Generator<DebugPause, BVal, void> {
     if (++this.depth > this.limits.maxDepth) throw new BasicError(28, 'Espacio de pila agotado');
     let live: Frame | undefined;
+    let pushed = false;
     const aliased = new Set<Ref>();
     if (self) this.retain(self);
     try {
       const frame = this.newFrame(p, p.module);
       live = frame;
+      this.stack.push(frame);
+      pushed = true;
       if (self) frame.self = self;
       // bind the arguments
       const named = new Map<string, (typeof args)[number]>();
@@ -630,14 +835,14 @@ export class Interpreter {
         if (prm.paramArray) {
           const rest = positional.slice(i).map((a) => a.ref?.v ?? a.value);
           rest.forEach(escapeValue);
-          frame.vars.set(key, { v: VArray.of(rest) });
+          frame.vars.set(key, { v: VArray.of(rest), name: prm.name });
           return;
         }
         const given = named.get(key) ?? positional[i];
         const supplied = given !== undefined && !(given.value === undefined && given.ref === undefined && (given as { omitted?: boolean }).omitted);
         if (!supplied) {
           if (!prm.optional) throw new BasicError(449, `El argumento no es opcional: ${prm.name}`);
-          frame.vars.set(key, { v: prm.def ? this.evalIn(prm.def, frame) : this.defaultOf(prm.type), type: prm.type });
+          frame.vars.set(key, { v: prm.def ? this.evalIn(prm.def, frame) : this.defaultOf(prm.type), type: prm.type, name: prm.name });
         } else if (given!.ref && prm.byRef) {
           frame.vars.set(key, given!.ref); // an alias of the caller's variable
           aliased.add(given!.ref);
@@ -646,7 +851,7 @@ export class Interpreter {
           if (raw instanceof TypeInstance) raw = raw.clone();
           const bound = prm.isArray ? raw : coerceTo(prm.type, raw);
           this.retain(bound);
-          frame.vars.set(key, { v: bound, type: prm.type });
+          frame.vars.set(key, { v: bound, type: prm.type, name: prm.name });
         }
       });
       if (positional.length > p.params.length && !p.params.some((x) => x.paramArray)) throw new BasicError(450, 'Número de argumentos incorrecto o asignación de propiedad no válida');
@@ -658,7 +863,7 @@ export class Interpreter {
       let start = 0;
       for (;;) {
         try {
-          const sig = this.execList(p.body, frame, true, start);
+          const sig = yield* this.execListG(p.body, frame, true, start);
           if (sig && typeof sig === 'object' && 'resume' in sig) {
             frame.inHandler = false;
             const r = sig.resume;
@@ -685,6 +890,7 @@ export class Interpreter {
       return p.kind === 'function' || p.kind === 'get' ? frame.retRef!.v : undefined;
     } finally {
       this.depth--;
+      if (pushed) this.stack.pop();
       // what the variables of this call held is released (the ones that alias a variable of the caller are not theirs)
       if (live) for (const r of live.vars.values()) if (!aliased.has(r)) this.release(r.v);
       if (self) this.release(self);
@@ -719,13 +925,23 @@ export class Interpreter {
   // ---------------------------------------------------------------------------------------- statements
 
   private execList(list: Stmt[], frame: Frame, top = false, from = 0): Signal {
+    return this.drive(this.execListG(list, frame, top, from));
+  }
+
+  private *execListG(list: Stmt[], frame: Frame, top = false, from = 0): Generator<DebugPause, Signal, void> {
     let i = from;
     while (i < list.length) {
       const s = list[i]!;
       if (top) frame.top = i;
       let sig: Signal;
       try {
-        sig = this.exec(s, frame);
+        if (this.dbg && !this.sync && s.k !== 'label' && s.k !== 'dim') {
+          const pz = this.pauseCheck(frame, s);
+          if (pz) yield pz;
+        }
+        if (COMPOUND.has(s.k)) sig = yield* this.execCompound(s, frame);
+        else if (s.k === 'call' && this.dbg && !this.sync) sig = yield* this.execCallG(s, frame);
+        else sig = this.exec(s, frame);
       } catch (raw) {
         const e = this.asBasic(raw);
         if (e instanceof BasicError && frame.handler.mode === 'next') {
@@ -759,6 +975,99 @@ export class Interpreter {
     this.labelIdx.set(list, m);
   }
 
+  /** The statements that hold other statements: they run as generators so that a pause can happen inside them. */
+  private *execCompound(s: Stmt, f: Frame): Generator<DebugPause, Signal, void> {
+    this.tick(f, s.line);
+    switch (s.k) {
+      case 'if': {
+        for (const b of s.branches) {
+          if (truthy(this.evalIn(b.cond, f))) return yield* this.execListG(b.body, f);
+        }
+        return s.else ? yield* this.execListG(s.else, f) : undefined;
+      }
+      case 'select': {
+        const v = this.evalIn(s.expr, f);
+        for (const c of s.cases) {
+          if (c.tests === 'else' || c.tests.some((t) => this.caseMatches(t, v, f))) return yield* this.execListG(c.body, f);
+        }
+        return undefined;
+      }
+      case 'for': {
+        const from = toNum(this.evalIn(s.from, f));
+        const to = toNum(this.evalIn(s.to, f));
+        const step = s.step ? toNum(this.evalIn(s.step, f)) : 1;
+        if (step === 0) throw ERR.invalidCall('El paso de For no puede ser cero');
+        this.assign(s.v, from, f);
+        for (;;) {
+          const i = toNum(this.evalIn(s.v, f));
+          if (step > 0 ? i > to : i < to) break;
+          this.tick(f, s.line);
+          const sig = yield* this.execListG(s.body, f);
+          if (sig === 'exitfor') break;
+          if (sig) return sig;
+          // the variable is read back: the body may have changed it
+          this.assign(s.v, toNum(this.evalIn(s.v, f)) + step, f);
+        }
+        return undefined;
+      }
+      case 'foreach': {
+        const coll = this.evalIn(s.coll, f);
+        const items = coll instanceof VArray ? [...coll.data] : isObject(coll) && coll.items ? coll.items() : null;
+        if (!items) throw ERR.objectRequired();
+        for (const it of items) {
+          this.assign(s.v, it, f);
+          this.tick(f, s.line);
+          const sig = yield* this.execListG(s.body, f);
+          if (sig === 'exitfor') break;
+          if (sig) return sig;
+        }
+        return undefined;
+      }
+      case 'do': {
+        const test = (t: { until: boolean; cond: Expr }) => truthy(this.evalIn(t.cond, f)) !== t.until;
+        for (;;) {
+          if (s.pre && !test(s.pre)) break;
+          this.tick(f, s.line);
+          const sig = yield* this.execListG(s.body, f);
+          if (sig === 'exitdo') break;
+          if (sig) return sig;
+          if (s.post && !test(s.post)) break;
+        }
+        return undefined;
+      }
+      case 'with': {
+        const o = this.evalIn(s.obj, f);
+        f.withs.push(o);
+        this.retain(o);
+        try {
+          return yield* this.execListG(s.body, f);
+        } finally {
+          f.withs.pop();
+          this.release(o);
+        }
+      }
+      default:
+        return this.exec(s, f);
+    }
+  }
+
+  /** A call to a procedure of the program written as a statement: in a debug session it can be stepped into. */
+  private *execCallG(s: Stmt & { k: 'call' }, f: Frame): Generator<DebugPause, Signal, void> {
+    const e = s.expr;
+    const name = e.k === 'id' ? e.name : e.k === 'call' && e.fn.k === 'id' ? e.fn.name : null;
+    const key = name ? lc(name) : '';
+    if (name && !f.vars.has(key) && !f.self?.fields.has(key) && !f.self?.cls.methods.has(key) && !this.globals.has(key)) {
+      const proc = this.procs.get(key);
+      if (proc) {
+        this.tick(f, s.line);
+        const a = this.argValues(e.k === 'call' ? e.args : [], f);
+        yield* this.callProcG(proc, a.list, f);
+        return undefined;
+      }
+    }
+    return this.exec(s, f);
+  }
+
   private exec(s: Stmt, f: Frame): Signal {
     this.tick(f, s.line);
     switch (s.k) {
@@ -780,73 +1089,6 @@ export class Interpreter {
       case 'call':
         this.execCall(s.expr, f);
         return undefined;
-      case 'if': {
-        for (const b of s.branches) {
-          if (truthy(this.evalIn(b.cond, f))) return this.execList(b.body, f);
-        }
-        return s.else ? this.execList(s.else, f) : undefined;
-      }
-      case 'select': {
-        const v = this.evalIn(s.expr, f);
-        for (const c of s.cases) {
-          if (c.tests === 'else' || c.tests.some((t) => this.caseMatches(t, v, f))) return this.execList(c.body, f);
-        }
-        return undefined;
-      }
-      case 'for': {
-        const from = toNum(this.evalIn(s.from, f));
-        const to = toNum(this.evalIn(s.to, f));
-        const step = s.step ? toNum(this.evalIn(s.step, f)) : 1;
-        if (step === 0) throw ERR.invalidCall('El paso de For no puede ser cero');
-        this.assign(s.v, from, f);
-        for (;;) {
-          const i = toNum(this.evalIn(s.v, f));
-          if (step > 0 ? i > to : i < to) break;
-          this.tick(f, s.line);
-          const sig = this.execList(s.body, f);
-          if (sig === 'exitfor') break;
-          if (sig) return sig;
-          // the variable is read back: the body may have changed it
-          this.assign(s.v, toNum(this.evalIn(s.v, f)) + step, f);
-        }
-        return undefined;
-      }
-      case 'foreach': {
-        const coll = this.evalIn(s.coll, f);
-        const items = coll instanceof VArray ? [...coll.data] : isObject(coll) && coll.items ? coll.items() : null;
-        if (!items) throw ERR.objectRequired();
-        for (const it of items) {
-          this.assign(s.v, it, f);
-          this.tick(f, s.line);
-          const sig = this.execList(s.body, f);
-          if (sig === 'exitfor') break;
-          if (sig) return sig;
-        }
-        return undefined;
-      }
-      case 'do': {
-        const test = (t: { until: boolean; cond: Expr }) => truthy(this.evalIn(t.cond, f)) !== t.until;
-        for (;;) {
-          if (s.pre && !test(s.pre)) break;
-          this.tick(f, s.line);
-          const sig = this.execList(s.body, f);
-          if (sig === 'exitdo') break;
-          if (sig) return sig;
-          if (s.post && !test(s.post)) break;
-        }
-        return undefined;
-      }
-      case 'with': {
-        const o = this.evalIn(s.obj, f);
-        f.withs.push(o);
-        this.retain(o);
-        try {
-          return this.execList(s.body, f);
-        } finally {
-          f.withs.pop();
-          this.release(o);
-        }
-      }
       case 'exit':
         return s.what === 'sub' ? 'exitsub' : s.what === 'function' ? 'exitfunction' : s.what === 'for' ? 'exitfor' : 'exitdo';
       case 'goto':
@@ -1067,15 +1309,15 @@ export class Interpreter {
       if (into.has(key) && !isConst && into === f.vars) throw new BasicError(10, `Esta variable ya está declarada: ${d.name}`);
       if (d.dims) {
         const dims = d.dims.length ? d.dims.map((x) => ({ lo: x.lo ? Math.trunc(toNum(this.evalIn(x.lo, f))) : 0, hi: Math.trunc(toNum(this.evalIn(x.hi!, f))) })) : [{ lo: 0, hi: -1 }];
-        into.set(key, { v: this.newArray(dims, d.type), type: d.type });
+        into.set(key, { v: this.newArray(dims, d.type), type: d.type, name: d.name });
       } else if (isConst) {
-        into.set(key, { v: this.evalIn(d.init!, f), type: d.type, isConst: true });
+        into.set(key, { v: this.evalIn(d.init!, f), type: d.type, isConst: true, name: d.name });
       } else {
         const cls = d.isNew && d.type ? this.classes.get(lc(d.type)) : undefined;
         const prior = into.get(key);
         const obj = cls ? this.instantiate(cls) : d.isNew && d.type ? createObject(d.type) : null;
         if (d.isNew && d.type && !obj) throw new BasicError(429, `No se puede crear el objeto: ${d.type}. Solo se admiten módulos de clase, Collection y Scripting.Dictionary.`);
-        const made: Ref = { v: obj ?? this.defaultOf(d.type), type: d.type };
+        const made: Ref = { v: obj ?? this.defaultOf(d.type), type: d.type, name: d.name };
         into.set(key, made);
         this.retain(made.v);
         if (prior) this.release(prior.v);

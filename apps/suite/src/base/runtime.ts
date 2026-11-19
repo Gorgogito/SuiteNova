@@ -1,4 +1,5 @@
 import { basic, type DataEvent, type Handler } from '@suitenova/base-core';
+import { DebugRun } from '../macros/debug';
 
 type MacroDef = basic.MacroDef;
 import type { BaseCtl, FormHandle } from './ctl';
@@ -267,6 +268,53 @@ export class BaseRuntime {
   private syntaxFail(errors: { module: string; line: number; message: string }[]): RunReport {
     this.lastAt = { module: errors[0]!.module, line: errors[0]!.line };
     return { ok: false, error: `Hay errores de sintaxis: ${errors.map((e) => `${e.module}, línea ${e.line}: ${e.message}`).join(' · ')}`, at: this.lastAt };
+  }
+
+  // ---- debugging
+
+  /** Where the breakpoints are, by module (they last as long as the database is open). */
+  readonly breakpoints = new Map<string, Set<number>>();
+  /** The run that is stopped at a statement, if any (it outlives the editor: stepping into another module opens that module's tab). */
+  session: DebugRun | null = null;
+  sessionName = '';
+
+  guardedStep(fn: () => void): void {
+    this.guarded(undefined, () => {
+      fn();
+      return { ok: true };
+    });
+  }
+
+  breakpointKeys(): string[] {
+    return [...this.breakpoints].flatMap(([m, set]) => [...set].map((l) => `${m}:${l}`));
+  }
+
+  /** Starts a procedure under the debugger (it stops at the breakpoints and, with `stopAtStart`, at its first statement). */
+  debug(name: string, stopAtStart: boolean): { run: DebugRun } | { error: RunReport } {
+    this.lastAt = undefined;
+    const errors = this.load();
+    if (errors.length) return { error: this.syntaxFail(errors) };
+    if (!this.ctl.contentEnabled) return { error: { ok: false, error: 'El contenido activo está deshabilitado en este archivo.' } };
+    if (!this.interp!.hasProcedure(name)) return { error: { ok: false, error: `No existe el procedimiento "${name}".` } };
+    let session: basic.DebugSession | undefined;
+    const r = this.guarded(undefined, () => {
+      session = this.interp!.debug(name, [], { breakpoints: this.breakpointKeys(), stopAtStart });
+      return { ok: true };
+    });
+    if (!session) return { error: r };
+    const run = new DebugRun(this, session);
+    this.session = run;
+    this.sessionName = name;
+    if (session.state === 'error') this.lastAt = this.failReport(session.error).at;
+    return { run };
+  }
+
+  /** Ends the stopped run, if there is one. */
+  stopDebug(): void {
+    const r = this.session;
+    this.session = null;
+    if (r?.state === 'paused') r.stop();
+    this.ctl.touch();
   }
 
   /** One line of the immediate window. */

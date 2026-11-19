@@ -111,3 +111,8 @@ En Office es un componente compartido (motor y diccionarios, diccionario persona
 - [x] **Fase 3 HECHA:** `*negrita*`/`_cursiva_`, ordinales con superíndice, líneas de borde (también en .docx) e idioma por texto en Writer y Notes; Slides recibe autocorrección y su cuadro; e2e nueva (12).
 - [x] **Fase 4 HECHA:** campos de texto (Calc, Mail, Plan, Forms, Base) con la lista y excepciones del idioma del campo; «Opciones de autocorrección…» en el menú del botón derecho de los campos; e2e nueva (6).
 - [x] **Fase 5 HECHA:** cierre con Word real por COM (`AutoCorrect.Entries` y teclas reales; `TypeText` no activa la autocorrección): 15 de 23 casos idénticos tras corregir mayúscula del reemplazo al empezar oración y apóstrofo tipográfico; diferencias documentadas. **Autocorrección terminada (5 fases).**
+
+## Macros (producto auxiliar compartido)
+Plan de 5 fases en `docs/diseno-macros.md`: biblioteca global por producto; alcance Writer, Calc, Slides, Base, Mail, Plan y Diagram.
+- [x] **Fase 1 HECHA:** intérprete con depurador (puntos de interrupción, pasos, variables, pila, inmediato con la ejecución detenida), núcleo y editor compartidos por Writer, Calc y Base; e2e nueva (9).
+- [ ] Fases 2 a 5: grabadora; Slides y Mail; Plan y Diagram; biblioteca global, seguridad y cierre con Office real.

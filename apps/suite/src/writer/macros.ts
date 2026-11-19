@@ -2,7 +2,6 @@ import { basic } from '@suitenova/base-core';
 import { nodeTypes, writerSchema } from '@suitenova/writer-core';
 import { closeHistory } from 'prosemirror-history';
 import { TextSelection, type Transaction } from 'prosemirror-state';
-import { msgBox } from '../base/runtime';
 import type { WriterCtl } from './doc';
 import { addCommentMark, applyChanges, getUser, listChanges } from './review';
 import { blocksIn, buildStory, offsetToPos, posToOffset, type Story } from './story';
@@ -11,12 +10,9 @@ type BVal = basic.BVal;
 type BObject = basic.BObject;
 const { BasicError, VArray, toStr, toNum, toBool } = basic;
 
-export interface MacroRun {
-  ok: boolean;
-  error?: string;
-  at?: { module: string; line: number };
-  value?: BVal;
-}
+import { MacroRuntime, type MacroRun } from '../macros/runtime';
+
+export type { MacroRun };
 
 const noMember = (m: string): never => {
   throw new BasicError(438, `El objeto no admite la propiedad o el método: ${m}`);
@@ -116,99 +112,25 @@ function make(def: Def): BObject {
 }
 
 /** Runs the macros of a document: Nova Basic with the objects of a word processor (Document, Selection, Range…). */
-export class WriterRuntime {
-  console: string[] = [];
-  limits: Partial<basic.Limits> = {};
-  private interp: basic.Interpreter | null = null;
-  private key = '';
-  private errors: { module: string; line: number; message: string }[] = [];
-  private depth = 0;
-  lastAt: { module: string; line: number } | undefined;
-
-  constructor(readonly ctl: WriterCtl) {}
-
-  print = (text: string): void => {
-    this.console.push(text);
-    if (this.console.length > 2000) this.console.splice(0, this.console.length - 2000);
-    this.ctl.touch();
-  };
-  clearConsole(): void {
-    this.console = [];
-    this.ctl.touch();
+export class WriterRuntime extends MacroRuntime {
+  constructor(readonly ctl: WriterCtl) {
+    super();
   }
+
   get modules(): { name: string; code: string }[] {
     return this.ctl.macros;
   }
-
-  static check(name: string, code: string): { line: number; message: string }[] {
-    try {
-      basic.parseModule(name, code);
-      return [];
-    } catch (e) {
-      if (e instanceof basic.BasicSyntaxError) return [{ line: e.line, message: e.message }];
-      throw e;
-    }
+  protected enabled(): boolean {
+    return this.ctl.contentEnabled;
+  }
+  protected changed(): void {
+    this.ctl.touch();
+  }
+  protected hostObjects(): Record<string, BVal> {
+    return { ...WORD_CONSTANTS, ...this.objects() };
   }
 
-  private hooks(): basic.HostHooks {
-    return {
-      print: this.print,
-      msgBox: (p, b, t) => msgBox(p, b, t),
-      inputBox: (p, t, d) => (typeof window.prompt === 'function' ? window.prompt(`${t}\n\n${p}`, d) : null),
-      objects: { ...WORD_CONSTANTS, ...this.objects() },
-      functions: {
-        rgb: (a) => (Math.trunc(toNum(a[0])) & 255) | ((Math.trunc(toNum(a[1])) & 255) << 8) | ((Math.trunc(toNum(a[2])) & 255) << 16),
-      },
-    };
-  }
-
-  load(force = false): { module: string; line: number; message: string }[] {
-    const key = JSON.stringify(this.modules);
-    if (!force && this.interp && key === this.key) return this.errors;
-    this.interp = new basic.Interpreter(this.hooks(), this.limits);
-    this.errors = this.interp.load(this.modules.map((m) => ({ name: m.name, source: m.code }))).map((e) => ({ module: e.module, line: e.line, message: e.message }));
-    this.key = key;
-    return this.errors;
-  }
-
-  procedures(): basic.ProcInfo[] {
-    this.load();
-    return this.interp?.procedures() ?? [];
-  }
-  hasProcedure(name: string): boolean {
-    this.load();
-    return !this.errors.length && !!this.interp?.hasProcedure(name);
-  }
-
-  private report(e: unknown): MacroRun {
-    if (e instanceof basic.BasicError) return { ok: false, error: e.full, at: e.module && e.line ? { module: e.module, line: e.line } : undefined };
-    if (e instanceof basic.AbortRun) return { ok: false, error: e.message };
-    if (e instanceof basic.BasicSyntaxError) return { ok: false, error: `Error de sintaxis, línea ${e.line}: ${e.message}`, at: { module: 'Inmediato', line: e.line } };
-    return { ok: false, error: (e as Error).message };
-  }
-
-  run(name: string, args: BVal[] = []): MacroRun {
-    this.lastAt = undefined;
-    if (!this.ctl.contentEnabled) return { ok: false, error: 'El contenido activo está deshabilitado en este archivo.' };
-    const errors = this.load();
-    if (errors.length) {
-      this.lastAt = { module: errors[0]!.module, line: errors[0]!.line };
-      return { ok: false, error: `Hay errores de sintaxis: ${errors.map((e) => `${e.module}, línea ${e.line}: ${e.message}`).join(' · ')}`, at: this.lastAt };
-    }
-    if (!this.interp!.hasProcedure(name)) return { ok: false, error: `No existe el procedimiento "${name}".` };
-    return this.guarded(() => ({ ok: true, value: this.interp!.call(name, args) }));
-  }
-
-  immediate(src: string): MacroRun {
-    if (!this.ctl.contentEnabled) return { ok: false, error: 'El contenido activo está deshabilitado en este archivo.' };
-    this.load();
-    return this.guarded(() => {
-      this.interp!.immediate(src);
-      return { ok: true };
-    });
-  }
-
-  private guarded(fn: () => MacroRun): MacroRun {
+  protected guarded(fn: () => MacroRun): MacroRun {
     if (++this.depth > 20) {
       this.depth--;
       return { ok: false, error: 'Demasiadas llamadas anidadas.' };

@@ -207,10 +207,10 @@ await check('editor de macros: escribir, ejecutar y ver el resultado', async () 
   await ev(() => { window.__novaCalc.doc.contentEnabled = true; window.__novaCalc.doc.wb.macros = []; });
   await page.mouse.click(700, 600);
   await page.keyboard.press('Alt+F11');
-  await page.waitForSelector('.calc-mac__code');
+  await page.waitForSelector('.nv-mac__code');
   await page.getByRole('button', { name: 'Nuevo módulo' }).click();
   await page.waitForTimeout(300);
-  await page.locator('.calc-mac__code').fill(['Sub Hola()', '  Range("H1").Value = "desde editor"', '  Debug.Print "listo"', 'End Sub'].join(String.fromCharCode(10)));
+  await page.locator('.nv-mac__code').fill(['Sub Hola()', '  Range("H1").Value = "desde editor"', '  Debug.Print "listo"', 'End Sub'].join(String.fromCharCode(10)));
   await shot('editor-macros');
   await page.getByRole('button', { name: /Ejecutar/ }).first().click();
   await page.waitForTimeout(400);

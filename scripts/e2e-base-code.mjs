@@ -38,7 +38,7 @@ const db = (fn, arg) => page.evaluate(fn, arg);
 const settle = () => page.waitForTimeout(250);
 const rows = (sql) => db((s) => window.__novaBase.ctl.db.execute(s).rows, sql);
 const nav = (name) => page.locator('.bs-nav-pane li button', { hasText: new RegExp(`^${name}$`) });
-const consoleText = () => page.locator('.bs-consoleout').innerText();
+const consoleText = () => page.locator('.nv-mac__out').innerText();
 
 await page.goto(URL, { waitUntil: 'networkidle' });
 await page.waitForFunction(() => window.__novaBase?.ctl.loading === false);
@@ -108,7 +108,7 @@ await check('syntax errors are shown with their line, and Run takes you to it', 
 End Sub
 `);
   assert.match(await page.locator('.bs-toolbar .bs-hint').first().innerText(), /Línea 3/);
-  assert.ok(await page.locator('.bs-gutter .is-bad').count());
+  assert.ok(await page.locator('.nv-mac__gutter .is-bad').count());
   await page.getByRole('button', { name: 'Ejecutar', exact: true }).click();
   await settle();
   assert.match(await page.locator('.bs-error').innerText(), /errores de sintaxis.*línea 3/);

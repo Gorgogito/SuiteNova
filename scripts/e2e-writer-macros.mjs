@@ -56,12 +56,12 @@ await check('editor: write a macro, run it and see its effect on the document', 
   await page.getByRole('button', { name: 'Editor de código…' }).click();
   await page.getByRole('button', { name: 'Nuevo módulo' }).click();
   const code = 'Sub Corregir()\n  With ActiveDocument.Content.Find\n    .Text = "mal"\n    .Replacement.Text = "bien"\n    .Execute Replace:=wdReplaceAll\n  End With\n  ActiveDocument.Range(0, 4).Font.Bold = True\n  Debug.Print "palabras: " & ActiveDocument.Words.Count\nEnd Sub\n';
-  await page.locator('textarea.nw-mac__code').fill(code);
+  await page.locator('textarea.nv-mac__code').fill(code);
   await shot('editor');
   await page.getByRole('button', { name: 'Ejecutar', exact: true }).first().click();
   await settle(500);
-  assert.match(await page.locator('.nw-mac__ok').innerText(), /terminó correctamente/);
-  assert.match(await page.locator('.nw-mac__out').innerText(), /palabras: 4/);
+  assert.match(await page.locator('.nv-mac__ok').innerText(), /terminó correctamente/);
+  assert.match(await page.locator('.nv-mac__out').innerText(), /palabras: 4/);
   await page.getByRole('button', { name: 'Cerrar' }).click();
   await settle(300);
   assert.equal(await ev(() => window.__novaWriter.ctl.mainView.state.doc.textContent), 'bien bien y bien');
@@ -80,14 +80,14 @@ await check('one undo reverts the whole macro', async () => {
 await check('a syntax error is reported with its line, and the immediate window evaluates', async () => {
   await tab('Programador');
   await page.getByRole('button', { name: 'Editor de código…' }).click();
-  await page.locator('textarea.nw-mac__code').fill('Sub A()\n  x = = 1\nEnd Sub\n');
+  await page.locator('textarea.nv-mac__code').fill('Sub A()\n  x = = 1\nEnd Sub\n');
   await settle(300);
-  assert.match(await page.locator('.nw-mac__hint').innerText(), /Línea 2|línea 2/);
-  await page.locator('textarea.nw-mac__code').fill('Sub A()\nEnd Sub\n');
+  assert.match(await page.locator('.nv-mac__hint').innerText(), /Línea 2|línea 2/);
+  await page.locator('textarea.nv-mac__code').fill('Sub A()\nEnd Sub\n');
   await page.getByLabel('Instrucción inmediata').fill('? ActiveDocument.Paragraphs.Count');
   await page.getByLabel('Instrucción inmediata').press('Enter');
   await settle(300);
-  assert.match(await page.locator('.nw-mac__out').innerText(), /1/);
+  assert.match(await page.locator('.nv-mac__out').innerText(), /1/);
   await page.getByRole('button', { name: 'Cerrar' }).click();
 });
 
