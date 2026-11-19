@@ -1,7 +1,9 @@
 import { t, useCore } from '@suitenova/core-ui';
-import { ARTISTIC, BG_STYLES, COLOR_SCHEMES, FONT_SCHEMES, clrCss, colorContext, chainFor } from '@suitenova/slides-core';
+import { BG_STYLES, COLOR_SCHEMES, FONT_SCHEMES, clrCss, colorContext, chainFor } from '@suitenova/slides-core';
 import type { SlidesUI } from './commands';
 import { Gallery, useUi } from './ribbonParts';
+import { ArtisticItems } from '../images/galleries';
+import { slidesPictureHost } from './pichost';
 
 /** Variants group of the Design tab: colour schemes, font pairs and background styles as galleries. */
 export function ColorsGallery({ ui }: { ui: SlidesUI }) {
@@ -77,21 +79,12 @@ export function BgStylesGallery({ ui }: { ui: SlidesUI }) {
   );
 }
 
-/** Artistic effects of the selected pictures. */
+/** Artistic effects of the selected pictures (the shared list: it applies the effect on the original, with the usual intensity). */
 export function ArtisticMenu({ ui }: { ui: SlidesUI }) {
-  useUi(ui);
-  const exec = useCore().registry.run.bind(useCore().registry);
+  const c = useUi(ui);
   return (
     <Gallery label={t('Efectos artísticos')} icon="sparkles" size="small" iconOnly>
-      {(close) => (
-        <div role="menu" aria-label={t('Efectos artísticos')} className="sl-menulist">
-          {ARTISTIC.map((fx) => (
-            <button key={fx.id} type="button" role="menuitem" onClick={() => (exec(`slides.pic.artistic.${fx.id}`), close())}>
-              {t(fx.name)}
-            </button>
-          ))}
-        </div>
-      )}
+      {(close) => <ArtisticItems host={slidesPictureHost(c)} close={close} onOptions={() => ui.openDialog('pictureArtistic')} />}
     </Gallery>
   );
 }

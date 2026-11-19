@@ -2,6 +2,8 @@ import { t } from '@suitenova/core-ui';
 import { CORRECTIONS, CROP_SHAPES, RECOLORS, recolorOf, withAdjust, type PicEl } from '@suitenova/slides-core';
 import type { SlidesUI } from './commands';
 import { Gallery, ShapePreview, useUi } from './ribbonParts';
+import { AspectItems, PictureStyleItems } from '../images/galleries';
+import { slidesPictureHost } from './pichost';
 
 const pics = (c: SlidesUI['ctl']) => c.selected.filter((e): e is PicEl => e.kind === 'pic');
 const patchPics = (c: SlidesUI['ctl'], label: string, fn: (p: PicEl) => PicEl) =>
@@ -55,8 +57,29 @@ export function CorrectionsMenu({ ui }: { ui: SlidesUI }) {
             </button>
           ))}
           <button type="button" role="menuitem" onClick={() => (ui.openDialog('pictureCorrections'), close())}>{t('Opciones de corrección de imagen…')}</button>
+          <button type="button" role="menuitem" onClick={() => (ui.openDialog('pictureColor'), close())}>{t('Opciones de color de imagen…')}</button>
         </div>
       )}
+    </Gallery>
+  );
+}
+
+/** «Estilos de imagen»: the shared gallery. */
+export function PictureStylesGallery({ ui }: { ui: SlidesUI }) {
+  const c = useUi(ui);
+  return (
+    <Gallery label={t('Estilos de imagen')} icon="shape-rect" size="small" wide>
+      {(close) => <PictureStyleItems host={slidesPictureHost(c)} close={close} />}
+    </Gallery>
+  );
+}
+
+/** «Relación de aspecto» of the crop. */
+export function AspectGallery({ ui }: { ui: SlidesUI }) {
+  const c = useUi(ui);
+  return (
+    <Gallery label={t('Relación de aspecto')} icon="crop" size="small">
+      {(close) => <AspectItems host={slidesPictureHost(c)} close={close} />}
     </Gallery>
   );
 }

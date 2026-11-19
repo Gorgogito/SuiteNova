@@ -1206,7 +1206,8 @@ await check('equations (a box with the formula, edit again) and picture tools (c
   assert.equal((await P()).geom.prst, 'ellipse');
   await page.getByRole('button', { name: 'Correcciones', exact: true }).click();
   await page.getByRole('menuitem', { name: /Opciones de corrección/ }).click();
-  await page.getByRole('dialog').getByLabel('Transparencia').fill('30');
+  await page.getByRole('dialog').getByRole('tab', { name: 'Color' }).click();
+  await page.getByRole('dialog').getByRole('slider', { name: 'Transparencia' }).fill('30');
   await page.getByRole('button', { name: 'Aceptar', exact: true }).click();
   assert.equal((await P()).adj.alpha, 70);
   await shot('picture-styled');

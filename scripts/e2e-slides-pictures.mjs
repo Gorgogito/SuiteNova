@@ -93,7 +93,7 @@ await check('remove background: the corner turns transparent, the subject stays,
   await settle(700);
   await shot('remove-bg-dialog');
   assert.match(await page.getByRole('dialog').innerText(), /Se quita el \d+ %/);
-  await page.getByRole('dialog').getByRole('button', { name: 'Aceptar' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Conservar los cambios' }).click();
   await settle(700);
   const after = await probe();
   assert.notEqual(after.id, before.id);
@@ -113,7 +113,7 @@ await check('artistic effects: blur changes the pixels and keeps the size', asyn
   await page.getByRole('button', { name: 'Efectos artísticos' }).click();
   await settle(350);
   await shot('artistic-menu');
-  await page.getByRole('menuitem', { name: 'Mosaico' }).click();
+  await page.getByRole('menuitemradio', { name: 'Mosaico' }).click();
   await settle(900);
   const after = await probe();
   assert.notEqual(after.id, before.id);
@@ -211,6 +211,191 @@ await check('screenshot: asks for a screen and either inserts it or says why not
   assert.equal(w, 'image/png');
 });
 
+
+const picEdits = () => ev(() => { const c = window.__novaSlides.ctl; const p = c.slide.shapes.find((e) => e.kind === 'pic'); return { src: p.src, orig: p.orig ?? null, edits: p.edits ?? null, adjust: p.adjust ?? null, geom: p.geom ?? null, ln: p.ln ?? null, effects: p.effects ? Object.keys(p.effects) : null, srcRect: p.srcRect ?? null, xfrm: p.xfrm }; });
+const selectPic = () => ev(() => { const c = window.__novaSlides.ctl; c.select([c.slide.shapes.find((e) => e.kind === 'pic').id]); });
+
+await check('reversible: an artistic effect keeps the original, can be changed in intensity, and «Restablecer imagen» brings the original back', async () => {
+  await insertPng(await makePng(300, 200));
+  await selectPic();
+  const before = await probe();
+  await picTab();
+  await page.getByRole('button', { name: 'Efectos artísticos' }).click();
+  await settle(300);
+  await page.getByRole('menuitemradio', { name: 'Mosaico' }).click();
+  await settle(900);
+  const a = await picEdits();
+  assert.equal(a.orig, before.id, 'the original is kept');
+  assert.notEqual(a.src, before.id);
+  assert.deepEqual(a.edits, { artistic: { id: 'mosaic', level: 50 } });
+  // the dialog changes the intensity: the picture is made again from the original
+  await page.getByRole('button', { name: 'Efectos artísticos' }).click();
+  await page.getByRole('menuitem', { name: /Opciones de efectos artísticos/ }).click();
+  await settle(500);
+  await shot('format-artistic');
+  await page.getByRole('dialog').getByRole('slider', { name: 'Intensidad' }).fill('80');
+  await page.getByRole('dialog').getByRole('button', { name: 'Aceptar' }).click();
+  await settle(900);
+  const b = await picEdits();
+  assert.equal(b.orig, before.id);
+  assert.deepEqual(b.edits, { artistic: { id: 'mosaic', level: 80 } });
+  assert.notEqual(b.src, a.src);
+  // taking the effect off goes back to the original image itself
+  await page.getByRole('button', { name: 'Efectos artísticos' }).click();
+  await page.getByRole('menuitemradio', { name: 'Ninguno' }).click();
+  await settle(700);
+  const c = await picEdits();
+  assert.equal(c.src, before.id);
+  assert.equal(c.orig, null);
+  // and «Restablecer imagen» also works after several edits
+  await page.getByRole('button', { name: 'Efectos artísticos' }).click();
+  await page.getByRole('menuitemradio', { name: 'Desenfoque' }).click();
+  await settle(700);
+  await page.getByRole('button', { name: 'Restablecer imagen' }).click();
+  await settle(500);
+  const d = await picEdits();
+  assert.equal(d.src, before.id);
+  assert.equal(d.edits, null);
+});
+
+await check('Formato de imagen: sharpness, saturation and transparency in one dialog; brightness stays native for PowerPoint', async () => {
+  await insertPng(await makePng(300, 200));
+  await selectPic();
+  const before = await probe();
+  await picTab();
+  await page.getByRole('button', { name: 'Correcciones', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Opciones de color de imagen/ }).click();
+  await settle(500);
+  await page.getByRole('dialog').getByRole('slider', { name: 'Saturación' }).fill('0');
+  await page.getByRole('dialog').getByRole('slider', { name: 'Transparencia' }).fill('30');
+  await shot('format-color');
+  await page.getByRole('dialog').getByRole('tab', { name: 'Correcciones' }).click();
+  await page.getByRole('dialog').getByRole('slider', { name: 'Brillo' }).fill('20');
+  await page.getByRole('dialog').getByRole('button', { name: 'Aceptar' }).click();
+  await settle(900);
+  const a = await picEdits();
+  assert.deepEqual(a.edits, { saturation: 0 }, 'only what PowerPoint cannot do goes into the pixels');
+  assert.deepEqual(a.adjust, { bright: 20, alpha: 70 });
+  assert.equal(a.orig, before.id);
+  const p = await probe();
+  // the red disc is grey now
+  assert.ok(Math.abs(p.centre[0] - p.centre[1]) < 3 && Math.abs(p.centre[1] - p.centre[2]) < 3, `centre ${p.centre}`);
+  await page.getByRole('button', { name: 'Restablecer imagen' }).click();
+  await settle(500);
+  const r = await picEdits();
+  assert.deepEqual([r.src, r.edits, r.adjust], [before.id, null, null]);
+});
+
+await check('remove background with marks: a region marked to remove goes, the marks are kept with the picture and can be discarded', async () => {
+  await insertPng(await makePng(300, 200));
+  await selectPic();
+  const before = await probe();
+  await picTab();
+  await page.getByRole('button', { name: 'Quitar fondo…' }).click();
+  await settle(700);
+  await page.getByRole('dialog').getByRole('radio', { name: 'Marcar áreas para quitar' }).check();
+  // a click on the red disc marks it to be removed
+  const box = await page.getByRole('dialog').getByLabel('Vista previa').boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await settle(300);
+  assert.match(await page.getByRole('dialog').innerText(), /Marcas: 0 para mantener, 1 para quitar/);
+  await shot('remove-bg-marks');
+  await page.getByRole('dialog').getByRole('button', { name: 'Conservar los cambios' }).click();
+  await settle(900);
+  const a = await picEdits();
+  assert.equal(a.orig, before.id);
+  assert.equal(a.edits.background.remove.length, 1);
+  const p = await probe();
+  assert.equal(p.centre[3], 0, 'the marked disc was removed');
+  assert.equal(p.corner[3], 0, 'and so was the background');
+  // reopening the dialog shows the same marks; discarding brings the picture back
+  await page.getByRole('button', { name: 'Quitar fondo…' }).click();
+  await settle(700);
+  assert.match(await page.getByRole('dialog').innerText(), /1 para quitar/);
+  await page.getByRole('dialog').getByRole('button', { name: 'Descartar todos los cambios' }).click();
+  await settle(700);
+  const d = await picEdits();
+  assert.equal(d.src, before.id);
+  assert.equal(d.edits, null);
+});
+
+await check('picture styles and aspect ratio: a style sets shape, border and effects; 16:9 crops and keeps the image in place', async () => {
+  await insertPng(await makePng(300, 200));
+  await selectPic();
+  const b = await picEdits();
+  await picTab();
+  await page.getByRole('button', { name: 'Estilos de imagen' }).click();
+  await settle(300);
+  await shot('styles-gallery');
+  await page.getByRole('menuitem', { name: 'Redondeado con marco blanco' }).click();
+  await settle(400);
+  const s = await picEdits();
+  assert.deepEqual(s.geom, { prst: 'roundRect' });
+  assert.equal(s.ln.w, 6);
+  assert.ok(s.effects.includes('outer'));
+  await page.getByRole('button', { name: 'Relación de aspecto' }).click();
+  await page.getByRole('menuitem', { name: 'Horizontal 16:9' }).click();
+  await settle(400);
+  const a = await picEdits();
+  assert.ok(a.srcRect, 'cropped');
+  assert.ok(Math.abs(a.xfrm.w / a.xfrm.h - 16 / 9) < 0.02, `${a.xfrm.w}x${a.xfrm.h}`);
+  assert.deepEqual(a.geom, { prst: 'roundRect' }, 'the style stays');
+  // choosing another style keeps the crop
+  await page.getByRole('button', { name: 'Estilos de imagen' }).click();
+  await page.getByRole('menuitem', { name: 'Sin estilo' }).click();
+  await settle(300);
+  const n = await picEdits();
+  assert.equal(n.geom, null);
+  assert.deepEqual(n.srcRect, a.srcRect);
+  void b;
+});
+
+await check('edits survive saving and opening: the original comes back, the picture can still be changed', async () => {
+  await insertPng(await makePng(300, 200));
+  await selectPic();
+  const before = await probe();
+  await picTab();
+  await page.getByRole('button', { name: 'Efectos artísticos' }).click();
+  await page.getByRole('menuitemradio', { name: 'Desenfoque' }).click();
+  await settle(900);
+  const bytes = await ev(() => window.__novaSlides.write());
+  await ev((b) => window.__novaSlides.load(b), bytes);
+  await settle(700);
+  const a = await picEdits();
+  assert.deepEqual(a.edits, { artistic: { id: 'blur', level: 50 } });
+  assert.ok(a.orig && a.orig !== a.src);
+  const origSize = await ev(() => { const c = window.__novaSlides.ctl; return c.deck.assets[c.slide.shapes.find((e) => e.kind === 'pic').orig].data.length; });
+  assert.equal(origSize, before.bytes, 'the original is byte for byte the one inserted');
+  await selectPic();
+  await picTab();
+  await page.getByRole('button', { name: 'Restablecer imagen' }).click();
+  await settle(500);
+  const r = await picEdits();
+  assert.equal(r.edits, null);
+});
+
+await check('compress an edited picture: the original is shrunk and the picture made again, so it stays changeable', async () => {
+  await insertPng(await makePng(2400, 1600, true), 'enorme.png');
+  await selectPic();
+  await picTab();
+  await page.getByRole('button', { name: 'Efectos artísticos' }).click();
+  await page.getByRole('menuitemradio', { name: 'Carteles (pocos colores)' }).click();
+  await settle(2500);
+  const before = await picEdits();
+  await page.getByRole('button', { name: 'Comprimir imágenes…' }).click();
+  await settle(400);
+  await page.getByRole('dialog').getByLabel(/Correo electrónico/).check();
+  await page.getByRole('dialog').getByRole('button', { name: 'Comprimir', exact: true }).click();
+  await page.waitForFunction(() => /comprimidas/.test(document.querySelector('[role=dialog]')?.textContent ?? ''), null, { timeout: 30000 });
+  await page.getByRole('dialog').getByRole('button', { name: 'Cerrar' }).click();
+  await settle(900);
+  const after = await picEdits();
+  assert.notEqual(after.orig, before.orig, 'a smaller original');
+  assert.deepEqual(after.edits, before.edits, 'the effect is still there');
+  const size = await ev(() => { const c = window.__novaSlides.ctl; const p = c.slide.shapes.find((e) => e.kind === 'pic'); const a = c.deck.assets[p.orig]; return a.data.length; });
+  assert.ok(size < 800000, `original ${size} bytes`);
+});
+
 await check('saved and reopened: the processed pictures survive', async () => {
   await ev(() => window.__novaSlides.ctl.goTo(0));
   await insertPng(await makePng(300, 200));
@@ -218,7 +403,7 @@ await check('saved and reopened: the processed pictures survive', async () => {
   await picTab();
   await page.getByRole('button', { name: 'Quitar fondo…' }).click();
   await settle(700);
-  await page.getByRole('dialog').getByRole('button', { name: 'Aceptar' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Conservar los cambios' }).click();
   await settle(700);
   const bytes = await ev(() => window.__novaSlides.write());
   await ev((b) => window.__novaSlides.load(b), bytes);

@@ -15,6 +15,7 @@ import { chartFormatCommands } from '../chart/commands';
 import { updateElement, type SlideElement } from '@suitenova/slides-core';
 import { designCommands } from './commands-design';
 import { pictureCommands2 } from './commands-picture2';
+import { remakePicture } from './pichost';
 import { reviewCommands2 } from './commands-review2';
 import { effectsOf, moveEffect, removeEffect, transitionToAll } from './animctl';
 
@@ -32,6 +33,8 @@ export type SlidesDialog =
   | 'wordArt'
   | 'themes'
   | 'pictureCorrections'
+  | 'pictureColor'
+  | 'pictureArtistic'
   | 'exportMedia'
   | 'tableSplit'
   | 'tableCell'
@@ -302,16 +305,17 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
     run: () => {
       c.cropping = null;
       c.patch(c.selected.filter((e) => e.kind === 'pic').map((e) => e.id), 'Restablecer imagen', (e) => {
-        const p = e as typeof e & { kind: 'pic'; src: string };
-        const n = picNat(p.src);
+        const p = e as typeof e & { kind: 'pic'; src: string; orig?: string };
+        // the original image comes back, without background removal, artistic effect or any other edit
+        const n = picNat(p.orig ?? p.src);
         const x = c.xfrmOf(p);
-        const { srcRect, adjust, geom, ln, effects, ...rest } = p as never as Record<string, unknown>;
-        void srcRect; void adjust; void geom; void ln; void effects;
-        return { ...rest, xfrm: { ...x, h: (x.w * n.h) / n.w } } as never;
+        const { srcRect, adjust, geom, ln, effects, edits, orig, ...rest } = p as never as Record<string, unknown>;
+        void srcRect; void adjust; void geom; void ln; void effects; void edits; void orig;
+        return { ...rest, src: p.orig ?? p.src, xfrm: { ...x, h: (x.w * n.h) / n.w } } as never;
       });
     },
   });
-  add({ id: 'slides.pic.change', label: 'Cambiar imagen…', icon: 'image', enabled: onePic, run: () => { const id = c.selection[0]!; void ui.pickAsset('image').then((a) => a && c.patch([id], 'Cambiar imagen', (e) => ({ ...e, src: a }) as typeof e)); } });
+  add({ id: 'slides.pic.change', label: 'Cambiar imagen…', icon: 'image', enabled: onePic, run: () => { const id = c.selection[0]!; void ui.pickAsset('image').then(async (a) => { if (!a) return; const p = c.selected.find((e) => e.id === id); if (p?.kind === 'pic' && (p.orig || p.edits)) { const r = await remakePicture(c.deck, p, a, p.edits); if (r) { c.apply('Cambiar imagen', (d) => updateElement({ ...d, assets: { ...d.assets, ...(r.asset ? { [r.asset.id]: r.asset } : {}) } }, c.slide.id, id, (e) => { const q = { ...e, ...r.patch } as typeof e & Record<string, unknown>; for (const k of Object.keys(q)) if (q[k] === undefined) delete q[k]; return q as typeof e; })); return; } } c.patch([id], 'Cambiar imagen', (e) => ({ ...e, src: a }) as typeof e); }); } });
   add({ id: 'slides.pic.corrections', label: 'Correcciones de imagen…', icon: 'contrast', enabled: () => c.selected.some((e) => e.kind === 'pic'), run: () => ui.openDialog('pictureCorrections') });
 
   // ---- tables

@@ -1,10 +1,12 @@
 import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { addSlide, newId, newPicture, newTextBox, docFromText, removeBackground, type Deck, type PicEl, type Slide, type SlideElement } from '@suitenova/slides-core';
-import { useEffect, useRef, useState } from 'react';
+import { COMPRESS_TARGETS, NO_CROP, cropPixels, isCropped, moveMarks, planCompress, resample } from '@suitenova/image-core';
+import { addSlide, newId, newPicture, newTextBox, docFromText, frameOf, updateElement, type Deck, type PicEl, type SlideElement } from '@suitenova/slides-core';
+import { useEffect, useState } from 'react';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { assetToCanvas, bakePicture, canvasFromPixels, encode, hasAlpha, readPixels } from './picfx';
+import { canvasFromPixels, decodePixels, encode, hasAlpha } from '../images/canvas';
+import { originalOf, remakePicture } from './pichost';
 import type { SlidesUI } from './commands';
 import { Modal } from './Dialogs';
 
@@ -12,89 +14,15 @@ type P = { ui: SlidesUI; onClose: () => void };
 
 const kb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
-// ------------------------------------------------------------------------------------------------ remove background
-
-/** Removes the plain background around the subject of the selected picture, with a live preview. */
-export function RemoveBackgroundDialog({ ui, onClose }: P) {
-  const c = ui.ctl;
-  const pic = c.selected.find((e): e is PicEl => e.kind === 'pic');
-  const [tol, setTol] = useState(40);
-  const [src, setSrc] = useState<HTMLCanvasElement | null>(null);
-  const [info, setInfo] = useState('');
-  const view = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const a = pic && c.deck.assets[pic.src];
-    if (!a) return;
-    void assetToCanvas(a.data, a.mime).then((cv) => {
-      const k = Math.min(1, 460 / Math.max(cv.width, cv.height));
-      const small = document.createElement('canvas');
-      small.width = Math.max(1, Math.round(cv.width * k));
-      small.height = Math.max(1, Math.round(cv.height * k));
-      small.getContext('2d')!.drawImage(cv, 0, 0, small.width, small.height);
-      setSrc(small);
-    });
-  }, [pic, c]);
-  useEffect(() => {
-    if (!src || !view.current) return;
-    const p = readPixels(src);
-    const { pixels, removed } = removeBackground(p, tol);
-    setInfo(removed ? t('Se quita el {n} % de la imagen.', { n: Math.round((removed / (p.w * p.h)) * 100) }) : t('No se encontró un fondo liso en los bordes: la imagen no cambia.'));
-    const out = view.current;
-    out.width = p.w;
-    out.height = p.h;
-    const g = out.getContext('2d')!;
-    // chessboard under the transparent parts
-    for (let y = 0; y < p.h; y += 10) for (let x = 0; x < p.w; x += 10) ((g.fillStyle = (x / 10 + y / 10) % 2 ? '#ddd' : '#fff'), g.fillRect(x, y, 10, 10));
-    const tmp = canvasFromPixels(pixels);
-    g.drawImage(tmp, 0, 0);
-  }, [src, tol]);
-  const apply = async () => {
-    if (!pic) return;
-    await bakePicture(c, pic, 'Quitar fondo', (cv) => canvasFromPixels(removeBackground(readPixels(cv), tol).pixels));
-    onClose();
-  };
-  return (
-    <Modal
-      title={t('Quitar fondo')}
-      onClose={onClose}
-      wide
-      actions={
-        <>
-          <Button onClick={onClose}>{t('Cancelar')}</Button>
-          <Button appearance="primary" disabled={!src} onClick={() => void apply()}>
-            {t('Aceptar')}
-          </Button>
-        </>
-      }
-    >
-      <div className="sl-form">
-        <p className="sl-note">{t('Quita el fondo de un solo color que toca los bordes de la imagen. No reconoce personas ni objetos: con fondos con degradado, sombras o del mismo color que el sujeto, el resultado es peor.')}</p>
-        <div style={{ textAlign: 'center' }}>
-          <canvas ref={view} aria-label={t('Vista previa')} style={{ maxWidth: '100%', border: '1px solid rgba(128,128,128,.4)' }} />
-        </div>
-        <label className="sl-field">
-          <span>{t('Tolerancia de color')}: {tol}</span>
-          <input type="range" min={5} max={160} value={tol} aria-label={t('Tolerancia de color')} onChange={(e) => setTol(Number(e.target.value))} />
-        </label>
-        <p className="sl-note" aria-live="polite">{info}</p>
-      </div>
-    </Modal>
-  );
-}
-
 // ------------------------------------------------------------------------------------------------ compress
 
-const LEVELS: [string, number, string][] = [
-  ['print', 1920, 'Impresión (hasta 1920 px)'],
-  ['screen', 1280, 'Pantalla (hasta 1280 px)'],
-  ['web', 960, 'Correo electrónico (hasta 960 px)'],
-  ['none', 0, 'Conservar el tamaño en píxeles'],
-];
-
-/** Shrinks pictures: fewer pixels, JPEG when there is no transparency, and optionally without the cropped-away areas. */
+/**
+ * «Comprimir imágenes»: every picture keeps the resolution asked for (pixels per inch at the size it has on the slide), never gets more, and
+ * can lose the areas its crop hides. A picture with edits is shrunk from its original and made again, so its edits stay changeable.
+ */
 export function CompressDialog({ ui, onClose }: P) {
   const c = ui.ctl;
-  const [level, setLevel] = useState('screen');
+  const [target, setTarget] = useState('web');
   const [cropped, setCropped] = useState(true);
   const [all, setAll] = useState(!c.selected.some((e) => e.kind === 'pic'));
   const [busy, setBusy] = useState(false);
@@ -102,70 +30,53 @@ export function CompressDialog({ ui, onClose }: P) {
   const run = async () => {
     setBusy(true);
     try {
-      const max = LEVELS.find((l) => l[0] === level)![1];
+      const ppi = COMPRESS_TARGETS.find((x) => x.id === target)!.ppi;
       const targets: { slideId: string; pic: PicEl }[] = [];
-      for (const s of c.deck.slides) for (const e of s.shapes) if (e.kind === 'pic' && c.deck.assets[e.src] && (all || c.selection.includes(e.id))) targets.push({ slideId: s.id, pic: e });
+      for (const s of c.deck.slides) for (const e of s.shapes) if (e.kind === 'pic' && e.xfrm && c.deck.assets[originalOf(e)] && (all || c.selection.includes(e.id))) targets.push({ slideId: s.id, pic: e });
       let before = 0;
       let after = 0;
       const assets: Deck['assets'] = {};
-      const edits = new Map<string, { src: string; srcRect?: PicEl['srcRect'] | null }>();
-      for (const { pic } of targets) {
-        const a = c.deck.assets[pic.src]!;
+      const patches: { slideId: string; id: string; patch: Partial<PicEl>; drop?: boolean }[] = [];
+      for (const { slideId, pic } of targets) {
+        const a = c.deck.assets[originalOf(pic)]!;
         if (!/^image\/(png|jpeg|gif|bmp|webp)$/.test(a.mime)) continue;
-        let cv = await assetToCanvas(a.data, a.mime);
-        const cut = cropped && pic.srcRect && (pic.srcRect.l || pic.srcRect.t || pic.srcRect.r || pic.srcRect.b) ? pic.srcRect : null;
-        if (cut) {
-          const x = Math.round((cv.width * cut.l) / 100000);
-          const y = Math.round((cv.height * cut.t) / 100000);
-          const w = Math.max(1, Math.round(cv.width * (1 - (cut.l + cut.r) / 100000)));
-          const h = Math.max(1, Math.round(cv.height * (1 - (cut.t + cut.b) / 100000)));
-          const n = document.createElement('canvas');
-          n.width = w;
-          n.height = h;
-          n.getContext('2d')!.drawImage(cv, x, y, w, h, 0, 0, w, h);
-          cv = n;
-        }
-        const k = max && Math.max(cv.width, cv.height) > max ? max / Math.max(cv.width, cv.height) : 1;
-        if (k < 1) {
-          const n = document.createElement('canvas');
-          n.width = Math.max(1, Math.round(cv.width * k));
-          n.height = Math.max(1, Math.round(cv.height * k));
-          const g = n.getContext('2d')!;
-          g.imageSmoothingQuality = 'high';
-          g.drawImage(cv, 0, 0, n.width, n.height);
-          cv = n;
-        }
-        const jpeg = !hasAlpha(readPixels(cv));
-        const data = await encode(cv, jpeg ? 'image/jpeg' : 'image/png', 0.82);
+        const px = await decodePixels(a.data, a.mime);
+        const crop = frameOf(pic).crop ?? NO_CROP;
+        const plan = planCompress({ w: px.w, h: px.h }, crop, { w: pic.xfrm!.w / 72, h: pic.xfrm!.h / 72 }, ppi, cropped);
+        if (plan.skip) continue;
+        const kept = plan.keep.w === px.w && plan.keep.h === px.h ? px : cropPixels(px, plan.keep);
+        const res = resample(kept, plan.size.w, plan.size.h);
+        const jpeg = !hasAlpha(res);
+        const data = await encode(canvasFromPixels(res), jpeg ? 'image/jpeg' : 'image/png', 0.82);
         before += a.data.length;
         // keep the original when the result is not smaller and nothing was cut away
-        if (data.length >= a.data.length && !cut) {
+        if (data.length >= a.data.length && kept === px) {
           after += a.data.length;
           continue;
         }
         after += data.length;
         const id = newId('a');
-        assets[id] = { id, mime: jpeg ? 'image/jpeg' : 'image/png', data, name: (a.name ?? 'Imagen').replace(/\.[^.]+$/, '') + (jpeg ? '.jpg' : '.png') };
-        edits.set(pic.id, { src: id, ...(cut ? { srcRect: null } : {}) });
+        const asset = { id, mime: jpeg ? 'image/jpeg' : 'image/png', data, name: (a.name ?? 'Imagen').replace(/\.[^.]+$/, '') + (jpeg ? '.jpg' : '.png') };
+        assets[id] = asset;
+        const k = res.w / kept.w;
+        const made = await remakePicture({ ...c.deck, assets: { ...c.deck.assets, ...assets } }, pic, id, moveMarks(pic.edits, plan.keep.x, plan.keep.y, k));
+        if (made) patches.push({ slideId, id: pic.id, patch: made.patch, drop: !isCropped(plan.crop) && isCropped(crop) });
+        if (made?.asset) assets[made.asset.id] = made.asset;
       }
-      if (!edits.size) {
+      if (!patches.length) {
         setResult(t('Las imágenes ya están todo lo comprimidas que permiten estos ajustes.'));
         return;
       }
       c.apply('Comprimir imágenes', (d) => {
-        const slides = d.slides.map((s): Slide => ({
-          ...s,
-          shapes: s.shapes.map((e): SlideElement => {
-            const ed = e.kind === 'pic' ? edits.get(e.id) : undefined;
-            if (!ed || e.kind !== 'pic') return e;
-            const { srcRect: _s, ...rest } = e;
-            void _s;
-            return ed.srcRect === null ? { ...rest, src: ed.src } : { ...e, src: ed.src };
-          }),
-        }));
-        const used = new Set(slides.flatMap((s) => s.shapes.flatMap((e) => (e.kind === 'pic' ? [e.src] : []))));
-        const kept = Object.fromEntries(Object.entries(d.assets).filter(([id]) => used.has(id) || !targets.some((x) => x.pic.src === id)));
-        return { ...d, slides, assets: { ...kept, ...assets } };
+        let out: Deck = { ...d, assets: { ...d.assets, ...assets } };
+        for (const p of patches)
+          out = updateElement(out, p.slideId, p.id, (e: SlideElement) => {
+            const q = { ...(e as PicEl), ...p.patch } as PicEl & Record<string, unknown>;
+            for (const key of Object.keys(q)) if (q[key] === undefined) delete q[key];
+            if (p.drop) delete q.srcRect;
+            return q as PicEl;
+          });
+        return out;
       });
       setResult(t('Imágenes comprimidas: de {a} a {b}.', { a: kb(before), b: kb(after) }));
     } finally {
@@ -187,9 +98,9 @@ export function CompressDialog({ ui, onClose }: P) {
     >
       <div className="sl-form">
         <div role="radiogroup" aria-label={t('Resolución')}>
-          {LEVELS.map(([id, , label]) => (
-            <label key={id} className="sl-check" style={{ display: 'block' }}>
-              <input type="radio" name="cmp-level" checked={level === id} onChange={() => setLevel(id)} /> {t(label)}
+          {COMPRESS_TARGETS.map((x) => (
+            <label key={x.id} className="sl-check" style={{ display: 'block' }}>
+              <input type="radio" name="cmp-level" checked={target === x.id} onChange={() => setTarget(x.id)} /> {t(x.name)}
             </label>
           ))}
         </div>
@@ -199,7 +110,7 @@ export function CompressDialog({ ui, onClose }: P) {
         <label className="sl-check">
           <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> {t('Aplicar a todas las imágenes de la presentación')}
         </label>
-        <p className="sl-note">{t('Las imágenes sin transparencia pasan a JPEG. Si la imagen ya es pequeña no se agranda ni se cambia. Se puede deshacer.')}</p>
+        <p className="sl-note">{t('Cada imagen se queda con esa resolución al tamaño que tiene en la diapositiva (nunca se agranda). Las imágenes sin transparencia pasan a JPEG. Se puede deshacer.')}</p>
         <p className="sl-note" aria-live="polite">{result}</p>
       </div>
     </Modal>

@@ -1,9 +1,10 @@
 import type { CommandDef } from '@suitenova/core-ui';
-import { ARTISTIC, unionBox, visualBox, type PicEl, type Slide, type SlideElement } from '@suitenova/slides-core';
+import { ARTISTIC_EFFECTS, DEFAULT_LEVEL } from '@suitenova/image-core';
+import { unionBox, visualBox, type PicEl, type Slide, type SlideElement } from '@suitenova/slides-core';
 import { saveBytes } from '../fileio';
 import { canvasBlob, slideToCanvas } from './export/raster';
 import type { SlidesUI } from './commands';
-import { bakePicture, canvasFromPixels, readPixels } from './picfx';
+import { slidesPictureHost } from './pichost';
 
 /** Picture tools that change pixels (remove background, artistic effects, compress), icons, album, screenshot and save as picture. */
 export function pictureCommands2(ui: SlidesUI): CommandDef[] {
@@ -11,19 +12,14 @@ export function pictureCommands2(ui: SlidesUI): CommandDef[] {
   const pics = () => c.selected.filter((e): e is PicEl => e.kind === 'pic' && !!c.deck.assets[e.src]);
   const defs: CommandDef[] = [];
   defs.push({ id: 'slides.pic.removeBg', label: 'Quitar fondo…', icon: 'eraser', description: 'Quita el fondo liso que toca los bordes de la imagen.', enabled: () => c.selected.length === 1 && pics().length === 1, run: () => ui.openDialog('removeBg') });
-  for (const fx of ARTISTIC)
-    defs.push({
-      id: `slides.pic.artistic.${fx.id}`,
-      label: fx.name,
-      icon: 'sparkles',
-      description: 'Cambia los píxeles de la imagen (se puede deshacer).',
-      enabled: () => pics().length > 0,
-      run: async () => {
-        c.say('Aplicando el efecto…');
-        for (const p of pics()) await bakePicture(c, p, 'Efecto artístico', (cv) => canvasFromPixels(fx.run(readPixels(cv))));
-        c.say('');
-      },
-    });
+  const host = () => slidesPictureHost(c);
+  const setArtistic = async (id: string | null) => {
+    const h = host();
+    await h.setPixelEdits({ ...h.pixelEdits(), artistic: id ? { id, level: DEFAULT_LEVEL } : undefined }, 'Efecto artístico');
+  };
+  for (const fx of ARTISTIC_EFFECTS)
+    defs.push({ id: `slides.pic.artistic.${fx.id}`, label: fx.name, icon: 'sparkles', description: 'Aplica el efecto sobre la imagen original: se puede cambiar o quitar.', enabled: () => pics().length > 0, run: () => setArtistic(fx.id) });
+  defs.push({ id: 'slides.pic.artistic.none', label: 'Quitar el efecto artístico', icon: 'sparkles', enabled: () => pics().some((p) => !!p.edits?.artistic), run: () => setArtistic(null) });
   defs.push({ id: 'slides.pic.compress', label: 'Comprimir imágenes…', icon: 'image', description: 'Reduce el tamaño de las imágenes de la presentación.', run: () => ui.openDialog('compress') });
   defs.push({ id: 'slides.insert.icons', label: 'Iconos…', icon: 'sparkles', description: 'Inserta un icono como imagen.', run: () => ui.openDialog('icons') });
   defs.push({ id: 'slides.insert.album', label: 'Álbum de fotografías…', icon: 'image', description: 'Crea diapositivas con varias imágenes.', run: () => ui.openDialog('album') });

@@ -1,0 +1,113 @@
+.nv-img__dlg {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.nv-img__side {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.nv-img__tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.4);
+}
+.nv-img__tabs button {
+  padding: 4px 10px;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.nv-img__tabs button[aria-selected='true'] {
+  border-bottom-color: var(--colorBrandForeground1, #0f6cbd);
+  font-weight: 600;
+}
+.nv-img__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.nv-img__row > label {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.nv-img__row input[type='range'] {
+  width: 100%;
+}
+.nv-img__num {
+  width: 70px;
+}
+.nv-img__unit {
+  width: 14px;
+  color: var(--colorNeutralForeground3);
+}
+.nv-img__preview {
+  flex: 1 1 260px;
+  text-align: center;
+  min-width: 0;
+}
+.nv-img__preview canvas {
+  max-width: 100%;
+  max-height: 340px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+}
+.nv-img__note {
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--colorNeutralForeground3);
+}
+.nv-img__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 6px 0;
+}
+.nv-img__styles {
+  display: grid;
+  grid-template-columns: repeat(5, 54px);
+  gap: 8px;
+  padding: 4px;
+}
+.nv-img__styles button {
+  width: 54px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.nv-img__styles button:hover,
+.nv-img__styles button:focus-visible {
+  border-color: var(--colorBrandForeground1, #0f6cbd);
+}
+.nv-img__swatch {
+  display: block;
+  width: 34px;
+  height: 26px;
+  background: linear-gradient(135deg, #7aa7d8, #e3efff);
+}
+.nv-img__menu {
+  display: grid;
+  min-width: 220px;
+}
+.nv-img__menu button {
+  text-align: left;
+  padding: 5px 10px;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.nv-img__menu button:hover,
+.nv-img__menu button:focus-visible {
+  background: rgba(128, 128, 128, 0.18);
+}

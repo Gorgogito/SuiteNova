@@ -3,7 +3,8 @@ import { attrOf, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOfNode,
 import { DEFAULT_CLRMAP } from '../color';
 import { newDeck, newId, officeTheme } from '../defaults';
 import { mapDoc } from '../text';
-import type { AnimEffect, Asset, Background, ColorMap, Comment, Deck, Hyperlink, Layout, ListStyle, Master, RunProps, SchemeSlot, Section, Slide, SlideElement, TextBody, Theme, Timing, Transition } from '../types';
+import type { PixelEdits } from '@suitenova/image-core';
+import type { AnimEffect, Asset, PicEl, Background, ColorMap, Comment, Deck, Hyperlink, Layout, ListStyle, Master, RunProps, SchemeSlot, Section, Slide, SlideElement, TextBody, Theme, Timing, Transition } from '../types';
 import { EMU, boolAttr, numAttr, readClr, readEffects, readFill, readListStyle, readTextBody, type DmlCtx } from './dml';
 import { readTree, type ElementCtx } from './elements';
 import { readTableStyles, readTheme } from './themexml';
@@ -418,6 +419,37 @@ export async function readPptx(data: Uint8Array): Promise<ReadResult> {
       macros = (part.macros ?? []).map((x) => ({ name: String(x.name), code: String(x.code) }));
     } catch {
       warn('No se pudieron leer las macros guardadas en el archivo y se ignoraron.');
+    }
+  }
+  // the originals and edits of the pictures this suite stored
+  for (const path of all) {
+    const xml = bytesCache.get(path) ? new TextDecoder('utf-8').decode(bytesCache.get(path)!) : '';
+    if (!/^customXml\/[^/]+\.xml$/i.test(path) || !xml.includes('urn:suitenova:pictures:1')) continue;
+    const json = [...xml.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map((m) => m[1]).join('');
+    if (!json) continue;
+    try {
+      const part = JSON.parse(json) as { pics?: { slide: number; n: number; orig: string; edits: unknown }[] };
+      for (const it of part.pics ?? []) {
+        const slide = deck.slides[it.slide];
+        if (!slide || typeof it.orig !== 'string') continue;
+        const pics: PicEl[] = [];
+        const walk = (els: SlideElement[]) => {
+          for (const e of els) {
+            if (e.kind === 'group') walk(e.children);
+            else if (e.kind === 'pic') pics.push(e);
+          }
+        };
+        walk(slide.shapes);
+        const el = pics[it.n];
+        const id = asset(it.orig);
+        const edits = it.edits && typeof it.edits === 'object' ? (it.edits as PixelEdits) : undefined;
+        if (el && id && edits) {
+          el.orig = id;
+          el.edits = edits;
+        }
+      }
+    } catch {
+      warn('No se pudieron leer los originales de las imágenes editadas y se ignoraron (la imagen se ve como se guardó).');
     }
   }
   return { deck, warnings, macros };

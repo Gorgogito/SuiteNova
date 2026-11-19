@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 import { esc } from '@suitenova/writer-core';
 import { chartParts, rewriteRawChart, writeGridWorkbook } from '@suitenova/chart-core';
 import { DEFAULT_CLRMAP } from '../color';
-import type { Background, ColorMap, Comment, Deck, Effects, Fill, Hyperlink, Layout, Ln, Master, Slide, SlideElement, TableStyleDef, TableStylePart, TextBody, Theme, Transition } from '../types';
+import type { Background, ColorMap, PicEl, Comment, Deck, Effects, Fill, Hyperlink, Layout, Ln, Master, Slide, SlideElement, TableStyleDef, TableStylePart, TextBody, Theme, Transition } from '../types';
 import { bodyPrXml, clrXml, effectsXml, fillXml, listStyleXml, lnXml, txBodyXml, EMU, type WriteCtx } from './dmlw';
 import { elementXml, spTreeHeader, type PartWriter } from './elementsw';
 import { timingFor } from '../anim';
@@ -377,6 +377,37 @@ export async function writePptx(deck: Deck, opts: { slideshow?: boolean; templat
     addPartRaw('customXml/novaSlidesProps1.xml', `${XML}<ds:datastoreItem ds:itemID="{7B1D2E4C-6A3F-4C58-8E0B-2D9A4F6C1B33}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="urn:suitenova:slides:1"/></ds:schemaRefs></ds:datastoreItem>`, 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml');
     addPartRaw('customXml/_rels/novaSlides1.xml.rels', `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${RT}/customXmlProps" Target="novaSlidesProps1.xml"/></Relationships>`);
     presRels.add(`${RT}/customXml`, '../customXml/novaSlides1.xml');
+  }
+
+  // the originals of the pictures that have edits (background removed, artistic effect…): PowerPoint shows the picture already edited
+  // and ignores this part; Nova puts the original and the edits back so that they can still be changed or taken off
+  const withOrig: { slide: number; n: number; el: PicEl }[] = [];
+  deck.slides.forEach((s, slide) => {
+    let n = 0;
+    const walk = (els: SlideElement[]) => {
+      for (const e of els) {
+        if (e.kind === 'group') walk(e.children);
+        else if (e.kind === 'pic') {
+          if (e.orig && deck.assets[e.orig] && e.edits) withOrig.push({ slide, n, el: e });
+          n++;
+        }
+      }
+    };
+    walk(s.shapes);
+  });
+  if (withOrig.length) {
+    const items = withOrig.map(({ slide, n, el }, i) => {
+      const a = deck.assets[el.orig!]!;
+      const ext = MIME_EXT[a.mime] ?? 'bin';
+      const path = `customXml/media/novaorig${i + 1}.${ext}`;
+      addPartRaw(path, a.data, a.mime);
+      return { slide, n, orig: path, mime: a.mime, name: a.name ?? null, edits: el.edits };
+    });
+    const json = JSON.stringify({ v: 1, pics: items }).replace(/]]>/g, ']]]]><![CDATA[>');
+    addPartRaw('customXml/novaPictures1.xml', `${XML}<suitenova xmlns="urn:suitenova:pictures:1"><![CDATA[${json}]]></suitenova>`);
+    addPartRaw('customXml/novaPicturesProps1.xml', `${XML}<ds:datastoreItem ds:itemID="{3C5E7A91-2B4D-4F68-9A0C-6E1D8B2F4A57}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="urn:suitenova:pictures:1"/></ds:schemaRefs></ds:datastoreItem>`, 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml');
+    addPartRaw('customXml/_rels/novaPictures1.xml.rels', `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${RT}/customXmlProps" Target="novaPicturesProps1.xml"/></Relationships>`);
+    presRels.add(`${RT}/customXml`, '../customXml/novaPictures1.xml');
   }
 
   // ---- presentation.xml

@@ -1,7 +1,7 @@
 import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
 import { parseMath, toTex, type MNode } from '@suitenova/math-core';
-import { newMathBox, withAdjust, type PicEl, type ShapeEl } from '@suitenova/slides-core';
+import { newMathBox, type PicEl, type ShapeEl } from '@suitenova/slides-core';
 import { useEffect, useState } from 'react';
 import { EquationEditor } from '../math/EquationEditor';
 import type { SlidesUI } from './commands';
@@ -98,46 +98,6 @@ export function EquationDialog({ ui, onClose }: P) {
           <input type="number" min={6} max={200} step={1} aria-label={t('Tamaño de la ecuación (pt)')} value={size} onChange={(e) => setSize(Number(e.target.value))} />
         </label>
         <p className="sl-note">{t('La ecuación se guarda como texto de ecuación (PowerPoint la edita como cualquier ecuación) con una imagen de respaldo para los programas que no la entienden.')}</p>
-      </div>
-    </Modal>
-  );
-}
-
-// ------------------------------------------------------------------------------------------------ picture corrections
-
-export function PictureCorrectionsDialog({ ui, onClose }: P) {
-  const c = ui.ctl;
-  const pics = c.selected.filter((e): e is PicEl => e.kind === 'pic');
-  const a = pics[0]?.adjust;
-  const [bright, setBright] = useState(a?.bright ?? 0);
-  const [contrast, setContrast] = useState(a?.contrast ?? 0);
-  const [alpha, setAlpha] = useState(a?.alpha ?? 100);
-  const apply = () => {
-    c.patch(pics.map((p) => p.id), 'Correcciones de imagen', (e) => ({ ...(e as PicEl), adjust: withAdjust((e as PicEl).adjust, { bright, contrast, alpha }) }));
-    onClose();
-  };
-  const slider = (label: string, v: number, set: (n: number) => void, min: number, max: number) => (
-    <label className="sl-field">
-      <span>{label}: {v} %</span>
-      <input type="range" min={min} max={max} step={1} aria-label={label} value={v} onChange={(e) => set(Number(e.target.value))} />
-    </label>
-  );
-  return (
-    <Modal
-      title={t('Correcciones de imagen')}
-      onClose={onClose}
-      actions={
-        <>
-          <Button onClick={() => (setBright(0), setContrast(0), setAlpha(100))}>{t('Restablecer')}</Button>
-          <Button onClick={onClose}>{t('Cancelar')}</Button>
-          <Button appearance="primary" onClick={apply}>{t('Aceptar')}</Button>
-        </>
-      }
-    >
-      <div className="sl-form">
-        {slider(t('Brillo'), bright, setBright, -100, 100)}
-        {slider(t('Contraste'), contrast, setContrast, -100, 100)}
-        {slider(t('Transparencia'), 100 - alpha, (v) => setAlpha(100 - v), 0, 100)}
       </div>
     </Modal>
   );

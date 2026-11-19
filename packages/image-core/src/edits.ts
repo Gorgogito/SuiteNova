@@ -104,6 +104,13 @@ export const pixelKey = (e?: PixelEdits | null): string => {
   return n ? JSON.stringify(n) : '';
 };
 
+/** The background marks follow the original when it is cropped (`dx`, `dy`: what was cut at the left and top, in pixels) and resized (`k`). */
+export function moveMarks(e: PixelEdits | undefined, dx: number, dy: number, k: number): PixelEdits | undefined {
+  if (!e?.background) return e;
+  const mv = (l?: Pt[]) => l?.map((p) => ({ x: (p.x - dx) * k, y: (p.y - dy) * k }));
+  return { ...e, background: { ...e.background, keep: mv(e.background.keep), remove: mv(e.background.remove) } };
+}
+
 // ------------------------------------------------------------------------------------------------ the engine
 
 /**

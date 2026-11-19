@@ -1,3 +1,5 @@
+import type { PixelEdits } from '@suitenova/image-core';
+
 /*
  * Nova Slides document model (v2). Mirrors what PresentationML can say, in points and degrees, so that a .pptx can be read and
  * written without losing what PowerPoint wrote. Text bodies are ProseMirror documents (see text.ts).
@@ -323,6 +325,13 @@ export interface PicEl extends Common {
   ph?: Placeholder;
   /** frame with a picture that PowerPoint embedded for a video/audio/OLE object */
   poster?: boolean;
+  /**
+   * The original image when the picture has edits that change pixels (background removed, artistic effect, sharpness, saturation, temperature):
+   * `src` is then the original with `edits` applied, and "Restablecer imagen" goes back to `orig`. Brightness, contrast, recolor and
+   * transparency stay in `adjust` (Office does them itself).
+   */
+  orig?: string;
+  edits?: PixelEdits;
 }
 export interface GroupEl extends Common {
   kind: 'group';

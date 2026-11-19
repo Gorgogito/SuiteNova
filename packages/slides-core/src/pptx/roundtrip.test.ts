@@ -115,3 +115,40 @@ describe('macros of the suite in a .pptx', () => {
     expect(back.warnings).toEqual(expect.not.arrayContaining([expect.stringContaining('macros')]));
   });
 });
+
+describe('picture originals and edits in a .pptx', () => {
+  // a 1×1 PNG
+  const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
+  const make = () => {
+    const deck = newDeck();
+    const baked = newId('a');
+    const orig = newId('a');
+    deck.assets[baked] = { id: baked, mime: 'image/png', data: png, name: 'baked.png' };
+    deck.assets[orig] = { id: orig, mime: 'image/png', data: Uint8Array.from([...png]), name: 'orig.png' };
+    const slide = deck.slides[0]!;
+    slide.shapes.push({ kind: 'pic', id: newId(), name: 'Imagen', descr: '', src: baked, xfrm: { x: 10, y: 10, w: 100, h: 80 }, orig, edits: { artistic: { id: 'mosaic', level: 40 }, saturation: 150, background: { tolerance: 40, keep: [{ x: 1, y: 2 }] } } });
+    // a picture without edits and one inside a group: the order of the pictures must not be confused
+    slide.shapes.push({ kind: 'pic', id: newId(), name: 'Otra', descr: '', src: baked, xfrm: { x: 200, y: 10, w: 50, h: 50 } });
+    return { deck, orig };
+  };
+
+  it('the original and the edits come back, and the picture is saved already edited', async () => {
+    const { deck } = make();
+    const { data } = await writePptx(deck);
+    const back = await readPptx(data);
+    const pics = back.deck.slides[0]!.shapes.filter((e) => e.kind === 'pic') as import('../types').PicEl[];
+    expect(pics).toHaveLength(2);
+    expect(pics[0]!.edits).toEqual({ artistic: { id: 'mosaic', level: 40 }, saturation: 150, background: { tolerance: 40, keep: [{ x: 1, y: 2 }] } });
+    expect(pics[0]!.orig && back.deck.assets[pics[0]!.orig]!.name).toBe('novaorig1.png');
+    expect(pics[0]!.orig).not.toBe(pics[0]!.src);
+    expect(pics[1]!.orig).toBeUndefined();
+    expect(back.warnings.filter((w) => /originales/.test(w))).toEqual([]);
+  });
+
+  it('a file whose pictures have no edits carries no such part', async () => {
+    const { deck } = make();
+    for (const e of deck.slides[0]!.shapes) if (e.kind === 'pic') delete (e as { orig?: string }).orig;
+    const zip = await JSZip.loadAsync((await writePptx(deck)).data);
+    expect(Object.keys(zip.files).some((n) => /novaPictures/.test(n))).toBe(false);
+  });
+});

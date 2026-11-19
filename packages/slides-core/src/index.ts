@@ -24,6 +24,7 @@ export * from './booleans';
 export * from './textops';
 export * from './designops';
 export * from './pixels';
+export * from './picedits';
 export * from './connectors';
 export * from './wav';
 export * from './review';
