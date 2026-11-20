@@ -1,25 +1,16 @@
 import { t } from '@suitenova/core-ui';
 import { newId, updateSlide, type Comment } from '@suitenova/slides-core';
 import { useState } from 'react';
+import { savedUser, setUser } from '../comments/identity';
 import type { SlidesCtl } from './ctl';
 import type { SlidesUI } from './commands';
 import { useUi } from './ribbonParts';
 
-const AUTHOR_KEY = 'nova.slides.commentAuthor';
-
 export function savedAuthor(ctl: SlidesCtl): string {
-  try {
-    return localStorage.getItem(AUTHOR_KEY) || ctl.deck.commentAuthors[0]?.name || '';
-  } catch {
-    return ctl.deck.commentAuthors[0]?.name ?? '';
-  }
+  return savedUser()?.name || ctl.deck.commentAuthors[0]?.name || '';
 }
 export function rememberAuthor(name: string): void {
-  try {
-    localStorage.setItem(AUTHOR_KEY, name);
-  } catch {
-    /* no storage */
-  }
+  if (name.trim()) setUser({ name });
 }
 
 const initials = (name: string) =>

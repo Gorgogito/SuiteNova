@@ -11,36 +11,8 @@ export interface UserInfo {
   initials: string;
 }
 
-const USER_KEY = 'nova.writer.user';
-
-export function getUser(): UserInfo {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(USER_KEY) : null;
-    if (raw) {
-      const u = JSON.parse(raw) as UserInfo;
-      if (u.name) return { name: u.name, initials: u.initials || initialsOf(u.name) };
-    }
-  } catch {
-    // no storage: use the default
-  }
-  return { name: 'Autor', initials: 'A' };
-}
-
-export function setUser(u: UserInfo): void {
-  try {
-    localStorage.setItem(USER_KEY, JSON.stringify(u));
-  } catch {
-    // ignore: the name is only used for new comments and changes
-  }
-}
-
-export const initialsOf = (name: string): string =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 3)
-    .map((w) => w[0]!.toUpperCase())
-    .join('');
+export { getUser, setUser } from '../comments/identity';
+export { initialsOf } from '@suitenova/comment-core';
 
 let seq = 0;
 export const newId = (prefix: string): string => `${prefix}${Date.now().toString(36)}${(seq++).toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;

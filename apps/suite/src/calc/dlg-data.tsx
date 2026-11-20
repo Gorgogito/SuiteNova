@@ -1,4 +1,5 @@
 import { Button, Checkbox, Input, Select, Tab, TabList, Textarea } from '@fluentui/react-components';
+import { savedUser, setUser } from '../comments/identity';
 import { canonicalFormula, localizeFormula, newValidation, normRect, parseFormula, safeUrl, type DataValidation, type ValidationOp, type ValidationType } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { useState, useSyncExternalStore } from 'react';
@@ -400,7 +401,7 @@ export function NoteDialog({ ui, onClose }: { ui: CalcUI; onClose: () => void })
   const { row, col } = d.sel.active;
   const cur = d.x.commentAtActive();
   const [text, setText] = useState(cur?.text ?? '');
-  const author = typeof localStorage !== 'undefined' ? (safeGet('nova.author') ?? '') : '';
+  const author = savedUser()?.name ?? '';
   const [who, setWho] = useState(cur?.author ?? author ?? '');
   return (
     <Modal
@@ -422,7 +423,7 @@ export function NoteDialog({ ui, onClose }: { ui: CalcUI; onClose: () => void })
           <Button
             appearance="primary"
             onClick={() => {
-              if (who.trim()) safeSet('nova.author', who.trim());
+              if (who.trim()) setUser({ name: who.trim() });
               d.x.saveComment(row, col, text, who.trim() || t('Autor'));
               onClose();
             }}
@@ -442,21 +443,6 @@ export function NoteDialog({ ui, onClose }: { ui: CalcUI; onClose: () => void })
       </div>
     </Modal>
   );
-}
-
-function safeGet(k: string): string | null {
-  try {
-    return localStorage.getItem(k);
-  } catch {
-    return null;
-  }
-}
-function safeSet(k: string, v: string): void {
-  try {
-    localStorage.setItem(k, v);
-  } catch {
-    // no storage: the author is asked again
-  }
 }
 
 void normRect;
