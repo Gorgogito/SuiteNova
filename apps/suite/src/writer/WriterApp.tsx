@@ -1,4 +1,5 @@
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
+import { useImageSources } from '../images/useSources';
 import { readDoc, readOdt, readRtf, writeOdt, writeRtf, WrongPasswordError, decryptPackage, encryptPackage, isEncryptedPackage, nodeTypes, ptToPx, readDocx, styleCss, writeDocx } from '@suitenova/writer-core';
 import { isInTable } from 'prosemirror-tables';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -232,6 +233,26 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const insertImageFile = (f: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const src = String(reader.result);
+      const img = new Image();
+      img.onload = () => {
+        const cur = ctl.page;
+        const max = ptToPx(cur.width - cur.marginLeft - cur.marginRight);
+        const k = Math.min(1, max / img.naturalWidth);
+        const v = ctl.view;
+        if (!v) return;
+        v.dispatch(v.state.tr.replaceSelectionWith(nodeTypes.image!.create({ src, alt: f.name.replace(/\.[^.]+$/, ''), width: Math.round(img.naturalWidth * k), height: Math.round(img.naturalHeight * k) })).scrollIntoView());
+        v.focus();
+      };
+      img.onerror = () => window.alert(t('No se pudo leer la imagen.'));
+      img.src = src;
+    };
+    reader.readAsDataURL(f);
+  };
+  const sources = useImageSources(insertImageFile);
 
   // Esc sale del modo «Seleccionar objetos» aunque el foco no esté en el documento
   const selecting = ctl.selectObjects;
@@ -398,6 +419,9 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
         }, 400);
       },
       insertImage: () => fileRef.current?.click(),
+      pictureFromClipboard: () => void sources.fromClipboard(),
+      pictureFromScreen: () => void sources.fromScreen(),
+      pictureIcons: () => sources.openIcons(),
       close: () => {
         if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) return;
         void closeThisWindow();
@@ -600,26 +624,10 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = '';
-            if (!f) return;
-            const reader = new FileReader();
-            reader.onload = () => {
-              const src = String(reader.result);
-              const img = new Image();
-              img.onload = () => {
-                const cur = ctl.page;
-                const max = ptToPx(cur.width - cur.marginLeft - cur.marginRight);
-                const k = Math.min(1, max / img.naturalWidth);
-                const v = ctl.view;
-                if (!v) return;
-                v.dispatch(v.state.tr.replaceSelectionWith(nodeTypes.image!.create({ src, alt: f.name.replace(/\.[^.]+$/, ''), width: Math.round(img.naturalWidth * k), height: Math.round(img.naturalHeight * k) })).scrollIntoView());
-                v.focus();
-              };
-              img.onerror = () => window.alert(t('No se pudo leer la imagen.'));
-              img.src = src;
-            };
-            reader.readAsDataURL(f);
+            if (f) insertImageFile(f);
           }}
         />
+        {sources.dialog}
         <DialogHost ui={ui} kind={dialog} arg={dialogArg} onClose={() => setDialog(null)} />
       </div>
     </AppFrame>

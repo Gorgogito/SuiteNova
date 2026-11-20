@@ -74,6 +74,9 @@ export interface CalcUI {
   openUrl(url: string): void;
   /** Ask for an image file and put it on the sheet. */
   insertPicture(): Promise<void>;
+  pictureFromClipboard(): void;
+  pictureFromScreen(): void;
+  pictureIcons(): void;
   /** Give the selected picture the size of its file. */
   restorePictureSize(): Promise<void>;
 }

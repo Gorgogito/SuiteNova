@@ -1,4 +1,5 @@
 import { hasPassword, type ChartSeries, type ErrorKind, type ShapeKind, type TrendType } from '@suitenova/calc-engine';
+import '../images/messages';
 import { supportsErrorBars, supportsTrend } from './dlg-chartfit';
 import { PIVOT_STYLE_NAMES, TABLE_STYLE_NAMES, normRect, rotateShapes, safeUrl, shapesBounds, type PageSetup } from '@suitenova/calc-engine';
 import type { CommandDef } from '@suitenova/core-ui';
@@ -132,6 +133,9 @@ export function objectCommands(ui: CalcUI): CommandDef[] {
 
   // ---- pictures
   add({ id: 'calc.picture', label: 'Imagen…', icon: 'picture', description: 'Inserta una imagen (PNG, JPG, GIF, BMP, WebP o SVG) de un archivo.', enabled: () => !editing(), run: () => void ui.insertPicture() });
+  add({ id: 'calc.picture.clipboard', label: 'Imagen del portapapeles', icon: 'paste', description: 'Inserta la imagen que hay en el portapapeles del sistema.', enabled: () => !editing(), run: () => ui.pictureFromClipboard() });
+  add({ id: 'calc.picture.screenshot', label: 'Captura de pantalla…', icon: 'picture', description: 'Elige una pantalla, ventana o pestaña e inserta una captura.', enabled: () => !editing(), run: () => ui.pictureFromScreen() });
+  add({ id: 'calc.picture.icons', label: 'Iconos…', icon: 'sparkles', description: 'Inserta un icono como imagen.', enabled: () => !editing(), run: () => ui.pictureIcons() });
   add({ id: 'calc.picture.delete', label: 'Eliminar imagen', icon: 'trash', enabled: () => !!x.selectedImage, run: () => x.selectedImage && x.deleteImage(x.selectedImage) });
   add({ id: 'calc.picture.alt', label: 'Texto alternativo…', icon: 'note', enabled: () => !!x.selectedImage, run: () => {
     const img = d.sheet.images.find((i) => i.id === x.selectedImage);

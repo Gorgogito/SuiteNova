@@ -12,7 +12,7 @@ if (shotsDir) fs.mkdirSync(shotsDir, { recursive: true });
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-writer-'));
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] });
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
+const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 }, acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));

@@ -1,4 +1,5 @@
 import type { CommandDef } from '@suitenova/core-ui';
+import '../images/messages';
 import { MARGIN_PRESETS, PAGE_SIZES, contentBox, docFromText, isLandscape, nodeTypes, markTypes, rotatePage, writerSchema, type WriterDoc } from '@suitenova/writer-core';
 import type { Command } from 'prosemirror-state';
 import { addColumnAfter, addColumnBefore, addRowAfter, addRowBefore, deleteColumn, deleteRow, deleteTable, isInTable, mergeCells, setCellAttr, splitCell } from 'prosemirror-tables';
@@ -62,6 +63,9 @@ export interface WriterUI {
   applyTemplate(doc: WriterDoc): void;
   openTemplateFile(): Promise<void>;
   insertImage(): void;
+  pictureFromClipboard(): void;
+  pictureFromScreen(): void;
+  pictureIcons(): void;
   close(): void;
 }
 
@@ -190,6 +194,9 @@ export function writerCommands(ui: WriterUI): CommandDef[] {
   add({ id: 'writer.link', label: 'Hipervínculo…', icon: 'link', shortcut: 'Ctrl+K', enabled: ready, run: () => ui.openDialog('link') });
   add({ id: 'writer.unlink', label: 'Quitar hipervínculo', icon: 'unlink', enabled: () => !!st() && markActive(st()!, markTypes.link!), run: () => { ui.openDialog('link', { remove: true }); } });
   add({ id: 'writer.image', label: 'Imagen…', icon: 'image', enabled: ready, run: () => ui.insertImage() });
+  add({ id: 'writer.image.clipboard', label: 'Imagen del portapapeles', icon: 'paste', description: 'Inserta la imagen que hay en el portapapeles del sistema.', enabled: ready, run: () => ui.pictureFromClipboard() });
+  add({ id: 'writer.image.screenshot', label: 'Captura de pantalla…', icon: 'image', description: 'Elige una pantalla, ventana o pestaña e inserta una captura.', enabled: ready, run: () => ui.pictureFromScreen() });
+  add({ id: 'writer.image.icons', label: 'Iconos…', icon: 'sparkles', description: 'Inserta un icono como imagen.', enabled: ready, run: () => ui.pictureIcons() });
   add({ id: 'writer.table', label: 'Tabla…', icon: 'tableGrid', enabled: ready, run: () => ui.openDialog('tableSize') });
   add({ id: 'writer.field.page', label: 'Número de página', icon: 'hash', enabled: ready, run: () => exec(insertNode(nodeTypes.field!.create({ kind: 'page' }))) });
   add({ id: 'writer.field.pages', label: 'Total de páginas', icon: 'hash', enabled: ready, run: () => exec(insertNode(nodeTypes.field!.create({ kind: 'pages' }))) });

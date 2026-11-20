@@ -37,6 +37,19 @@ export interface DrawingItem {
 const hex6 = (c: string): string => c.replace('#', '').toUpperCase();
 const DASH: Record<string, string> = { dash: 'dash', dot: 'sysDot', dashdot: 'dashDot' };
 
+/**
+ * The box a rotated picture covers on the sheet. Excel anchors a rotated picture by this box (what the person sees), while `a:xfrm` keeps the
+ * box before turning: writing the unturned box as the anchor makes Excel swap width and height of a picture turned a quarter.
+ */
+export function rotatedBounds(x: number, y: number, w: number, h: number, deg: number): { x: number; y: number; width: number; height: number } {
+  const r = (deg * Math.PI) / 180;
+  const c = Math.abs(Math.cos(r));
+  const s = Math.abs(Math.sin(r));
+  const bw = w * c + h * s;
+  const bh = w * s + h * c;
+  return { x: x + w / 2 - bw / 2, y: y + h / 2 - bh / 2, width: bw, height: bh };
+}
+
 /** The `xdr:pic` of a picture: the picture as it shows, cut with `srcRect`, with the shape, outline, shadow, rotation and flips of the frame. */
 function picBodyXml(c: DrawingItem, id: number): string {
   const im = c.img;
@@ -49,15 +62,16 @@ function picBodyXml(c: DrawingItem, id: number): string {
   const fx = sh ? `<a:effectLst><a:outerShdw blurRad="${Math.round(sh.blur * 12700)}" dist="${Math.round(sh.dist * 12700)}" dir="${Math.round((((sh.angle % 360) + 360) % 360) * 60000)}" algn="ctr" rotWithShape="0"><a:srgbClr val="${hex6(sh.color)}"><a:alpha val="${Math.round(sh.alpha * 100000)}"/></a:srgbClr></a:outerShdw></a:effectLst>` : '';
   return `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"${c.alt ? ` descr="${escapeXml(c.alt)}"` : ''}/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
     `<xdr:blipFill><a:blip xmlns:r="${NS_R}" r:embed="${c.rId}"/>${crop ? `<a:srcRect l="${Math.round(crop.l)}" t="${Math.round(crop.t)}" r="${Math.round(crop.r)}" b="${Math.round(crop.b)}"/>` : ''}<a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
-    `<xdr:spPr><a:xfrm${rot}${flips}><a:off x="0" y="0"/><a:ext cx="${Math.round(c.width * EMU)}" cy="${Math.round(c.height * EMU)}"/></a:xfrm><a:prstGeom prst="${im?.shape || 'rect'}"><a:avLst/></a:prstGeom>${ln}${fx}</xdr:spPr></xdr:pic>`;
+    `<xdr:spPr><a:xfrm${rot}${flips}><a:off x="${Math.round(c.x * EMU)}" y="${Math.round(c.y * EMU)}"/><a:ext cx="${Math.round(c.width * EMU)}" cy="${Math.round(c.height * EMU)}"/></a:xfrm><a:prstGeom prst="${im?.shape || 'rect'}"><a:avLst/></a:prstGeom>${ln}${fx}</xdr:spPr></xdr:pic>`;
 }
 
 /** Drawing part with one two-cell anchor per object. */
 export function drawingXml(sheet: Sheet, items: DrawingItem[]): string {
   const anchors = items
     .map((c, i) => {
-      const from = { col: colAtPx(sheet, c.x), row: rowAtPx(sheet, c.y) };
-      const to = { col: colAtPx(sheet, c.x + c.width), row: rowAtPx(sheet, c.y + c.height) };
+      const box = c.kind === 'pic' && c.img?.rotation ? rotatedBounds(c.x, c.y, c.width, c.height, c.img.rotation) : { x: c.x, y: c.y, width: c.width, height: c.height };
+      const from = { col: colAtPx(sheet, box.x), row: rowAtPx(sheet, box.y) };
+      const to = { col: colAtPx(sheet, box.x + box.width), row: rowAtPx(sheet, box.y + box.height) };
       const pt = (p: { col: { col: number; offset: number }; row: { row: number; offset: number } }) =>
         `<xdr:col>${p.col.col}</xdr:col><xdr:colOff>${Math.round(p.col.offset * EMU)}</xdr:colOff><xdr:row>${p.row.row}</xdr:row><xdr:rowOff>${Math.round(p.row.offset * EMU)}</xdr:rowOff>`;
       const id = i + 2;

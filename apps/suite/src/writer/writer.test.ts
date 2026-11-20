@@ -34,6 +34,9 @@ function setup() {
     applyTemplate: () => undefined,
     openTemplateFile: async () => undefined,
     insertImage: () => undefined,
+    pictureFromClipboard: () => undefined,
+    pictureFromScreen: () => undefined,
+    pictureIcons: () => undefined,
     close: () => undefined,
   };
   const registry = new CommandRegistry();

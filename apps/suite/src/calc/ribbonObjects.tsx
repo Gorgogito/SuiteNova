@@ -56,6 +56,9 @@ export function insertGroups(ui: CalcUI): RibbonGroup[] {
       icon: 'picture',
       items: [
         { kind: 'button', command: 'calc.picture', size: 'large', keytip: 'IM' },
+        { kind: 'button', command: 'calc.picture.clipboard', size: 'small', iconOnly: true, keytip: 'IG' },
+        { kind: 'button', command: 'calc.picture.screenshot', size: 'small', iconOnly: true, keytip: 'IT' },
+        { kind: 'button', command: 'calc.picture.icons', size: 'small', iconOnly: true, keytip: 'IO' },
         { kind: 'custom', id: 'shapesGallery', label: 'Formas', keytip: 'OF', render: () => <ShapeGallery onPick={(k) => void ui.doc.x.insertShape(k)} /> },
         { kind: 'button', command: 'calc.textbox', size: 'large', keytip: 'QT' },
         { kind: 'button', command: 'calc.equation.insert', size: 'large', keytip: 'EQ' },

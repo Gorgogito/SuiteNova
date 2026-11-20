@@ -21,6 +21,8 @@ function setup() {
     importFile: async () => undefined,
     exportPage: async () => undefined,
     insertImage: () => undefined,
+    pictureFromClipboard: () => undefined,
+    pictureIcons: () => undefined,
     insertMediaFile: () => undefined,
     insertFile: () => undefined,
     insertPdf: () => undefined,

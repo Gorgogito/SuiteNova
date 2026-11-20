@@ -19,6 +19,8 @@ export interface NotesUI {
   importFile(): Promise<void>;
   exportPage(kind: 'md' | 'html' | 'docx'): Promise<void>;
   insertImage(): void;
+  pictureFromClipboard(): void;
+  pictureIcons(): void;
   insertMediaFile(): void;
   /** Adjunta cualquier archivo a la página. */
   insertFile(): void;
@@ -146,6 +148,8 @@ export function notesCommands(ui: NotesUI): CommandDef[] {
   // ---- insert
   add({ id: 'notes.table', label: 'Tabla…', icon: 'tableGrid', run: () => ui.openDialog('table') });
   add({ id: 'notes.image', label: 'Imagen…', icon: 'image', run: () => ui.insertImage() });
+  add({ id: 'notes.image.clipboard', label: 'Imagen del portapapeles', icon: 'paste', description: 'Inserta la imagen que hay en el portapapeles del sistema.', run: () => ui.pictureFromClipboard() });
+  add({ id: 'notes.image.icons', label: 'Iconos…', icon: 'sparkles', description: 'Inserta un icono como imagen.', run: () => ui.pictureIcons() });
   add({ id: 'notes.textbox', label: 'Cuadro de texto', icon: 'document', description: 'Coloca un cuadro de texto en un lugar libre de la página.', run: () => c.addTextBoxFree() });
   add({ id: 'notes.media.file', label: 'Audio o vídeo desde un archivo…', icon: 'open', run: () => ui.insertMediaFile() });
   add({ id: 'notes.audio', label: 'Grabar audio', icon: 'mic', checked: () => ui.recording() === 'audio', enabled: () => ui.recording() !== 'video', run: () => ui.toggleRecording('audio') });

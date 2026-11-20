@@ -285,6 +285,17 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
         })),
       },
       {
+        id: 'pictures',
+        label: 'Imágenes',
+        icon: 'image',
+        items: [
+          { kind: 'button', command: 'diagram.image.insert', size: 'large', keytip: 'IM' },
+          { kind: 'button', command: 'diagram.image.clipboard', size: 'small', keytip: 'IG' },
+          { kind: 'button', command: 'diagram.image.screenshot', size: 'small', keytip: 'IK' },
+          { kind: 'button', command: 'diagram.image.icons', size: 'small', keytip: 'IO' },
+        ],
+      },
+      {
         id: 'pages',
         label: 'Páginas',
         icon: 'pageNew',

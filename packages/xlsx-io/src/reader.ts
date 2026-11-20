@@ -519,7 +519,15 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
         const path = embed ? drawingRels.get(embed) : undefined;
         const file = path ? zip.file(path) : null;
         const mime = MIME_BY_EXT[(path ?? '').split('.').pop()!.toLowerCase()];
-        const rect = anchorToRect(sheet, a);
+        let rect = anchorToRect(sheet, a);
+        if (rect) {
+          // a turned picture is anchored by the box it covers; the box before turning is `a:xfrm`'s `ext`, around the same centre
+          const xf = a.pic.spPr?.xfrm;
+          const rot = ((Number(attr(xf, 'rot') ?? 0) || 0) / 60000) % 360;
+          const ew = Number(attr(xf?.ext, 'cx') ?? 0) / 9525;
+          const eh = Number(attr(xf?.ext, 'cy') ?? 0) / 9525;
+          if (Math.abs(rot) > 0.05 && ew > 0 && eh > 0) rect = { x: rect.x + rect.width / 2 - ew / 2, y: rect.y + rect.height / 2 - eh / 2, width: ew, height: eh };
+        }
         if (file && mime && rect) {
           const data = await file.async('uint8array');
           const cNv = a.pic.nvPicPr?.cNvPr;

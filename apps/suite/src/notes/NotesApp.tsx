@@ -1,4 +1,5 @@
 import { Button } from '@fluentui/react-components';
+import { useImageSources } from '../images/useSources';
 import { AutoCorrectDialog, getAutoCorrect, setAutoCorrect, DictionaryDialog, EditorPane, ReviewMenu, ReviewOptionsDialog, ThesaurusPane, WordMenu, type Issue, type WordTarget } from '../spell';
 import { notesHost, notesThesaurusHost } from './review-host';
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
@@ -301,6 +302,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
     [ctl],
   );
 
+  const sources = useImageSources((f) => addFiles([f]));
   useEffect(() => ctl.on('files', (files: File[], at?: { x: number; y: number }) => void addFiles(files, at)), [ctl, addFiles]);
 
   // ------------------------------------------------------------------ grabación
@@ -444,6 +446,8 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         }
       },
       insertImage: () => fileRef.current?.click(),
+      pictureFromClipboard: () => void sources.fromClipboard(),
+      pictureIcons: () => sources.openIcons(),
       insertMediaFile: () => mediaRef.current?.click(),
       insertFile: () => attachRef.current?.click(),
       insertPdf: () => pdfRef.current?.click(),
@@ -786,6 +790,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
           </nav>
           )}
         </div>
+        {sources.dialog}
         <input
           ref={fileRef}
           type="file"

@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, DialogTrigger, Input } from '@fluentui/react-components';
+import { useImageSources } from '../images/useSources';
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
 import { PAGE_SIZES, dataToCsv, exportArea, exportVsdx, importVsdx, setShapeImage, vsdxPicturesLost, pageToSvg, parseDiagram, serializeDiagram, type Page } from '@suitenova/diagram-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -378,6 +379,9 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         frameRef.current = frame;
       },
       insertImage: () => imageInput.current?.click(),
+      pictureFromClipboard: () => void sources.fromClipboard(),
+      pictureFromScreen: () => void sources.fromScreen(),
+      pictureIcons: () => sources.openIcons(),
       openLink: (shape) => {
         const l = shape.link;
         if (!l) return;
@@ -455,6 +459,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
     };
   }, [ctl, ui]);
 
+  const sources = useImageSources((f) => onImageFiles([f]));
   const onImageFiles = async (files: File[]) => {
     for (const f of files) {
       if (!/^image\/(png|jpeg|gif|webp|svg\+xml|bmp)$/.test(f.type)) {
@@ -608,6 +613,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
       {dialog === 'pictureCorrections' && <FormatPictureDialog host={diagramPictureHost(ctl)} tab="corrections" onClose={close} />}
       {dialog === 'pictureColor' && <FormatPictureDialog host={diagramPictureHost(ctl)} tab="color" onClose={close} />}
       {dialog === 'pictureArtistic' && <FormatPictureDialog host={diagramPictureHost(ctl)} tab="artistic" onClose={close} />}
+      {sources.dialog}
       {dialog === 'removeBg' && <RemoveBackgroundDialog host={diagramPictureHost(ctl)} onClose={close} />}
       <StickyDialog open={dialog === 'imageAlt'} onClose={close}>
         {dialog === 'imageAlt' && <AltForm ctl={ctl} onClose={close} />}

@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle } from '@fluentui/react-components';
+import { useImageSources } from '../images/useSources';
 import { t } from '@suitenova/core-ui';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { childrenOf, encodeBase64, folderRows, formatAddress, parseMessage, rawOf, unreadCount, type MailRecord, type ParsedMessage } from '@suitenova/mail-core';
@@ -402,6 +403,7 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
   const pic = pics.find((p) => p.id === selPic);
   const picHost = useMemo(() => mailPictureHost(() => sRef.current.pictures?.find((p) => p.id === selPic), (np) => setS((x) => ({ ...x, pictures: (x.pictures ?? []).map((p) => (p.id === np.id ? np : p)) }))), [selPic]);
   const setPic = (patch: Partial<ComposePicture>) => pic && setS((x) => ({ ...x, pictures: (x.pictures ?? []).map((p) => (p.id === pic.id ? { ...p, ...patch } : p)) }));
+  const sources = useImageSources((f) => addPicture(f));
   const addPicture = async (f: File) => {
     try {
       const data = new Uint8Array(await f.arrayBuffer());
@@ -496,6 +498,16 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
                 <button type="button" className="ml-btn" onClick={() => picRef.current?.click()}>
                   🖼 {t('Insertar imagen')}
                 </button>
+                <button type="button" className="ml-btn" onClick={() => void sources.fromClipboard()}>
+                  {t('Imagen del portapapeles')}
+                </button>
+                <button type="button" className="ml-btn" onClick={() => void sources.fromScreen()}>
+                  {t('Captura de pantalla…')}
+                </button>
+                <button type="button" className="ml-btn" onClick={() => sources.openIcons()}>
+                  {t('Iconos…')}
+                </button>
+                {sources.dialog}
                 <input
                   ref={picRef}
                   type="file"

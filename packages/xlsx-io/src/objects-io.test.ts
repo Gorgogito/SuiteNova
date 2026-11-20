@@ -925,4 +925,20 @@ describe('gráficos de otro programa: se reescriben con lo que Nova no entiende'
     expect(xml).toContain('editAs="absolute"');
     expect(xml).toContain('prst="roundRect"');
   });
+  it('anchors a turned picture by the box it covers, as Excel does, and reads its own box back', async () => {
+    const { w, id } = book();
+    const key = w.addMedia('image/png', new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]));
+    w.editObjects(id, (s) => {
+      s.images.push({ id: 'r', media: key, x: 300, y: 60, width: 200, height: 100, rotation: 90 }, { id: 'q', media: key, x: 40, y: 200, width: 120, height: 60, rotation: 30 });
+    });
+    const { workbook, bytes } = await roundTrip(w);
+    const [r, q] = workbook.sheets[0]!.images;
+    // the box before turning comes back as it went
+    expect([r!.x, r!.y, r!.width, r!.height, r!.rotation]).toEqual([300, 60, 200, 100, 90]);
+    expect([q!.x, q!.y, q!.width, q!.height, q!.rotation]).toEqual([40, 200, 120, 60, 30]);
+    // the frame keeps the box before turning, in sheet coordinates (the anchor is the turned box, checked against Excel itself)
+    const drawing = await (await JSZip.loadAsync(bytes)).file(/^xl\/drawings\/drawing\d+\.xml$/)[0]!.async('string');
+    const first = drawing.slice(0, drawing.indexOf('</xdr:twoCellAnchor>'));
+    expect(first).toMatch(/<a:off x="2857500" y="571500"\/><a:ext cx="1905000" cy="952500"\/>/);
+  });
 });

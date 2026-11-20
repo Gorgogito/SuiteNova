@@ -1,4 +1,5 @@
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useCommandState, useCore, useLocale, useThemeMode, useSetting, SETTING_LOCALE, type BackstageEntry, type Locale } from '@suitenova/core-ui';
+import { useImageSources } from '../images/useSources';
 import { Workbook, filterCounts, formatRect, parseA1, type Scalar } from '@suitenova/calc-engine';
 import { readXlsx, writeXlsx } from '@suitenova/xlsx-io';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -31,7 +32,7 @@ import { calcTabs } from './ribbonDef';
 import { SheetTabs } from './SheetTabs';
 import { ListMenu } from './ObjectLayer';
 import { PivotPane } from './dlg-pivot';
-import { imageSize, pickImage } from './imagePick';
+import { imageSize, pickImage, readImageFile } from './imagePick';
 import './calc.css';
 import './calc-objects.css';
 import { RecordingStatus } from '../macros/RecordDialogs';
@@ -171,6 +172,10 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
     return () => window.removeEventListener('nova-calc-equation-edit', open);
   }, [doc]);
 
+  const sources = useImageSources(async (f) => {
+    const img = await readImageFile(f);
+    doc.x.insertImage(img.mime, img.data, img.width, img.height, img.name);
+  });
   const ui: CalcUI = useMemo(
     () => ({
       doc,
@@ -225,6 +230,9 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
           window.alert((e as Error).message);
         }
       },
+      pictureFromClipboard: () => void sources.fromClipboard(),
+      pictureFromScreen: () => void sources.fromScreen(),
+      pictureIcons: () => sources.openIcons(),
       restorePictureSize: async () => {
         const im = doc.sheet.images.find((i) => i.id === doc.x.selectedImage);
         const media = im ? doc.wb.media.get(im.media) : undefined;
@@ -413,6 +421,7 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
       {filterMenu && (
         <FilterMenu doc={doc} col={filterMenu.col} x={filterMenu.x} y={filterMenu.y} onClose={() => setFilterMenu(null)} onCustom={() => ui.openDialog('customFilter', filterMenu.col)} />
       )}
+      {sources.dialog}
       <DialogHost ui={ui} registry={registry} kind={dialog} arg={dialogArg} onClose={() => setDialog(null)} />
     </AppFrame>
   );

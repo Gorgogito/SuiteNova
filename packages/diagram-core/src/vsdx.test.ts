@@ -28,11 +28,14 @@ function sample() {
 describe('VSDX export', () => {
   it('writes a well-formed package with the parts Visio expects', async () => {
     const zip = await JSZip.loadAsync(await exportVsdx(sample()));
-    for (const f of ['[Content_Types].xml', '_rels/.rels', 'visio/document.xml', 'visio/pages/pages.xml', 'visio/pages/page1.xml', 'visio/pages/_rels/pages.xml.rels', 'visio/_rels/document.xml.rels']) {
+    for (const f of ['[Content_Types].xml', '_rels/.rels', 'visio/document.xml', 'visio/pages/pages.xml', 'visio/pages/page1.xml', 'visio/pages/_rels/pages.xml.rels', 'visio/_rels/document.xml.rels', 'visio/windows.xml']) {
       const body = await zip.file(f)?.async('string');
       expect(body, f).toBeTruthy();
       expect(XMLValidator.validate(body!), f).toBe(true);
     }
+    // real Visio refuses a file without its window part, linked from the document and typed in the content types
+    expect(await zip.file('visio/_rels/document.xml.rels')!.async('string')).toMatch(/relationships\/windows" Target="windows.xml"/);
+    expect(await zip.file('[Content_Types].xml')!.async('string')).toMatch(/PartName="\/visio\/windows.xml" ContentType="application\/vnd.ms-visio.windows\+xml"/);
     const page = await zip.file('visio/pages/page1.xml')!.async('string');
     expect(page).toContain('Paso &amp; uno');
     expect(page).toContain('N="FillForegnd" V="#FFCC00"');
@@ -184,7 +187,8 @@ describe('VSDX pictures', () => {
     expect(cover).toContain('N="ImgWidth"');
     expect(cover).toContain('N="ImgOffsetX"');
     const stretch = await (await JSZip.loadAsync(await exportVsdx(withPicture(wide, 'stretch')))).file('visio/pages/page1.xml')!.async('string');
-    expect(stretch).not.toContain('N="ImgWidth"');
+    // as Visio writes a picture that fills its shape: the picture is as big as the shape, tied to it by formula
+    expect(stretch).toContain('N="ImgWidth" V="1.666667" F="Width*1"');
   });
 
   it('a picture Visio cannot hold is counted and the shape goes without it; the picture of a Nova file comes back as its shape, with no warning', async () => {

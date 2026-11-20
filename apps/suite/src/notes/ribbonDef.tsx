@@ -345,7 +345,7 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
     groups: [
       { id: 'pages', label: 'Páginas', icon: 'pageNew', items: [L('notes.page.new', 'large', 'PG'), L('notes.section.new', 'large', 'SC'), L('notes.quickNote', 'small', 'QN'), L('notes.space', 'small', 'ES')] },
       { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [L('notes.table', 'large', 'TB')] },
-      { id: 'boxes', label: 'Cuadros', icon: 'document', items: [L('notes.textbox', 'large', 'CT'), L('notes.image', 'large', 'IM'), L('notes.file.attach', 'small', 'FA'), L('notes.pdf.print', 'small', 'FQ'), L('notes.screenClip', 'small', 'SK')] },
+      { id: 'boxes', label: 'Cuadros', icon: 'document', items: [L('notes.textbox', 'large', 'CT'), L('notes.image', 'large', 'IM'), L('notes.image.clipboard', 'small', 'IP', true), L('notes.image.icons', 'small', 'IC', true), L('notes.file.attach', 'small', 'FA'), L('notes.pdf.print', 'small', 'FQ'), L('notes.screenClip', 'small', 'SK')] },
       { id: 'media', label: 'Audio y vídeo', icon: 'mic', items: [L('notes.audio', 'large', 'AU'), L('notes.video', 'large', 'VI'), L('notes.media.file', 'large', 'MF')] },
       { id: 'symbols', label: 'Símbolos', icon: 'sigma', items: [L('notes.equation', 'large', 'EQ'), L('notes.symbol', 'small', 'SY')] },
       { id: 'links', label: 'Vínculos', icon: 'link', items: [L('notes.link', 'large', 'K'), L('notes.page.copyLink', 'small', 'LC'), L('notes.link.paste', 'small', 'LP')] },

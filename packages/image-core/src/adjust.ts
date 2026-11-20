@@ -9,14 +9,17 @@ import { boxBlur, copy, type Pixels } from './pixels';
 export const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 const byte = (v: number): number => clamp(Math.round(v), 0, 255);
 
-/** Brightness adds, contrast stretches around the middle grey (−100 flattens everything, 100 is a very hard contrast). */
+/**
+ * Brightness adds, contrast stretches around the middle grey (−100 flattens everything, 100 is a very hard contrast). Checked against PowerPoint
+ * (`a:lum`): each alone matches to one level; together, PowerPoint moves the brightness by the average of 1 and the stretch (f), not by 1.
+ */
 export function brightnessContrast(p: Pixels, brightness: number, contrast: number): Pixels {
   const out = copy(p);
   const b = clamp(brightness, -100, 100) / 100;
   const c = clamp(contrast, -100, 99) / 100;
   const f = c >= 0 ? 1 / (1 - c) : 1 + c;
   for (let i = 0; i < out.data.length; i += 4)
-    for (let k = 0; k < 3; k++) out.data[i + k] = byte(((out.data[i + k]! / 255 - 0.5) * f + 0.5 + b) * 255);
+    for (let k = 0; k < 3; k++) out.data[i + k] = byte(((out.data[i + k]! / 255 - 0.5) * f + 0.5 + (b * (1 + f)) / 2) * 255);
   return out;
 }
 

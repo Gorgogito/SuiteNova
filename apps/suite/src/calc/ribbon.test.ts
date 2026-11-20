@@ -20,6 +20,9 @@ function setup() {
     openUrl: () => undefined,
     insertPicture: async () => undefined,
     restorePictureSize: async () => undefined,
+    pictureFromClipboard: () => undefined,
+    pictureFromScreen: () => undefined,
+    pictureIcons: () => undefined,
   };
   const registry = new CommandRegistry();
   registry.registerAll(coreCommands);

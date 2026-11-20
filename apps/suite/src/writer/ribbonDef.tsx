@@ -418,6 +418,9 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         icon: 'image',
         items: [
           { kind: 'button', command: 'writer.image', size: 'large', keytip: 'IM' },
+          { kind: 'button', command: 'writer.image.clipboard', size: 'small', iconOnly: true, keytip: 'IP' },
+          { kind: 'button', command: 'writer.image.screenshot', size: 'small', iconOnly: true, keytip: 'CP' },
+          { kind: 'button', command: 'writer.image.icons', size: 'small', iconOnly: true, keytip: 'IC' },
           { kind: 'custom', id: 'shapesGallery', label: 'Formas', keytip: 'SH', render: () => <ShapeGallery onPick={(k) => insertShapeKind(ui, k)} /> },
           { kind: 'button', command: 'writer.shape.textbox', size: 'small', iconOnly: true, keytip: 'CX' },
           { kind: 'button', command: 'writer.shape.group', size: 'small', iconOnly: true, keytip: 'AG' },
