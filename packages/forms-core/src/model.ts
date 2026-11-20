@@ -21,6 +21,28 @@ export interface ShowIf {
   value: string;
 }
 
+/** The widths a picture of a question can have (the picture keeps its proportions and never grows past the card). */
+export const IMAGE_SIZES = [
+  { id: 'small', name: 'Pequeña', px: 160 },
+  { id: 'medium', name: 'Mediana', px: 320 },
+  { id: 'large', name: 'Grande', px: 480 },
+  { id: 'full', name: 'Todo el ancho', px: 0 },
+] as const;
+export type ImageSize = (typeof IMAGE_SIZES)[number]['id'];
+
+/** A picture shown with a question (or a title): a `data:` URL of a raster image of up to 1.5 MB. */
+export interface QuestionImage {
+  src: string;
+  /** Alternative text for assistive technology. */
+  alt: string;
+  size: ImageSize;
+}
+
+/** Only raster `data:` pictures that fit the limit are shown: anything else (an address, a script, SVG) is never put in a page. */
+export const isSafeImage = (src: unknown): src is string => typeof src === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(src) && src.length <= 2_100_000;
+/** The limit, in bytes, of a picture file. */
+export const MAX_IMAGE_BYTES = 1_500_000;
+
 export interface Question {
   id: string;
   type: QType;
@@ -45,6 +67,8 @@ export interface Question {
   /** Quiz: the right answer(s) and their points. */
   correct: string[];
   points: number;
+  /** A picture shown under the title of the question. */
+  image?: QuestionImage;
 }
 
 export interface Form {

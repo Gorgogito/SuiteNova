@@ -136,7 +136,7 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
       case 'subreport':
         return <span className="bs-cv-sub">▦ {c.table || t('(sin tabla)')}</span>;
       case 'image':
-        return c.src ? <img src={c.src} alt="" style={{ width: '100%', height: '100%', objectFit: c.fit === 'clip' ? 'none' : c.fit === 'stretch' ? 'fill' : 'contain' }} /> : <span>▣ {c.field ? `[${c.field}]` : t('(sin imagen)')}</span>;
+        return c.src ? <img src={c.src} alt={c.alt ?? ''} style={{ width: '100%', height: '100%', objectFit: c.fit === 'clip' ? 'none' : c.fit === 'stretch' ? 'fill' : 'contain' }} /> : <span>▣ {c.field ? `[${c.field}]` : t('(sin imagen)')}</span>;
       default:
         return null;
     }
@@ -464,7 +464,7 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
                         if (!f) return;
                         if (f.size > 1_500_000) return void setNote(t('La imagen pesa más de 1,5 MB.'));
                         const r = new FileReader();
-                        r.onload = () => typeof r.result === 'string' && (setNote(''), patch({ src: r.result }));
+                        r.onload = () => typeof r.result === 'string' && (setNote(''), patch({ src: r.result, alt: control.alt || f.name.replace(/\.[^.]+$/, '') }));
                         r.readAsDataURL(f);
                       }}
                     />

@@ -5,6 +5,7 @@ import { notesCommands, type NotesUI } from './commands';
 import { notesCommands2 } from './commands2';
 import { NotesCtl } from './ctl';
 import './messages';
+import './messages-image';
 import { notesTabs } from './ribbonDef';
 
 function setup() {

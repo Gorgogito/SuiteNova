@@ -100,6 +100,8 @@ export interface ImageRender {
   h: number;
   /** SVG preserveAspectRatio */
   par: string;
+  /** Alternative text. */
+  alt?: string;
 }
 export interface ShapeRender {
   /** Position and rotation of the whole shape. */
@@ -198,7 +200,7 @@ export function shapeRender(s: Shape): ShapeRender {
     }
   }
   const flip = s.flipH || s.flipV ? `translate(${s.flipH ? s.w : 0} ${s.flipV ? s.h : 0}) scale(${s.flipH ? -1 : 1} ${s.flipV ? -1 : 1})` : '';
-  const image: ImageRender | null = s.image ? { href: s.image.src, w: s.w, h: s.h, par: s.image.fit === 'stretch' ? 'none' : s.image.fit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet' } : null;
+  const image: ImageRender | null = s.image ? { href: s.image.src, w: s.w, h: s.h, par: s.image.fit === 'stretch' ? 'none' : s.image.fit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet', ...(s.image.alt ? { alt: s.image.alt } : {}) } : null;
   let caption: TextRun | null = null;
   if (s.showData && s.data?.length) {
     const f: Font = { ...s.font, size: Math.max(9, Math.round(s.font.size * 0.85)), color: '#555555', bold: false, italic: false, underline: false, align: 'left', valign: 'top' };

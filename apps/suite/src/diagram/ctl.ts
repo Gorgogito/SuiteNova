@@ -531,7 +531,7 @@ export class DiagramCtl {
     if (!ids.length) return;
     this.edit((p) => {
       let q = p;
-      for (const s of p.shapes) if (ids.includes(s.id)) q = setShapeImage(q, [s.id], { src: s.image!.src, fit });
+      for (const s of p.shapes) if (ids.includes(s.id)) q = setShapeImage(q, [s.id], { ...s.image!, fit });
       return q;
     });
   }

@@ -13,6 +13,7 @@ import { Designer } from './Designer';
 import { IMPORT_FILTERS, isImportName, readForeignForm } from './import';
 import './icons';
 import './messages';
+import './messages-image';
 import { formsTabs } from './ribbonDef';
 import { Results } from './Results';
 import { Runner } from './Runner';

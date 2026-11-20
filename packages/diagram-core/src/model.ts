@@ -51,8 +51,15 @@ export interface DataField {
 
 /** A picture placed on a shape (the stencil "image"); `src` is a data: URL. */
 export interface ShapeImage {
+  /** What is drawn: the original with its edits and crop already made (what Visio and every other reader gets). */
   src: string;
   fit: 'stretch' | 'contain' | 'cover';
+  /** The picture as it was added, when `src` has been edited (a `data:` URL); «Restablecer imagen» goes back to it. */
+  orig?: string;
+  /** The edits that made `src` out of `orig`, as the text of `image-core` (opaque here). */
+  edits?: string;
+  /** Alternative text for assistive technology (it is also the description of the shape in exports). */
+  alt?: string;
 }
 
 /** A lane of a swimlane: its title and its size across the lanes' axis (height of a horizontal lane, width of a vertical one). */

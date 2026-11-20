@@ -209,15 +209,102 @@ function connectorXml(c: Connector, id: number, page: Page): string {
   return `<Shape ID="${id}" NameU="Connector.${id}" Name="Connector.${id}" Type="Shape">${cells.join('')}${user}${geometryXml([{ pts: local, closed: false, fill: false, stroke: true }], h)}${text}</Shape>`;
 }
 
+/** A picture that Visio can hold as is: its format, size and bytes. Visio takes PNG, JPEG and GIF; SVG and WebP cannot be put in a drawing here. */
+export interface PictureInfo {
+  ext: 'png' | 'jpeg' | 'gif';
+  w: number;
+  h: number;
+  data: Uint8Array;
+}
+
+export function pictureInfo(src: string): PictureInfo | null {
+  const m = /^data:image\/(png|jpeg|gif);base64,([A-Za-z0-9+/=]+)$/.exec(src);
+  if (!m) return null;
+  let bin: string;
+  try {
+    bin = atob(m[2]!);
+  } catch {
+    return null;
+  }
+  const data = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+  const u16 = (i: number) => (data[i]! << 8) | data[i + 1]!;
+  const le16 = (i: number) => data[i]! | (data[i + 1]! << 8);
+  let w = 0;
+  let h = 0;
+  if (m[1] === 'png') {
+    if (data.length < 24) return null;
+    w = ((data[16]! << 24) | (data[17]! << 16) | (data[18]! << 8) | data[19]!) >>> 0;
+    h = ((data[20]! << 24) | (data[21]! << 16) | (data[22]! << 8) | data[23]!) >>> 0;
+  } else if (m[1] === 'gif') {
+    if (data.length < 10) return null;
+    w = le16(6);
+    h = le16(8);
+  } else {
+    // JPEG: the first start-of-frame marker holds the size
+    let i = 2;
+    while (i + 9 < data.length) {
+      if (data[i] !== 0xff) {
+        i++;
+        continue;
+      }
+      const mk = data[i + 1]!;
+      if (mk >= 0xc0 && mk <= 0xcf && mk !== 0xc4 && mk !== 0xc8 && mk !== 0xcc) {
+        h = u16(i + 5);
+        w = u16(i + 7);
+        break;
+      }
+      i += 2 + u16(i + 2);
+    }
+  }
+  return w > 0 && h > 0 ? { ext: m[1] as PictureInfo['ext'], w, h, data } : null;
+}
+
+/** How many pictures of the diagram cannot go to Visio (not PNG, JPEG or GIF): their shapes are exported without the picture. */
+export function vsdxPicturesLost(d: Diagram): number {
+  let n = 0;
+  for (const p of d.pages) for (const s of p.shapes) if (s.image && !pictureInfo(s.image.src)) n++;
+  return n;
+}
+
+/**
+ * The picture of a shape as a Visio picture shape: it is drawn under the shape (which keeps the text and the Nova data). `contain` and
+ * `cover` are made with the picture's own size and offset cells; `stretch` fills the box.
+ */
+function pictureXml(s: Shape, id: number, pageH: number, rel: string, info: PictureInfo): string {
+  const fit = s.image!.fit;
+  const k = fit === 'contain' ? Math.min(s.w / info.w, s.h / info.h) : fit === 'cover' ? Math.max(s.w / info.w, s.h / info.h) : 0;
+  // the box of the picture itself (contain shrinks it; stretch and cover fill the shape)
+  const w = fit === 'contain' ? info.w * k : s.w;
+  const h = fit === 'contain' ? info.h * k : s.h;
+  const c = centerOf(s);
+  const cells = [
+    cell('PinX', inch(c.x)),
+    cell('PinY', inch(pageH - c.y)),
+    cell('Width', inch(w)),
+    cell('Height', inch(h)),
+    cell('LocPinX', inch(w / 2), 'Width*0.5'),
+    cell('LocPinY', inch(h / 2), 'Height*0.5'),
+    cell('Angle', (-s.rot * Math.PI) / 180),
+    ...(s.flipH ? [cell('FlipX', 1)] : []),
+    ...(s.flipV ? [cell('FlipY', 1)] : []),
+    ...(fit === 'cover' ? [cell('ImgWidth', inch(info.w * k)), cell('ImgHeight', inch(info.h * k)), cell('ImgOffsetX', inch((s.w - info.w * k) / 2)), cell('ImgOffsetY', inch((s.h - info.h * k) / 2))] : []),
+  ];
+  const compression = info.ext === 'png' ? 'PNG' : info.ext === 'jpeg' ? 'JPEG' : 'GIF';
+  const user = `<Section N="User"><Row N="NovaImagePart">${cell('Value', s.id)}</Row></Section>`;
+  return `<Shape ID="${id}" NameU="Picture.${id}" Name="Picture.${id}" Type="Foreign">${cells.join('')}${user}<ForeignData ForeignType="Bitmap" CompressionType="${compression}"><Rel r:id="${rel}"/></ForeignData></Shape>`;
+}
+
 const HEAD = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n';
 
 export async function exportVsdx(d: Diagram): Promise<Uint8Array> {
   const zip = new JSZip();
   const n = d.pages.length;
-  zip.file(
-    '[Content_Types].xml',
-    `${HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/><Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/>${d.pages.map((_, i) => `<Override PartName="/visio/pages/page${i + 1}.xml" ContentType="application/vnd.ms-visio.page+xml"/>`).join('')}</Types>`,
-  );
+  const mediaExts = new Set<PictureInfo['ext']>();
+  let mediaCount = 0;
+  // the types are written last, when it is known which picture formats the drawing uses
+  const typesFor = () =>
+    `${HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${[...mediaExts].map((e) => `<Default Extension="${e}" ContentType="image/${e}"/>`).join('')}<Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/><Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/>${d.pages.map((_, i) => `<Override PartName="/visio/pages/page${i + 1}.xml" ContentType="application/vnd.ms-visio.page+xml"/>`).join('')}</Types>`;
   zip.file('_rels/.rels', `${HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/document" Target="visio/document.xml"/></Relationships>`);
   zip.file('visio/document.xml', `${HEAD}<VisioDocument xmlns="${NS}" xmlns:r="${NS_R}" xml:space="preserve"><DocumentSettings TopPage="0" DefaultTextStyle="0" DefaultLineStyle="0" DefaultFillStyle="0"/><Colors/><FaceNames/><StyleSheets><StyleSheet ID="0" NameU="No Style" Name="No Style"><Cell N="LineWeight" V="0.01041666666666667"/><Cell N="LineColor" V="0"/><Cell N="LinePattern" V="1"/><Cell N="FillForegnd" V="1"/><Cell N="FillPattern" V="1"/></StyleSheet></StyleSheets></VisioDocument>`);
   zip.file('visio/_rels/document.xml.rels', `${HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/pages" Target="pages/pages.xml"/></Relationships>`);
@@ -231,11 +318,23 @@ export async function exportVsdx(d: Diagram): Promise<Uint8Array> {
   d.pages.forEach((full, i) => {
     const p = printablePage(full);
     let id = 0;
-    const shapes = p.shapes.map((s) => shapeXml(s, ++id, p.height));
+    const rels: string[] = [];
+    // a picture goes under its shape, so the shape's text and outline stay on top of it
+    const shapes = p.shapes.flatMap((s) => {
+      const info = s.image ? pictureInfo(s.image.src) : null;
+      if (!info) return [shapeXml(s, ++id, p.height)];
+      const name = `image${++mediaCount}.${info.ext}`;
+      zip.file(`visio/media/${name}`, info.data);
+      mediaExts.add(info.ext);
+      rels.push(`<Relationship Id="rId${rels.length + 1}" Type="http://schemas.microsoft.com/visio/2010/relationships/image" Target="../media/${name}"/>`);
+      return [pictureXml(s, ++id, p.height, `rId${rels.length}`, info), shapeXml(s, ++id, p.height)];
+    });
     const conns = p.connectors.map((c) => connectorXml(c, ++id, p));
+    if (rels.length) zip.file(`visio/pages/_rels/page${i + 1}.xml.rels`, `${HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join('')}</Relationships>`);
     zip.file(`visio/pages/page${i + 1}.xml`, `${HEAD}<PageContents xmlns="${NS}" xmlns:r="${NS_R}" xml:space="preserve"><Shapes>${shapes.join('')}${conns.join('')}</Shapes></PageContents>`);
   });
   void n;
+  zip.file('[Content_Types].xml', typesFor());
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE', mimeType: 'application/vnd.ms-visio.drawing' });
 }
 
@@ -522,7 +621,11 @@ export async function importVsdx(data: Uint8Array): Promise<VsdxResult> {
         for (const k of kids) visit(k, kframe, null);
       }
       if (!hasGeo && !cells.has('BeginX')) {
-        if (!isGroup && node['@_Type'] === 'Foreign') skipped++;
+        if (!isGroup && node['@_Type'] === 'Foreign') {
+          // the picture part of a shape Nova itself exported comes back with its shape
+          if (!userRow(node, 'NovaImagePart')) skipped++;
+          else return;
+        }
         else if (!isGroup && !textOf(node)) return;
         if (isGroup && !textOf(node)) return;
       }

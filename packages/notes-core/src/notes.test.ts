@@ -136,6 +136,22 @@ describe('búsqueda', () => {
     nb.sections[0]!.pages.push(bp);
     expect(searchNotebook(nb, '45')).toHaveLength(1); // 10 × 4,5 = 45, que no está escrito en ninguna celda
   });
+  it('guarda el giro, los volteos y el recorte de una imagen y corrige lo dañado', async () => {
+    const nb = sample();
+    nb.assets.a1 = { id: 'a1', mime: 'image/png', data: 'AAAA', name: 'foto.png', size: 3 };
+    const pg = nb.sections[1]!.pages[0]!;
+    const img = newImageContainer('a1', 200, 100, 'una foto');
+    Object.assign(img, { rotation: 450, flipH: true, crop: { l: 10000, t: 0, r: 20000, b: 5000 } });
+    pg.containers.push(img);
+    const back = parseNotebook(await serializeNotebook(nb)).sections[1]!.pages[0]!.containers.find((c) => c.kind === 'image')!;
+    expect(back).toMatchObject({ rotation: 90, flipH: true, crop: { l: 10000, t: 0, r: 20000, b: 5000 } });
+    expect((back as { flipV?: boolean }).flipV).toBeUndefined();
+    // un recorte que no deja nada se reduce; sin giro ni recorte no se guarda nada
+    Object.assign(img, { rotation: 0, flipH: false, crop: { l: 90000, t: 0, r: 90000, b: 0 } });
+    const fixed = parseNotebook(await serializeNotebook(nb)).sections[1]!.pages[0]!.containers.find((c) => c.kind === 'image') as { crop: { l: number; r: number }; rotation?: number };
+    expect(fixed.crop.l + fixed.crop.r).toBeLessThanOrEqual(95000);
+    expect(fixed.rotation).toBeUndefined();
+  });
   it('busca dentro de las imágenes con el texto reconocido (OCR) y en su texto alternativo', () => {
     const nb = sample();
     nb.assets.a1 = { id: 'a1', mime: 'image/png', data: 'AAAA', name: 'foto.png', size: 3 };

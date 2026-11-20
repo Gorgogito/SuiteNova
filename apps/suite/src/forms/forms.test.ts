@@ -7,6 +7,7 @@ import { readForeignForm } from './import';
 import { formsCommands, type FormsUI } from './commands';
 import { FORM_HEAD, FormsCtl } from './ctl';
 import './messages';
+import './messages-image';
 import { formsTabs } from './ribbonDef';
 
 function setup() {

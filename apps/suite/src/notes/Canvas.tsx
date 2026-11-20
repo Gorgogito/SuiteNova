@@ -5,6 +5,7 @@ import { contentNode, pageExtent, recognizeShape, replayAt, simplify, snap, snap
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { pictureCss } from '../images/picture-css';
 import { MathView } from '../writer/nodeviews';
 import { hookMathCopy, mathClipboardProps } from '../math/clipboard';
 import type { NotesCtl } from './ctl';
@@ -73,7 +74,16 @@ function TextBox({ ctl, c, openDialog }: { ctl: NotesCtl; c: TextContainer; open
 
 function ImageBody({ ctl, c }: { ctl: NotesCtl; c: ImageContainer }) {
   const src = ctl.assetUrl(c.asset);
-  return src ? <img src={src} alt={c.alt} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }} /> : <div className="nn-missing">{t('Imagen no disponible')}</div>;
+  if (!src) return <div className="nn-missing">{t('Imagen no disponible')}</div>;
+  // the crop shows only part of the image; the turn and flips are of the picture inside the box (the box does not turn)
+  const css = pictureCss({ crop: c.crop, rotation: c.rotation, flipH: c.flipH, flipV: c.flipV });
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%', ...css.box }}>
+      <div style={css.clip}>
+        <img src={src} alt={c.alt} draggable={false} style={css.img} />
+      </div>
+    </div>
+  );
 }
 
 function MediaBody({ ctl, c }: { ctl: NotesCtl; c: MediaContainer }) {

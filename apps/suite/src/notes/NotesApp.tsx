@@ -20,6 +20,7 @@ import { AccessibilityDialog, CountDialog, FindDialog, MergeSectionDialog, MoveP
 import { InkToTextDialog, NotesSpellDialog, NotesTableLookDialog, NotesTableSortDialog, ReadDialog, ScreenClipDialog, SymbolDialog, captureScreen } from './dlg3';
 import { ReplayBar } from './ReplayBar';
 import './messages-notes3';
+import './messages-image';
 import { NotesCtl } from './ctl';
 import { EmailDialog, EquationDialog, ImageDialog, LinkDialog, Modal, PageStyleDialog, ProtectDialog, ShareDialog, TableDialog, TagsDialog, TemplatesDialog, TrashDialog, VersionsDialog } from './Dialogs';
 import { pageToDocx, pageToEml, pageToHtml } from './export';

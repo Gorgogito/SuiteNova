@@ -70,6 +70,7 @@ button{font:inherit;padding:9px 18px;border-radius:6px;border:1px solid var(--c)
 button.sec{background:transparent;color:var(--c)}
 [hidden]{display:none!important}
 .done h2{margin-top:0}.score{font-size:1.3em;font-weight:600}
+.q-img{display:block;max-width:100%;height:auto;margin:8px 0;border-radius:4px}
 .foot{color:var(--mut);font-size:.85em;text-align:center;margin:16px 0}
 `;
 
@@ -78,6 +79,7 @@ var form=JSON.parse(document.getElementById('form-data').textContent);
 var root=document.getElementById('app');
 var blocks={};
 function el(tag,attrs,kids){var e=document.createElement(tag);for(var k in (attrs||{})){if(k==='text')e.textContent=attrs[k];else if(k==='class')e.className=attrs[k];else e.setAttribute(k,attrs[k]);}(kids||[]).forEach(function(c){if(c)e.appendChild(c);});return e;}
+function pic(q){var m=q.image;if(!m||!/^data:image\\/(png|jpeg|gif|webp);base64,/.test(m.src))return null;var i=el('img',{class:'q-img',alt:m.alt||'',src:m.src});var w={small:160,medium:320,large:480}[m.size];if(w)i.style.width=w+'px';return i;}
 function uid(){return 'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 function build(){
  document.documentElement.style.setProperty('--c',form.color);
@@ -96,10 +98,10 @@ function build(){
 }
 function renderQ(q,i){
  var card=el('div',{class:'card','data-q':q.id});
- if(q.type==='title'){card.appendChild(el('h2',{text:q.title}));if(q.description)card.appendChild(el('p',{class:'q-desc',text:q.description}));return card;}
+ if(q.type==='title'){card.appendChild(el('h2',{text:q.title}));if(q.description)card.appendChild(el('p',{class:'q-desc',text:q.description}));var pt=pic(q);if(pt)card.appendChild(pt);return card;}
  var fs=el('fieldset');var lg=el('legend');lg.appendChild(document.createTextNode((i+1)+'. '+q.title));
  if(q.required){var s=el('span',{class:'req',text:' *'});s.setAttribute('aria-label','obligatoria');lg.appendChild(s);}
- fs.appendChild(lg);if(q.description)fs.appendChild(el('p',{class:'q-desc',text:q.description}));
+ fs.appendChild(lg);if(q.description)fs.appendChild(el('p',{class:'q-desc',text:q.description}));var pq=pic(q);if(pq)fs.appendChild(pq);
  var name='q_'+q.id;var t=q.type;var body;
  if(t==='text'){body=el('input',{type:q.format==='email'?'email':q.format==='url'?'url':'text',name:name,'aria-label':q.title});}
  else if(t==='longtext'){body=el('textarea',{name:name,'aria-label':q.title});}

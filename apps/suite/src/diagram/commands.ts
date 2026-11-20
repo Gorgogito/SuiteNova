@@ -1,8 +1,9 @@
 import type { CommandDef } from '@suitenova/core-ui';
 import { STENCILS, type Arrow, type Dash, type Routing } from '@suitenova/diagram-core';
 import type { DiagramCtl } from './ctl';
+import { resetPicture } from './pichost';
 
-export type DiagramDialog = 'page' | 'rename' | 'png' | 'about' | 'shortcuts' | 'link' | 'layout' | 'macros' | 'macroEditor' | 'macroSecurity' | 'recordMacro';
+export type DiagramDialog = 'page' | 'rename' | 'png' | 'about' | 'shortcuts' | 'link' | 'layout' | 'macros' | 'macroEditor' | 'macroSecurity' | 'recordMacro' | 'pictureCorrections' | 'pictureColor' | 'pictureArtistic' | 'removeBg' | 'imageAlt';
 
 export interface DiagramUI {
   ctl: DiagramCtl;
@@ -160,6 +161,14 @@ export function diagramCommands(ui: DiagramUI): CommandDef[] {
   add({ id: 'diagram.link.remove', label: 'Quitar el vínculo', icon: 'trash', enabled: () => c.selectedShapes().some((s) => s.link), run: () => c.setLink(null) });
   add({ id: 'diagram.link.open', label: 'Abrir el vínculo', icon: 'link', enabled: () => !!c.selectedShapes()[0]?.link, run: () => { const s = c.selectedShapes()[0]; if (s) ui.openLink(s); } });
   add({ id: 'diagram.image.insert', label: 'Imagen…', icon: 'image', description: 'Inserta una imagen (PNG, JPEG, GIF, WebP o SVG) en la página.', run: () => ui.insertImage() });
+  // the picture tools (the reduced set): they work on the selected shapes that hold a picture and are not locked
+  const pics = () => c.selectedShapes().filter((s) => s.image && !s.locked);
+  add({ id: 'diagram.image.corrections', label: 'Opciones de corrección de imagen…', icon: 'contrast', description: 'Brillo, contraste y nitidez de la imagen; no la cambian: se pueden quitar con «Restablecer imagen».', enabled: () => pics().length > 0, run: () => ui.openDialog('pictureCorrections') });
+  add({ id: 'diagram.image.color', label: 'Opciones de color de imagen…', icon: 'palette', description: 'Saturación, temperatura, transparencia y recolorear la imagen.', enabled: () => pics().length > 0, run: () => ui.openDialog('pictureColor') });
+  add({ id: 'diagram.image.artistic', label: 'Opciones de efectos artísticos…', icon: 'sparkles', description: 'Efecto artístico de la imagen y su intensidad.', enabled: () => pics().length > 0, run: () => ui.openDialog('pictureArtistic') });
+  add({ id: 'diagram.image.removeBg', label: 'Quitar fondo…', icon: 'eraser', description: 'Quita el fondo de la imagen; puede marcar las áreas que se mantienen o se quitan.', enabled: () => pics().length > 0, run: () => ui.openDialog('removeBg') });
+  add({ id: 'diagram.image.alt', label: 'Texto alternativo…', icon: 'image', description: 'Descripción de la imagen para los lectores de pantalla; también va en el SVG.', enabled: () => pics().length > 0, run: () => ui.openDialog('imageAlt') });
+  add({ id: 'diagram.image.reset', label: 'Restablecer imagen', icon: 'eraser', description: 'Vuelve a la imagen original: quita los ajustes, los efectos, el fondo quitado y el recorte.', enabled: () => pics().some((s) => s.image!.orig), run: () => void resetPicture(c) });
   for (const [fit, label] of [['contain', 'Ajustar la imagen a la forma'], ['cover', 'Rellenar la forma con la imagen'], ['stretch', 'Estirar la imagen']] as const) {
     add({ id: `diagram.image.${fit}`, label, icon: 'image', enabled: () => c.selectedShapes().some((s) => s.image), checked: () => c.selectedShapes()[0]?.image?.fit === fit, run: () => c.setImageFit(fit) });
   }

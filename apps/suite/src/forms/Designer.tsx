@@ -1,5 +1,7 @@
 import { t } from '@suitenova/core-ui';
-import { QTYPES, gradable, hasOptions, isInput, type Question } from '@suitenova/forms-core';
+import { IMAGE_SIZES, MAX_IMAGE_BYTES, QTYPES, gradable, hasOptions, isInput, isSafeImage, type ImageSize, type Question } from '@suitenova/forms-core';
+import { useState } from 'react';
+import { QImage } from './Runner';
 import type { FormsCtl } from './ctl';
 import { FORM_HEAD } from './ctl';
 import { ProofTextarea } from '../spell';
@@ -32,6 +34,62 @@ function ListEditor({ label, items, onChange, min = 1 }: { label: string; items:
   );
 }
 
+/** Pick, size, describe and remove the picture of a question. */
+function PictureField({ q, up }: { q: Question; up: (patch: Partial<Question>) => void }) {
+  const [err, setErr] = useState('');
+  const m = q.image;
+  return (
+    <>
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp"
+        aria-label={t('Elegir imagen')}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (!f) return;
+          if (f.size > MAX_IMAGE_BYTES) return setErr(t('La imagen pesa más de 1,5 MB; use una más pequeña.'));
+          const rd = new FileReader();
+          rd.onload = () => {
+            const src = String(rd.result);
+            if (!isSafeImage(src)) return setErr(t('Solo se admiten imágenes PNG, JPEG, GIF o WebP.'));
+            setErr('');
+            up({ image: { src, alt: m?.alt || f.name.replace(/\.[^.]+$/, ''), size: m?.size ?? 'medium' } });
+          };
+          rd.readAsDataURL(f);
+        }}
+      />
+      {err && (
+        <p className="fm-err" role="alert">
+          {err}
+        </p>
+      )}
+      {m && (
+        <>
+          <QImage q={q} />
+          <label className="fm-field fm-inline">
+            <span>{t('Tamaño')}</span>
+            <select className="fm-input" aria-label={t('Tamaño de la imagen')} value={m.size} onChange={(e) => up({ image: { ...m, size: e.target.value as ImageSize } })}>
+              {IMAGE_SIZES.map((z) => (
+                <option key={z.id} value={z.id}>
+                  {t(z.name)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="fm-field">
+            <span>{t('Texto alternativo')}</span>
+            <input className="fm-input" aria-label={t('Texto alternativo de la imagen')} value={m.alt} onChange={(e) => up({ image: { ...m, alt: e.target.value } })} />
+          </label>
+          <button type="button" className="fm-btn" onClick={() => up({ image: undefined })}>
+            {t('Quitar la imagen')}
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
 function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
   const up = (patch: Partial<Question>) => ctl.updateQuestion(q.id, patch);
   const i = ctl.form.questions.indexOf(q);
@@ -49,6 +107,11 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
         <span>{t('Descripción (opcional)')}</span>
         <ProofTextarea className="fm-input" rows={2} value={q.description} onChange={(e) => up({ description: e.target.value })} />
       </label>
+
+      <div className="fm-field" role="group" aria-label={t('Imagen de la pregunta')}>
+        <span>{t('Imagen (opcional)')}</span>
+        <PictureField q={q} up={up} />
+      </div>
 
       {(q.type === 'choice' || q.type === 'multi' || q.type === 'dropdown') && <ListEditor label={t('Opciones')} items={q.options} onChange={(v) => up({ options: v })} />}
       {q.type === 'likert' && (
@@ -229,6 +292,7 @@ export function Designer({ ctl }: { ctl: FormsCtl }) {
                   {i + 1}. {q.title || t('(sin título)')}
                   {q.required && <span className="fm-req"> *</span>}
                 </span>
+                {q.image && <QImage q={q} />}
                 <span className="fm-type">{t(typeName(q))}{q.showIf ? ` · ${t('condicional')}` : ''}{hasOptions(q) && q.type !== 'likert' ? ` · ${q.options.length} ${t('opciones')}` : ''}</span>
               </button>
             )}

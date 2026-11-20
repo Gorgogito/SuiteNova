@@ -30,6 +30,12 @@ export interface ImageContainer extends Box {
   /** Identificador en `Notebook.assets`. */
   asset: string;
   alt: string;
+  /** Giro en grados (0–359), sentido horario, y volteos. La caja no gira: gira la imagen dentro de ella. */
+  rotation?: number;
+  flipH?: boolean;
+  flipV?: boolean;
+  /** Recorte en milésimas de porcentaje de cada lado (100000 = todo, como `a:srcRect`); la imagen original no se toca. */
+  crop?: { l: number; t: number; r: number; b: number };
 }
 
 export interface MediaContainer extends Box {
@@ -324,6 +330,27 @@ function readStroke(v: unknown): Stroke | null {
   return { id: str(o.id, '', 60) || newId('k'), tool: tools.includes(o.tool as StrokeTool) ? (o.tool as StrokeTool) : 'pen', color: color(o.color, '#000000'), width: num(o.width, 2, 0.5, 80), opacity: num(o.opacity, 1, 0.05, 1), pts };
 }
 
+/** The turn, flips and crop of an image box; only what is not the default is kept. Bad values are corrected. */
+function readFrame(o: Partial<ImageContainer>): Partial<ImageContainer> {
+  const out: Partial<ImageContainer> = {};
+  const rot = ((Math.round(num(o.rotation, 0, -3600, 3600)) % 360) + 360) % 360;
+  if (rot) out.rotation = rot;
+  if (o.flipH === true) out.flipH = true;
+  if (o.flipV === true) out.flipV = true;
+  const c = o.crop;
+  if (c && typeof c === 'object') {
+    let l = num(c.l, 0, 0, 95000);
+    let t = num(c.t, 0, 0, 95000);
+    let r = num(c.r, 0, 0, 95000);
+    let b = num(c.b, 0, 0, 95000);
+    // at least 5 % of each direction must show
+    if (l + r > 95000) [l, r] = [Math.round((l * 95000) / (l + r)), Math.round((r * 95000) / (l + r))];
+    if (t + b > 95000) [t, b] = [Math.round((t * 95000) / (t + b)), Math.round((b * 95000) / (t + b))];
+    if (l || t || r || b) out.crop = { l, t, r, b };
+  }
+  return out;
+}
+
 function readContainer(v: unknown, assets: Record<string, Asset>): Container | null {
   const o = v as Partial<Container> & { content?: unknown; asset?: unknown; h?: unknown; media?: unknown } | null;
   if (!o || typeof o !== 'object') return null;
@@ -333,7 +360,7 @@ function readContainer(v: unknown, assets: Record<string, Asset>): Container | n
     if (!assets[asset]) return null;
     const h = num(o.h, 200, 20, 8000);
     if (o.kind === 'file') return { kind: 'file', ...base, h, asset, name: str((o as FileContainer).name, 'Archivo', 260), size: num((o as FileContainer).size, 0, 0, 1e10) };
-    if (o.kind === 'image') return { kind: 'image', ...base, h, asset, alt: str((o as ImageContainer).alt, '', 500) };
+    if (o.kind === 'image') return { kind: 'image', ...base, h, asset, alt: str((o as ImageContainer).alt, '', 500), ...readFrame(o as ImageContainer) };
     return { kind: 'media', ...base, h, asset, media: o.media === 'video' ? 'video' : 'audio', name: str((o as MediaContainer).name, 'Grabación', 200), seconds: num((o as MediaContainer).seconds, 0, 0, 86400 * 2) };
   }
   if (o.kind !== 'text') return null;

@@ -1,6 +1,6 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, DialogTrigger, Input } from '@fluentui/react-components';
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { PAGE_SIZES, dataToCsv, exportArea, exportVsdx, importVsdx, pageToSvg, parseDiagram, serializeDiagram, type Page } from '@suitenova/diagram-core';
+import { PAGE_SIZES, dataToCsv, exportArea, exportVsdx, importVsdx, setShapeImage, vsdxPicturesLost, pageToSvg, parseDiagram, serializeDiagram, type Page } from '@suitenova/diagram-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { zoomCommands } from '../common';
 import { pickAndRead, readPath, saveBytes } from '../fileio';
@@ -11,12 +11,16 @@ import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { addRecent } from '../recents';
 import { RecordMacroDialog, RecordingStatus } from '../macros/RecordDialogs';
 import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
+import { FormatPictureDialog } from '../images/FormatPictureDialog';
+import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
+import { diagramPictureHost } from './pichost';
 import { diagramCommands, type DiagramDialog, type DiagramUI } from './commands';
 import { DiagramCtl } from './ctl';
 import './icons';
 import './messages';
 import './messages-more';
 import './messages-more2';
+import './messages-image';
 import { diagramTabs } from './ribbonDef';
 import { DataPane, LayersPane, LayoutForm, LinkForm } from './Panes';
 import { Stage } from './Stage';
@@ -179,6 +183,37 @@ function RenameForm({ ctl, onClose }: { ctl: DiagramCtl; onClose: () => void }) 
   );
 }
 
+function AltForm({ ctl, onClose }: { ctl: DiagramCtl; onClose: () => void }) {
+  const shapes = ctl.selectedShapes().filter((s) => s.image && !s.locked);
+  const [alt, setAlt] = useState(shapes[0]?.image?.alt ?? '');
+  const ok = () => {
+    const ids = shapes.map((s) => s.id);
+    ctl.edit((p) => {
+      let q = p;
+      for (const s of p.shapes) if (ids.includes(s.id) && s.image) q = setShapeImage(q, [s.id], { ...s.image, alt: alt.trim() || undefined });
+      return q;
+    });
+    onClose();
+  };
+  return (
+    <>
+      <DialogTitle>{t('Texto alternativo de la imagen')}</DialogTitle>
+      <DialogContent>
+        <div className="dg-form">
+          <label htmlFor="dg-alt">{t('Descripción (la leen los lectores de pantalla)')}</label>
+          <Input id="dg-alt" value={alt} autoFocus onChange={(_e, d) => setAlt(d.value)} onKeyDown={(e) => e.key === 'Enter' && ok()} />
+        </div>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>{t('Cancelar')}</Button>
+        <Button appearance="primary" onClick={ok}>
+          {t('Aceptar')}
+        </Button>
+      </DialogActions>
+    </>
+  );
+}
+
 function PngForm({ ctl, onClose }: { ctl: DiagramCtl; onClose: () => void }) {
   const [scale, setScale] = useState('2');
   const [area, setArea] = useState<'page' | 'content'>('content');
@@ -323,6 +358,8 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         try {
           const data = await exportVsdx(ctl.diagram);
           await saveBytes(`${safeName(ctl.diagram.name)}.vsdx`, data, [{ name: 'Visio', extensions: ['vsdx'] }]);
+          const lost = vsdxPicturesLost(ctl.diagram);
+          if (lost) window.alert(t('{n} imagen(es) no se exportaron a Visio (solo admite PNG, JPEG y GIF); sus formas salieron sin la imagen.', { n: lost }));
         } catch (e) {
           window.alert(t('No se pudo guardar: {error}', { error: (e as Error).message }));
         }
@@ -567,6 +604,13 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
       </StickyDialog>
       <StickyDialog open={dialog === 'page'} onClose={close}>
         {dialog === 'page' && <PageSetup ctl={ctl} onClose={close} />}
+      </StickyDialog>
+      {dialog === 'pictureCorrections' && <FormatPictureDialog host={diagramPictureHost(ctl)} tab="corrections" onClose={close} />}
+      {dialog === 'pictureColor' && <FormatPictureDialog host={diagramPictureHost(ctl)} tab="color" onClose={close} />}
+      {dialog === 'pictureArtistic' && <FormatPictureDialog host={diagramPictureHost(ctl)} tab="artistic" onClose={close} />}
+      {dialog === 'removeBg' && <RemoveBackgroundDialog host={diagramPictureHost(ctl)} onClose={close} />}
+      <StickyDialog open={dialog === 'imageAlt'} onClose={close}>
+        {dialog === 'imageAlt' && <AltForm ctl={ctl} onClose={close} />}
       </StickyDialog>
       <StickyDialog open={dialog === 'rename'} onClose={close}>
         {dialog === 'rename' && <RenameForm ctl={ctl} onClose={close} />}

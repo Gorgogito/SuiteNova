@@ -1,5 +1,5 @@
 import { t } from '@suitenova/core-ui';
-import { isVisible, score, validateAll, visibleAnswers, type Answer, type Form, type Question } from '@suitenova/forms-core';
+import { IMAGE_SIZES, isSafeImage, isVisible, score, validateAll, visibleAnswers, type Answer, type Form, type Question } from '@suitenova/forms-core';
 import { useState } from 'react';
 import { ProofTextarea } from '../spell';
 
@@ -198,6 +198,7 @@ export function Runner({ form, onSubmit, onAgain }: { form: Form; onSubmit: ((a:
             <div key={q.id} className="fm-card">
               <h2>{q.title}</h2>
               {q.description && <p className="fm-desc">{q.description}</p>}
+              <QImage q={q} />
             </div>
           );
         return (
@@ -207,6 +208,7 @@ export function Runner({ form, onSubmit, onAgain }: { form: Form; onSubmit: ((a:
               {q.required && <span className="fm-req" aria-label={t('obligatoria')}> *</span>}
             </div>
             {q.description && <p className="fm-desc">{q.description}</p>}
+            <QImage q={q} />
             <Field q={q} value={answers[q.id]} error={errors[q.id]} onChange={(v) => setAnswers((a) => ({ ...a, [q.id]: v }))} />
             {errors[q.id] && (
               <p className="fm-err" role="alert">
@@ -226,4 +228,12 @@ export function Runner({ form, onSubmit, onAgain }: { form: Form; onSubmit: ((a:
       </div>
     </form>
   );
+}
+
+/** The picture of a question, at the width it was given (never past the card). */
+export function QImage({ q }: { q: Question }) {
+  const m = q.image;
+  if (!m || !isSafeImage(m.src)) return null;
+  const px = IMAGE_SIZES.find((z) => z.id === m.size)?.px;
+  return <img className="fm-qimg" src={m.src} alt={m.alt} style={px ? { width: px } : undefined} />;
 }

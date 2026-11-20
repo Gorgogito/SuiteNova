@@ -1,5 +1,5 @@
 import { cleanResponse, score } from './logic';
-import { QTYPES, isInput, newForm, newId, newQuestion, type Answer, type Form, type QType, type Question, type Response } from './model';
+import { IMAGE_SIZES, QTYPES, isInput, isSafeImage, newForm, newId, newQuestion, type Answer, type Form, type QType, type Question, type Response } from './model';
 
 export interface Project {
   form: Form;
@@ -43,6 +43,7 @@ export function readForm(raw: any): Form {
       showIf: sf && typeof sf.question === 'string' && ['eq', 'neq', 'contains'].includes(sf.op) ? { question: sf.question, op: sf.op, value: str(sf.value, '', 500) } : null,
       correct: strs(r?.correct),
       points: Math.min(1000, Math.max(0, num(r?.points, 1)!)),
+      ...(isSafeImage(r?.image?.src) ? { image: { src: r.image.src, alt: str(r.image.alt, '', 500), size: IMAGE_SIZES.some((z) => z.id === r.image.size) ? r.image.size : 'medium' } } : {}),
     };
   });
   // conditions must point at an earlier question

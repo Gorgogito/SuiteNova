@@ -263,3 +263,57 @@ describe('the logic inside the HTML agrees with the TypeScript rules', () => {
     }
   });
 });
+
+describe('imágenes en las preguntas', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const withImage = () => {
+    const f = newForm('Con imagen');
+    const q = newQuestion('choice');
+    q.title = 'Cuál es el logotipo';
+    q.image = { src: PNG, alt: 'Un logotipo azul', size: 'small' };
+    const t = newQuestion('title');
+    t.title = 'Parte 2';
+    t.image = { src: PNG, alt: '', size: 'full' };
+    f.questions = [q, t];
+    return f;
+  };
+
+  it('se guarda y se lee con su texto alternativo y su tamaño', () => {
+    const f = withImage();
+    const back = parseProject(serializeProject({ form: f, responses: [] })).project.form;
+    expect(back.questions[0]!.image).toEqual({ src: PNG, alt: 'Un logotipo azul', size: 'small' });
+    expect(back.questions[1]!.image).toEqual({ src: PNG, alt: '', size: 'full' });
+  });
+
+  it('descarta lo que no es una imagen de datos segura y corrige el tamaño', () => {
+    const f = withImage();
+    const raw = JSON.parse(serializeProject({ form: f, responses: [] }));
+    raw.form.questions[0].image = { src: 'https://example.org/x.png', alt: 'x', size: 'small' };
+    raw.form.questions[1].image = { src: 'data:image/svg+xml;base64,PHN2Zy8+', alt: 'x', size: 'small' };
+    const q = newQuestion('text');
+    raw.form.questions.push({ ...q, image: { src: PNG, alt: 7, size: 'enorme' } });
+    const back = parseProject(JSON.stringify(raw)).project.form;
+    expect(back.questions[0]!.image).toBeUndefined();
+    expect(back.questions[1]!.image).toBeUndefined();
+    expect(back.questions[2]!.image).toEqual({ src: PNG, alt: '', size: 'medium' });
+  });
+
+  it('una pregunta sin imagen no guarda nada de imagen', () => {
+    const f = newForm('x');
+    f.questions = [newQuestion('text')];
+    expect(serializeProject({ form: f, responses: [] })).not.toContain('"image"');
+  });
+
+  it('la página exportada muestra la imagen con su texto alternativo y su ancho, y lleva el mismo código que revisa que sea de datos', () => {
+    const html = exportHtml(withImage());
+    expect(html).toContain('function pic(q)');
+    expect(html).toContain('.q-img{');
+    // the runtime must be valid JavaScript with the picture helper (the regex of the helper is escaped inside the template)
+    const script = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1] ?? '';
+    expect(() => new Function(script)).not.toThrow();
+    expect(script).toContain('data:image\\/(png|jpeg|gif|webp)');
+    // the data of the form travels with the picture
+    expect(html).toContain('Un logotipo azul');
+  });
+});
+

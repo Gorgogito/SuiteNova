@@ -4,6 +4,9 @@ import { CATEGORIES, PAGE_SIZES, STENCILS } from '@suitenova/diagram-core';
 import { ChevronDown } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { helpTab, viewTab } from '../common';
+import { ArtisticItems, AspectItems } from '../images/galleries';
+import { PicPopover } from '../images/PicPopover';
+import { diagramPictureHost } from './pichost';
 import { ARROWS, DASHES, FONT_NAMES, FONT_SIZES, ROUTINGS, WIDTHS, type DiagramUI } from './commands';
 
 type Leaf = Exclude<RibbonItem, { kind: 'separator' }>;
@@ -311,6 +314,19 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
           { kind: 'button', command: 'diagram.image.contain', size: 'small', keytip: 'IA' },
           { kind: 'button', command: 'diagram.image.cover', size: 'small', keytip: 'IR' },
           { kind: 'button', command: 'diagram.image.stretch', size: 'small', keytip: 'IE' },
+        ],
+      },
+      {
+        id: 'pictureTools',
+        label: 'Ajustar imagen',
+        icon: 'contrast',
+        items: [
+          { kind: 'button', command: 'diagram.image.removeBg', size: 'small', keytip: 'IB' },
+          { kind: 'dropdown', id: 'imgCorrections', label: 'Correcciones', icon: 'contrast', size: 'small', keytip: 'IC', entries: [{ kind: 'command', command: 'diagram.image.corrections' }, { kind: 'command', command: 'diagram.image.color' }] },
+          { kind: 'custom', id: 'imgArtistic', label: 'Efectos artísticos', keytip: 'IF', render: () => <PicPopover label="Efectos artísticos" icon="sparkles" size="small">{(close) => <ArtisticItems host={diagramPictureHost(ui.ctl)} close={close} onOptions={() => ui.openDialog('pictureArtistic')} />}</PicPopover> },
+          { kind: 'custom', id: 'imgAspect', label: 'Relación de aspecto', keytip: 'IS', render: () => <PicPopover label="Relación de aspecto" icon="crop" size="small">{(close) => <AspectItems host={diagramPictureHost(ui.ctl)} close={close} />}</PicPopover> },
+          { kind: 'button', command: 'diagram.image.alt', size: 'small', iconOnly: true, keytip: 'IT' },
+          { kind: 'button', command: 'diagram.image.reset', size: 'small', iconOnly: true, keytip: 'IZ' },
         ],
       },
       {

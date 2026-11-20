@@ -1,4 +1,5 @@
 import {
+  type ImageContainer,
   SECTION_COLORS,
   TEMPLATES,
   WrongPassword,
@@ -97,6 +98,8 @@ import {
   type ZMove,
 } from '@suitenova/notes-core';
 import { applyFormat, captureFormat, type CopiedFormat } from '../writer/format-tools';
+import { isCropped, type Crop } from '@suitenova/image-core';
+import { reframeBox } from '../images/reframe';
 import type { Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import type { Node as PMNode } from 'prosemirror-model';
@@ -487,6 +490,29 @@ export class NotesCtl {
   }
   setAlt(id: string, alt: string): void {
     this.editPage((p) => updateContainer(p, id, { alt } as Partial<Container>), { undo: true });
+  }
+  /**
+   * Turn, flips and crop of an image box, in one step. A new crop moves and resizes the box so that the image stays where it is (what was
+   * cut leaves the box); the box itself does not turn.
+   */
+  setImageFrame(id: string, f: { rotation?: number; flipH?: boolean; flipV?: boolean; crop?: Crop }): void {
+    this.editPage(
+      (p) => {
+        const c = p.containers.find((x) => x.id === id);
+        if (!c || c.kind !== 'image') return p;
+        const patch: Partial<ImageContainer> = {
+          rotation: f.rotation ? ((Math.round(f.rotation) % 360) + 360) % 360 || undefined : undefined,
+          flipH: f.flipH || undefined,
+          flipV: f.flipV || undefined,
+          crop: isCropped(f.crop) ? f.crop : undefined,
+        };
+        const nb = reframeBox({ x: c.x, y: c.y, w: c.w, h: c.h }, c.crop, patch.crop);
+        // the box keeps its position when only the turn or the flips change
+        const box = (c.crop?.l ?? 0) === (patch.crop?.l ?? 0) && (c.crop?.t ?? 0) === (patch.crop?.t ?? 0) && (c.crop?.r ?? 0) === (patch.crop?.r ?? 0) && (c.crop?.b ?? 0) === (patch.crop?.b ?? 0) ? {} : { x: Math.round(nb.x), y: Math.round(nb.y), w: Math.max(40, Math.round(nb.w)), h: Math.max(20, Math.round(nb.h)) };
+        return updateContainer(p, id, { ...patch, ...box } as Partial<Container>);
+      },
+      { undo: true },
+    );
   }
 
   // ------------------------------------------------------------------ imágenes y grabaciones (activos)

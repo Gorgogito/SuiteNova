@@ -1,4 +1,4 @@
-import { cssText, pictureCss } from './picture-css';
+import { cssText, pictureCss } from '../images/picture-css';
 import { shapeSvg } from '@suitenova/shapes-core';
 import { mathBoxHtml } from '../slides/render/mathbox';
 import { CFEvaluator, colToName, colAtPx, colOffsetPx, normRect, rowAtPx, rowOffsetPx, shapeLook, tableAt, type FormulaLocale, type PageSetup, type Rect, type Sheet, type Style } from '@suitenova/calc-engine';

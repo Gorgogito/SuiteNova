@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { XMLValidator } from 'fast-xml-parser';
 import { describe, expect, it } from 'vitest';
-import { addConnector, addShape, exportVsdx, flattenPath, importVsdx, newConnector, newDiagram, shapeRender } from './index';
+import { addConnector, addShape, setShapeImage, vsdxPicturesLost, pictureInfo, exportVsdx, flattenPath, importVsdx, newConnector, newDiagram, shapeRender } from './index';
 
 describe('flattenPath', () => {
   it('handles lines, closing and arcs', () => {
@@ -133,5 +133,66 @@ describe('VSDX from other tools', () => {
     const zip = new JSZip();
     zip.file('a.txt', 'x');
     await expect(importVsdx(await zip.generateAsync({ type: 'uint8array' }))).rejects.toThrow(/Visio/);
+  });
+});
+
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+describe('VSDX pictures', () => {
+  // a 1×1 PNG is too small to show proportions: the header is patched to 200×100
+  const wide = (() => {
+    const bin = Uint8Array.from(atob(PNG.split(',')[1]!), (c) => c.charCodeAt(0));
+    bin[19] = 200;
+    bin[23] = 100;
+    let s = '';
+    for (const b of bin) s += String.fromCharCode(b);
+    return `data:image/png;base64,${btoa(s)}`;
+  })();
+
+  function withPicture(src: string, fit: 'contain' | 'cover' | 'stretch') {
+    const d = newDiagram('Fotos');
+    const r = addShape(d.pages[0]!, 'image', 300, 200, { w: 160, h: 160 });
+    const page = setShapeImage(r.page, [r.shape.id], { src, fit });
+    return { ...d, pages: [page] };
+  }
+
+  it('reads the size of PNG, and refuses what Visio cannot hold', () => {
+    expect(pictureInfo(wide)).toMatchObject({ ext: 'png', w: 200, h: 100 });
+    expect(pictureInfo('data:image/svg+xml;base64,PHN2Zy8+')).toBeNull();
+    expect(pictureInfo('data:image/webp;base64,AAAA')).toBeNull();
+  });
+
+  it('writes the picture as a Visio picture shape, with its part, relationship and content type', async () => {
+    const zip = await JSZip.loadAsync(await exportVsdx(withPicture(wide, 'contain')));
+    expect(zip.file('visio/media/image1.png')).toBeTruthy();
+    for (const f of ['[Content_Types].xml', 'visio/pages/page1.xml', 'visio/pages/_rels/page1.xml.rels']) expect(XMLValidator.validate((await zip.file(f)!.async('string'))), f).toBe(true);
+    expect(await zip.file('[Content_Types].xml')!.async('string')).toContain('<Default Extension="png" ContentType="image/png"/>');
+    expect(await zip.file('visio/pages/_rels/page1.xml.rels')!.async('string')).toContain('Target="../media/image1.png"');
+    const page = await zip.file('visio/pages/page1.xml')!.async('string');
+    expect(page).toContain('Type="Foreign"');
+    expect(page).toContain('<ForeignData ForeignType="Bitmap" CompressionType="PNG">');
+    // contain: 200×100 in a 160×160 box is 160×80 (the picture shape is smaller than the box), centred
+    const w = Number(/<Shape ID="1"[^>]*Type="Foreign">.*?N="Width" V="([^"]+)"/.exec(page)![1]);
+    const h = Number(/<Shape ID="1"[^>]*Type="Foreign">.*?N="Height" V="([^"]+)"/.exec(page)![1]);
+    expect(w / h).toBeCloseTo(2, 3);
+    // the shape itself stays after it, with its Nova stencil
+    expect(page).toContain('<Row N="NovaStencil"><Cell N="Value" V="image"/>');
+  });
+
+  it('cover uses the picture size and offset cells; stretch fills the box', async () => {
+    const cover = await (await JSZip.loadAsync(await exportVsdx(withPicture(wide, 'cover')))).file('visio/pages/page1.xml')!.async('string');
+    expect(cover).toContain('N="ImgWidth"');
+    expect(cover).toContain('N="ImgOffsetX"');
+    const stretch = await (await JSZip.loadAsync(await exportVsdx(withPicture(wide, 'stretch')))).file('visio/pages/page1.xml')!.async('string');
+    expect(stretch).not.toContain('N="ImgWidth"');
+  });
+
+  it('a picture Visio cannot hold is counted and the shape goes without it; the picture of a Nova file comes back as its shape, with no warning', async () => {
+    const svg = withPicture('data:image/svg+xml;base64,PHN2Zy8+', 'contain');
+    expect(vsdxPicturesLost(svg)).toBe(1);
+    expect(await (await JSZip.loadAsync(await exportVsdx(svg))).file('visio/pages/page1.xml')!.async('string')).not.toContain('Foreign');
+    const { diagram, warnings } = await importVsdx(await exportVsdx(withPicture(wide, 'contain')));
+    expect(warnings).toEqual([]);
+    expect(diagram.pages[0]!.shapes.some((x) => x.stencil === 'image')).toBe(true);
   });
 });

@@ -231,7 +231,7 @@ export function notesCommands(ui: NotesUI): CommandDef[] {
   add({ id: 'notes.box.front', label: 'Traer al frente', icon: 'moveUp', enabled: () => !!c.selectedContainer, run: () => c.selected && c.reorderContainer(c.selected, 'front') });
   add({ id: 'notes.box.back', label: 'Enviar al fondo', icon: 'moveDown', enabled: () => !!c.selectedContainer, run: () => c.selected && c.reorderContainer(c.selected, 'back') });
   add({ id: 'notes.box.delete', label: 'Eliminar el cuadro seleccionado', icon: 'trash', enabled: () => !!c.selectedContainer, run: () => c.selected && c.deleteContainer(c.selected) });
-  add({ id: 'notes.image.props', label: 'Texto de la imagen y texto alternativo…', icon: 'image', enabled: () => c.selectedContainer?.kind === 'image', run: () => c.selected && ui.openDialog('image', c.selected) });
+  add({ id: 'notes.image.props', label: 'Texto de la imagen, texto alternativo, girar y recortar…', icon: 'image', enabled: () => c.selectedContainer?.kind === 'image', run: () => c.selected && ui.openDialog('image', c.selected) });
 
   // ---- OCR
   add({ id: 'notes.ocr.run', label: 'Reconocer el texto de las imágenes', icon: 'scanText', description: 'Lee con OCR el texto de las imágenes de la libreta para poder buscarlo.', enabled: () => !c.ocr.running && c.ocrPending > 0, run: () => ui.runOcr() });

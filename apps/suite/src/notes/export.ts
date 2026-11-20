@@ -2,6 +2,8 @@ import { buildMessage } from '@suitenova/mail-core';
 import { toUnicodeMath } from '@suitenova/math-core';
 import { bakeFormulas, contentNode, displayTitle, pageExtent, strokePath, textContainers, type Notebook, type Page } from '@suitenova/notes-core';
 import { DEFAULT_DOC_DEFAULTS, defaultStyles, emptyWriterDoc, ensureSections, nodeTypes, parseMath, styleCss, toMathML, writeDocx, writerSchema } from '@suitenova/writer-core';
+import { cssText, pictureCss } from '../images/picture-css';
+import { bakeFrame } from './pichost';
 import { DOMSerializer, Fragment, type Node as PMNode } from 'prosemirror-model';
 
 const ser = DOMSerializer.fromSchema(writerSchema);
@@ -88,7 +90,10 @@ export function pageToHtml(nb: Notebook, page: Page): string {
       const a = nb.assets[c.asset];
       if (!a) continue;
       const src = `data:${a.mime};base64,${a.data}`;
-      if (c.kind === 'image') parts.push(`<img style="${pos};height:${c.h}px" src="${src}" alt="${esc(c.alt)}">`);
+      if (c.kind === 'image') {
+        const f = pictureCss({ crop: c.crop, rotation: c.rotation, flipH: c.flipH, flipV: c.flipV });
+        parts.push(`<div style="${pos};height:${c.h}px;${cssText(f.box)}"><div style="${cssText(f.clip)}"><img style="${cssText(f.img)}" src="${src}" alt="${esc(c.alt)}"></div></div>`);
+      }
       else if (c.kind === 'file') parts.push(`<a style="${pos}" download="${esc(c.name)}" href="${src}">📎 ${esc(c.name)}</a>`);
       else if (c.media === 'audio') parts.push(`<audio style="${pos}" controls src="${src}"></audio>`);
       else parts.push(`<video style="${pos};height:${c.h}px" controls src="${src}"></video>`);
@@ -110,7 +115,9 @@ export async function pageToDocx(nb: Notebook, page: Page): Promise<{ data: Uint
       n.forEach((child) => void blocks.push(child));
     } else if (c.kind === 'image') {
       const a = nb.assets[c.asset];
-      if (a) blocks.push(writerSchema.nodes.paragraph!.create(null, nodeTypes.image!.create({ src: `data:${a.mime};base64,${a.data}`, alt: c.alt, width: c.w, height: c.h })));
+      // Writer keeps the crop as the fraction of each side
+      const crop = c.crop ? { l: c.crop.l / 100000, t: c.crop.t / 100000, r: c.crop.r / 100000, b: c.crop.b / 100000 } : null;
+      if (a) blocks.push(writerSchema.nodes.paragraph!.create(null, nodeTypes.image!.create({ src: `data:${a.mime};base64,${a.data}`, alt: c.alt, width: c.w, height: c.h, crop, rotate: c.rotation ?? 0, flipH: !!c.flipH, flipV: !!c.flipV })));
     } else if (c.kind === 'file') warnings.push(`El archivo adjunto «${c.name}» no se incluye en el documento de Word.`);
     else warnings.push(`El ${c.media === 'audio' ? 'audio' : 'vídeo'} «${c.name}» no se incluye en el documento de Word.`);
   }
@@ -145,7 +152,9 @@ export async function pageToEml(nb: Notebook, page: Page, o: { to: string; subje
       if (!a) continue;
       if (c.kind === 'image') {
         const cid = `img${++n}@notes.nova`;
-        attachments.push({ filename: `${a.name || cid}`, contentType: a.mime, data: bytesOf(a.data), contentId: cid });
+        // mail programs do not draw crops or turns: what is sent is the picture with them made
+        const sent = await bakeFrame(bytesOf(a.data), a.mime, c);
+        attachments.push({ filename: `${a.name || cid}`, contentType: sent.mime, data: sent.data, contentId: cid });
         html.push(`<p><img src="cid:${cid}" alt="${esc(c.alt)}" width="${c.w}"></p>`);
       } else attachments.push({ filename: a.name || c.name, contentType: a.mime.split(';')[0]!, data: bytesOf(a.data) });
     }

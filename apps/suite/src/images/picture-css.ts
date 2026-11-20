@@ -1,4 +1,4 @@
-import type { SheetImage } from '@suitenova/calc-engine';
+import type { Crop } from '@suitenova/image-core';
 import type { CSSProperties } from 'react';
 
 /*
@@ -14,7 +14,18 @@ export interface PictureCss {
   img: CSSProperties;
 }
 
-export function pictureCss(im: Pick<SheetImage, 'crop' | 'shape' | 'border' | 'shadow' | 'rotation' | 'flipH' | 'flipV'>): PictureCss {
+/** What is needed to draw a picture's frame; every product's picture model has (some of) these. */
+export interface FrameLike {
+  crop?: Crop;
+  shape?: string;
+  border?: { color: string; width: number; dash?: string };
+  shadow?: { color: string; alpha: number; blur: number; dist: number; angle: number };
+  rotation?: number;
+  flipH?: boolean;
+  flipV?: boolean;
+}
+
+export function pictureCss(im: FrameLike): PictureCss {
   const box: CSSProperties = {};
   const tf = [im.rotation ? `rotate(${im.rotation}deg)` : '', im.flipH ? 'scaleX(-1)' : '', im.flipV ? 'scaleY(-1)' : ''].filter(Boolean).join(' ');
   if (tf) box.transform = tf;

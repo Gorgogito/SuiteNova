@@ -1,5 +1,5 @@
 import { adjustHandles, dragAdjust, isLineKind, shapeSvg } from '@suitenova/shapes-core';
-import { pictureCss } from './picture-css';
+import { pictureCss } from '../images/picture-css';
 import { listChoices, moveShapes, rotateShapes, scaleShapes, shapeLook, shapesBounds, type ShapePatch, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { Check, FilterX, ListChecks } from 'lucide-react';

@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react';
 import type { NotesCtl } from './ctl';
 import { EquationEditor } from '../math/EquationEditor';
 import { EQUATION_SAMPLES } from '../writer/dlg-objects';
+import { ASPECT_RATIOS, NO_CROP, cropToAspect } from '@suitenova/image-core';
+import { notesPictureHost } from './pichost';
 import { createTable, insertBlockAfterCursor, markAttr, setLink } from './editing';
 
 export function Modal({ title, onClose, children, actions, wide }: { title: string; onClose: () => void; children: React.ReactNode; actions: React.ReactNode; wide?: boolean }) {
@@ -707,6 +709,13 @@ export function ImageDialog({ ctl, id, onClose, onOcr }: { ctl: NotesCtl; id: st
   const c = ctl.page.containers.find((x) => x.id === id) as Extract<Container, { kind: 'image' }> | undefined;
   const [alt, setAlt] = useState(c?.alt ?? '');
   if (!c) return null;
+  const frame = (patch: { rotation?: number; flipH?: boolean; flipV?: boolean }) => ctl.setImageFrame(c.id, { rotation: c.rotation, flipH: c.flipH, flipV: c.flipV, crop: c.crop, ...patch });
+  const aspect = async (id: string) => {
+    const a = ASPECT_RATIOS.find((x) => x.id === id);
+    const n = await notesPictureHost(ctl, c.id).naturalSize();
+    if (!a || !n) return;
+    ctl.setImageFrame(c.id, { rotation: c.rotation, flipH: c.flipH, flipV: c.flipV, crop: cropToAspect(n.w, n.h, c.crop ?? NO_CROP, a.w / a.h) });
+  };
   const text = ctl.ocrTextOf(c);
   const done = !!ctl.nb.ocr[c.asset];
   return (
@@ -731,6 +740,46 @@ export function ImageDialog({ ctl, id, onClose, onOcr }: { ctl: NotesCtl; id: st
       <div style={field}>
         <label htmlFor="nn-alt">{t('Texto alternativo (lo leen los lectores de pantalla y se incluye en la búsqueda)')}</label>
         <Input id="nn-alt" value={alt} onChange={(_e, d) => setAlt(d.value)} />
+      </div>
+      <div style={field} role="group" aria-label={t('Girar y recortar')}>
+        <span>{t('Girar y recortar (la imagen original no se modifica)')}</span>
+        <div className="nn-row">
+          <Button aria-label={t('Girar 90° a la izquierda')} onClick={() => frame({ rotation: (c.rotation ?? 0) - 90 })}>
+            {t('↺ 90°')}
+          </Button>
+          <Button aria-label={t('Girar 90° a la derecha')} onClick={() => frame({ rotation: (c.rotation ?? 0) + 90 })}>
+            {t('↻ 90°')}
+          </Button>
+          <Button aria-label={t('Voltear horizontalmente')} aria-pressed={!!c.flipH} onClick={() => frame({ flipH: !c.flipH })}>
+            {t('⇋ Horizontal')}
+          </Button>
+          <Button aria-label={t('Voltear verticalmente')} aria-pressed={!!c.flipV} onClick={() => frame({ flipV: !c.flipV })}>
+            {t('⇅ Vertical')}
+          </Button>
+          <label>
+            {t('Grados')}{' '}
+            <input aria-label={t('Giro en grados')} type="number" min={0} max={359} style={{ width: 70 }} value={c.rotation ?? 0} onChange={(e) => frame({ rotation: Number(e.target.value) || 0 })} />
+          </label>
+        </div>
+        <div className="nn-row">
+          <label>
+            {t('Recortar a la proporción')}{' '}
+            <select aria-label={t('Relación de aspecto')} value="" onChange={(e) => e.target.value && void aspect(e.target.value)}>
+              <option value="">{t('Elegir…')}</option>
+              {ASPECT_RATIOS.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {t(a.name)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button disabled={!c.crop} onClick={() => ctl.setImageFrame(c.id, { rotation: c.rotation, flipH: c.flipH, flipV: c.flipV })}>
+            {t('Quitar el recorte')}
+          </Button>
+          <Button disabled={!c.crop && !c.rotation && !c.flipH && !c.flipV} onClick={() => ctl.setImageFrame(c.id, {})}>
+            {t('Restablecer imagen')}
+          </Button>
+        </div>
       </div>
       <div style={field}>
         <span>{t('Texto reconocido en la imagen (OCR)')}</span>

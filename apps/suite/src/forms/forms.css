@@ -328,3 +328,11 @@
   margin: 0;
   white-space: pre-wrap;
 }
+
+.fm-qimg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 8px 0;
+  border-radius: 4px;
+}

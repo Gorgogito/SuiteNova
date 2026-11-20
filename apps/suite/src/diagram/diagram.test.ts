@@ -7,6 +7,7 @@ import { DiagramCtl } from './ctl';
 import './messages';
 import './messages-more';
 import './messages-more2';
+import './messages-image';
 import { diagramTabs } from './ribbonDef';
 
 function setup() {
