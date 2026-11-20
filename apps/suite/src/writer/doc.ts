@@ -73,6 +73,7 @@ import { ControlView, FieldView, GroupView, MathView, ShapeView, editSelectedMat
 import { ObjectView } from './objectview';
 import { shapeSelectionPlugin } from './shape-selection';
 import { imageObjectsPlugin } from './image-objects';
+import { ImageOcr, searchImages } from './ocr-images';
 import { wordArtEditingPlugin } from './wordart-editing';
 import { commentRanges, getUser, protectionPlugin, trackTransaction } from './review';
 import { outlinePlugin, setOutlineActive } from './outline';
@@ -104,7 +105,8 @@ export interface FindState {
   query: string;
   matchCase: boolean;
   wholeWord: boolean;
-  matches: { from: number; to: number }[];
+  /** `image`: the match is in the text read from a picture (the range is the picture itself, `boxes` where it is in it). */
+  matches: { from: number; to: number; image?: boolean }[];
   current: number;
 }
 
@@ -128,7 +130,7 @@ function findPlugin(): Plugin<FindState> {
         if (!f || !f.matches.length) return null;
         return DecorationSet.create(
           state.doc,
-          f.matches.map((m, i) => Decoration.inline(m.from, m.to, { class: i === f.current ? 'nw-find nw-find-cur' : 'nw-find' })),
+          f.matches.map((m, i) => (m.image ? Decoration.node(m.from, m.to, { class: i === f.current ? 'nw-find-img nw-find-img-cur' : 'nw-find-img' }) : Decoration.inline(m.from, m.to, { class: i === f.current ? 'nw-find nw-find-cur' : 'nw-find' }))),
         );
       },
     },
@@ -399,7 +401,11 @@ export class WriterCtl {
     this.version++;
     this.listeners.forEach((l) => l());
     if (this.signature) this.scheduleSignatureCheck();
+    this.imageOcr.schedule();
   }
+
+  /** The text read from the pictures (OCR): copy it, find it, read again. */
+  readonly imageOcr = new ImageOcr(this);
 
   // ---------- digital signature and password ----------
 
@@ -604,6 +610,7 @@ export class WriterCtl {
   // ---------- documents ----------
 
   load(doc: WriterDoc, fileName: string | null, filePath: string | null): void {
+    this.imageOcr.stop();
     this.parts = new Map(Object.entries(doc.parts));
     this.evenAndOdd = doc.evenAndOdd;
     this.defaults = doc.defaults;
@@ -637,6 +644,7 @@ export class WriterCtl {
     this.fileName = fileName;
     this.filePath = filePath;
     this.setBody(ensureSections(doc.body));
+    this.imageOcr.resetBaseline();
     this.dirty = false;
     this.touch();
     if (doc.signature) void this.refreshSignature();
@@ -1283,7 +1291,7 @@ export class WriterCtl {
   find(query: string, opts: { matchCase?: boolean; wholeWord?: boolean } = {}, from?: number): FindState {
     const v = this.mainView!;
     const matchCase = !!opts.matchCase, wholeWord = !!opts.wholeWord;
-    const matches = findMatches(v.state.doc, query, matchCase, wholeWord);
+    const matches = [...findMatches(v.state.doc, query, matchCase, wholeWord), ...searchImages(v.state.doc, query, { matchCase, wholeWord }).map((m) => ({ from: m.pos, to: m.pos + 1, image: true }))].sort((a, b) => a.from - b.from);
     const start = from ?? v.state.selection.from;
     let current = matches.findIndex((m) => m.from >= start);
     if (current === -1) current = matches.length ? 0 : -1;
@@ -1297,7 +1305,8 @@ export class WriterCtl {
     const v = this.mainView!;
     const m = st.matches[st.current];
     if (!m) return;
-    v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, m.from, m.to)).setMeta(findKey, st).scrollIntoView());
+    const sel = m.image ? NodeSelection.create(v.state.doc, m.from) : TextSelection.create(v.state.doc, m.from, m.to);
+    v.dispatch(v.state.tr.setSelection(sel).setMeta(findKey, st).scrollIntoView());
   }
 
   findStep(dir: 1 | -1): FindState | null {
@@ -1314,6 +1323,8 @@ export class WriterCtl {
     const f = findKey.getState(v.state);
     const m = f?.matches[f.current];
     if (!f || !m) return f ?? null;
+    // the text of a picture is not the document's: it is found, not replaced (the next match is shown)
+    if (m.image) return this.findStep(1);
     v.dispatch(v.state.tr.insertText(text, m.from, m.to));
     return this.find(f.query, f, m.from + text.length);
   }

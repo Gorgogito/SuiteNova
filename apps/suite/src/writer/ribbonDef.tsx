@@ -795,6 +795,16 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         ],
       },
       {
+        id: 'imgOcr',
+        label: 'Texto de imágenes',
+        icon: 'sparkles',
+        items: [
+          { kind: 'button', command: 'writer.ocr.run', size: 'large', keytip: 'OI' },
+          { kind: 'button', command: 'writer.ocr.stop', size: 'small', keytip: 'OS' },
+          { kind: 'button', command: 'writer.ocr.auto', size: 'small', keytip: 'OA' },
+        ],
+      },
+      {
         id: 'comments',
         label: 'Comentarios',
         icon: 'comment',
@@ -943,6 +953,15 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           },
           { kind: 'button', command: 'writer.shape.group', size: 'small', keytip: 'KG' },
           { kind: 'button', command: 'writer.shape.ungroup', size: 'small', keytip: 'KU' },
+        ],
+      },
+      {
+        id: 'imgText',
+        label: 'Texto',
+        icon: 'textbox',
+        items: [
+          { kind: 'button', command: 'writer.ocr.dialog', size: 'large', keytip: 'KT' },
+          { kind: 'button', command: 'writer.ocr.copyText', size: 'small', keytip: 'KO' },
         ],
       },
     ],

@@ -14,6 +14,7 @@ import { FontDialog, ParagraphDialog, SymbolDialog } from './dlg-format';
 import { AutoCorrectDialog } from './dlg-autocorrect';
 import { LineNumbersDialog, PageBordersDialog } from './dlg-page';
 import { ImageFormatDialog } from './dlg-image';
+import { ImageTextDialog } from './dlg-ocr';
 import { FormatPictureDialog } from '../images/FormatPictureDialog';
 import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
 import { writerPictureHost } from './pichost';
@@ -264,6 +265,8 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
       return <ParagraphDialog ui={ui} onClose={onClose} />;
     case 'symbol':
       return <SymbolDialog ui={ui} onClose={onClose} />;
+    case 'imageText':
+      return <ImageTextDialog ui={ui} onClose={onClose} />;
     case 'pictureCorrections':
       return <FormatPictureDialog host={writerPictureHost(ui)} tab="corrections" onClose={onClose} />;
     case 'pictureColor':

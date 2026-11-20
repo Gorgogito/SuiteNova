@@ -136,6 +136,14 @@
 .nw-doc .nw-find-cur {
   background: #ffa940;
 }
+.nw-doc .nw-find-img {
+  outline: 3px solid #ffe58f;
+  outline-offset: 2px;
+}
+.nw-doc .nw-find-img-cur {
+  outline: 3px solid #ffa940;
+  outline-offset: 2px;
+}
 
 /* ---- tables ---- */
 .nw-doc .tableWrapper {

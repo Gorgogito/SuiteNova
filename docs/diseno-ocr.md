@@ -51,5 +51,14 @@ Cada fase se hace producto por producto y se prueba antes de pasar a la siguient
 - **Límites:** el selector de idioma sigue en la cinta de Notes (no es aún un componente común); la vista de cajas no tiene zoom; leer una zona sustituye la lectura completa guardada de esa imagen.
 
 
+### Fase 3 (hecha, 2026-11-20): Writer
+- **Dónde se guarda:** el nodo `image` de Writer tiene el atributo `ocr` (`StoredOcr` de ocr-core; en `writer-core` es opaco, sin depender de `ocr-core`). Así viaja con la imagen (copiar, deshacer) y va también en el HTML del portapapeles (`data-ocr`). Cambiar los píxeles (efectos, quitar fondo, restablecer) lo borra y se lee de nuevo.
+- **`.docx`:** `customXml/novaOcr1.xml` (por nombre de medio, igual que `novaPictures1.xml`); Word lo ignora y lo pierde al guardar; el texto del documento y el texto alternativo no se tocan; sin lecturas no se escribe la parte.
+- **Lectura (`writer/ocr-images.ts`, `ImageOcr` en el controlador):** una imagen a la vez, en segundo plano, 1,5 s después del último cambio; **solo las imágenes puestas en esta sesión** (las que traía el archivo al abrirlo no se leen solas: abrir un archivo no inicia una lectura larga que nadie pidió); «Leer el texto de las imágenes» (Revisar) las lee todas; opción «Leer las imágenes nuevas al insertarlas»; una imagen que falla queda sin texto para no insistir. No cuenta como edición (ni marca el documento como modificado, ni se registra con el control de cambios ni con la grabadora).
+- **Búsqueda:** Ctrl+F añade las imágenes cuyo texto coincide (una coincidencia por imagen, mismas opciones de mayúsculas y palabra completa), selecciona la imagen y la marca con contorno; **reemplazar no cambia el texto de una imagen** (pasa a la siguiente).
+- **Interfaz:** cuadro «Texto de la imagen…» (pestaña Formato de imagen, grupo «Texto») con la vista compartida (dónde está lo buscado, zona arrastrable), idioma, giro, leer de nuevo, copiar e insertar después de la imagen; «Copiar el texto de la imagen»; textos en inglés compartidos en `apps/suite/src/ocr/messages.ts`.
+- **Pruebas:** `writer-core` 180 (una nueva: parte propia en el `.docx`); app 448; e2e nueva `e2e-writer-ocr` 10/10 con Tesseract real; `e2e-writer-image`, `-image-groups`, `-review`, `-comments`, `-formats` y `e2e-notes-ocr` siguen bien.
+- **Límites:** la búsqueda no entra en imágenes de encabezados, pies ni cuadros de texto aparte (solo el cuerpo); las imágenes de un archivo ajeno solo se leen a petición; una coincidencia dentro de una imagen se marca por imagen, no por palabra dentro de ella (eso se ve en el cuadro); Word y PowerPoint reales no buscan ahí, se comprueba en la fase 6.
+
 ## 6. Estado
-Fases 1 y 2 hechas.
+Fases 1, 2 y 3 hechas.

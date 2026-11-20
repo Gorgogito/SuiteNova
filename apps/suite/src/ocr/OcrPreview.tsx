@@ -1,6 +1,7 @@
 import { t } from '@suitenova/core-ui';
 import { hasPositions, searchResult, type Box, type OcrResult } from '@suitenova/ocr-core';
 import { useMemo, useRef, useState } from 'react';
+import './messages';
 
 type Drag = { x0: number; y0: number; x1: number; y1: number };
 

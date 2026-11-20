@@ -204,6 +204,7 @@ export function imageDOM(a: Record<string, any>): DOMOutputSpec {
   if (a.wrap) data['data-wrap'] = a.wrap;
   if (a.orig) data['data-orig'] = a.orig;
   if (a.edits) data['data-edits'] = JSON.stringify(a.edits);
+  if (a.ocr) data['data-ocr'] = JSON.stringify(a.ocr);
   if (a.wrap === 'front' || a.wrap === 'behind') {
     data['data-x'] = String(a.x ?? 0);
     data['data-y'] = String(a.y ?? 0);
@@ -319,6 +320,11 @@ const nodes: Record<string, NodeSpec> = {
        */
       orig: { default: null },
       edits: { default: null },
+      /**
+       * The text read from the picture (OCR) with where each word is, as the shared OCR keeps it (`StoredOcr` of ocr-core; opaque here). It is
+       * derived data: it is read again when the picture changes, and it goes in a part of the .docx of its own that Word ignores.
+       */
+      ocr: { default: null },
     },
     parseDOM: [
       {
@@ -347,6 +353,7 @@ const nodes: Record<string, NodeSpec> = {
             y: Number(el.dataset.y) || 0,
             orig: el.dataset.orig || null,
             edits: json('edits'),
+            ocr: json('ocr'),
           };
         },
       },

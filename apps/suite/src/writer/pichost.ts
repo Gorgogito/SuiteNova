@@ -42,9 +42,9 @@ export async function bakeUri(orig: string, edits: PixelEdits): Promise<string |
 export async function editedAttrs(a: Record<string, any>, next: PixelEdits): Promise<Record<string, unknown> | null> {
   const orig: string = a.orig ?? a.src;
   const edits = normalizePixelEdits(next);
-  if (!edits) return { src: orig, orig: null, edits: null };
+  if (!edits) return { src: orig, orig: null, edits: null, ocr: null };
   const src = await bakeUri(orig, edits);
-  return src ? { src, orig, edits } : null;
+  return src ? { src, orig, edits, ocr: null } : null;
 }
 
 // image-core crops are in thousandths of a percent (as in DrawingML); Writer keeps the fraction of each side (0–0.95)

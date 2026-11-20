@@ -291,6 +291,21 @@ describe('DOCX: ecuaciones, formas y controles de contenido', () => {
     expect(imgs[1]!.attrs.edits).toBeNull();
   });
 
+  it('el texto leído de una imagen (OCR) viaja en una parte propia del .docx, sin tocar el texto del documento ni el alt', async () => {
+    const ocr = { text: 'Factura 4821', lang: 'spa', at: 7, size: [100, 40], lines: [[2, 2, 90, 20, [['Factura', 2, 2, 50, 20, 90], ['4821', 60, 2, 32, 20, 88]]]], confidence: 89 };
+    const img = nodeTypes.image!.create({ src: PNG, alt: 'Una factura', width: 80, height: 40, ocr });
+    const { blocks, zip } = await rt(wd([p([t('Hola '), img])]));
+    expect(await zip.file('customXml/novaOcr1.xml')!.async('string')).toContain('Factura');
+    expect(await zip.file('word/document.xml')!.async('string')).not.toContain('Factura 4821');
+    let back: PMNode | null = null;
+    blocks[0]!.forEach((c) => c.type.name === 'image' && (back = c));
+    expect((back as unknown as PMNode).attrs.ocr).toEqual(ocr);
+    expect((back as unknown as PMNode).attrs.alt).toBe('Una factura');
+    // sin lectura no se escribe la parte
+    const none = await rt(wd([p([t('a'), nodeTypes.image!.create({ src: PNG, width: 8, height: 8 })])]));
+    expect(none.zip.file('customXml/novaOcr1.xml')).toBeNull();
+  });
+
   it('un grupo con imágenes (también anidado): cada imagen conserva sitio, tamaño, recorte, giro y texto alternativo', async () => {
     const base = { fill: '#ffffff', stroke: '#000000', strokeWidth: 1, wrap: 'front' };
     const rect = nodeTypes.shape!.create({ ...base, kind: 'rect', width: 100, height: 60, x: 0, y: 0 }, []);

@@ -29,6 +29,8 @@ export class Ctx {
   mediaByKey = new Map<string, string>();
   /** The original and the edits of each edited picture, by the name of its media (they go in a part of our own that Word ignores). */
   pictures = new Map<string, { orig: string; edits: unknown }>();
+  /** The text read from each picture (OCR), by the name of its media. */
+  ocr = new Map<string, unknown>();
   docPrId = 1;
   /** Partes de SmartArt (`word/diagrams/…`) que van al paquete. */
   diagrams: { path: string; xml: string; content: string }[] = [];
@@ -205,6 +207,20 @@ function writePictureOriginals(zip: JSZip, ctx: Ctx, mainRels: string[], overrid
   return exts;
 }
 
+/**
+ * The text read from the pictures (OCR): `customXml/novaOcr1.xml`, by media name. Word ignores it (and loses it when it saves) and it is not the
+ * text of the document: Word and PowerPoint do not search inside pictures, and nothing here shows it where it should not be.
+ */
+function writePictureOcr(zip: JSZip, ctx: Ctx, mainRels: string[], overrides: [string, string][]): void {
+  if (!ctx.ocr.size) return;
+  const json = JSON.stringify(Object.fromEntries(ctx.ocr)).replace(/\]\]>/g, ']]]]><![CDATA[>');
+  zip.file('customXml/novaOcr1.xml', `${XML_HEAD}<suitenova xmlns="urn:suitenova:ocr:1"><![CDATA[${json}]]></suitenova>`);
+  zip.file('customXml/novaOcrProps1.xml', `${XML_HEAD}<ds:datastoreItem ds:itemID="{7D2A9F40-5C1E-4B83-8E6A-31B0C9D4F7A2}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="urn:suitenova:ocr:1"/></ds:schemaRefs></ds:datastoreItem>`);
+  zip.file('customXml/_rels/novaOcr1.xml.rels', relsXml([`<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="novaOcrProps1.xml"/>`]));
+  mainRels.push(`<Relationship Id="rIdCustomOcr" Type="${REL.customXml}" Target="../customXml/novaOcr1.xml"/>`);
+  overrides.push(['/customXml/novaOcrProps1.xml', 'application/vnd.openxmlformats-officedocument.customXmlProperties+xml']);
+}
+
 /** The media of a picture, stored in the package: its name and relationship id, or null (with a warning) when it cannot go in. */
 function embedPicture(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): { name: string; rid: string } | null {
   const src: string = node.attrs.src;
@@ -219,6 +235,7 @@ function embedPicture(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): { n
   }
   const orig: string | null = node.attrs.orig;
   if (orig && node.attrs.edits && /^data:/.test(orig)) ctx.pictures.set(name, { orig, edits: node.attrs.edits });
+  if (node.attrs.ocr) ctx.ocr.set(name, node.attrs.ocr);
   return { name, rid: rels.media(name, part) };
 }
 
@@ -1019,6 +1036,7 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
   });
 
   const origExts = writePictureOriginals(zip, ctx, mainRels, overrides);
+  writePictureOcr(zip, ctx, mainRels, overrides);
 
   zip.file('word/document.xml', `${XML_HEAD}<w:document ${W_NS}>${doc.pageColor ? `<w:background w:color="${hex(doc.pageColor)}"/>` : ''}<w:body>${bodyContent}${finalSect}</w:body></w:document>`);
   zip.file('word/styles.xml', stylesXml(doc));

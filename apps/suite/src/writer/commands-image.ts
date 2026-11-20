@@ -50,7 +50,7 @@ export function imageCommands(ui: WriterUI): CommandDef[] {
         const kx = crop ? 1 - crop.l - crop.r : 1;
         const ky = crop ? 1 - crop.t - crop.b : 1;
         // the picture goes back to its original too (the effects, the background removal and the colours)
-        patchImage(ui, { ...(a.edits ? { src: a.orig, orig: null, edits: null } : {}), crop: null, rotate: 0, flipH: false, flipV: false, border: null, wrap: null, x: 0, y: 0, width: a.width ? Math.round(a.width / kx) : null, height: a.height ? Math.round(a.height / ky) : null });
+        patchImage(ui, { ...(a.edits ? { src: a.orig, orig: null, edits: null, ocr: null } : {}), crop: null, rotate: 0, flipH: false, flipV: false, border: null, wrap: null, x: 0, y: 0, width: a.width ? Math.round(a.width / kx) : null, height: a.height ? Math.round(a.height / ky) : null });
       },
     },
   ];
