@@ -377,6 +377,8 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
   let tableCount = 0;
   let mediaCount = 0;
   const mediaFile = new Map<string, string>();
+  /** The originals and edits of the edited pictures, by the name of the file that shows them (Excel ignores them). */
+  const pictureOrig = new Map<string, { orig: string; edits: unknown }>();
   const REL_BASE = 'http://schemas.openxmlformats.org/package/2006/relationships';
   const relsXml = (list: { id: string; type: string; target: string; external?: boolean }[]) =>
     `${XML_HEAD}<Relationships xmlns="${REL_BASE}">${list.map((r) => `<Relationship Id="${r.id}" Type="${r.type}" Target="${escapeXml(r.target)}"${r.external ? ' TargetMode="External"' : ''}/>`).join('')}</Relationships>`;
@@ -446,7 +448,8 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
         }
         const rid = `rId${drawingRels.length + 1}`;
         drawingRels.push({ id: rid, type: `${NS_REL}/image`, target: `../media/${file}` });
-        items.push({ kind: 'pic', rId: rid, x: img.x, y: img.y, width: img.width, height: img.height, name: img.name ?? `Imagen ${i + 1}`, alt: img.alt });
+        if (img.orig && img.edits && wb.media.has(img.orig)) pictureOrig.set(file, { orig: img.orig, edits: img.edits });
+        items.push({ kind: 'pic', rId: rid, x: img.x, y: img.y, width: img.width, height: img.height, name: img.name ?? `Imagen ${i + 1}`, alt: img.alt, img });
       });
       // the picture of an equation: its media and a relationship of the drawing
       const mathFallback = (s: (typeof sheet.shapes)[number]): string => {
@@ -551,6 +554,29 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
   wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/styles`, target: 'styles.xml' });
   wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/sharedStrings`, target: 'sharedStrings.xml' });
   if (st.usesDynamicArrays) wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/sheetMetadata`, target: 'metadata.xml' });
+  if (pictureOrig.size) {
+    const index: Record<string, { file: string; edits: unknown }> = {};
+    const byKey = new Map<string, string>();
+    let n = 0;
+    for (const [name, p] of pictureOrig) {
+      const m = wb.media.get(p.orig)!;
+      const ext = EXT[m.mime];
+      if (!ext) continue;
+      let file = byKey.get(p.orig);
+      if (!file) {
+        file = `novaorig${++n}.${ext}`;
+        put(`customXml/media/${file}`, m.data);
+        mediaExts.add(ext);
+        byKey.set(p.orig, file);
+      }
+      index[name] = { file, edits: p.edits };
+    }
+    wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/customXml`, target: '../customXml/novaPictures1.xml' });
+    put('customXml/novaPictures1.xml', `${XML_HEAD}<suitenova xmlns="urn:suitenova:pictures:1"><![CDATA[${JSON.stringify(index).replace(/]]>/g, ']]]]><![CDATA[>')}]]></suitenova>`);
+    put('customXml/novaPicturesProps1.xml', `${XML_HEAD}<ds:datastoreItem ds:itemID="{3C5E7A91-2B4D-4F68-9A0C-6E1D8B2F4A59}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="urn:suitenova:pictures:1"/></ds:schemaRefs></ds:datastoreItem>`);
+    put('customXml/_rels/novaPictures1.xml.rels', relsXml([{ id: 'rId1', type: `${NS_REL}/customXmlProps`, target: 'novaPicturesProps1.xml' }]));
+    types.push('<Override PartName="/customXml/novaPicturesProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>');
+  }
   if (extras.customJson) {
     wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/customXml`, target: '../customXml/item1.xml' });
     put('customXml/item1.xml', `${XML_HEAD}<suitenova xmlns="urn:suitenova:calc:1"><![CDATA[${extras.customJson.replace(/]]>/g, ']]]]><![CDATA[>')}]]></suitenova>`);

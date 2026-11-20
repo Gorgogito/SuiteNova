@@ -2,6 +2,19 @@ import { registerMessages } from '@suitenova/core-ui';
 
 // Cuentas con varios protocolos, OAuth, carpetas con subcarpetas, sincronización y archivos de Outlook
 registerMessages('en', {
+  'Insertar imagen': 'Insert picture',
+  'Imágenes del mensaje': 'Pictures of the message',
+  'Texto alternativo': 'Alt text',
+  'Texto alternativo de la imagen': 'Alt text of the picture',
+  'Ancho (px)': 'Width (px)',
+  'Ancho de la imagen (px)': 'Width of the picture (px)',
+  'Quitar fondo…': 'Remove Background…',
+  'Correcciones…': 'Corrections…',
+  'Color…': 'Color…',
+  'Efectos artísticos…': 'Artistic Effects…',
+  'Relación de aspecto': 'Aspect Ratio',
+  'Restablecer imagen': 'Reset Picture',
+  'Se envía la imagen con los cambios hechos; el original se conserva mientras escribes el mensaje.': 'The picture is sent with its changes made; the original is kept while you write the message.',
   'Conecta Nova Mail con tu servidor de correo (IMAP, POP3, JMAP o Exchange) con contraseña u OAuth.': 'Connects Nova Mail to your mail server (IMAP, POP3, JMAP or Exchange) with a password or OAuth.',
   'Envía al servidor los cambios pendientes y pone al día todas las carpetas de tus cuentas: baja lo nuevo y refleja lo que se borró, movió o marcó en el servidor.': 'Sends the pending changes to the server and updates every folder of your accounts: it downloads what is new and reflects what was deleted, moved or flagged on the server.',
   'Importar de Outlook…': 'Import from Outlook…',

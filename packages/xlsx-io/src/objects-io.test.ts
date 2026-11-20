@@ -898,4 +898,31 @@ describe('gráficos de otro programa: se reescriben con lo que Nova no entiende'
     expect(again.legendPos).toBe('r');
     expect(again.title).toBe('Cambiado');
   });
+
+  it('a picture keeps its crop, shape, outline, shadow, rotation, flips and how it follows the cells, and Nova gets its original and edits back', async () => {
+    const { w, id } = book();
+    const shown = w.addMedia('image/png', new Uint8Array([0x89, 0x50, 0x4e, 0x47, 9, 9, 9, 9]));
+    const orig = w.addMedia('image/jpeg', new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3]));
+    const edits = { saturation: 0, artistic: { id: 'blur', level: 60 } };
+    w.editObjects(id, (s) => {
+      s.images.push(
+        { id: 'a', media: shown, orig, edits, x: 40, y: 60, width: 200, height: 100, crop: { l: 10000, t: 0, r: 25000, b: 5000 }, shape: 'roundRect', border: { color: '#ff0000', width: 2.5, dash: 'dash' }, shadow: { color: '#000000', blur: 4, dist: 3, angle: 45, alpha: 0.4 }, rotation: 30, flipH: true, anchor: 'twoCell' },
+        { id: 'b', media: orig, x: 300, y: 60, width: 100, height: 50, anchor: 'absolute' },
+      );
+    });
+    const { workbook, bytes } = await roundTrip(w);
+    const [a, b] = workbook.sheets[0]!.images;
+    expect(a).toMatchObject({ crop: { l: 10000, t: 0, r: 25000, b: 5000 }, shape: 'roundRect', border: { color: '#ff0000', width: 2.5, dash: 'dash' }, rotation: 30, flipH: true, anchor: 'twoCell', edits });
+    expect(a!.shadow).toMatchObject({ color: '#000000', blur: 4, dist: 3, angle: 45 });
+    expect(a!.shadow!.alpha).toBeCloseTo(0.4);
+    expect([...workbook.media.get(a!.orig!)!.data]).toEqual([0xff, 0xd8, 0xff, 1, 2, 3]);
+    expect(workbook.media.get(a!.orig!)!.mime).toBe('image/jpeg');
+    expect(b!.anchor).toBe('absolute');
+    expect(b!.orig).toBeUndefined();
+    const zip = await JSZip.loadAsync(bytes);
+    const xml = await zip.file('xl/drawings/drawing1.xml')!.async('string');
+    expect(xml).toContain('<a:srcRect l="10000" t="0" r="25000" b="5000"/>');
+    expect(xml).toContain('editAs="absolute"');
+    expect(xml).toContain('prst="roundRect"');
+  });
 });

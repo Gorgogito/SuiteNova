@@ -20,6 +20,7 @@ import {
   type Style,
   type VAlign,
   Workbook,
+  type SheetImage,
 } from '@suitenova/calc-engine';
 import JSZip from 'jszip';
 import { DEFAULT_THEME, resolveColor, type ColorSpec } from './colors';
@@ -522,7 +523,9 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
         if (file && mime && rect) {
           const data = await file.async('uint8array');
           const cNv = a.pic.nvPicPr?.cNvPr;
-          sheet.images.push({ id: `img-imp-${sheet.id}-${++p}`, media: wb.addMedia(mime, data), name: attr(cNv, 'name'), alt: attr(cNv, 'descr'), ...rect });
+          const originals = await pictureOriginals(zip, wb);
+          const made = originals.get(path!.split('/').pop()!);
+          sheet.images.push({ id: `img-imp-${sheet.id}-${++p}`, media: wb.addMedia(mime, data), name: attr(cNv, 'name'), alt: attr(cNv, 'descr'), ...rect, ...(made ? { orig: made.orig, edits: made.edits } : {}), ...pictureFrame(a) });
         } else skippedPictures++;
       }
       continue;
@@ -584,6 +587,68 @@ function readPrintTitles(sheet: Sheet, text: string): void {
 }
 
 /** Read an .xlsx workbook. Cached values are kept; call `workbook.recalcAll()` to recompute. */
+/** The originals and edits Nova keeps of its edited pictures (`customXml/novaPictures1.xml`), by the name of the media file that shows them. */
+const originalsCache = new WeakMap<JSZip, Promise<Map<string, { orig: string; edits: unknown }>>>();
+function pictureOriginals(zip: JSZip, wb: Workbook): Promise<Map<string, { orig: string; edits: unknown }>> {
+  let p = originalsCache.get(zip);
+  if (!p) {
+    p = (async () => {
+      const out = new Map<string, { orig: string; edits: unknown }>();
+      const part = zip.file('customXml/novaPictures1.xml');
+      const xml = part ? await part.async('string') : '';
+      const m = xml.includes('urn:suitenova:pictures:1') ? /<!\[CDATA\[([\s\S]*?)\]\]>/.exec(xml.replace(/\]\]\]\]><!\[CDATA\[>/g, ']]>')) : null;
+      if (!m) return out;
+      try {
+        const index = JSON.parse(m[1]!) as Record<string, { file: string; edits: unknown }>;
+        for (const [name, v] of Object.entries(index)) {
+          const f = zip.file(`customXml/media/${v.file}`);
+          const mime = MIME_BY_EXT[v.file.split('.').pop()!.toLowerCase()];
+          if (f && mime) out.set(name, { orig: wb.addMedia(mime, await f.async('uint8array')), edits: v.edits });
+        }
+      } catch {
+        /* the pictures stay as they are */
+      }
+      return out;
+    })();
+    originalsCache.set(zip, p);
+  }
+  return p;
+}
+
+/** Crop, shape, outline, shadow, rotation, flips and the way a picture follows the cells, as the model keeps them. */
+function pictureFrame(a: XNode): Partial<SheetImage> {
+  const out: Partial<SheetImage> = {};
+  const pic = a.pic;
+  const src = pic?.blipFill?.srcRect;
+  if (src) {
+    const v = (k: string) => Math.max(0, Number(attr(src, k) ?? 0) || 0);
+    const crop = { l: v('l'), t: v('t'), r: v('r'), b: v('b') };
+    if (crop.l || crop.t || crop.r || crop.b) out.crop = crop;
+  }
+  const sp = pic?.spPr;
+  const prst = attr(sp?.prstGeom, 'prst');
+  if (prst && prst !== 'rect') out.shape = prst;
+  const rot = ((((Number(attr(sp?.xfrm, 'rot') ?? 0) || 0) / 60000) % 360) + 360) % 360;
+  if (rot > 0.05) out.rotation = Math.round(rot * 10) / 10;
+  if (attr(sp?.xfrm, 'flipH') === '1') out.flipH = true;
+  if (attr(sp?.xfrm, 'flipV') === '1') out.flipV = true;
+  const ln = sp?.ln;
+  const lc = attr(ln?.solidFill?.srgbClr, 'val');
+  if (ln && !ln.noFill && lc) {
+    const dash = { dash: 'dash', sysDash: 'dash', sysDot: 'dot', dot: 'dot', dashDot: 'dashdot', sysDashDot: 'dashdot' }[String(attr(ln.prstDash, 'val'))] as 'dash' | 'dot' | 'dashdot' | undefined;
+    out.border = { color: `#${lc.toLowerCase()}`, width: Math.round(((Number(attr(ln, 'w') ?? 12700) || 12700) / 12700) * 100) / 100, ...(dash ? { dash } : {}) };
+  }
+  const sh = sp?.effectLst?.outerShdw;
+  if (sh) {
+    const c = attr(sh.srgbClr, 'val');
+    const al = attr(sh.srgbClr?.alpha, 'val');
+    out.shadow = { color: c ? `#${c.toLowerCase()}` : '#000000', blur: (Number(attr(sh, 'blurRad') ?? 0) || 0) / 12700, dist: (Number(attr(sh, 'dist') ?? 0) || 0) / 12700, angle: (Number(attr(sh, 'dir') ?? 0) || 0) / 60000, alpha: al ? Number(al) / 100000 : 1 };
+  }
+  const edit = attr(a, 'editAs');
+  out.anchor = edit === 'absolute' ? 'absolute' : edit === 'oneCell' ? 'oneCell' : a.from && a.to ? 'twoCell' : 'oneCell';
+  return out;
+}
+
 export async function readXlsx(data: Uint8Array | ArrayBuffer): Promise<ReadResult> {
   const zip = await JSZip.loadAsync(data);
   const read = async (path: string): Promise<XNode | undefined> => {

@@ -1,3 +1,4 @@
+import { cssText, pictureCss } from './picture-css';
 import { shapeSvg } from '@suitenova/shapes-core';
 import { mathBoxHtml } from '../slides/render/mathbox';
 import { CFEvaluator, colToName, colAtPx, colOffsetPx, normRect, rowAtPx, rowOffsetPx, shapeLook, tableAt, type FormulaLocale, type PageSetup, type Rect, type Sheet, type Style } from '@suitenova/calc-engine';
@@ -364,7 +365,8 @@ function pageHtml(o: HtmlOptions, p: PrintPage, total: number): string {
     if (!onPage(im.x, im.y)) continue;
     const m = wb.media.get(im.media);
     if (!m) continue;
-    parts.push(`<img class="o" alt="${esc(im.alt ?? '')}" src="data:${m.mime};base64,${toBase64(m.data)}" style="left:${headW + offX + im.x - originX}px;top:${headH + offY + im.y - originY}px;width:${im.width}px;height:${im.height}px">`);
+    const css = pictureCss(im);
+    parts.push(`<div class="o" style="left:${headW + offX + im.x - originX}px;top:${headH + offY + im.y - originY}px;width:${im.width}px;height:${im.height}px;${cssText(css.box)}"><div style="${cssText(css.clip)}"><img alt="${esc(im.alt ?? '')}" src="data:${m.mime};base64,${toBase64(m.data)}" style="${cssText(css.img)}"></div></div>`);
   }
   for (const sh of sheet.shapes) {
     if (!onPage(sh.x, sh.y)) continue;

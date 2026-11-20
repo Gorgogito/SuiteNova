@@ -11,6 +11,8 @@ import {
   adjustSheetObjects,
   defaultPrintSettings,
   renameSheetInObjects,
+  imageAnchors,
+  reanchorImages,
   type CellComment,
   type DataValidation,
   type Hyperlink,
@@ -734,7 +736,9 @@ export class Workbook implements EvalHost {
     return this.transact(() => {
       const s = this.sheet(sheetId);
       const before = this.metaOf(s);
+      const anchors = imageAnchors(s);
       fn(s);
+      reanchorImages(s, anchors);
       this.record({ k: 'meta', sheetId, before, after: this.metaOf(s) });
       for (const g of this.subtotalCells) this.dirty.add(g);
     });
@@ -909,7 +913,10 @@ export class Workbook implements EvalHost {
         sheet.maxRow = Math.max(sheet.maxRow, keyRow(k));
         sheet.maxCol = Math.max(sheet.maxCol, keyCol(k));
       }
+      const anchors = imageAnchors(sheet);
       this.shiftLayout(sheet, axis, index, count);
+      const nn = Math.abs(count);
+      reanchorImages(sheet, anchors, (ax, i) => (ax !== axis ? i : count > 0 ? (i >= index ? i + nn : i) : i < index ? i : i >= index + nn ? i - nn : index));
       this.cellDependents.clear();
       this.rangeIndex.clear();
       this.wideRanges.clear();

@@ -1,5 +1,10 @@
 import { registerIcon } from '@suitenova/core-ui';
 import {
+  ArrowLeft,
+  ArrowRight,
+  Contrast,
+  Crop,
+  Sparkles,
   AlignCenter,
   AlignLeft,
   AlignRight,
@@ -171,6 +176,11 @@ const icons = {
   textbox: TextCursorInput,
   smartart: Network,
   palette: Palette,
+  arrowLeft: ArrowLeft,
+  arrowRight: ArrowRight,
+  contrast: Contrast,
+  crop: Crop,
+  sparkles: Sparkles,
 };
 
 for (const [name, comp] of Object.entries(icons)) registerIcon(name, comp);

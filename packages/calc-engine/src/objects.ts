@@ -6,6 +6,7 @@ import { adjustForStructure, printFormula, shiftRefs, type StructureChange } fro
 import type { Ctx } from './functions/registry';
 import { parseFormula } from './parser';
 import { shiftRect } from './cf';
+import { colAtPx, colOffsetPx, rowAtPx, rowOffsetPx } from './charts';
 import { E, isErr, isRange, type Scalar } from './values';
 import type { Sheet, Workbook } from './workbook';
 import { toNum, toText } from './coerce';
@@ -289,6 +290,66 @@ export interface SheetImage {
    * del SmartArt como SVG, que se vuelve a generar al editarlo; en el archivo se escribe como SmartArt y no como imagen.
    */
   smartart?: { data: string; layout: string; style: string; colors: string; drawing?: string };
+  /**
+   * What was done to the picture (shared picture tools of `image-core`): `media` is the picture as it shows (the original with `edits`
+   * made); `orig` is the key of the original in the media store and `edits` the `PixelEdits` (opaque here). Without edits both are unset.
+   */
+  orig?: string;
+  edits?: unknown;
+  /** Part cut from each side, in thousandths of a percent of the whole picture (as `a:srcRect`). The box above is the part that shows. */
+  crop?: { l: number; t: number; r: number; b: number };
+  /** Preset geometry the picture is cut to (`roundRect`, `ellipse`); none is a rectangle. */
+  shape?: string;
+  /** Outline: `#rrggbb`, width in points. */
+  border?: { color: string; width: number; dash?: 'solid' | 'dash' | 'dot' | 'dashdot' };
+  /** Outer shadow (points and degrees; `alpha` 0–1). */
+  shadow?: { color: string; blur: number; dist: number; angle: number; alpha: number };
+  /** Rotation in degrees (0–359) and mirroring. */
+  rotation?: number;
+  flipH?: boolean;
+  flipV?: boolean;
+  /**
+   * How the picture follows the cells (Excel's «Propiedades»): `twoCell` moves and resizes with them, `oneCell` only moves, `absolute`
+   * stays where it is. Without it the picture moves but is not resized.
+   */
+  anchor?: 'twoCell' | 'oneCell' | 'absolute';
+}
+
+// ---------------------------------------------------------------------------------------------------- anchoring to cells
+type CellPoint = { col: number; row: number; dx: number; dy: number };
+/** Where the corners of each picture that follows the cells are (cell and offset in it), to put it back after rows or columns change. */
+export type ImageAnchors = Map<string, { from: CellPoint; to: CellPoint }>;
+
+export function imageAnchors(sheet: Sheet): ImageAnchors {
+  const out: ImageAnchors = new Map();
+  for (const im of sheet.images) {
+    if (im.anchor === 'absolute') continue;
+    const a = colAtPx(sheet, im.x);
+    const b = rowAtPx(sheet, im.y);
+    const c = colAtPx(sheet, im.x + im.width);
+    const d = rowAtPx(sheet, im.y + im.height);
+    out.set(im.id, { from: { col: a.col, dx: a.offset, row: b.row, dy: b.offset }, to: { col: c.col, dx: c.offset, row: d.row, dy: d.offset } });
+  }
+  return out;
+}
+
+/**
+ * Puts the pictures that follow the cells where their cells went: `remap` says where a row or column index goes (a deleted one goes to
+ * where it was), none when only a width or a height changed.
+ */
+export function reanchorImages(sheet: Sheet, saved: ImageAnchors, remap?: (axis: 'row' | 'col', index: number) => number): void {
+  if (!saved.size) return;
+  const map = remap ?? ((_a: 'row' | 'col', i: number) => i);
+  sheet.images = sheet.images.map((im) => {
+    const a = saved.get(im.id);
+    if (!a) return im;
+    const x = colOffsetPx(sheet, map('col', a.from.col)) + a.from.dx;
+    const y = rowOffsetPx(sheet, map('row', a.from.row)) + a.from.dy;
+    if (im.anchor === 'oneCell' || !im.anchor) return { ...im, x, y };
+    const x2 = colOffsetPx(sheet, map('col', a.to.col)) + a.to.dx;
+    const y2 = rowOffsetPx(sheet, map('row', a.to.row)) + a.to.dy;
+    return { ...im, x, y, width: Math.max(4, x2 - x), height: Math.max(4, y2 - y) };
+  });
 }
 
 // ------------------------------------------------------------------------------------------------ shapes and text boxes

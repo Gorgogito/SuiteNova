@@ -30,6 +30,26 @@ export interface DrawingItem {
   height: number;
   name: string;
   alt?: string;
+  /** For pictures: the picture itself (crop, shape, outline, shadow, rotation, how it follows the cells). */
+  img?: import('@suitenova/calc-engine').SheetImage;
+}
+
+const hex6 = (c: string): string => c.replace('#', '').toUpperCase();
+const DASH: Record<string, string> = { dash: 'dash', dot: 'sysDot', dashdot: 'dashDot' };
+
+/** The `xdr:pic` of a picture: the picture as it shows, cut with `srcRect`, with the shape, outline, shadow, rotation and flips of the frame. */
+function picBodyXml(c: DrawingItem, id: number): string {
+  const im = c.img;
+  const crop = im?.crop;
+  const rot = im?.rotation ? ` rot="${Math.round((((im.rotation % 360) + 360) % 360) * 60000)}"` : '';
+  const flips = `${im?.flipH ? ' flipH="1"' : ''}${im?.flipV ? ' flipV="1"' : ''}`;
+  const b = im?.border;
+  const ln = b ? `<a:ln w="${Math.round(b.width * 12700)}"><a:solidFill><a:srgbClr val="${hex6(b.color)}"/></a:solidFill>${b.dash && DASH[b.dash] ? `<a:prstDash val="${DASH[b.dash]}"/>` : ''}</a:ln>` : '';
+  const sh = im?.shadow;
+  const fx = sh ? `<a:effectLst><a:outerShdw blurRad="${Math.round(sh.blur * 12700)}" dist="${Math.round(sh.dist * 12700)}" dir="${Math.round((((sh.angle % 360) + 360) % 360) * 60000)}" algn="ctr" rotWithShape="0"><a:srgbClr val="${hex6(sh.color)}"><a:alpha val="${Math.round(sh.alpha * 100000)}"/></a:srgbClr></a:outerShdw></a:effectLst>` : '';
+  return `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"${c.alt ? ` descr="${escapeXml(c.alt)}"` : ''}/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
+    `<xdr:blipFill><a:blip xmlns:r="${NS_R}" r:embed="${c.rId}"/>${crop ? `<a:srcRect l="${Math.round(crop.l)}" t="${Math.round(crop.t)}" r="${Math.round(crop.r)}" b="${Math.round(crop.b)}"/>` : ''}<a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
+    `<xdr:spPr><a:xfrm${rot}${flips}><a:off x="0" y="0"/><a:ext cx="${Math.round(c.width * EMU)}" cy="${Math.round(c.height * EMU)}"/></a:xfrm><a:prstGeom prst="${im?.shape || 'rect'}"><a:avLst/></a:prstGeom>${ln}${fx}</xdr:spPr></xdr:pic>`;
 }
 
 /** Drawing part with one two-cell anchor per object. */
@@ -59,10 +79,10 @@ export function drawingXml(sheet: Sheet, items: DrawingItem[]): string {
           : c.kind === 'chart'
           ? `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +
             `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="${NS_C}"><c:chart xmlns:c="${NS_C}" r:id="${c.rId}"/></a:graphicData></a:graphic></xdr:graphicFrame>`
-          : `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"${c.alt ? ` descr="${escapeXml(c.alt)}"` : ''}/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
-            `<xdr:blipFill><a:blip xmlns:r="${NS_R}" r:embed="${c.rId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
-            `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.round(c.width * EMU)}" cy="${Math.round(c.height * EMU)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>`;
-      return `<xdr:twoCellAnchor${c.kind === 'pic' || c.kind === 'shape' || c.kind === 'group' || c.kind === 'smartart' ? ' editAs="oneCell"' : ''}><xdr:from>${pt(from)}</xdr:from><xdr:to>${pt(to)}</xdr:to>${body}<xdr:clientData/></xdr:twoCellAnchor>`;
+          : picBodyXml(c, id);
+      // twoCell is the default of the format; a picture without a choice is written as it behaves, moving without resizing
+      const edit = c.kind === 'pic' && c.img?.anchor ? (c.img.anchor === 'twoCell' ? '' : ` editAs="${c.img.anchor === 'absolute' ? 'absolute' : 'oneCell'}"`) : c.kind === 'pic' || c.kind === 'shape' || c.kind === 'group' || c.kind === 'smartart' ? ' editAs="oneCell"' : '';
+      return `<xdr:twoCellAnchor${edit}><xdr:from>${pt(from)}</xdr:from><xdr:to>${pt(to)}</xdr:to>${body}<xdr:clientData/></xdr:twoCellAnchor>`;
     })
     .join('');
   void colOffsetPx;

@@ -140,6 +140,37 @@ export function objectCommands(ui: CalcUI): CommandDef[] {
     if (alt !== null) x.updateImage(img.id, { alt: alt.trim() || undefined }, 'Texto alternativo');
   } });
   add({ id: 'calc.picture.original', label: 'Tamaño original', icon: 'picture', enabled: () => !!x.selectedImage, run: () => void ui.restorePictureSize() });
+  // the shared picture tools (image-core): effects are reversible properties, the original stays
+  const pic = () => d.sheet.images.find((i) => i.id === x.selectedImage && !i.smartart);
+  const picReady = () => !!pic() && !editing();
+  const patchPic = (patch: Partial<NonNullable<ReturnType<typeof pic>>>, label: string) => { const i = pic(); if (i) x.updateImage(i.id, patch, label); };
+  add({ id: 'calc.picture.corrections', label: 'Opciones de corrección de imagen…', icon: 'contrast', description: 'Brillo, contraste y nitidez de la imagen; no la cambian: se pueden quitar con «Restablecer imagen».', enabled: picReady, run: () => ui.openDialog('pictureCorrections') });
+  add({ id: 'calc.picture.color', label: 'Opciones de color de imagen…', icon: 'palette', description: 'Saturación, temperatura, transparencia y recolorear la imagen.', enabled: picReady, run: () => ui.openDialog('pictureColor') });
+  add({ id: 'calc.picture.artistic', label: 'Opciones de efectos artísticos…', icon: 'sparkles', description: 'Efecto artístico de la imagen y su intensidad.', enabled: picReady, run: () => ui.openDialog('pictureArtistic') });
+  add({ id: 'calc.picture.removeBg', label: 'Quitar fondo…', icon: 'eraser', description: 'Quita el fondo de la imagen; puede marcar las áreas que se mantienen o se quitan.', enabled: picReady, run: () => ui.openDialog('removeBg') });
+  add({ id: 'calc.picture.rotateRight', label: 'Girar a la derecha', icon: 'arrowRight', description: 'Gira la imagen 90° en el sentido de las agujas del reloj.', enabled: picReady, run: () => patchPic({ rotation: (((pic()!.rotation ?? 0) + 90) % 360) || undefined }, 'Girar imagen') });
+  add({ id: 'calc.picture.rotateLeft', label: 'Girar a la izquierda', icon: 'arrowLeft', description: 'Gira la imagen 90° en sentido contrario.', enabled: picReady, run: () => patchPic({ rotation: (((pic()!.rotation ?? 0) + 270) % 360) || undefined }, 'Girar imagen') });
+  add({ id: 'calc.picture.flipH', label: 'Voltear horizontalmente', icon: 'columns', enabled: picReady, checked: () => !!pic()?.flipH, run: () => patchPic({ flipH: !pic()!.flipH || undefined }, 'Voltear imagen') });
+  add({ id: 'calc.picture.flipV', label: 'Voltear verticalmente', icon: 'rows', enabled: picReady, checked: () => !!pic()?.flipV, run: () => patchPic({ flipV: !pic()!.flipV || undefined }, 'Voltear imagen') });
+  const anchors: [string, string, 'twoCell' | 'oneCell' | 'absolute', string][] = [
+    ['twoCell', 'Mover y ajustar tamaño con celdas', 'twoCell', 'La imagen se mueve y cambia de tamaño al insertar, borrar o redimensionar filas y columnas.'],
+    ['oneCell', 'Mover pero no ajustar tamaño con celdas', 'oneCell', 'La imagen se mueve con las celdas, pero conserva su tamaño.'],
+    ['absolute', 'No mover ni ajustar tamaño con celdas', 'absolute', 'La imagen se queda donde está, aunque cambien las celdas.'],
+  ];
+  for (const [id, label, mode, description] of anchors) add({ id: `calc.picture.anchor.${id}`, label, icon: 'picture', description, enabled: picReady, checked: () => (pic()?.anchor ?? 'oneCell') === mode, run: () => patchPic({ anchor: mode }, 'Propiedades de la imagen') });
+  add({
+    id: 'calc.picture.reset',
+    label: 'Restablecer imagen',
+    icon: 'eraser',
+    description: 'Quita los efectos, el recorte, el giro, el volteo, el borde y la sombra; el tamaño se conserva.',
+    enabled: () => { const i = pic(); return picReady() && !!(i!.edits || i!.crop || i!.shape || i!.border || i!.shadow || i!.rotation || i!.flipH || i!.flipV); },
+    run: () => {
+      const i = pic();
+      if (!i) return;
+      const k = i.crop ? { w: 1 - (i.crop.l + i.crop.r) / 100000, h: 1 - (i.crop.t + i.crop.b) / 100000 } : { w: 1, h: 1 };
+      patchPic({ ...(i.edits ? { media: i.orig ?? i.media, orig: undefined, edits: undefined } : {}), crop: undefined, shape: undefined, border: undefined, shadow: undefined, rotation: undefined, flipH: undefined, flipV: undefined, width: i.width / k.w, height: i.height / k.h, x: i.crop ? i.x - (i.width / k.w) * (i.crop.l / 100000) : i.x, y: i.crop ? i.y - (i.height / k.h) * (i.crop.t / 100000) : i.y }, 'Restablecer imagen');
+    },
+  });
 
   // ---- tables
   const table = () => x.tableAtActive()?.table;

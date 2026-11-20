@@ -17,6 +17,9 @@ import { ShapeFormatDialog } from './dlg-shape';
 import { WordArtFormatDialog } from './dlg-wordart';
 import { EquationDialog } from './dlg-equation';
 import { SmartArtDialog } from './dlg-smartart';
+import { FormatPictureDialog } from '../images/FormatPictureDialog';
+import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
+import { calcPictureHost } from './pichost';
 import { ProtectBookDialog, ProtectSheetDialog, UnprotectDialog } from './dlg-protect';
 import { PivotCreateDialog, PivotFieldDialog, PivotOptionsDialog, ValueFieldDialog } from './dlg-pivot';
 import { SlicerDialog, SparklineDialog, TableCreateDialog, TableResizeDialog } from './dlg-table';
@@ -647,6 +650,14 @@ export function DialogHost({ ui, registry, kind, arg, onClose }: { ui: CalcUI; r
       return <TableCreateDialog ui={ui} onClose={close} />;
     case 'shapeFormat':
       return <ShapeFormatDialog ui={ui} onClose={close} />;
+    case 'pictureCorrections':
+      return <FormatPictureDialog host={calcPictureHost(ui.doc)} tab="corrections" onClose={close} />;
+    case 'pictureColor':
+      return <FormatPictureDialog host={calcPictureHost(ui.doc)} tab="color" onClose={close} />;
+    case 'pictureArtistic':
+      return <FormatPictureDialog host={calcPictureHost(ui.doc)} tab="artistic" onClose={close} />;
+    case 'removeBg':
+      return <RemoveBackgroundDialog host={calcPictureHost(ui.doc)} onClose={close} />;
     case 'wordartFormat':
       return <WordArtFormatDialog ui={ui} onClose={close} />;
     case 'equation':

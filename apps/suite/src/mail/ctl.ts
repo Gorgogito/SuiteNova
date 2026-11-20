@@ -1,3 +1,4 @@
+import { htmlBody, picturesOfDraft, type ComposePicture } from './pictures';
 import {
   RFC_FLAGS,
   addRaw,
@@ -86,6 +87,8 @@ export interface ComposeState {
   /** Plain text body. */
   body: string;
   attachments: OutgoingAttachment[];
+  /** Pictures in the body (each one is a `[Imagen: nombre]` token of the text) and go as inline images. */
+  pictures?: ComposePicture[];
   inReplyTo?: string;
   references?: string[];
   /** The draft record being edited, replaced when saved again. */
@@ -531,7 +534,7 @@ export class MailCtl {
     if (!rec) return;
     const m = parseMessage(rawOf(rec));
     const fmt = (l: Address[]) => l.map((a) => a.email).join(', ');
-    this.compose = { id: newMailId(), to: fmt(m.to), cc: fmt(m.cc), bcc: (rec.bcc ?? []).join(', '), subject: m.subject, body: m.text ?? '', attachments: m.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, data: a.data })), draftId: id };
+    this.compose = { id: newMailId(), to: fmt(m.to), cc: fmt(m.cc), bcc: (rec.bcc ?? []).join(', '), subject: m.subject, body: m.text ?? '', attachments: m.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, data: a.data })), pictures: picturesOfDraft(m.html, m.inlineParts), draftId: id };
     this.touch();
   }
 
@@ -552,7 +555,8 @@ export class MailCtl {
           return m ? { name: m[1]!.trim().replace(/^"|"$/g, ''), email: m[2]!.trim() } : { name: '', email: x };
         });
     const to = split(c.to), cc = split(c.cc), bcc = split(c.bcc);
-    const draft: Draft = { from: sender ?? (this.data.owner.email ? this.data.owner : { name: '', email: 'yo@nova.local' }), to, cc, bcc, subject: c.subject, text: c.body, attachments: c.attachments, inReplyTo: c.inReplyTo, references: c.references };
+    const html = htmlBody(c.body, c.pictures ?? []);
+    const draft: Draft = { from: sender ?? (this.data.owner.email ? this.data.owner : { name: '', email: 'yo@nova.local' }), to, cc, bcc, subject: c.subject, text: c.body, ...(html ? { html: html.html } : {}), attachments: [...c.attachments, ...(html?.inline ?? [])], inReplyTo: c.inReplyTo, references: c.references };
     return { raw: buildMessage(draft), to, cc, bcc };
   }
 

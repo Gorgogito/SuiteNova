@@ -5,6 +5,9 @@ import { wordArtStyle } from '@suitenova/wordart-core';
 import { COLORS_CATALOG, LAYOUT_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
 import { CHART_PRESETS } from '../chart/presets';
 import type { CalcUI } from './commands';
+import { ArtisticItems, AspectItems, PictureStyleItems } from '../images/galleries';
+import { PicPopover } from '../images/PicPopover';
+import { calcPictureHost } from './pichost';
 import { TableNameField } from './dlg-table';
 
 type Entry = Extract<RibbonItem, { kind: 'dropdown' }>['entries'][number];
@@ -432,10 +435,42 @@ export function contextualTabs(ui: CalcUI, f: ContextFlags): RibbonTab[] {
         items: [{ kind: 'button', command: 'calc.picture.alt', size: 'large', keytip: 'TA' }],
       },
       {
+        id: 'picAdjust',
+        label: 'Ajustar',
+        icon: 'contrast',
+        items: [
+          { kind: 'button', command: 'calc.picture.removeBg', size: 'large', keytip: 'QF' },
+          { kind: 'dropdown', id: 'picCorrections', label: 'Correcciones', icon: 'contrast', size: 'small', keytip: 'CO', entries: [{ kind: 'command', command: 'calc.picture.corrections' }, { kind: 'command', command: 'calc.picture.color' }] },
+          { kind: 'custom', id: 'picArtistic', label: 'Efectos artísticos', keytip: 'EA', render: () => <PicPopover label="Efectos artísticos" icon="sparkles">{(close) => <ArtisticItems host={calcPictureHost(ui.doc)} close={close} onOptions={() => ui.openDialog('pictureArtistic')} />}</PicPopover> },
+          { kind: 'button', command: 'calc.picture.reset', size: 'small', keytip: 'RI' },
+        ],
+      },
+      {
+        id: 'picStyles',
+        label: 'Estilos de imagen',
+        icon: 'picture',
+        items: [{ kind: 'custom', id: 'picStyleGallery', label: 'Estilos de imagen', keytip: 'EI', render: () => <PicPopover label="Estilos de imagen" icon="picture" size="large">{(close) => <PictureStyleItems host={calcPictureHost(ui.doc)} close={close} />}</PicPopover> }],
+      },
+      {
+        id: 'picArrange',
+        label: 'Organizar',
+        icon: 'picture',
+        items: [
+          { kind: 'dropdown', id: 'picAnchor', label: 'Propiedades', icon: 'picture', size: 'large', keytip: 'PR', entries: ['twoCell', 'oneCell', 'absolute'].map((k) => ({ kind: 'command' as const, command: `calc.picture.anchor.${k}` })) },
+          { kind: 'button', command: 'calc.picture.rotateRight', size: 'small', keytip: 'GD' },
+          { kind: 'button', command: 'calc.picture.rotateLeft', size: 'small', keytip: 'GI' },
+          { kind: 'button', command: 'calc.picture.flipH', size: 'small', keytip: 'VH' },
+          { kind: 'button', command: 'calc.picture.flipV', size: 'small', keytip: 'VV' },
+        ],
+      },
+      {
         id: 'picSize',
         label: 'Tamaño',
         icon: 'picture',
-        items: [{ kind: 'button', command: 'calc.picture.original', size: 'large', keytip: 'TO' }],
+        items: [
+          { kind: 'button', command: 'calc.picture.original', size: 'large', keytip: 'TO' },
+          { kind: 'custom', id: 'picAspect', label: 'Relación de aspecto', keytip: 'RA', render: () => <PicPopover label="Relación de aspecto" icon="crop">{(close) => <AspectItems host={calcPictureHost(ui.doc)} close={close} />}</PicPopover> },
+        ],
       },
       { id: 'picActions', label: 'Acciones', icon: 'trash', items: [{ kind: 'button', command: 'calc.picture.delete', size: 'large', keytip: 'EL' }] },
     ],

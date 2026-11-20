@@ -882,3 +882,39 @@
   font-size: 13px;
   color: inherit;
 }
+
+.ml-pics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.ml-pics__tools {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 4px;
+}
+.ml-pics__tools label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ml-pics__btns {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.ml-pics__note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.ml-chip.is-on {
+  outline: 2px solid var(--nv-accent, #0f6cbd);
+}

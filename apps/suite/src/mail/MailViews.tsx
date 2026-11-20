@@ -6,6 +6,12 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { saveBytes } from '../fileio';
 import type { ComposeState, MailCtl } from './ctl';
 import { ProofTextarea } from '../spell';
+import { FormatPictureDialog } from '../images/FormatPictureDialog';
+import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
+import { AspectItems } from '../images/galleries';
+import { PicPopover } from '../images/PicPopover';
+import { imageSize } from '../calc/imagePick';
+import { mailPictureHost, tokenOf, uniqueName, type ComposePicture } from './pictures';
 
 // ---------------------------------------------------------------------------------------------- folders
 export function FolderTree({ ctl }: { ctl: MailCtl }) {
@@ -385,6 +391,41 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
   const [sending, setSending] = useState(false);
   const [from, setFrom] = useState(ctl.accounts[0]?.id ?? '');
   const fileRef = useRef<HTMLInputElement>(null);
+  const picRef = useRef<HTMLInputElement>(null);
+  const caret = useRef<number | null>(null);
+  const [selPic, setSelPic] = useState<string | null>(null);
+  const [picTool, setPicTool] = useState<null | 'corrections' | 'color' | 'artistic' | 'removeBg'>(null);
+  // the picture tools read the picture as it is now (a dialog stays open while the message changes)
+  const sRef = useRef(s);
+  sRef.current = s;
+  const pics = s.pictures ?? [];
+  const pic = pics.find((p) => p.id === selPic);
+  const picHost = useMemo(() => mailPictureHost(() => sRef.current.pictures?.find((p) => p.id === selPic), (np) => setS((x) => ({ ...x, pictures: (x.pictures ?? []).map((p) => (p.id === np.id ? np : p)) }))), [selPic]);
+  const setPic = (patch: Partial<ComposePicture>) => pic && setS((x) => ({ ...x, pictures: (x.pictures ?? []).map((p) => (p.id === pic.id ? { ...p, ...patch } : p)) }));
+  const addPicture = async (f: File) => {
+    try {
+      const data = new Uint8Array(await f.arrayBuffer());
+      const mime = f.type || 'image/png';
+      const size = await imageSize(data, mime);
+      const name = uniqueName(f.name || 'imagen.png', sRef.current.pictures?.map((p) => p.name) ?? []);
+      const p: ComposePicture = { id: `nova-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}@suitenova`, name, orig: { mime, data }, sent: { mime, data }, width: Math.min(size.width, 480), alt: '' };
+      setS((x) => {
+        const at = Math.min(caret.current ?? x.body.length, x.body.length);
+        const tok = tokenOf(name);
+        const body = `${x.body.slice(0, at)}${at > 0 && x.body[at - 1] !== '\n' ? '\n' : ''}${tok}\n${x.body.slice(at)}`;
+        return { ...x, body, pictures: [...(x.pictures ?? []), p] };
+      });
+      setSelPic(p.id);
+      setMsg(null);
+      setErr(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const removePicture = (p: ComposePicture) => {
+    setS((x) => ({ ...x, body: x.body.split(`\n${tokenOf(p.name)}`).join('').split(tokenOf(p.name)).join(''), pictures: (x.pictures ?? []).filter((q) => q.id !== p.id) }));
+    if (selPic === p.id) setSelPic(null);
+  };
   const canSend = ctl.canConnect && ctl.accounts.length > 0;
   const set = (p: Partial<ComposeState>) => {
     setS((x) => ({ ...x, ...p }));
@@ -447,11 +488,27 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
                 <span>{t('Asunto')}</span>
                 <input aria-label={t('Asunto')} value={s.subject} onChange={(e) => set({ subject: e.target.value })} />
               </label>
-              <ProofTextarea aria-label={t('Cuerpo del mensaje')} value={s.body} onChange={(e) => set({ body: e.target.value })} rows={12} />
+              <ProofTextarea aria-label={t('Cuerpo del mensaje')} value={s.body} onChange={(e) => set({ body: e.target.value })} onSelect={(e) => (caret.current = (e.target as HTMLTextAreaElement).selectionStart)} onBlur={(e) => (caret.current = e.target.selectionStart)} rows={12} />
               <div className="ml-compose__att">
                 <button type="button" className="ml-btn" onClick={() => fileRef.current?.click()}>
                   📎 {t('Adjuntar archivo')}
                 </button>
+                <button type="button" className="ml-btn" onClick={() => picRef.current?.click()}>
+                  🖼 {t('Insertar imagen')}
+                </button>
+                <input
+                  ref={picRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp,image/bmp"
+                  hidden
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f) await addPicture(f);
+                  }}
+                />
                 {s.attachments.map((a, i) => (
                   <span key={i} className="ml-chip">
                     {a.filename} ({Math.max(1, Math.round(a.data.length / 1024))} KB)
@@ -475,6 +532,45 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
                   }}
                 />
               </div>
+              {pics.length > 0 && (
+                <div className="ml-pics" role="group" aria-label={t('Imágenes del mensaje')}>
+                  <div className="ml-compose__att">
+                    {pics.map((p) => (
+                      <span key={p.id} className={`ml-chip${p.id === selPic ? ' is-on' : ''}`}>
+                        <button type="button" aria-pressed={p.id === selPic} onClick={() => setSelPic(p.id === selPic ? null : p.id)}>
+                          🖼 {p.name}
+                        </button>
+                        <button type="button" aria-label={t('Quitar {name}', { name: p.name })} onClick={() => removePicture(p)}>
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  {pic && (
+                    <div className="ml-pics__tools">
+                      <label>
+                        <span>{t('Texto alternativo')}</span>
+                        <input aria-label={t('Texto alternativo de la imagen')} value={pic.alt} onChange={(e) => setPic({ alt: e.target.value })} />
+                      </label>
+                      <label>
+                        <span>{t('Ancho (px)')}</span>
+                        <input aria-label={t('Ancho de la imagen (px)')} type="number" min={16} max={2000} value={Math.round(pic.width)} onChange={(e) => setPic({ width: Math.max(16, Number(e.target.value) || 16) })} />
+                      </label>
+                      <div className="ml-pics__btns">
+                        <button type="button" className="ml-btn" onClick={() => setPicTool('removeBg')}>{t('Quitar fondo…')}</button>
+                        <button type="button" className="ml-btn" onClick={() => setPicTool('corrections')}>{t('Correcciones…')}</button>
+                        <button type="button" className="ml-btn" onClick={() => setPicTool('color')}>{t('Color…')}</button>
+                        <button type="button" className="ml-btn" onClick={() => setPicTool('artistic')}>{t('Efectos artísticos…')}</button>
+                        <PicPopover label="Relación de aspecto" icon="crop">{(close) => <AspectItems host={picHost} close={close} />}</PicPopover>
+                        <button type="button" className="ml-btn" disabled={!pic.edits && !pic.crop} onClick={() => setPic({ edits: undefined, crop: undefined, sent: pic.orig })}>{t('Restablecer imagen')}</button>
+                      </div>
+                      <p className="ml-pics__note">{t('Se envía la imagen con los cambios hechos; el original se conserva mientras escribes el mensaje.')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {picTool === 'removeBg' && <RemoveBackgroundDialog host={picHost} onClose={() => setPicTool(null)} />}
+              {picTool && picTool !== 'removeBg' && <FormatPictureDialog host={picHost} tab={picTool} onClose={() => setPicTool(null)} />}
               {msg && (
                 <div className="ml-ok" role="status">
                   {msg}

@@ -511,7 +511,7 @@ export class DocObjects {
     const w = Math.max(16, Math.round(width * scale));
     const h = Math.max(16, Math.round(height * scale));
     const { row, col } = this.d.sel.active;
-    const img: SheetImage = { id: uid('img'), media: this.wb.addMedia(mime, data), x: colOffsetPx(this.sheet, col), y: rowOffsetPx(this.sheet, row), width: w, height: h, name };
+    const img: SheetImage = { id: uid('img'), media: this.wb.addMedia(mime, data), x: colOffsetPx(this.sheet, col), y: rowOffsetPx(this.sheet, row), width: w, height: h, name, anchor: 'twoCell' };
     this.d.run('Insertar imagen', () => this.wb.editObjects(this.id, (s) => void s.images.push(img)));
     this.selectObject('image', img.id);
     return img.id;
