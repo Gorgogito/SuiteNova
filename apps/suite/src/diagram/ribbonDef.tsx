@@ -492,6 +492,25 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
       },
     ],
   };
-  return [home, arrange, insert, content, structure, design, view, developer, helpTab()];
+  const review: RibbonTab = {
+    id: 'review',
+    label: 'Revisar',
+    keytip: 'RV',
+    groups: [
+      {
+        id: 'comments',
+        label: 'Comentarios',
+        icon: 'comment',
+        items: [
+          { kind: 'button', command: 'diagram.comment.new', size: 'large', keytip: 'CN' },
+          { kind: 'button', command: 'diagram.comment.delete', size: 'small', keytip: 'CE' },
+          { kind: 'button', command: 'diagram.comment.prev', size: 'small', keytip: 'CA' },
+          { kind: 'button', command: 'diagram.comment.next', size: 'small', keytip: 'CS' },
+          { kind: 'button', command: 'diagram.comment.pane', size: 'large', keytip: 'CM' },
+        ],
+      },
+    ],
+  };
+  return [home, arrange, insert, content, structure, design, review, view, developer, helpTab()];
 }
 

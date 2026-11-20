@@ -8,6 +8,7 @@ import './messages';
 import './messages-more';
 import './messages-more2';
 import './messages-image';
+import './messages-comments';
 import { diagramTabs } from './ribbonDef';
 
 function setup() {

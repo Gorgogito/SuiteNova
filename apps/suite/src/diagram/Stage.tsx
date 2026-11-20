@@ -621,6 +621,41 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
             return s ? <polygon className="dg-target" points={cornersOf(s).map((q) => `${q.x},${q.y}`).join(' ')} /> : null;
           })()}
           {marquee && <rect className="dg-marquee" x={marquee.x} y={marquee.y} width={marquee.w} height={marquee.h} />}
+                  {/* comments: a mark at the top right of the shape (the page ones, at the top left of the page) */}
+          <g className="dg-cmarks">
+            {(page.threads ?? []).map((th, i) => {
+              const sh = th.shape ? shapeById.get(th.shape) : undefined;
+              if (th.shape && !sh) return null;
+              const b = sh ? boundsOf(sh) : null;
+              const r = 9 / scale;
+              const cx = b ? b.x + b.w : 14 / scale + (i % 20) * 2.2 * r;
+              const cy = b ? b.y : 14 / scale;
+              const on = ctl.selComment === th.id;
+              return (
+                <g
+                  key={th.id}
+                  className={`dg-cmark${on ? ' is-sel' : ''}${th.resolved ? ' is-done' : ''}`}
+                  transform={`translate(${cx} ${cy})`}
+                  role="button"
+                  aria-label={t('Comentario de {name}', { name: th.messages[0]!.author })}
+                  data-comment={th.id}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    ctl.selComment = th.id;
+                    ctl.pane = 'comments';
+                    ctl.touch();
+                  }}
+                >
+                  <title>{`${th.messages[0]!.author}: ${th.messages[0]!.text}`}</title>
+                  <circle r={r} />
+                  <text fontSize={11 / scale} textAnchor="middle" dominantBaseline="central">
+                    {th.messages.length}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
         </svg>
 
         {ctl.editingLane && (() => {

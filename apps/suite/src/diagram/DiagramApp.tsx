@@ -24,6 +24,8 @@ import './messages-more2';
 import './messages-image';
 import { diagramTabs } from './ribbonDef';
 import { DataPane, LayersPane, LayoutForm, LinkForm } from './Panes';
+import { CommentsPanel } from './CommentsPanel';
+import './messages-comments';
 import { Stage } from './Stage';
 import { StencilPanel } from './StencilPanel';
 import './diagram.css';
@@ -595,6 +597,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         </div>
         {ctl.pane === 'data' && <DataPane ctl={ctl} />}
         {ctl.pane === 'layers' && <LayersPane ctl={ctl} />}
+        {ctl.pane === 'comments' && <CommentsPanel ctl={ctl} />}
         <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/bmp" multiple hidden aria-hidden="true" tabIndex={-1} data-testid="dg-image-input" onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; void onImageFiles(fs); }} />
       </div>
       {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={close} onEdit={() => setDialog('macroEditor')} />}

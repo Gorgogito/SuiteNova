@@ -153,6 +153,27 @@ export interface Connector {
   layer?: string;
 }
 
+/** One message of a comment: the comment itself or a reply. */
+export interface CommentMessage {
+  id: string;
+  author: string;
+  initials?: string;
+  /** ISO date. */
+  date: string;
+  text: string;
+  /** ISO date of the last edit. */
+  edited?: string;
+}
+
+/** A comment on a shape (`shape`) or on the page (no shape), with its replies; the first message is the comment. */
+export interface CommentThread {
+  id: string;
+  shape?: string;
+  messages: CommentMessage[];
+  resolved?: boolean;
+  resolvedBy?: string;
+}
+
 export interface Page {
   id: string;
   name: string;
@@ -169,6 +190,8 @@ export interface Page {
   groups?: Group[];
   /** Distance between connectors that end at the same connection point; 0 makes them meet at the point. */
   spread?: number;
+  /** Comments on the shapes and on the page. */
+  threads?: CommentThread[];
 }
 
 export interface Diagram {

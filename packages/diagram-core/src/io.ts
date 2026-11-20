@@ -1,4 +1,4 @@
-import type { ContainerProps, DataField, Group, Lane, Layer, ShapeImage, ShapeLink } from './model';
+import type { CommentMessage, CommentThread, ContainerProps, DataField, Group, Lane, Layer, ShapeImage, ShapeLink } from './model';
 import { defaultFont, defaultStyle, newId, type Outline, type Arrow, type Connector, type Dash, type Diagram, type End, type Font, type Page, type Routing, type Shape, type Style } from './model';
 import { hasStencil } from './stencils';
 
@@ -76,6 +76,28 @@ function readContainer(r: any): ContainerProps | undefined {
 const FIELD_TYPES = ['text', 'number', 'date', 'bool'] as const;
 
 /** Picture, link and data of a shape, checked: a damaged file cannot put odd values into the editor. */
+/** Comments of a page: damaged ones are dropped, and one on a shape that is not there goes to the page. */
+function readThreads(raw: any, shapeIds: Set<string>): CommentThread[] {
+  const out: CommentThread[] = [];
+  const seen = new Set<string>();
+  const iso = (v: unknown): string => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : new Date(0).toISOString());
+  for (const t of Array.isArray(raw) ? raw.slice(0, 5000) : []) {
+    const messages: CommentMessage[] = [];
+    for (const m of Array.isArray(t?.messages) ? t.messages.slice(0, 500) : []) {
+      if (typeof m?.text !== 'string') continue;
+      let id = str(m.id, '') || newId('m');
+      while (seen.has(id)) id = newId('m');
+      seen.add(id);
+      messages.push({ id, author: str(m.author, 'Autor').slice(0, 100) || 'Autor', ...(typeof m.initials === 'string' && m.initials ? { initials: m.initials.slice(0, 5) } : {}), date: iso(m.date), text: m.text.slice(0, 20000), ...(typeof m.edited === 'string' ? { edited: iso(m.edited) } : {}) });
+    }
+    if (!messages.length) continue;
+    let id = str(t.id, '') || messages[0]!.id;
+    while (out.some((x) => x.id === id)) id = newId('t');
+    out.push({ id, ...(typeof t.shape === 'string' && shapeIds.has(t.shape) ? { shape: t.shape } : {}), messages, ...(t.resolved === true ? { resolved: true, ...(typeof t.resolvedBy === 'string' ? { resolvedBy: t.resolvedBy.slice(0, 100) } : {}) } : {}) });
+  }
+  return out;
+}
+
 function readExtras(s: any): { image?: ShapeImage; link?: ShapeLink; data?: DataField[]; showData?: boolean } {
   const out: { image?: ShapeImage; link?: ShapeLink; data?: DataField[]; showData?: boolean } = {};
   if (s?.image && typeof s.image.src === 'string' && /^data:image\/(png|jpeg|gif|webp|svg\+xml|bmp);/.test(s.image.src) && s.image.src.length < 12_000_000) {
@@ -156,6 +178,7 @@ export function parseDiagram(text: string): ParseResult {
       layers.push({ id, name: str(l?.name, 'Capa').slice(0, 80) || 'Capa', visible: bool(l?.visible, true), locked: bool(l?.locked), printable: bool(l?.printable, true) });
     }
     const layerSet = new Set(layers.map((l) => l.id));
+    const threads = readThreads(rp?.threads, new Set(shapes.map((x) => x.id)));
     const groups: Group[] = [];
     for (const g of Array.isArray(rp?.groups) ? rp.groups.slice(0, 5000) : []) {
       const id = str(g?.id).slice(0, 60);
@@ -229,6 +252,7 @@ export function parseDiagram(text: string): ParseResult {
       connectors,
       ...(layers.length ? { layers, ...(typeof rp?.activeLayer === 'string' && layerSet.has(rp.activeLayer) ? { activeLayer: rp.activeLayer } : {}) } : {}),
       ...(groups.length ? { groups } : {}),
+      ...(threads.length ? { threads } : {}),
       ...(typeof rp?.spread === 'number' && Number.isFinite(rp.spread) ? { spread: Math.min(60, Math.max(0, rp.spread)) } : {}),
     };
   });

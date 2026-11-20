@@ -20,3 +20,12 @@ $ws = $wb.Worksheets(1)
 foreach ($c in $ws.Comments) { "  $($c.Parent.Address($false,$false)) [$($c.Author)]: '$(($c.Text() -replace "`r|`n", ' | ').Substring(0, [Math]::Min(120, $c.Text().Length)))'" }
 try { "Excel: $($ws.CommentsThreaded.Count) comentarios encadenados"; foreach ($t in $ws.CommentsThreaded) { "  $($t.Parent.Address($false,$false)) [$($t.Author.Name)] '$($t.Text())' respuestas=$($t.Replies.Count) resuelto=$($t.Resolved)" } } catch { "Excel: sin modelo de objetos de comentarios encadenados ($($_.Exception.Message))" }
 $wb.Close($false); $x.Quit()
+
+# Visio: los comentarios de cada forma y de la página de comentarios.vsdx
+$v = New-Object -ComObject Visio.Application; $v.Visible = $false; $v.AlertResponse = 7
+$doc = $v.Documents.OpenEx("$Dir\comentarios.vsdx", 2)
+$pg = $doc.Pages(1)
+"Visio: $($pg.Comments.Count) comentarios en la página"
+foreach ($s in $pg.Shapes) { "  forma '$($s.Text)': $($s.Comments.Count) comentarios" ; for ($i = 1; $i -le $s.Comments.Count; $i++) { $c = $s.Comments.Item($i); "     [$($c.AuthorName)] '$($c.Text)'" } }
+for ($i = 1; $i -le $pg.Comments.Count; $i++) { $c = $pg.Comments.Item($i); "  (página) [$($c.AuthorName)] '$($c.Text)'" }
+$doc.Close(); $v.Quit()

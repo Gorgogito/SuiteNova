@@ -1,4 +1,5 @@
 import type { CommandDef } from '@suitenova/core-ui';
+import { neighbor } from '@suitenova/comment-core';
 import { STENCILS, type Arrow, type Dash, type Routing } from '@suitenova/diagram-core';
 import type { DiagramCtl } from './ctl';
 import { resetPicture } from './pichost';
@@ -178,6 +179,13 @@ export function diagramCommands(ui: DiagramUI): CommandDef[] {
   for (const [fit, label] of [['contain', 'Ajustar la imagen a la forma'], ['cover', 'Rellenar la forma con la imagen'], ['stretch', 'Estirar la imagen']] as const) {
     add({ id: `diagram.image.${fit}`, label, icon: 'image', enabled: () => c.selectedShapes().some((s) => s.image), checked: () => c.selectedShapes()[0]?.image?.fit === fit, run: () => c.setImageFit(fit) });
   }
+  // ---- comments
+  const hasThreads = () => c.basePage.threads?.length;
+  add({ id: 'diagram.comment.new', label: 'Nuevo comentario', icon: 'commentAdd', description: 'Añade un comentario a la forma seleccionada (o a la página si no hay ninguna).', enabled: () => !c.editing, run: () => c.newComment() });
+  add({ id: 'diagram.comment.delete', label: 'Eliminar comentario', icon: 'trash', enabled: () => !!c.selComment && !!hasThreads(), run: () => { const id = c.selComment; if (id) { c.changeThreads((l) => l.filter((q) => q.id !== id)); c.selComment = null; c.touch(); } } });
+  add({ id: 'diagram.comment.prev', label: 'Comentario anterior', icon: 'prev', enabled: () => !!hasThreads(), run: () => { const n = neighbor(c.threadList(), c.selComment, -1); if (n) { c.selComment = n.id; if (n.anchor.shape) c.setSelection([n.anchor.shape]); c.pane = 'comments'; c.touch(); } } });
+  add({ id: 'diagram.comment.next', label: 'Comentario siguiente', icon: 'next', enabled: () => !!hasThreads(), run: () => { const n = neighbor(c.threadList(), c.selComment, 1); if (n) { c.selComment = n.id; if (n.anchor.shape) c.setSelection([n.anchor.shape]); c.pane = 'comments'; c.touch(); } } });
+  add({ id: 'diagram.comment.pane', label: 'Mostrar comentarios', icon: 'comment', checked: () => c.pane === 'comments', run: () => c.togglePane('comments') });
   add({ id: 'diagram.data.pane', label: 'Datos de forma', icon: 'table', description: 'Muestra y edita los datos de la forma seleccionada. En el texto de una forma, {{nombre}} se sustituye por el dato de ese nombre.', checked: () => c.pane === 'data', run: () => c.togglePane('data') });
   add({ id: 'diagram.data.show', label: 'Mostrar los datos bajo la forma', icon: 'text', enabled: () => c.selectedShapes().some((s) => s.data?.length), checked: () => !!c.selectedShapes()[0]?.showData, run: () => c.setShowData(!c.selectedShapes()[0]?.showData) });
   add({ id: 'diagram.data.export', label: 'Exportar los datos de las formas (CSV)…', icon: 'exportFile', run: () => void ui.exportData() });

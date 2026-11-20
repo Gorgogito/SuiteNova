@@ -133,6 +133,8 @@ export function deleteItems(page: Page, shapeIds: string[], connectorIds: string
   };
   return normalizeGroups({
     ...page,
+    // a comment goes with its shape
+    ...(page.threads ? { threads: page.threads.filter((t) => !t.shape || !gone.has(t.shape)) } : {}),
     shapes: page.shapes.filter((s) => !gone.has(s.id)),
     connectors: page.connectors.filter((c) => !dropC.has(c.id)).map((c) => (isGlued(c.from) && gone.has(c.from.shape)) || (isGlued(c.to) && gone.has(c.to.shape)) ? { ...c, from: freeze(c, 'from'), to: freeze(c, 'to') } : c),
   });
@@ -359,7 +361,8 @@ export function duplicatePage(d: Diagram, id: string): { diagram: Diagram; page:
   const src = d.pages.find((p) => p.id === id);
   if (!src) return null;
   const copy = cloneItems(src, src.shapes.map((s) => s.id), src.connectors.map((c) => c.id));
-  const page: Page = { ...src, id: newId('pg'), name: `${src.name} (copia)`, shapes: copy.shapes, connectors: copy.connectors, groups: copy.groups };
+  const { threads: _threads, ...rest } = src; // the comments stay with the page they were written on
+  const page: Page = { ...rest, id: newId('pg'), name: `${src.name} (copia)`, shapes: copy.shapes, connectors: copy.connectors, groups: copy.groups };
   const pages = [...d.pages];
   pages.splice(d.pages.indexOf(src) + 1, 0, page);
   return { diagram: { ...d, pages }, page };

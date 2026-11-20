@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import JSZip from 'jszip';
 import { centerOf, rotatePoint } from './geometry';
-import { defaultFont, defaultStyle, newDiagram, newId, type Connector, type Diagram, type End, type Font, type Outline, type Page, type Shape, type Style } from './model';
+import { defaultFont, defaultStyle, newDiagram, newId, type CommentThread, type Connector, type Diagram, type End, type Font, type Outline, type Page, type Shape, type Style } from './model';
 import { connectorRender, shapeRender } from './render';
 import { printablePage } from './layers';
 import { hasStencil, stencilOf } from './stencils';
@@ -300,14 +300,50 @@ function pictureXml(s: Shape, id: number, pageH: number, rel: string, info: Pict
 
 const HEAD = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n';
 
+/** The date as Visio writes it: UTC, no «Z», no milliseconds. */
+const visioDate = (iso: string): string => new Date(iso).toISOString().replace(/\.\d+Z$/, '');
+
+/**
+ * The comments of the drawing as Visio keeps them (`visio/comments.xml`): a list of people and a flat list of comments, each on a page and, if it is
+ * about a shape, on that shape. Visio has **no replies and no «resolved»**: a conversation is written as one comment after another on the same
+ * shape (in order) and reads back as a conversation.
+ */
+function commentsXml(d: Diagram, sheetIds: Map<string, number>[]): string {
+  const people: string[] = [];
+  const initialsOf = new Map<string, string>();
+  const entries: string[] = [];
+  let cid = 0;
+  d.pages.forEach((page, pi) => {
+    for (const t of page.threads ?? []) {
+      let shapeAttr = '';
+      if (t.shape) {
+        const sid = sheetIds[pi]?.get(t.shape);
+        if (sid === undefined) continue; // the shape is not in the file (a layer that does not print)
+        shapeAttr = ` ShapeID="${sid}"`;
+      }
+      for (const m of t.messages) {
+        if (!people.includes(m.author)) people.push(m.author);
+        if (m.initials) initialsOf.set(m.author, m.initials);
+        entries.push(`<CommentEntry AuthorID="${people.indexOf(m.author) + 1}" PageID="${pi}"${shapeAttr} Date="${visioDate(m.date)}" EditDate="${visioDate(m.edited ?? m.date)}" CommentID="${++cid}" AutoCommentType="0">${escXml(m.text)}</CommentEntry>`);
+      }
+    }
+  });
+  if (!entries.length) return '';
+  const authors = people.map((a, i) => `<AuthorEntry Name="${escXml(a)}" Initials="${escXml(initialsOf.get(a) ?? initialsFor(a))}" ID="${i + 1}"/>`).join('');
+  return `${HEAD}<Comments ShowCommentTags="1" xmlns="${NS}" xmlns:r="${NS_R}" xml:space="preserve"><AuthorList>${authors}</AuthorList><CommentList>${entries.join('')}</CommentList></Comments>`;
+}
+
+const initialsFor = (name: string): string => name.split(/\s+/).filter(Boolean).slice(0, 3).map((w) => [...w][0]!.toUpperCase()).join('') || 'A';
+
 export async function exportVsdx(d: Diagram): Promise<Uint8Array> {
   const zip = new JSZip();
   const n = d.pages.length;
   const mediaExts = new Set<PictureInfo['ext']>();
   let mediaCount = 0;
+  let hasComments = false;
   // the types are written last, when it is known which picture formats the drawing uses
   const typesFor = () =>
-    `${HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${[...mediaExts].map((e) => `<Default Extension="${e}" ContentType="image/${e}"/>`).join('')}<Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/><Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/><Override PartName="/visio/windows.xml" ContentType="application/vnd.ms-visio.windows+xml"/>${d.pages.map((_, i) => `<Override PartName="/visio/pages/page${i + 1}.xml" ContentType="application/vnd.ms-visio.page+xml"/>`).join('')}</Types>`;
+    `${HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${[...mediaExts].map((e) => `<Default Extension="${e}" ContentType="image/${e}"/>`).join('')}<Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/><Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/><Override PartName="/visio/windows.xml" ContentType="application/vnd.ms-visio.windows+xml"/>${hasComments ? '<Override PartName="/visio/comments.xml" ContentType="application/vnd.ms-visio.comments+xml"/>' : ''}${d.pages.map((_, i) => `<Override PartName="/visio/pages/page${i + 1}.xml" ContentType="application/vnd.ms-visio.page+xml"/>`).join('')}</Types>`;
   zip.file('_rels/.rels', `${HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/document" Target="visio/document.xml"/></Relationships>`);
   zip.file('visio/document.xml', `${HEAD}<VisioDocument xmlns="${NS}" xmlns:r="${NS_R}" xml:space="preserve"><DocumentSettings TopPage="0" DefaultTextStyle="0" DefaultLineStyle="0" DefaultFillStyle="0"/><Colors/><FaceNames/><StyleSheets><StyleSheet ID="0" NameU="No Style" Name="No Style"><Cell N="LineWeight" V="0.01041666666666667"/><Cell N="LineColor" V="0"/><Cell N="LinePattern" V="1"/><Cell N="FillForegnd" V="1"/><Cell N="FillPattern" V="1"/></StyleSheet></StyleSheets></VisioDocument>`);
   zip.file('visio/_rels/document.xml.rels', `${HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/pages" Target="pages/pages.xml"/><Relationship Id="rId2" Type="http://schemas.microsoft.com/visio/2010/relationships/windows" Target="windows.xml"/></Relationships>`);
@@ -320,25 +356,41 @@ export async function exportVsdx(d: Diagram): Promise<Uint8Array> {
       .join('')}</Pages>`,
   );
   zip.file('visio/pages/_rels/pages.xml.rels', `${HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${d.pages.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.microsoft.com/visio/2010/relationships/page" Target="page${i + 1}.xml"/>`).join('')}</Relationships>`);
+  /** Visio's id of each shape, by page: the comments point at them. */
+  const sheetIds: Map<string, number>[] = [];
   d.pages.forEach((full, i) => {
     const p = printablePage(full);
     let id = 0;
+    const ids = new Map<string, number>();
+    sheetIds[i] = ids;
     const rels: string[] = [];
     // a picture goes under its shape, so the shape's text and outline stay on top of it
     const shapes = p.shapes.flatMap((s) => {
       const info = s.image ? pictureInfo(s.image.src) : null;
-      if (!info) return [shapeXml(s, ++id, p.height)];
+      if (!info) {
+        ids.set(s.id, ++id);
+        return [shapeXml(s, id, p.height)];
+      }
       const name = `image${++mediaCount}.${info.ext}`;
       zip.file(`visio/media/${name}`, info.data);
       mediaExts.add(info.ext);
       rels.push(`<Relationship Id="rId${rels.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${name}"/>`);
-      return [pictureXml(s, ++id, p.height, `rId${rels.length}`, info), shapeXml(s, ++id, p.height)];
+      const pic = pictureXml(s, ++id, p.height, `rId${rels.length}`, info);
+      ids.set(s.id, ++id);
+      return [pic, shapeXml(s, id, p.height)];
     });
     const conns = p.connectors.map((c) => connectorXml(c, ++id, p));
     if (rels.length) zip.file(`visio/pages/_rels/page${i + 1}.xml.rels`, `${HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join('')}</Relationships>`);
     zip.file(`visio/pages/page${i + 1}.xml`, `${HEAD}<PageContents xmlns="${NS}" xmlns:r="${NS_R}" xml:space="preserve"><Shapes>${shapes.join('')}${conns.join('')}</Shapes></PageContents>`);
   });
   void n;
+  const comments = commentsXml(d, sheetIds);
+  if (comments) {
+    // Visio keeps the comments in one part for the whole drawing, linked from the document
+    zip.file('visio/comments.xml', comments);
+    zip.file('visio/_rels/document.xml.rels', (await zip.file('visio/_rels/document.xml.rels')!.async('string')).replace('</Relationships>', '<Relationship Id="rId3" Type="http://schemas.microsoft.com/visio/2010/relationships/comments" Target="comments.xml"/></Relationships>'));
+    hasComments = true;
+  }
   zip.file('[Content_Types].xml', typesFor());
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE', mimeType: 'application/vnd.ms-visio.drawing' });
 }
@@ -352,7 +404,7 @@ const parser = new XMLParser({
   parseTagValue: false,
   parseAttributeValue: false,
   trimValues: false,
-  isArray: (name) => ['Shape', 'Section', 'Row', 'Cell', 'Page', 'Master', 'Relationship', 'Connect', 'Rel'].includes(name),
+  isArray: (name) => ['Shape', 'Section', 'Row', 'Cell', 'Page', 'Master', 'Relationship', 'Connect', 'Rel', 'AuthorEntry', 'CommentEntry'].includes(name),
 });
 
 type Node = any;
@@ -575,6 +627,7 @@ export async function importVsdx(data: Uint8Array): Promise<VsdxResult> {
   let skipped = 0;
   let approximated = 0;
   let backgrounds = 0;
+  const pageByVisioId = new Map<string, { page: Page; sheetToShape: Map<string, string> }>();
 
   for (const pg of parser.parse(pagesXml)?.Pages?.Page ?? []) {
     if (pg['@_Background'] === '1') {
@@ -589,9 +642,10 @@ export async function importVsdx(data: Uint8Array): Promise<VsdxResult> {
     const xml = part ? await zip.file(part)?.async('string') : undefined;
     const page: Page = { id: newId('pg'), name: String(pg['@_Name'] ?? pg['@_NameU'] ?? `Página ${diagram.pages.length + 1}`), width: Math.round(W * PX), height: Math.round(H * PX), grid: 8, background: '#ffffff', shapes: [], connectors: [] };
     diagram.pages.push(page);
+    const sheetToShape = new Map<string, string>();
+    pageByVisioId.set(String(pg['@_ID']), { page, sheetToShape });
     if (!xml) continue;
     const contents = parser.parse(xml)?.PageContents;
-    const sheetToShape = new Map<string, string>();
     const pending: { id: string; node: Node; cells: Cells; frame: Frame; text: string }[] = [];
 
     interface Frame {
@@ -745,6 +799,37 @@ export async function importVsdx(data: Uint8Array): Promise<VsdxResult> {
         text: p.text,
         font: { ...defaultFont(), size: ch.has('Size') ? Math.max(6, n(ch, 'Size') * PX) : 12 },
       });
+    }
+  }
+  // comments: Visio keeps them flat; those on the same shape (or the same page, if they are about the page) are one conversation
+  const commentsPath = [...docRels.values()].find((r) => r.type.endsWith('/comments'))?.target;
+  const commentsXml = commentsPath ? await zip.file(commentsPath)?.async('string') : undefined;
+  if (commentsXml) {
+    const doc = parser.parse(commentsXml)?.Comments;
+    const people = new Map<string, { name: string; initials: string }>();
+    for (const a of doc?.AuthorList?.AuthorEntry ?? []) people.set(String(a['@_ID']), { name: String(a['@_Name'] ?? 'Autor'), initials: String(a['@_Initials'] ?? '') });
+    const byKey = new Map<string, CommentThread>();
+    const entries = [...(doc?.CommentList?.CommentEntry ?? [])].sort((x: Node, y: Node) => Number(x['@_CommentID'] ?? 0) - Number(y['@_CommentID'] ?? 0));
+    for (const e of entries) {
+      const home = pageByVisioId.get(String(e['@_PageID']));
+      const text = typeof e === 'string' ? e : String(e['#text'] ?? '');
+      if (!home || !text) continue;
+      const shape = e['@_ShapeID'] !== undefined ? home.sheetToShape.get(String(e['@_ShapeID'])) : undefined;
+      const key = `${String(e['@_PageID'])}|${shape ?? ''}`;
+      const who = people.get(String(e['@_AuthorID'])) ?? { name: 'Autor', initials: '' };
+      const utc = (v: unknown): string => {
+        const t = typeof v === 'string' ? Date.parse(/(Z|[+-]\d\d:?\d\d)$/i.test(v) ? v : `${v}Z`) : NaN;
+        return new Date(Number.isNaN(t) ? 0 : t).toISOString();
+      };
+      const id = newId('m');
+      const msg = { id, author: who.name, ...(who.initials ? { initials: who.initials } : {}), date: utc(e['@_Date']), text, ...(e['@_EditDate'] && e['@_EditDate'] !== e['@_Date'] ? { edited: utc(e['@_EditDate']) } : {}) };
+      let th = byKey.get(key);
+      if (!th) {
+        th = { id, ...(shape ? { shape } : {}), messages: [] };
+        byKey.set(key, th);
+        (home.page.threads ??= []).push(th);
+      }
+      th.messages.push(msg);
     }
   }
   if (!diagram.pages.length) diagram.pages.push(newDiagram().pages[0]!);

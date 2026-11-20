@@ -40,5 +40,20 @@ const xb = await page.evaluate(async () => {
   return [...data];
 });
 fs.writeFileSync(path.join(out, 'comentarios.xlsx'), Buffer.from(xb));
+const vb = await page.evaluate(async () => {
+  const m = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/diagram-core/src/index.ts');
+  let d = m.newDiagram('Con comentarios');
+  const ra = m.addShape(d.pages[0], 'process', 200, 150, { text: 'Paso uno' });
+  const rb = m.addShape(ra.page, 'decision', 500, 300, { text: 'Decision' });
+  const msg = (id, author, text, min) => ({ id, author, initials: author[0], date: new Date(Date.UTC(2026, 10, 20, 10, min)).toISOString(), text });
+  const p = { ...rb.page, threads: [
+    { id: 't1', shape: ra.shape.id, messages: [msg('m1', 'Ana María', 'Revisar este paso', 0), msg('m2', 'Luis Torres', 'De acuerdo', 5)] },
+    { id: 't2', shape: rb.shape.id, resolved: true, messages: [msg('m3', 'Luis Torres', 'Revisar la decisión', 10)] },
+    { id: 't3', messages: [msg('m4', 'Ana María', 'De toda la página', 20)] },
+  ] };
+  d = { ...d, pages: [p] };
+  return [...(await m.exportVsdx(d))];
+});
+fs.writeFileSync(path.join(out, 'comentarios.vsdx'), Buffer.from(vb));
 await browser.close();
 console.log('ok');

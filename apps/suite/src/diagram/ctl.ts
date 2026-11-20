@@ -1,4 +1,7 @@
 import { autoLayout, resetPorts, type LayoutDir, type LayoutKind } from '@suitenova/diagram-core';
+import { addThread, newId as newCommentId, sortThreads, type Thread } from '@suitenova/comment-core';
+import { getUser } from '../comments/identity';
+import { fromCore, toCore, type ShapeAnchor } from './comments-ops';
 import { addLane, layersOf as layersOfPage, removeLane, renameLane, resizeLane, setContainerProps, settleContainers, withMembers, wrapInContainer } from '@suitenova/diagram-core';
 import {
   addConnector, addDataField, addItems, addLayer, addPage, assignLayer, expandSelection, groupShapes, isItemLocked, isItemVisible, moveLayer, removeLayer, setActiveLayer, ungroupShapes, updateLayer, flipShapes, setShapeData, setShapeImage, setShapeLink, addShape, alignShapes, cloneItems, deleteItems, deletePage, distributeShapes, duplicatePage, fontShapes, isGlued, matchSize, moveConnectorEnds, moveShapes, movePage, newConnector, newDiagram, reorder, rotateBy,
@@ -49,7 +52,7 @@ export class DiagramCtl {
   /** Set by the app: pictures dropped on the canvas. */
   onImageFiles?: (files: File[], at: { x: number; y: number }) => void;
   /** Pane shown at the right of the canvas. */
-  pane: 'none' | 'data' | 'layers' = 'none';
+  pane: 'none' | 'data' | 'layers' | 'comments' = 'none';
   /** The macro modules of the diagram (Nova Basic with the objects of Visio). */
   macros: { name: string; code: string }[] = [];
   /** Active content (macros) may run. A file that arrives with macros starts with it disabled. */
@@ -554,7 +557,44 @@ export class DiagramCtl {
     this.selConnectors = [];
     this.touch();
   }
-  togglePane(p: 'data' | 'layers'): void {
+  // ---------- comments
+
+  /** The comment (thread) chosen in the pane, and the message being written there. */
+  selComment: string | null = null;
+  editingComment: string | null = null;
+
+  /** The comments of the page as shared threads, in the order of the shapes (those on the page itself first). */
+  threadList(): Thread<ShapeAnchor>[] {
+    const p = this.basePage;
+    const order = new Map(p.shapes.map((s, i) => [s.id, i]));
+    return sortThreads(toCore(p.threads), (a, b) => (a.shape ? (order.get(a.shape) ?? 1e9) : -1) - (b.shape ? (order.get(b.shape) ?? 1e9) : -1));
+  }
+
+  changeThreads(f: (l: Thread<ShapeAnchor>[]) => Thread<ShapeAnchor>[]): void {
+    this.edit((p) => {
+      const threads = fromCore(f(toCore(p.threads)));
+      const { threads: _old, ...rest } = p;
+      return threads.length ? { ...rest, threads } : rest;
+    });
+  }
+
+  /** «Nuevo comentario»: an empty comment on the selected shape (or on the page when none is), written in the pane; sent empty, it is dropped. */
+  newComment(): void {
+    const shape = this.selectedShapes()[0]?.id;
+    const id = newCommentId('c');
+    this.changeThreads((l) => addThread(l, { id, anchor: shape ? { shape } : {}, author: getUser(), text: '' }).list);
+    this.selComment = id;
+    this.editingComment = id;
+    this.pane = 'comments';
+    this.touch();
+  }
+
+  /** The last two changes become one step of undo (an empty comment and the text written in it). */
+  mergeLastUndo(): void {
+    this.past.splice(this.past.length - 1, 1);
+  }
+
+  togglePane(p: 'data' | 'layers' | 'comments'): void {
     this.pane = this.pane === p ? 'none' : p;
     this.touch();
   }
