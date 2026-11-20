@@ -600,6 +600,8 @@ export interface Asset {
   mime: string;
   data: Uint8Array;
   name?: string;
+  /** The text read from the picture (OCR) with where each word is: `StoredOcr` of the shared OCR, opaque here. Derived data. */
+  ocr?: unknown;
 }
 
 export interface SlideSize {

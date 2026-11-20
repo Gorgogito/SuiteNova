@@ -17,11 +17,22 @@ export interface ReadOptions {
 }
 
 /** The text of a picture (a `data:` or `blob:` address) with where each word is. Rejects with an `AbortError` when `signal` is aborted. */
-export async function readImage(src: string, lang: string, o: ReadOptions = {}): Promise<OcrResult> {
-  const { data, mime } = await bytesOf(src);
-  const pixels = await decodePixels(data, mime);
-  return recognize(tesseractEngine, pixels, { lang, zone: o.zone, turns: o.turns ?? 'auto', signal: o.signal });
+export function readImage(src: string, lang: string, o: ReadOptions = {}): Promise<OcrResult> {
+  // one reading at a time for the whole program: the engine has one worker, and two readings at once spoil each other
+  const run = line.then(async () => {
+    if (o.signal?.aborted) throw new DOMException('Cancelado', 'AbortError');
+    const { data, mime } = await bytesOf(src);
+    const pixels = await decodePixels(data, mime);
+    return recognize(tesseractEngine, pixels, { lang, zone: o.zone, turns: o.turns ?? 'auto', signal: o.signal });
+  });
+  line = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
+
+let line: Promise<void> = Promise.resolve();
 
 /** Only the text, for what is drawn to be read (handwriting turned into text). */
 export async function readText(src: string, lang: string): Promise<string> {

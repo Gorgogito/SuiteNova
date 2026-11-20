@@ -153,6 +153,30 @@ describe('picture originals and edits in a .pptx', () => {
   });
 });
 
+describe('the text read from pictures (OCR) in a .pptx', () => {
+  const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
+  const ocr = { text: 'Factura 4821', lang: 'spa', at: 3, size: [10, 10], lines: [[1, 1, 8, 4, [['Factura', 1, 1, 5, 4, 90]]]] };
+  it('goes in a part of its own, comes back with the picture, and a file without readings carries no such part', async () => {
+    const deck = newDeck();
+    const a = newId('a');
+    const b = newId('a');
+    deck.assets[a] = { id: a, mime: 'image/png', data: png, name: 'a.png', ocr };
+    deck.assets[b] = { id: b, mime: 'image/png', data: Uint8Array.from([...png, 0]), name: 'b.png' };
+    deck.slides[0]!.shapes.push({ kind: 'pic', id: newId(), name: 'Sin', descr: '', src: b, xfrm: { x: 0, y: 0, w: 10, h: 10 } });
+    deck.slides[0]!.shapes.push({ kind: 'pic', id: newId(), name: 'Con', descr: 'alt', src: a, xfrm: { x: 20, y: 0, w: 10, h: 10 } });
+    const { data } = await writePptx(deck);
+    const zip = await JSZip.loadAsync(data);
+    expect(await zip.file('customXml/novaOcr1.xml')!.async('string')).toContain('Factura');
+    expect(await zip.file('ppt/slides/slide1.xml')!.async('string')).not.toContain('Factura');
+    const back = (await readPptx(data)).deck;
+    const pics = back.slides[0]!.shapes.filter((e) => e.kind === 'pic') as import('../types').PicEl[];
+    expect(back.assets[pics[1]!.src]!.ocr).toEqual(ocr);
+    expect(back.assets[pics[0]!.src]!.ocr).toBeUndefined();
+    delete deck.assets[a]!.ocr;
+    expect(Object.keys((await JSZip.loadAsync((await writePptx(deck)).data)).files).some((n) => /novaOcr/.test(n))).toBe(false);
+  });
+});
+
 describe('comments in a .pptx (the modern kind PowerPoint 365 writes)', () => {
   const at = Date.UTC(2026, 10, 20, 10, 0);
   const withComments = () => {

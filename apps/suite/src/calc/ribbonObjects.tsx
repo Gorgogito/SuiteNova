@@ -89,6 +89,16 @@ export function reviewTab(): RibbonTab {
     keytip: 'R',
     groups: [
       {
+        id: 'imgOcr',
+        label: 'Texto de imágenes',
+        icon: 'sparkles',
+        items: [
+          { kind: 'button', command: 'calc.ocr.run', size: 'large', keytip: 'TI' },
+          { kind: 'button', command: 'calc.ocr.stop', size: 'small', keytip: 'TS' },
+          { kind: 'button', command: 'calc.ocr.auto', size: 'small', keytip: 'TA' },
+        ],
+      },
+      {
         id: 'proofing',
         label: 'Revisión',
         icon: 'spell',
@@ -488,6 +498,7 @@ export function contextualTabs(ui: CalcUI, f: ContextFlags): RibbonTab[] {
           { kind: 'custom', id: 'picAspect', label: 'Relación de aspecto', keytip: 'RA', render: () => <PicPopover label="Relación de aspecto" icon="crop">{(close) => <AspectItems host={calcPictureHost(ui.doc)} close={close} />}</PicPopover> },
         ],
       },
+      { id: 'picText', label: 'Texto', icon: 'textbox', items: [{ kind: 'button', command: 'calc.ocr.dialog', size: 'large', keytip: 'KT' }, { kind: 'button', command: 'calc.ocr.copyText', size: 'small', keytip: 'KO' }] },
       { id: 'picActions', label: 'Acciones', icon: 'trash', items: [{ kind: 'button', command: 'calc.picture.delete', size: 'large', keytip: 'EL' }] },
     ],
   };

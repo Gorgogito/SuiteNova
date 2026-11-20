@@ -284,6 +284,7 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     label: 'Revisar',
     keytip: 'R',
     groups: [
+      { id: 'ocr', label: 'Texto de imágenes', icon: 'sparkles', items: [L('slides.ocr.run', 'OI'), S('slides.ocr.stop', 'OS'), S('slides.ocr.auto', 'OA')] },
       { id: 'proof', label: 'Revisión', icon: 'spell', items: [
         L('slides.review.spelling', 'OR'),
         L('slides.review.thesaurus', 'SN'),
@@ -478,6 +479,12 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
       },
       { id: 'pSize', label: 'Tamaño', icon: 'crop', items: [L('slides.pic.crop', 'RC'), { kind: 'custom', id: 'picAspect', label: 'Relación de aspecto', keytip: 'RA', render: () => <AspectGallery ui={ui} /> }, S('slides.pic.fill', 'RL'), S('slides.pic.fit', 'AJ'), S('slides.position', 'TP2'), S('slides.altText', 'TX2')] },
       { id: 'pArrange', label: 'Organizar', icon: 'toFront', items: [S('slides.front', 'TF2'), S('slides.back', 'EF3'), S('slides.rotateRight', 'GR3'), S('slides.flipH', 'VH2')] },
+      {
+        id: 'pText',
+        label: 'Texto',
+        icon: 'textbox',
+        items: [L('slides.ocr.dialog', 'KT'), S('slides.ocr.copyText', 'KO')],
+      },
     ],
   };
 

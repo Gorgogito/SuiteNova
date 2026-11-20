@@ -24,7 +24,7 @@ export function OcrPreview({ src, result, query = '', zone, onZone, maxHeight = 
   const dz = drag ? boxOf(drag) : zone;
   const sw = size ? Math.max(1, size.w / 400) : 1;
   return (
-    <div className="nn-ocrprev" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%', lineHeight: 0 }}>
+    <div className="nn-ocrprev" style={{ position: 'relative', display: 'inline-block', width: 'fit-content', justifySelf: 'start', maxWidth: '100%', lineHeight: 0 }}>
       <img src={src} alt="" style={{ maxWidth: '100%', maxHeight, display: 'block' }} onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
       {size && (
         <svg

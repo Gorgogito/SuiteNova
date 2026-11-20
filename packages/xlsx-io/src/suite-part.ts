@@ -9,6 +9,8 @@ export interface SuitePart {
   pivots: { sheet: number; def: PivotDef }[];
   slicers: { sheet: number; def: SlicerDef }[];
   macros: { name: string; code: string }[];
+  /** The text read from the pictures (OCR), by the key of the picture in the media store (which comes from its content). */
+  ocr?: Record<string, unknown>;
 }
 
 export function buildSuitePart(wb: Workbook): string | undefined {
@@ -17,7 +19,10 @@ export function buildSuitePart(wb: Workbook): string | undefined {
     for (const def of s.pivots) part.pivots.push({ sheet: i, def });
     for (const def of s.slicers) part.slicers.push({ sheet: i, def });
   });
-  if (!part.pivots.length && !part.slicers.length && !part.macros.length) return undefined;
+  const ocr: Record<string, unknown> = {};
+  for (const [key, m] of wb.media) if (m.ocr) ocr[key] = m.ocr;
+  if (Object.keys(ocr).length) part.ocr = ocr;
+  if (!part.pivots.length && !part.slicers.length && !part.macros.length && !part.ocr) return undefined;
   return JSON.stringify(part);
 }
 
@@ -39,4 +44,8 @@ export function applySuitePart(wb: Workbook, json: string, warnings: string[]): 
     if (s) s.slicers.push(p.def);
   }
   wb.macros = (part.macros ?? []).map((m) => ({ name: String(m.name), code: String(m.code) }));
+  for (const [key, ocr] of Object.entries(part.ocr ?? {})) {
+    const m = wb.media.get(key);
+    if (m && ocr && typeof (ocr as { text?: unknown }).text === 'string') m.ocr = ocr;
+  }
 }

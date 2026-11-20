@@ -296,7 +296,7 @@ export function FindReplaceDialog({ ui, onClose }: P) {
   const [o, setO] = useState<FindOptions>({});
   const [i, setI] = useState(-1);
   const [msg, setMsg] = useState('');
-  const hits = useMemo(() => findAll(c.deck, q, o), [c.deck, q, o]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hits = useMemo(() => findAll(c.deck, q, { ...o, pictures: true }), [c.deck, q, o]); // eslint-disable-line react-hooks/exhaustive-deps
   const go = (k: number) => {
     const h = hits[k];
     if (!h) return;
@@ -314,6 +314,8 @@ export function FindReplaceDialog({ ui, onClose }: P) {
   const replaceOne = () => {
     const h = hits[i < 0 ? 0 : i];
     if (!h) return setMsg(t('No se encontró «{q}».', { q }));
+    // the text of a picture is found, not replaced: the next match is shown
+    if (h.where === 'picture') return next();
     const res = replaceAll(c.deck, q, r, o, { slideId: h.slideId, elementId: h.elementId });
     if (res.count) c.apply('Reemplazar', () => res.deck);
     setMsg(t('Reemplazadas: {n}', { n: res.count }));

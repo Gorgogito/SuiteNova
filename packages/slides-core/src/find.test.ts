@@ -11,6 +11,20 @@ const deckWith = (paras: { text?: string; runs?: { text: string; r?: object }[] 
   return { d, t };
 };
 
+describe('find in the text of pictures', () => {
+  it('finds a picture by its read text only when asked, one hit per picture, and replacing leaves it alone', () => {
+    const d = newDeck();
+    d.assets.a1 = { id: 'a1', mime: 'image/png', data: new Uint8Array(), ocr: { text: 'Factura número 4821\nTotal a pagar' } };
+    const pic = { kind: 'pic', id: 'p1', name: 'x', descr: '', src: 'a1', xfrm: { x: 0, y: 0, w: 1, h: 1 } } as never;
+    d.slides[0]!.shapes.push(pic);
+    expect(findAll(d, 'total').length).toBe(0);
+    const hits = findAll(d, 'TOTAL', { pictures: true });
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ where: 'picture', elementId: 'p1', context: 'Total a pagar' });
+    expect(replaceAll(d, 'total', 'X', { pictures: true }).count).toBe(0);
+  });
+});
+
 describe('find and replace', () => {
   it('finds case-insensitively, whole words, and across runs', () => {
     const { d } = deckWith([{ runs: [{ text: 'Hola mun' }, { text: 'do', r: { b: true } }] }, { text: 'mundial y MUNDO' }]);

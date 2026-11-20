@@ -453,6 +453,8 @@ export const newShapeId = (): string => `shape-${Date.now().toString(36)}-${(sha
 export interface MediaItem {
   mime: string;
   data: Uint8Array;
+  /** The text read from the picture (OCR) with where each word is: `StoredOcr` of the shared OCR, opaque here. Derived data; it is kept with the picture's content. */
+  ocr?: unknown;
 }
 
 // ---------------------------------------------------------------------------------------------------- sparklines

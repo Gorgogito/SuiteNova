@@ -12,6 +12,8 @@ export interface FindOptions {
   wholeWord?: boolean;
   /** also search the speaker notes */
   notes?: boolean;
+  /** also search the text read from pictures (OCR) */
+  pictures?: boolean;
 }
 
 export interface Hit {
@@ -19,7 +21,7 @@ export interface Hit {
   slideIndex: number;
   elementId: string | null;
   /** where in the slide: the object's text, a table cell, or the notes */
-  where: 'shape' | 'cell' | 'notes';
+  where: 'shape' | 'cell' | 'notes' | 'picture';
   /** text of the paragraph, for the list of results */
   context: string;
 }
@@ -120,6 +122,12 @@ export function findAll(deck: Deck, query: string, o: FindOptions = {}): Hit[] {
       for (const { body, where } of bodiesOf(el)) {
         const { n, first } = countIn(body.doc, re);
         for (let k = 0; k < n; k++) hits.push({ slideId: s.id, slideIndex: i, elementId: el.id, where, context: first });
+      }
+      // the text of a picture is found, not replaced: one hit for each picture
+      if (o.pictures && el.kind === 'pic') {
+        const text = (deck.assets[el.src]?.ocr as { text?: unknown } | undefined)?.text;
+        const line = typeof text === 'string' ? text.split('\n').find((l) => new RegExp(re.source, re.flags.replace('g', '')).test(l)) : undefined;
+        if (line !== undefined) hits.push({ slideId: s.id, slideIndex: i, elementId: el.id, where: 'picture', context: line.trim() });
       }
     }
   };

@@ -409,6 +409,32 @@ export async function writePptx(deck: Deck, opts: { slideshow?: boolean; templat
     presRels.add(`${RT}/customXml`, '../customXml/novaPictures1.xml');
   }
 
+  // the text read from the pictures (OCR): PowerPoint does not search inside pictures and ignores this part
+  {
+    const reads: { slide: number; n: number; ocr: unknown }[] = [];
+    deck.slides.forEach((s, slide) => {
+      let n = 0;
+      const walk = (els: SlideElement[]) => {
+        for (const e of els) {
+          if (e.kind === 'group') walk(e.children);
+          else if (e.kind === 'pic') {
+            const ocr = deck.assets[e.src]?.ocr;
+            if (ocr) reads.push({ slide, n, ocr });
+            n++;
+          }
+        }
+      };
+      walk(s.shapes);
+    });
+    if (reads.length) {
+      const json = JSON.stringify({ v: 1, pics: reads }).replace(/]]>/g, ']]]]><![CDATA[>');
+      addPartRaw('customXml/novaOcr1.xml', `${XML}<suitenova xmlns="urn:suitenova:ocr:1"><![CDATA[${json}]]></suitenova>`);
+      addPartRaw('customXml/novaOcrProps1.xml', `${XML}<ds:datastoreItem ds:itemID="{7D2A9F40-5C1E-4B83-8E6A-31B0C9D4F7A3}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"><ds:schemaRefs><ds:schemaRef ds:uri="urn:suitenova:ocr:1"/></ds:schemaRefs></ds:datastoreItem>`);
+      addPartRaw('customXml/_rels/novaOcr1.xml.rels', `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${RT}/customXmlProps" Target="novaOcrProps1.xml"/></Relationships>`);
+      presRels.add(`${RT}/customXml`, '../customXml/novaOcr1.xml');
+    }
+  }
+
   // ---- presentation.xml
   const rmap = (presRels as unknown as { items: { id: string; type: string; target: string }[] }).items;
   const ridOf = (type: string, target: string) => rmap.find((r) => r.type === type && r.target === target)!.id;

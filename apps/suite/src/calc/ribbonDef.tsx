@@ -535,6 +535,7 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
     label: 'Datos',
     keytip: 'D',
     groups: [
+      { id: 'getData', label: 'Obtener datos', icon: 'picture', items: [{ kind: 'button', command: 'calc.dataFromPicture', size: 'large', keytip: 'DI' }] },
       {
         id: 'sort',
         label: 'Ordenar',

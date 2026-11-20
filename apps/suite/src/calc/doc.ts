@@ -57,6 +57,7 @@ import { fillSeries } from './series';
 import { MacroRecorder } from '../macros/recorder';
 import { CalcRecorder } from './recorder';
 import { t } from '@suitenova/core-ui';
+import { CalcImageOcr } from './ocr-images';
 
 /** The parts of `r` not covered by `cut` (up to four rectangles). */
 export function subtractRect(r: Rect, cut: Rect): Rect[] {
@@ -134,6 +135,8 @@ export interface FindOptions {
   inFormulas?: boolean;
   allSheets?: boolean;
   backwards?: boolean;
+  /** also the text read from pictures (OCR): found, never replaced */
+  pictures?: boolean;
 }
 
 export class CalcDoc {
@@ -244,6 +247,7 @@ export class CalcDoc {
     this.filePath = path;
     this.dirty = false;
     this.layoutVersion++;
+    this.imageOcr.resetBaseline();
     this.touch();
   }
 
@@ -280,6 +284,45 @@ export class CalcDoc {
   touch(): void {
     this.version++;
     this.listeners.forEach((l) => l());
+    this.imageOcr.schedule();
+  }
+
+  /** The text read from the pictures (OCR): copy it, find it, read again. */
+  readonly imageOcr = new CalcImageOcr(this);
+
+  /** Keeps the reading of a picture (derived data, kept with the picture's content: not an undoable step). */
+  setImageOcr(media: string, ocr: unknown): void {
+    const m = this.wb.media.get(media);
+    if (!m) return;
+    m.ocr = ocr;
+    this.touch();
+  }
+
+  /**
+   * Puts a table of text (from a picture) in the sheet with its top-left cell at the active cell, as if typed (numbers become numbers), in one undo
+   * step; selects what was put. Returns how many cells were written.
+   */
+  insertTable(rows: string[][]): number {
+    const w = Math.max(0, ...rows.map((r) => r.length));
+    if (!rows.length || !w) return 0;
+    const { row, col } = this.sel.active;
+    const rect = { r1: row, c1: col, r2: Math.min(MAX_ROWS - 1, row + rows.length - 1), c2: Math.min(MAX_COLS - 1, col + w - 1) };
+    if (this.blockedByPivot([rect]) || !this.prot.canEdit([rect], this.activeSheetId)) return 0;
+    let n = 0;
+    this.run('Datos desde imagen', () => {
+      const patches: Patch[] = [];
+      rows.forEach((cells, i) =>
+        cells.forEach((text, j) => {
+          if (row + i > rect.r2 || col + j > rect.c2 || text === '') return;
+          patches.push(this.writeTyped(this.activeSheetId, row + i, col + j, text));
+          n++;
+        }),
+      );
+      return patches;
+    });
+    this.view.sel = { ranges: [rect], active: { row, col }, anchor: { row, col } };
+    this.touch();
+    return n;
   }
 
   // ---------------------------------------------------------------------------------- basics
@@ -1825,37 +1868,49 @@ export class CalcDoc {
     };
   }
 
-  /** Select the next cell matching `query`, starting after the active cell. Returns whether one was found. */
+  /**
+   * Select the next cell matching `query`, starting after the active cell (or after the selected picture); with `pictures`, a picture whose read text
+   * matches (OCR) comes in the order too, after the cells of its sheet, and is selected. Returns whether one was found.
+   */
   findNext(query: string, o: FindOptions = {}): boolean {
     if (!query) return false;
     const test = this.matcher(query, o);
     const sheets = o.allSheets ? this.wb.sheets : [this.sheet];
-    const start = sheets.findIndex((s) => s.id === this.activeSheetId);
-    const cur = this.sel.active;
-    const order: { sheet: Sheet; keys: number[] }[] = [];
+    const start = Math.max(0, sheets.findIndex((s) => s.id === this.activeSheetId));
+    const sign = o.backwards ? -1 : 1;
+    const BIG = 1e12;
+    type Cand = { sheet: Sheet; rank: number; row: number; col: number; image?: string };
+    const bySheet: Cand[][] = [];
     for (let i = 0; i < sheets.length; i++) {
-      const sheet = sheets[(start + i + sheets.length) % sheets.length]!;
-      order.push({ sheet, keys: [...sheet.cells.keys()].sort((a, b) => (o.backwards ? b - a : a - b)) });
-    }
-    const here = cellKey(cur.row, cur.col);
-    for (let pass = 0; pass < 2; pass++) {
-      for (let si = 0; si < order.length; si++) {
-        const { sheet, keys } = order[si]!;
-        for (const k of keys) {
-          if (pass === 0 && si === 0 && (o.backwards ? k >= here : k <= here)) continue;
-          if (pass === 1 && si === 0 && (o.backwards ? k < here : k > here)) continue;
-          const row = keyRow(k);
-          const col = keyCol(k);
-          if (isRowHidden(sheet, row) || sheet.hiddenCols.has(col)) continue;
-          if (test(this.cellText(sheet.id, row, col, !!o.inFormulas))) {
-            if (sheet.id !== this.activeSheetId) this.activeSheetId = sheet.id;
-            this.selectCell(row, col);
-            return true;
-          }
-        }
+      const sheet = sheets[(start + i) % sheets.length]!;
+      const list: Cand[] = [];
+      for (const k of sheet.cells.keys()) {
+        const row = keyRow(k);
+        const col = keyCol(k);
+        if (isRowHidden(sheet, row) || sheet.hiddenCols.has(col)) continue;
+        if (test(this.cellText(sheet.id, row, col, !!o.inFormulas))) list.push({ sheet, rank: k, row, col });
       }
+      if (o.pictures) {
+        sheet.images.forEach((im, n) => {
+          const text = (this.wb.media.get(im.media)?.ocr as { text?: unknown } | undefined)?.text;
+          if (typeof text !== 'string') return;
+          if (o.wholeCell ? text.split('\n').some(test) : test(text)) list.push({ sheet, rank: BIG + n, row: 0, col: 0, image: im.id });
+        });
+      }
+      bySheet.push(list.sort((x, y) => sign * (x.rank - y.rank)));
     }
-    return false;
+    if (!bySheet.length) return false;
+    // where the search is now: the active cell, or the selected picture (as a rank in its sheet)
+    const here = this.x.selectedImage ? BIG + Math.max(0, this.sheet.images.findIndex((im) => im.id === this.x.selectedImage)) : cellKey(this.sel.active.row, this.sel.active.col);
+    const after = (c: Cand) => sign * (c.rank - here) > 0;
+    const first = bySheet[0]!;
+    const order = [...first.filter(after), ...bySheet.slice(1).flat(), ...first.filter((c) => !after(c))];
+    const hit = order[0];
+    if (!hit) return false;
+    if (hit.sheet.id !== this.activeSheetId) this.activeSheetId = hit.sheet.id;
+    if (hit.image) this.x.selectObject('image', hit.image);
+    else this.selectCell(hit.row, hit.col);
+    return true;
   }
 
   replaceAll(query: string, replacement: string, o: FindOptions = {}): number {

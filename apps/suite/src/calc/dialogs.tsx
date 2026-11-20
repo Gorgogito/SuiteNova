@@ -6,6 +6,7 @@ import { FONT_NAMES, FONT_SIZES, formatLabel, numberFormats, type CalcUI, type D
 import { CFManagerDialog, CFRuleDialog, CustomFilterDialog, type CFPreset } from './cfDialogs';
 import { FUNCTION_CATEGORIES, FUNCTION_DOCS } from './functionDocs';
 import { Modal, field, focusGridSoon } from './modal';
+import { DataFromPictureDialog, ImageTextDialog } from './dlg-ocr';
 import { ChartFormatDialog } from './dlg-chart';
 import { CalcSpellDialog } from './dlg-spell';
 import { AutoCorrectDialog, DictionaryDialog, ReviewOptionsDialog, defaultFieldLang, getAutoCorrect, setAutoCorrect } from '../spell';
@@ -34,8 +35,9 @@ function FindDialog({ ui, replace, onClose }: { ui: CalcUI; replace: boolean; on
   const [wholeCell, setWholeCell] = useState(false);
   const [inFormulas, setInFormulas] = useState(false);
   const [allSheets, setAllSheets] = useState(false);
+  const [pictures, setPictures] = useState(true);
   const [msg, setMsg] = useState('');
-  const opts = { matchCase, wholeCell, inFormulas, allSheets };
+  const opts = { matchCase, wholeCell, inFormulas, allSheets, pictures };
   return (
     <Modal
       title={replace ? t('Reemplazar') : t('Buscar')}
@@ -73,6 +75,7 @@ function FindDialog({ ui, replace, onClose }: { ui: CalcUI; replace: boolean; on
       <Checkbox label={t('Coincidir mayúsculas y minúsculas')} checked={matchCase} onChange={(_e, v) => setMatchCase(!!v.checked)} />
       <Checkbox label={t('Coincidir con el contenido de toda la celda')} checked={wholeCell} onChange={(_e, v) => setWholeCell(!!v.checked)} />
       <Checkbox label={t('Buscar en fórmulas')} checked={inFormulas} onChange={(_e, v) => setInFormulas(!!v.checked)} />
+      <Checkbox label={t('Buscar también en el texto de las imágenes')} checked={pictures} onChange={(_e, v) => setPictures(!!v.checked)} />
       <Checkbox label={t('En todas las hojas')} checked={allSheets} onChange={(_e, v) => setAllSheets(!!v.checked)} />
       <p role="status" style={{ minHeight: 20, color: 'var(--colorNeutralForeground3)' }}>
         {msg}
@@ -606,6 +609,10 @@ export function DialogHost({ ui, registry, kind, arg, onClose }: { ui: CalcUI; r
       return <DictionaryDialog onClose={close} />;
     case 'autocorrect':
       return <AutoCorrectDialog product="Nova Calc" plain initial={getAutoCorrect()} onSave={setAutoCorrect} onClose={close} />;
+    case 'imageText':
+      return <ImageTextDialog ui={ui} onClose={close} />;
+    case 'dataFromPicture':
+      return <DataFromPictureDialog ui={ui} onClose={close} />;
     case 'find':
       return <FindDialog ui={ui} replace={false} onClose={close} />;
     case 'replace':

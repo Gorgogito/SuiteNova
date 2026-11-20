@@ -16,12 +16,14 @@ import { chartFormatCommands } from '../chart/commands';
 import { updateElement, type SlideElement } from '@suitenova/slides-core';
 import { designCommands } from './commands-design';
 import { pictureCommands2 } from './commands-picture2';
+import { ocrCommands } from './commands-ocr';
 import { remakePicture } from './pichost';
 import { reviewCommands2 } from './commands-review2';
 import { effectsOf, moveEffect, removeEffect, transitionToAll } from './animctl';
 
 export type SlidesDialog =
   | 'about'
+  | 'imageText'
   | 'shortcuts'
   | 'slideSize'
   | 'hyperlink'
@@ -536,6 +538,7 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
   defs.push(...smartArtCommands(ui));
   defs.push(...designCommands(ui));
   defs.push(...pictureCommands2(ui));
+  defs.push(...ocrCommands(ui));
   defs.push(...reviewCommands2(ui));
   return defs;
 }

@@ -928,6 +928,17 @@ describe('gráficos de otro programa: se reescriben con lo que Nova no entiende'
     expect(xml).toContain('editAs="absolute"');
     expect(xml).toContain('prst="roundRect"');
   });
+  it('the text read from a picture (OCR) is kept with the picture in the file and comes back, and a book without readings adds nothing', async () => {
+    const { w, id } = book();
+    const key = w.addMedia('image/png', new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7, 7, 7, 7]));
+    w.editObjects(id, (s) => void s.images.push({ id: 'o', media: key, x: 10, y: 10, width: 100, height: 50 }));
+    expect((await JSZip.loadAsync((await roundTrip(w)).bytes)).file('customXml/item1.xml')).toBeNull();
+    const ocr = { text: 'Factura 4821', lang: 'spa', at: 2, size: [10, 10], lines: [[1, 1, 8, 4, [['Factura', 1, 1, 5, 4, 90]]]] };
+    w.media.get(key)!.ocr = ocr;
+    const { workbook } = await roundTrip(w);
+    const back = workbook.sheets[0]!.images[0]!;
+    expect(workbook.media.get(back.media)!.ocr).toEqual(ocr);
+  });
   it('anchors a turned picture by the box it covers, as Excel does, and reads its own box back', async () => {
     const { w, id } = book();
     const key = w.addMedia('image/png', new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]));

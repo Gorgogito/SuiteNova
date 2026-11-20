@@ -72,6 +72,7 @@ import { writeMath } from '../math/clipboard';
 import type { EditorView } from 'prosemirror-view';
 import { SlidesRuntime } from './macros';
 import { AssetUrls } from './render/assets';
+import { SlidesImageOcr } from './ocr-images';
 
 export type SlidesView = 'normal' | 'sorter' | 'reading' | 'outline' | 'master' | 'notes';
 export type Tool = { kind: 'select' } | { kind: 'text' } | { kind: 'shape'; prst: string } | { kind: 'freeform'; mode: 'polygon' | 'curve' | 'scribble' } | { kind: 'line'; prst: string };
@@ -231,6 +232,18 @@ export class SlidesCtl {
   touch(): void {
     this.version++;
     this.listeners.forEach((l) => l());
+    this.imageOcr.schedule();
+  }
+
+  /** The text read from the pictures (OCR): copy it, find it, read again. */
+  readonly imageOcr = new SlidesImageOcr(this);
+
+  /** Keeps the reading of a picture's asset (derived data: not an undoable step). */
+  setAssetOcr(id: string, ocr: unknown): void {
+    const a = this.real.assets[id];
+    if (!a) return;
+    this.real = { ...this.real, assets: { ...this.real.assets, [id]: { ...a, ocr } } };
+    this.touch();
   }
   on(name: string, fn: (...a: never[]) => void): () => void {
     const set = this.handlers.get(name) ?? new Set();
@@ -892,6 +905,7 @@ export class SlidesCtl {
     this.warnings = warnings;
     this.macros = macros;
     applyOpenPolicy(this, macros, path);
+    this.imageOcr.resetBaseline();
     this.touch();
   }
   newDoc(): void {

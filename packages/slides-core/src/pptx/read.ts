@@ -450,6 +450,32 @@ export async function readPptx(data: Uint8Array): Promise<ReadResult> {
       warn('No se pudieron leer los originales de las imágenes editadas y se ignoraron (la imagen se ve como se guardó).');
     }
   }
+  // the text read from the pictures (OCR) this suite stored
+  for (const path of all) {
+    const xml = bytesCache.get(path) ? new TextDecoder('utf-8').decode(bytesCache.get(path)!) : '';
+    if (!/^customXml\/[^/]+\.xml$/i.test(path) || !xml.includes('urn:suitenova:ocr:1')) continue;
+    const json = [...xml.matchAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g)].map((m) => m[1]).join('');
+    if (!json) continue;
+    try {
+      const part = JSON.parse(json) as { pics?: { slide: number; n: number; ocr: unknown }[] };
+      for (const it of part.pics ?? []) {
+        const slide = deck.slides[it.slide];
+        if (!slide || !it.ocr || typeof (it.ocr as { text?: unknown }).text !== 'string') continue;
+        const pics: PicEl[] = [];
+        const walk = (els: SlideElement[]) => {
+          for (const e of els) {
+            if (e.kind === 'group') walk(e.children);
+            else if (e.kind === 'pic') pics.push(e);
+          }
+        };
+        walk(slide.shapes);
+        const a = pics[it.n] && deck.assets[pics[it.n]!.src];
+        if (a && !a.ocr) a.ocr = it.ocr;
+      }
+    } catch {
+      /* the pictures are read again when someone asks */
+    }
+  }
   return { deck, warnings, macros };
 }
 

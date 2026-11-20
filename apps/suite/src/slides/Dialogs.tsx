@@ -1,3 +1,4 @@
+import { ImageTextDialog } from './dlg-ocr';
 import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
@@ -113,6 +114,7 @@ export function Dialogs({ ui, dialog, onClose }: { ui: SlidesUI; dialog: { kind:
   if (kind === 'slideSize') return <SlideSizeDialog ui={ui} onClose={onClose} />;
   if (kind === 'setupShow') return <SetupShowDialog ui={ui} onClose={onClose} />;
   if (kind === 'customShows') return <CustomShowsDialog ui={ui} onClose={onClose} />;
+  if (kind === 'imageText') return <ImageTextDialog ui={ui} onClose={onClose} />;
   if (kind === 'findReplace') return <FindReplaceDialog ui={ui} onClose={onClose} />;
   if (kind === 'sections') return <SectionsDialog ui={ui} onClose={onClose} />;
   if (kind === 'spelling') return <SpellingDialog ui={ui} onClose={onClose} />;
