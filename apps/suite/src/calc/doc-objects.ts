@@ -1,4 +1,7 @@
 import { wordArtStyle, type WordArtFx } from '@suitenova/wordart-core';
+import { addThread, neighbor, newId, sortThreads, type Thread } from '@suitenova/comment-core';
+import { getUser } from '../comments/identity';
+import { byCell, fromCore, toCore, type CellAnchor } from './comments-ops';
 import { newParts, partsChange, partsReflow, partsSetText, type SmartArtParts } from '@suitenova/smartart-core';
 import { ptSizeOf, smartArtSvgBytes } from './smartart';
 import {
@@ -23,6 +26,7 @@ import {
   validTableName,
   validateEntry,
   type CellComment,
+  type CellThread,
   type DataValidation,
   type Hyperlink,
   type PageSetup,
@@ -386,6 +390,87 @@ export class DocObjects {
     const cur = row * MAX_COLS + col;
     const next = dir > 0 ? (list.find((c) => here(c) > cur) ?? list[0]!) : ([...list].reverse().find((c) => here(c) < cur) ?? list[list.length - 1]!);
     this.d.selectCell(next.row, next.col);
+    return true;
+  }
+
+  // ------------------------------------------------------------------------------------------------ conversations (comments with replies)
+  /** The comments pane is open. */
+  commentsPane = false;
+  /** The message being written or edited in the pane. */
+  editingComment: string | null = null;
+
+  threadAtActive(): CellThread | undefined {
+    const { row, col } = this.d.sel.active;
+    return this.sheet.threads.find((t) => t.row === row && t.col === col);
+  }
+
+  /** The conversations of the sheet in reading order (as shared threads). */
+  threadList(): Thread<CellAnchor>[] {
+    return sortThreads(toCore(this.sheet.threads), byCell);
+  }
+
+  /** Change the conversations of the sheet with a shared operation (one step of undo). */
+  changeThreads(label: string, f: (l: Thread<CellAnchor>[]) => Thread<CellAnchor>[]): void {
+    if (!this.d.prot.allowed('objects')) return;
+    this.d.commitIfEditing();
+    this.d.run(label, () =>
+      this.wb.editObjects(this.id, (s) => {
+        s.threads = fromCore(f(toCore(s.threads)));
+      }),
+    );
+  }
+
+  /** «Nuevo comentario»: an empty conversation in the active cell, written in the pane (sent empty, it is dropped). */
+  newThread(): void {
+    const { row, col } = this.d.sel.active;
+    if (this.threadAtActive()) {
+      this.commentsPane = true;
+      return;
+    }
+    if (this.commentAtActive()) return;
+    const me = getUser();
+    const id = newId('c');
+    this.changeThreads('Nuevo comentario', (l) => addThread(l, { id, anchor: { row, col }, author: me, text: '' }).list);
+    this.editingComment = id;
+    this.commentsPane = true;
+  }
+
+  /** A note becomes a conversation (its text is the comment) and the other way round, as in Excel. */
+  convertToThread(): void {
+    const n = this.commentAtActive();
+    if (!n || !this.d.prot.allowed('objects')) return;
+    this.d.commitIfEditing();
+    this.d.run('Convertir en comentario', () =>
+      this.wb.editObjects(this.id, (s) => {
+        s.comments = s.comments.filter((c) => !(c.row === n.row && c.col === n.col));
+        const id = newId('c');
+        s.threads.push({ id, row: n.row, col: n.col, messages: [{ id, author: n.author || 'Autor', date: new Date().toISOString(), text: n.text }] });
+      }),
+    );
+  }
+
+  convertToNote(): void {
+    const t = this.threadAtActive();
+    if (!t || !this.d.prot.allowed('objects')) return;
+    this.d.commitIfEditing();
+    // the replies go under the comment, as in Excel
+    const [first, ...rest] = t.messages;
+    const text = [first?.text ?? '', ...rest.map((m) => `↳ ${m.author}: ${m.text}`)].join('\n');
+    this.d.run('Convertir en nota', () =>
+      this.wb.editObjects(this.id, (s) => {
+        s.threads = s.threads.filter((x) => x.id !== t.id);
+        s.comments.push({ row: t.row, col: t.col, author: first?.author ?? 'Autor', text });
+      }),
+    );
+  }
+
+  /** Move to the next (or previous) conversation of the sheet, in reading order. */
+  goToThread(dir: 1 | -1): boolean {
+    const list = this.threadList();
+    if (!list.length) return false;
+    const cur = this.threadAtActive();
+    const next = neighbor(list, cur?.id, dir) ?? list[0]!;
+    this.d.selectCell(next.anchor.row, next.anchor.col);
     return true;
   }
 

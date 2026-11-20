@@ -828,6 +828,10 @@ function drawPane(o: DrawOptions, g: PaneGeometry, mergeOf: Map<number, Rect>, m
     if (c.row < g.r1 || c.row > g.r2 || c.col < g.c1 || c.col > g.c2) continue;
     drawCommentMarker(ctx, px(c.col + 1), py(c.row), z);
   }
+  for (const c of sheet.threads ?? []) {
+    if (c.row < g.r1 || c.row > g.r2 || c.col < g.c1 || c.col > g.c2) continue;
+    drawCommentMarker(ctx, px(c.col + 1), py(c.row), z, c.resolved ? '#8a8a8a' : '#7a3fc4');
+  }
 
   // values that break their validation rule
   if (doc.x.circleInvalid) {

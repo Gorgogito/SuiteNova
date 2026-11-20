@@ -24,5 +24,21 @@ const bytes = await page.evaluate(async () => {
   return await window.__novaSlides.write();
 });
 fs.writeFileSync(path.join(out, 'comentarios.pptx'), Buffer.from(bytes));
+const xb = await page.evaluate(async () => {
+  const { Workbook } = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/calc-engine/src/index.ts');
+  const { writeXlsx } = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/xlsx-io/src/index.ts');
+  const w = new Workbook();
+  w.editObjects(w.sheets[0].id, (s) => {
+    s.threads.push({ id: 't1', row: 1, col: 1, resolved: true, messages: [
+      { id: 'm1', author: 'Ana María', date: '2026-11-20T10:00:00.000Z', text: 'Revisar este dato' },
+      { id: 'm2', author: 'Luis Torres', date: '2026-11-20T10:05:00.000Z', text: 'De acuerdo @Ana María' },
+    ] });
+    s.threads.push({ id: 't2', row: 5, col: 2, messages: [{ id: 'm3', author: 'Luis Torres', date: '2026-11-20T11:00:00.000Z', text: 'Otro asunto' }] });
+    s.comments.push({ row: 3, col: 3, author: 'Pablo', text: 'Una nota clásica' });
+  });
+  const data = await writeXlsx(w);
+  return [...data];
+});
+fs.writeFileSync(path.join(out, 'comentarios.xlsx'), Buffer.from(xb));
 await browser.close();
 console.log('ok');

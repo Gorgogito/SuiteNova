@@ -106,6 +106,18 @@ export function reviewTab(): RibbonTab {
         ],
       },
       {
+        id: 'comments',
+        label: 'Comentarios',
+        icon: 'comment',
+        items: [
+          { kind: 'button', command: 'calc.comment.new', size: 'large', keytip: 'CN' },
+          { kind: 'button', command: 'calc.comment.delete', size: 'small', iconOnly: true, keytip: 'CE' },
+          { kind: 'button', command: 'calc.comment.prev', size: 'small', iconOnly: true, keytip: 'CA' },
+          { kind: 'button', command: 'calc.comment.next', size: 'small', iconOnly: true, keytip: 'CS' },
+          { kind: 'button', command: 'calc.comment.pane', size: 'large', keytip: 'CM' },
+        ],
+      },
+      {
         id: 'notes',
         label: 'Notas',
         icon: 'note',
@@ -114,6 +126,7 @@ export function reviewTab(): RibbonTab {
           { kind: 'button', command: 'calc.note.delete', size: 'small', keytip: 'E' },
           { kind: 'button', command: 'calc.note.prev', size: 'small', keytip: 'A' },
           { kind: 'button', command: 'calc.note.next', size: 'small', keytip: 'S' },
+          { kind: 'dropdown', id: 'convertNotes', label: 'Convertir', icon: 'comment', size: 'small', keytip: 'V', entries: [cmd('calc.note.toComment'), cmd('calc.comment.toNote')] },
           {
             kind: 'dropdown',
             id: 'showNotes',

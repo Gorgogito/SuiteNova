@@ -32,6 +32,7 @@ import { calcTabs } from './ribbonDef';
 import { SheetTabs } from './SheetTabs';
 import { ListMenu } from './ObjectLayer';
 import { PivotPane } from './dlg-pivot';
+import { CommentsPanel } from './CommentsPanel';
 import { imageSize, pickImage, readImageFile } from './imagePick';
 import './calc.css';
 import './calc-objects.css';
@@ -409,6 +410,7 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
             />
           </div>
           {doc.x.pivotPane && <PivotPane ui={ui} onDialog={(kind, arg) => ui.openDialog(kind, arg)} />}
+          {doc.x.commentsPane && <CommentsPanel ui={ui} />}
         </div>
         <SheetTabs doc={doc} />
       </div>

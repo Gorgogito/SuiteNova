@@ -394,9 +394,10 @@ export function activeListValidation(doc: CalcDoc): boolean {
   return listChoices(doc.wb, doc.sheet, v, row, col) !== null;
 }
 
-export function drawCommentMarker(ctx: CanvasRenderingContext2D, right: number, top: number, zoom: number): void {
+/** The mark of a note is red; the one of a conversation (comment with replies) is purple, as in Excel. */
+export function drawCommentMarker(ctx: CanvasRenderingContext2D, right: number, top: number, zoom: number, color = '#d13438'): void {
   const s = 7 * zoom;
-  ctx.fillStyle = '#d13438';
+  ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(right - s, top);
   ctx.lineTo(right, top);

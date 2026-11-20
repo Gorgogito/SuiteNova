@@ -409,3 +409,29 @@
   pointer-events: none;
   z-index: 6;
 }
+
+/* ---- comments pane (conversations) ---- */
+.calc-comments {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 300px;
+  min-height: 0;
+  border-left: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground2);
+  font-size: 12.5px;
+}
+.calc-comments > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.calc-comments > header button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font-size: 16px;
+}

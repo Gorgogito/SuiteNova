@@ -8,6 +8,7 @@ import {
   normRect,
   parseA1,
   type CellComment,
+  type CellThread,
   type DataValidation,
   type Hyperlink,
   type PageSetup,
@@ -173,7 +174,45 @@ export function parseHyperlinks(node: XNode, rels: Map<string, string>): Hyperli
   return out;
 }
 
-// ------------------------------------------------------------------------------------------------ comments (notes)
+// ------------------------------------------------------------------------------------------------ comments (notes and conversations)
+export const NS_TC = 'http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments';
+export const REL_THREADED = 'http://schemas.microsoft.com/office/2017/10/relationships/threadedComment';
+export const REL_PERSON = 'http://schemas.microsoft.com/office/2017/10/relationships/person';
+const TC_NOTICE = 'Your version of Excel allows you to read this threaded comment; however, any edits to it will get removed if the file is opened in a newer version of Excel. Learn more: https://go.microsoft.com/fwlink/?linkid=870924';
+
+const isGuid = (s: string): boolean => /^[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$/.test(s);
+/** A GUID made from a text: one that already is a GUID stays, the same text gives the same GUID otherwise. */
+export function guidOf(text: string): string {
+  const t = text.replace(/[{}]/g, '');
+  if (isGuid(t)) return t.toUpperCase();
+  let out = '';
+  for (let k = 0; k < 4; k++) {
+    let h = 0x811c9dc5 ^ (k * 0x9e3779b1);
+    for (let n = 0; n < text.length; n++) h = Math.imul(h ^ text.charCodeAt(n), 0x01000193) >>> 0;
+    out += h.toString(16).toUpperCase().padStart(8, '0');
+  }
+  return `${out.slice(0, 8)}-${out.slice(8, 12)}-4${out.slice(13, 16)}-8${out.slice(17, 20)}-${out.slice(20, 32)}`;
+}
+
+/** Notes, and the stand-in note Excel keeps for every conversation (the text older versions of Excel show). */
+interface NoteLike {
+  row: number;
+  col: number;
+  author: string;
+  text: string;
+  visible?: boolean;
+  width?: number;
+  height?: number;
+}
+function notesOf(sheet: Sheet): NoteLike[] {
+  const stand = (sheet.threads ?? []).map((t): NoteLike => {
+    const [first, ...rest] = t.messages;
+    const text = `[Threaded comment]\n\n${TC_NOTICE}\n\nComment:\n    ${first?.text ?? ''}${rest.map((m) => `\nReply:\n    ${m.text}`).join('')}`;
+    return { row: t.row, col: t.col, author: `tc={${guidOf(t.id)}}`, text };
+  });
+  return [...sheet.comments, ...stand].sort((a, b) => a.row - b.row || a.col - b.col);
+}
+
 export function commentsXml(sheet: Sheet): string {
   const authors: string[] = [];
   const idx = (a: string) => {
@@ -181,17 +220,35 @@ export function commentsXml(sheet: Sheet): string {
     if (i < 0) i = authors.push(a) - 1;
     return i;
   };
-  const list = [...sheet.comments]
-    .sort((a, b) => a.row - b.row || a.col - b.col)
+  const list = notesOf(sheet)
     .map((c) => `<comment ref="${formatA1(c.row, c.col)}" authorId="${idx(c.author || 'Autor')}"><text><r><rPr><sz val="9"/><color indexed="81"/><rFont val="Tahoma"/><family val="2"/></rPr><t xml:space="preserve">${escapeXml(c.text)}</t></r></text></comment>`)
     .join('');
   return `${HEAD}<comments xmlns="${NS_MAIN}"><authors>${authors.map((a) => `<author>${escapeXml(a)}</author>`).join('')}</authors><commentList>${list}</commentList></comments>`;
 }
 
+/** The conversations of a sheet (`threadedComment`): each message with its person, date and, for answers, the comment it answers. */
+export function threadedXml(sheet: Sheet, personId: (name: string) => string): string {
+  const parts = (sheet.threads ?? []).flatMap((t) => {
+    const root = guidOf(t.id);
+    return t.messages.map((m, i) => {
+      const id = i === 0 ? root : guidOf(m.id);
+      const a = [`ref="${formatA1(t.row, t.col)}"`, `dT="${new Date(m.date || Date.now()).toISOString().replace('Z', '').replace(/(\.\d\d)\d$/, '$1')}"`, `personId="{${personId(m.author)}}"`, `id="{${id}}"`];
+      if (i > 0) a.push(`parentId="{${root}}"`);
+      else if (t.resolved) a.push('done="1"');
+      return `<threadedComment ${a.join(' ')}><text>${escapeXml(m.text)}</text></threadedComment>`;
+    });
+  });
+  return `${HEAD}<ThreadedComments xmlns="${NS_TC}" xmlns:x="${NS_MAIN}">${parts.join('')}</ThreadedComments>`;
+}
+
+/** The people of the workbook (`personList`). */
+export function personsXml(names: readonly string[], personId: (name: string) => string): string {
+  return `${HEAD}<personList xmlns="${NS_TC}" xmlns:x="${NS_MAIN}">${names.map((n) => `<person displayName="${escapeXml(n)}" id="{${personId(n)}}" userId="${escapeXml(n)}" providerId="None"/>`).join('')}</personList>`;
+}
+
 /** The legacy VML drawing Excel needs to show notes. */
 export function vmlXml(sheet: Sheet): string {
-  const shapes = [...sheet.comments]
-    .sort((a, b) => a.row - b.row || a.col - b.col)
+  const shapes = notesOf(sheet)
     .map((c, i) => {
       const w = Math.max(60, c.width ?? 160);
       const h = Math.max(30, c.height ?? 80);
@@ -231,21 +288,29 @@ export function parseComments(doc: XNode): CellComment[] {
   return out;
 }
 
-/** Threaded comments: one conversation per cell, shown as a note with the replies below. */
-export function parseThreaded(doc: XNode, persons: Map<string, string>): Map<string, { author: string; text: string }> {
-  const byRef = new Map<string, { author: string; text: string }[]>();
-  for (const t of asArray(doc?.ThreadedComments?.threadedComment)) {
-    const ref = attr(t, 'ref');
-    if (!ref) continue;
-    const list = byRef.get(ref) ?? [];
-    list.push({ author: persons.get(attr(t, 'personId') ?? '') ?? '', text: textOf(t.text) });
-    byRef.set(ref, list);
+/** Conversations of a sheet: one per cell, the first message is the comment. Dates in the file are UTC without a «Z». */
+export function parseThreaded(doc: XNode, persons: Map<string, string>): CellThread[] {
+  const byRoot = new Map<string, CellThread>();
+  const items = asArray(doc?.ThreadedComments?.threadedComment) as XNode[];
+  const utc = (iso: string | undefined): string => {
+    const d = iso ? new Date(/(Z|[+-]\d\d:?\d\d)$/i.test(iso) ? iso : `${iso}Z`) : null;
+    return d && !Number.isNaN(d.getTime()) ? d.toISOString() : new Date(0).toISOString();
+  };
+  // comments first, then the answers, so an answer always finds its comment (the file lists them as it likes)
+  for (const t of items.filter((x) => !attr(x, 'parentId'))) {
+    const p = parseA1(attr(t, 'ref') ?? '');
+    if (!p) continue;
+    const id = (attr(t, 'id') ?? '').replace(/[{}]/g, '');
+    const done = attr(t, 'done');
+    byRoot.set(id, { id, row: p.row, col: p.col, messages: [{ id, author: persons.get(attr(t, 'personId') ?? '') ?? '', date: utc(attr(t, 'dT')), text: textOf(t.text) }], ...(done === '1' || done === 'true' ? { resolved: true } : {}) });
   }
-  const out = new Map<string, { author: string; text: string }>();
-  for (const [ref, list] of byRef) {
-    out.set(ref, { author: list[0]!.author, text: list.length === 1 ? list[0]!.text : list.map((x, i) => (i === 0 ? x.text : `↳ ${x.author}: ${x.text}`)).join('\n') });
+  for (const t of items.filter((x) => attr(x, 'parentId'))) {
+    const root = byRoot.get((attr(t, 'parentId') ?? '').replace(/[{}]/g, ''));
+    if (!root) continue;
+    root.messages.push({ id: (attr(t, 'id') ?? '').replace(/[{}]/g, ''), author: persons.get(attr(t, 'personId') ?? '') ?? '', date: utc(attr(t, 'dT')), text: textOf(t.text) });
   }
-  return out;
+  for (const t of byRoot.values()) t.messages = [t.messages[0]!, ...t.messages.slice(1).sort((a, b) => a.date.localeCompare(b.date))];
+  return [...byRoot.values()];
 }
 
 // ------------------------------------------------------------------------------------------------ tables

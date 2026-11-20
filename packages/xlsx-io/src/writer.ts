@@ -18,7 +18,7 @@ import JSZip from 'jszip';
 import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, REL_CHARTEX, REL_CHARTEX_COLORS, REL_CHARTEX_STYLE, chartExColorsXml, chartExStyleXml, chartExXml, chartXml, dmlParser, isExType, parseChart, parseChartEx, rewriteChart } from '@suitenova/chart-core';
 import { drawingXml, type DrawingItem } from './charts-io';
 import { PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel } from '@suitenova/smartart-core';
-import { commentsXml, hyperlinksXml, pageXml, printNames, sparklinesExtXml, tableXml, validationsXml, vmlXml } from './objects-io';
+import { commentsXml, guidOf, hyperlinksXml, pageXml, personsXml, printNames, REL_PERSON, REL_THREADED, sparklinesExtXml, tableXml, threadedXml, validationsXml, vmlXml } from './objects-io';
 import { toFileFormula } from './fileformula';
 import { quoteSheetName } from './sheetname';
 import { buildSuitePart } from './suite-part';
@@ -374,6 +374,10 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
   let diagramCount = 0;
   let chartCount = 0;
   let commentCount = 0;
+  let threadedCount = 0;
+  // the people who wrote in conversations, one id each for the whole workbook
+  const people = [...new Set(wb.sheets.flatMap((sh) => (sh.threads ?? []).flatMap((t) => t.messages.map((m) => m.author || 'Autor'))))];
+  const personId = (name: string): string => guidOf(`persona:${name || 'Autor'}`);
   let tableCount = 0;
   let mediaCount = 0;
   const mediaFile = new Map<string, string>();
@@ -493,7 +497,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
     const drawingRId = rels.length ? rels[rels.length - 1]!.id : undefined;
 
     let legacyRId: string | undefined;
-    if (sheet.comments.length) {
+    if (sheet.comments.length || (sheet.threads ?? []).length) {
       const k = ++commentCount;
       put(`xl/comments${k}.xml`, commentsXml(sheet));
       put(`xl/drawings/vmlDrawing${k}.vml`, vmlXml(sheet));
@@ -501,6 +505,12 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
       rels.push({ id: nextId(), type: `${NS_REL}/vmlDrawing`, target: `../drawings/vmlDrawing${k}.vml` });
       legacyRId = rels[rels.length - 1]!.id;
       rels.push({ id: nextId(), type: `${NS_REL}/comments`, target: `../comments${k}.xml` });
+      if ((sheet.threads ?? []).length) {
+        const q = ++threadedCount;
+        put(`xl/threadedComments/threadedComment${q}.xml`, threadedXml(sheet, personId));
+        types.push(`<Override PartName="/xl/threadedComments/threadedComment${q}.xml" ContentType="application/vnd.ms-excel.threadedcomments+xml"/>`);
+        rels.push({ id: nextId(), type: REL_THREADED, target: `../threadedComments/threadedComment${q}.xml` });
+      }
     }
 
     const tableRIds: string[] = [];
@@ -553,6 +563,11 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
   const wbRels = sheetFiles.map((_s, i) => ({ id: `rId${i + 1}`, type: `${NS_REL}/worksheet`, target: `worksheets/sheet${i + 1}.xml` }));
   wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/styles`, target: 'styles.xml' });
   wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/sharedStrings`, target: 'sharedStrings.xml' });
+  if (people.length) {
+    put('xl/persons/person.xml', personsXml(people, personId));
+    types.push('<Override PartName="/xl/persons/person.xml" ContentType="application/vnd.ms-excel.person+xml"/>');
+    wbRels.push({ id: `rId${++relId}`, type: REL_PERSON, target: 'persons/person.xml' });
+  }
   if (st.usesDynamicArrays) wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/sheetMetadata`, target: 'metadata.xml' });
   if (pictureOrig.size) {
     const index: Record<string, { file: string; edits: unknown }> = {};

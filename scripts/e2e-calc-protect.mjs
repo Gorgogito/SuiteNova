@@ -9,7 +9,7 @@ const shotsDir = process.argv.includes('--shots') ? process.argv[process.argv.in
 if (shotsDir) fs.mkdirSync(shotsDir, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] });
-const ctx = await browser.newContext({ viewport: { width: 1400, height: 860 } });
+const ctx = await browser.newContext({ viewport: { width: 1650, height: 860 } });
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));

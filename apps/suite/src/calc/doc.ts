@@ -514,6 +514,14 @@ export class CalcDoc {
     if (patches.some((p) => p.some((o) => o.k !== 'cell'))) this.layoutVersion++;
   }
 
+  /** The last two changes become one step of undo (an empty comment and the text written in it). */
+  mergeLastUndo(): void {
+    const b = this.undoStack.pop();
+    const a = this.undoStack.pop();
+    if (a && b) this.undoStack.push({ label: a.label, patches: [...a.patches, ...b.patches], viewBefore: a.viewBefore, viewAfter: b.viewAfter });
+    else if (b) this.undoStack.push(b);
+  }
+
   get canUndo(): boolean {
     return this.undoStack.length > 0;
   }

@@ -14,6 +14,7 @@ import {
   imageAnchors,
   reanchorImages,
   type CellComment,
+  type CellThread,
   type DataValidation,
   type Hyperlink,
   type MediaItem,
@@ -76,6 +77,8 @@ export interface Sheet {
   validations: DataValidation[];
   hyperlinks: Hyperlink[];
   comments: CellComment[];
+  /** Comments with replies (modern comments). */
+  threads: CellThread[];
   images: SheetImage[];
   shapes: SheetShape[];
   tables: TableDef[];
@@ -94,6 +97,7 @@ export interface ObjectsSnap {
   validations: DataValidation[];
   hyperlinks: Hyperlink[];
   comments: CellComment[];
+  threads?: CellThread[];
   images: SheetImage[];
   shapes: SheetShape[];
   tables: TableDef[];
@@ -109,6 +113,7 @@ export function captureObjects(s: Sheet): ObjectsSnap {
     validations: s.validations,
     hyperlinks: s.hyperlinks,
     comments: s.comments,
+    threads: s.threads,
     images: s.images,
     shapes: s.shapes,
     tables: s.tables,
@@ -125,6 +130,7 @@ export function applyObjects(s: Sheet, o: ObjectsSnap): void {
   s.validations = c.validations;
   s.hyperlinks = c.hyperlinks;
   s.comments = c.comments;
+  s.threads = c.threads ?? [];
   s.images = c.images;
   s.shapes = c.shapes ?? [];
   s.tables = c.tables;
@@ -272,6 +278,7 @@ export class Workbook implements EvalHost {
       validations: [],
       hyperlinks: [],
       comments: [],
+      threads: [],
       images: [],
       shapes: [],
       tables: [],

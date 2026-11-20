@@ -11,3 +11,12 @@ foreach ($s in $pr.Slides) {
   }
 }
 $pr.Close(); $p.Quit()
+
+# Excel: las notas y los comentarios encadenados de comentarios.xlsx
+$x = New-Object -ComObject Excel.Application; $x.Visible = $false; $x.DisplayAlerts = $false
+$wb = $x.Workbooks.Open("$Dir\comentarios.xlsx", 0, $true)
+$ws = $wb.Worksheets(1)
+"Excel: $($ws.Comments.Count) notas (con el marcador de cada conversación)"
+foreach ($c in $ws.Comments) { "  $($c.Parent.Address($false,$false)) [$($c.Author)]: '$(($c.Text() -replace "`r|`n", ' | ').Substring(0, [Math]::Min(120, $c.Text().Length)))'" }
+try { "Excel: $($ws.CommentsThreaded.Count) comentarios encadenados"; foreach ($t in $ws.CommentsThreaded) { "  $($t.Parent.Address($false,$false)) [$($t.Author.Name)] '$($t.Text())' respuestas=$($t.Replies.Count) resuelto=$($t.Resolved)" } } catch { "Excel: sin modelo de objetos de comentarios encadenados ($($_.Exception.Message))" }
+$wb.Close($false); $x.Quit()

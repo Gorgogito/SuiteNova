@@ -33,8 +33,18 @@ export function objectCommands(ui: CalcUI): CommandDef[] {
   } });
   add({ id: 'calc.link.remove', label: 'Quitar hipervínculo', icon: 'unlink', enabled: () => !editing() && !!x.hyperlinkAtActive(), run: () => x.removeHyperlink() });
 
+  // ---- comments (conversations) and the conversion between them and notes
+  const thread = () => x.threadAtActive();
+  add({ id: 'calc.comment.new', label: 'Nuevo comentario', icon: 'commentAdd', description: 'Añade un comentario con respuestas a la celda activa (para una nota sin respuestas, use «Nueva nota»).', enabled: () => !editing() && !x.commentAtActive(), run: () => x.newThread() });
+  add({ id: 'calc.comment.delete', label: 'Eliminar comentario', icon: 'trash', enabled: () => !editing() && !!thread(), run: () => { const t = thread(); if (t) x.changeThreads('Eliminar el comentario', (l) => l.filter((q) => q.id !== t.id)); } });
+  add({ id: 'calc.comment.prev', label: 'Comentario anterior', icon: 'prev', enabled: () => d.sheet.threads.length > 0, run: () => void x.goToThread(-1) });
+  add({ id: 'calc.comment.next', label: 'Comentario siguiente', icon: 'next', enabled: () => d.sheet.threads.length > 0, run: () => void x.goToThread(1) });
+  add({ id: 'calc.comment.pane', label: 'Mostrar comentarios', icon: 'comment', checked: () => x.commentsPane, run: () => { x.commentsPane = !x.commentsPane; d.touch(); } });
+  add({ id: 'calc.comment.toNote', label: 'Convertir en nota', icon: 'note', description: 'Convierte el comentario en una nota: las respuestas pasan al texto.', enabled: () => !editing() && !!thread(), run: () => x.convertToNote() });
+  add({ id: 'calc.note.toComment', label: 'Convertir en comentario', icon: 'comment', description: 'Convierte la nota en un comentario con respuestas.', enabled: () => !editing() && !!x.commentAtActive(), run: () => x.convertToThread() });
+
   // ---- notes
-  add({ id: 'calc.note.new', label: 'Nueva nota', icon: 'noteAdd', shortcut: 'Shift+F2', enabled: () => !editing(), run: () => ui.openDialog('note') });
+  add({ id: 'calc.note.new', label: 'Nueva nota', icon: 'noteAdd', shortcut: 'Shift+F2', enabled: () => !editing() && !x.threadAtActive(), run: () => ui.openDialog('note') });
   add({ id: 'calc.note.delete', label: 'Eliminar nota', icon: 'noteOff', enabled: () => !editing() && !!x.commentAtActive(), run: () => x.deleteComments() });
   add({ id: 'calc.note.toggle', label: 'Mostrar u ocultar nota', icon: 'note', enabled: () => !!x.commentAtActive(), checked: () => !!x.commentAtActive()?.visible, run: () => x.toggleCommentVisible(d.sel.active.row, d.sel.active.col) });
   add({ id: 'calc.note.showAll', label: 'Mostrar todas las notas', icon: 'note', enabled: () => d.sheet.comments.length > 0, run: () => x.setAllCommentsVisible(true) });

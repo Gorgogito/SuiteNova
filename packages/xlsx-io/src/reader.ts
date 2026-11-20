@@ -396,7 +396,7 @@ async function loadSheetParts(
   read: Reader,
   zip: JSZip,
   persons: Map<string, string>,
-  warnings: string[],
+  _warnings: string[],
   tableCounter: { n: number },
 ): Promise<void> {
   const rels = await rawRelsOf(read, sheetPart);
@@ -405,18 +405,20 @@ async function loadSheetParts(
     for (const [id, r] of rels) if (r.external) external.set(id, r.target);
     sheet.hyperlinks.push(...parseHyperlinks(ws.hyperlinks, external));
   }
-  // notes, then conversations (threaded comments) replace the placeholder text Excel writes for them
+  // notes and conversations (threaded comments). Excel keeps a stand-in note for each conversation (author «tc={id}») for older versions: it is
+  // not a note of the person, so it is dropped when the conversation is there
   let notes: ReturnType<typeof parseComments> = [];
-  let threaded = new Map<string, { author: string; text: string }>();
+  let threads: ReturnType<typeof parseThreaded> = [];
   for (const r of rels.values()) {
     if (r.type.endsWith('/comments')) notes = parseComments(await read(r.path));
-    else if (r.type.endsWith('/threadedComment')) threaded = parseThreaded(await read(r.path), persons);
+    else if (r.type.endsWith('/threadedComment')) threads = parseThreaded(await read(r.path), persons);
   }
+  const talking = new Set(threads.map((t) => formatA1(t.row, t.col)));
   for (const c of notes) {
-    const conv = threaded.get(formatA1(c.row, c.col));
-    sheet.comments.push(conv ? { ...c, author: conv.author || c.author, text: conv.text } : c);
+    if (talking.has(formatA1(c.row, c.col)) && /^tc=/.test(c.author)) continue;
+    sheet.comments.push(c);
   }
-  if (threaded.size) warnings.push(`La hoja "${sheet.name}" tiene comentarios encadenados: se importan como notas con las respuestas debajo.`);
+  sheet.threads.push(...threads);
   for (const tp of asArray(ws.tableParts?.tablePart)) {
     const r = rels.get(attr(tp, 'id') ?? '');
     if (!r) continue;

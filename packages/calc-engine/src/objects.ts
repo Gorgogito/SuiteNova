@@ -271,6 +271,33 @@ export interface CellComment {
   height?: number;
 }
 
+/** One message of a conversation in a cell: the comment itself or a reply. */
+export interface ThreadMessage {
+  id: string;
+  author: string;
+  initials?: string;
+  /** ISO date. */
+  date: string;
+  text: string;
+  /** ISO date of the last edit. */
+  edited?: string;
+}
+
+/**
+ * A comment in a cell in the modern sense (Excel's «comentarios encadenados»): a conversation with replies that can be resolved. A cell has a
+ * note (`CellComment`) or a conversation, not both. The first message is the comment.
+ */
+export interface CellThread {
+  id: string;
+  row: number;
+  col: number;
+  messages: ThreadMessage[];
+  resolved?: boolean;
+  resolvedBy?: string;
+}
+
+export const threadAt = (sheet: Pick<Sheet, 'threads'>, row: number, col: number): CellThread | undefined => sheet.threads.find((c) => c.row === row && c.col === col);
+
 export const commentAt = (sheet: Pick<Sheet, 'comments'>, row: number, col: number): CellComment | undefined => sheet.comments.find((c) => c.row === row && c.col === col);
 
 // ---------------------------------------------------------------------------------------------------- pictures
@@ -571,6 +598,10 @@ export function adjustSheetObjects(sheet: Sheet, ownerName: string, ch: Structur
     return rect ? [{ ...h, rect }] : [];
   });
   sheet.comments = sheet.comments.flatMap((c) => {
+    const r = shiftRect({ r1: c.row, r2: c.row, c1: c.col, c2: c.col }, ch);
+    return r ? [{ ...c, row: r.r1, col: r.c1 }] : [];
+  });
+  sheet.threads = (sheet.threads ?? []).flatMap((c) => {
     const r = shiftRect({ r1: c.row, r2: c.row, c1: c.col, c2: c.col }, ch);
     return r ? [{ ...c, row: r.r1, col: r.c1 }] : [];
   });

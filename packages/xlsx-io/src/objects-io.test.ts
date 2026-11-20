@@ -164,10 +164,10 @@ describe('hyperlinks, comments, pictures', () => {
     expect(sheet).toContain('<legacyDrawing');
   });
 
-  it('turns a conversation of threaded comments into a note with the replies', async () => {
+  it('reads a conversation of threaded comments as a conversation, and drops the stand-in note', async () => {
     const { w, id } = book();
     w.editObjects(id, (s) => {
-      s.comments.push({ row: 1, col: 1, author: 'Ana', text: '[Comentario encadenado] texto de relleno' });
+      s.comments.push({ row: 1, col: 1, author: 'tc={T1}', text: '[Threaded comment] texto de relleno' });
     });
     const zip = await JSZip.loadAsync(await writeXlsx(w));
     zip.file('xl/threadedComments/threadedComment1.xml', '<?xml version="1.0"?><ThreadedComments xmlns="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments"><threadedComment ref="B2" dT="2024-01-01T10:00:00.00" personId="{P1}" id="{C1}"><text>¿Está bien este dato?</text></threadedComment><threadedComment ref="B2" dT="2024-01-01T11:00:00.00" personId="{P2}" id="{C2}" parentId="{C1}"><text>Sí, confirmado</text></threadedComment></ThreadedComments>');
@@ -177,8 +177,11 @@ describe('hyperlinks, comments, pictures', () => {
     const wbRels = await zip.file('xl/_rels/workbook.xml.rels')!.async('string');
     zip.file('xl/_rels/workbook.xml.rels', wbRels.replace('</Relationships>', '<Relationship Id="rId98" Type="http://schemas.microsoft.com/office/2017/10/relationships/person" Target="persons/person.xml"/></Relationships>'));
     const { workbook, warnings } = await readXlsx(await zip.generateAsync({ type: 'uint8array' }));
-    expect(workbook.sheets[0]!.comments[0]).toMatchObject({ author: 'Ana', text: '¿Está bien este dato?\n↳ Luis: Sí, confirmado' });
-    expect(warnings.join(' ')).toMatch(/encadenados/);
+    void warnings;
+    const sh = workbook.sheets[0]!;
+    expect(sh.comments).toEqual([]);
+    expect(sh.threads).toHaveLength(1);
+    expect(sh.threads[0]!.messages.map((m) => [m.author, m.text])).toEqual([['Ana', '¿Está bien este dato?'], ['Luis', 'Sí, confirmado']]);
   });
 
   it('stores a picture once and puts it back where it was', async () => {
