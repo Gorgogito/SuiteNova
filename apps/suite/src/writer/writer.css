@@ -1162,3 +1162,18 @@
 .nw-chart { position: relative; }
 .nw-smartart { position: relative; }
 .nw-chart canvas { display: block; }
+.nw-review-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 0;
+}
+.nw-review-filter select {
+  flex: 1 1 100%;
+  font: inherit;
+  padding: 3px 6px;
+  background: var(--colorNeutralBackground1);
+  color: inherit;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 3px;
+}

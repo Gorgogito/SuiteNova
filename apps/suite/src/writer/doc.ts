@@ -1,4 +1,6 @@
 import { applyOpenPolicy, type SignatureInfo } from '../macros/security';
+import { deleteAll, deleteMessage, deleteThread, editMessage, neighbor, reopen, reply, resolve, type Thread } from '@suitenova/comment-core';
+import { fromThreads, toThreads, type TextAnchor } from './comment-adapter';
 import { autoCorrectPlugin, autoListRules, ruleLineCommand, type AutoCorrectOptions } from './autocorrect';
 import { getAutoCorrect, langAtPos, setAutoCorrect } from '../spell';
 import { applyFormat, type CopiedFormat } from './format-tools';
@@ -1010,56 +1012,58 @@ export class WriterCtl {
     this.touch();
   }
 
-  /** Comments in the order of their anchors (those without an anchor last). */
-  threads(): { root: CommentData; replies: CommentData[]; from: number | null }[] {
-    const ranges = this.mainView ? commentRanges(this.body) : new Map<string, { from: number; to: number }>();
-    const roots = this.comments.filter((c) => !c.parent);
-    return roots
-      .map((root) => ({ root, replies: this.comments.filter((c) => c.parent === root.id), from: ranges.get(root.id)?.from ?? null }))
-      .sort((a, b) => (a.from ?? 1e12) - (b.from ?? 1e12));
+  /** The comments as threads, in the order of their text (those whose text is gone last). */
+  threadList(): Thread<TextAnchor>[] {
+    return toThreads(this.comments, this.mainView ? commentRanges(this.body) : undefined);
+  }
+
+  /** The text a comment is on (for the pane). */
+  commentQuote(id: string): string {
+    const r = this.mainView ? commentRanges(this.body).get(id) : undefined;
+    return r ? this.body.textBetween(r.from, r.to, ' ') : '';
+  }
+
+  private changeComments(f: (t: Thread<TextAnchor>[]) => Thread<TextAnchor>[]): void {
+    this.comments = fromThreads(f(toThreads(this.comments)));
+    this.dirty = true;
+    this.touch();
   }
 
   editComment(id: string, text: string): void {
-    this.comments = this.comments.map((c) => (c.id === id ? { ...c, text } : c));
-    this.dirty = true;
-    this.touch();
+    this.changeComments((l) => editMessage(l, id, text));
   }
 
   replyTo(parent: string, text: string): void {
     const u = getUser();
-    this.comments = [...this.comments, { id: `k${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`, author: u.name, initials: u.initials, date: new Date().toISOString(), text, parent, done: false }];
-    this.dirty = true;
-    this.touch();
+    this.changeComments((l) => reply(l, parent, u, text));
   }
 
   resolveComment(id: string, done: boolean): void {
-    this.comments = this.comments.map((c) => (c.id === id || c.parent === id ? { ...c, done } : c));
-    this.dirty = true;
-    this.touch();
+    const u = getUser();
+    this.changeComments((l) => (done ? resolve(l, id, u) : reopen(l, id)));
   }
 
+  /** Delete a comment with its replies, or one reply alone. */
   deleteComment(id: string): void {
-    const ids = new Set([id, ...this.comments.filter((c) => c.parent === id).map((c) => c.id)]);
-    const target = this.comments.find((c) => c.id === id);
-    // deleting a reply only removes the reply
-    if (target?.parent) {
-      this.comments = this.comments.filter((c) => c.id !== id);
+    const threads = toThreads(this.comments);
+    const th = threads.find((t) => t.id === id);
+    if (th) {
+      const ids = th.messages.map((m) => m.id);
+      if (this.mainView) removeCommentMarks(this.mainView, ids);
+      if (this.activeComment && ids.includes(this.activeComment)) this.activeComment = null;
+      this.changeComments((l) => deleteThread(l, id));
     } else {
-      this.comments = this.comments.filter((c) => !ids.has(c.id));
-      if (this.mainView) removeCommentMarks(this.mainView, [...ids]);
+      this.changeComments((l) => deleteMessage(l, id));
     }
-    if (this.activeComment && ids.has(this.activeComment)) this.activeComment = null;
-    this.dirty = true;
-    this.touch();
   }
 
-  deleteAllComments(): void {
-    const ids = this.comments.map((c) => c.id);
-    if (this.mainView) removeCommentMarks(this.mainView, ids);
-    this.comments = [];
-    this.activeComment = null;
-    this.dirty = true;
-    this.touch();
+  /** Delete every comment, or only the resolved ones. */
+  deleteAllComments(onlyResolved = false): void {
+    const threads = toThreads(this.comments);
+    const gone = threads.filter((t) => !onlyResolved || t.resolved).flatMap((t) => t.messages.map((m) => m.id));
+    if (this.mainView) removeCommentMarks(this.mainView, gone);
+    if (this.activeComment && gone.includes(this.activeComment)) this.activeComment = null;
+    this.changeComments((l) => deleteAll(l, onlyResolved));
   }
 
   /** Select the text of a comment and make it the active one. */
@@ -1074,15 +1078,15 @@ export class WriterCtl {
   }
 
   stepComment(dir: 1 | -1): void {
-    const list = this.threads().filter((t) => t.from !== null);
+    const list = this.threadList().filter((t) => t.anchor.from !== null);
     if (!list.length) return;
     const head = this.mainView?.state.selection.from ?? 0;
-    const cur = this.activeComment ? list.findIndex((t) => t.root.id === this.activeComment) : -1;
-    let idx: number;
-    if (cur >= 0) idx = (cur + dir + list.length) % list.length;
-    else if (dir === 1) idx = Math.max(0, list.findIndex((t) => (t.from ?? 0) > head)) === -1 ? 0 : Math.max(0, list.findIndex((t) => (t.from ?? 0) > head));
-    else idx = Math.max(0, [...list].reverse().findIndex((t) => (t.from ?? 0) < head));
-    this.goToComment(list[idx]!.root.id);
+    let next: Thread<TextAnchor> | undefined;
+    if (this.activeComment && list.some((t) => t.id === this.activeComment)) next = neighbor(list, this.activeComment, dir);
+    else if (dir === 1) next = list.find((t) => (t.anchor.from ?? 0) > head) ?? list[0];
+    else next = [...list].reverse().find((t) => (t.anchor.from ?? 0) < head) ?? list[list.length - 1];
+    if (!next) return;
+    this.goToComment(next.id);
     this.showReview = true;
     this.reviewTab = 'comments';
     this.touch();

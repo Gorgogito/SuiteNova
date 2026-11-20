@@ -56,4 +56,8 @@ registerMessages('en', {
   'Usar el documento actual': 'Use the Current Document',
   'El documento actual': 'The current document',
   'El resultado es el documento revisado con lo borrado y lo añadido marcados como cambios de {name}. Reemplaza el contenido de esta ventana (se pregunta antes si hay cambios sin guardar); los archivos no se tocan.': 'The result is the revised document with what was deleted and added marked as changes by {name}. It replaces the contents of this window (you are asked first if there are unsaved changes); the files are not touched.',
+  'Revisor': 'Reviewer',
+  'Todos los revisores': 'All reviewers',
+  'Aceptar los de {name}': 'Accept all by {name}',
+  'Rechazar los de {name}': 'Reject all by {name}',
 });

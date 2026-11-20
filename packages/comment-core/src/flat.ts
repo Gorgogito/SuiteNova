@@ -9,6 +9,8 @@ export interface FlatComment<A = unknown> {
   author: Author;
   date: string;
   text: string;
+  /** ISO date of the last edit, if the format keeps it. */
+  edited?: string;
   /** The comment this one answers; null for the comment itself. */
   parent: string | null;
   /** Resolved. Only the first comment of a thread counts; a reply carrying it is read as the same. */
@@ -43,7 +45,7 @@ export function threadsFromFlat<A>(flat: readonly FlatComment<A>[]): Thread<A>[]
       t = { id: root, anchor: r.anchor, messages: [], resolved: false };
       threads.set(root, t);
     }
-    t.messages.push({ id: c.id, author: c.author, date: c.date, text: c.text });
+    t.messages.push({ id: c.id, author: c.author, date: c.date, text: c.text, ...(c.edited ? { edited: c.edited } : {}) });
     if (c.resolved && (c.id === root || !t.resolved)) t.resolved = true;
   }
   for (const t of threads.values()) {
@@ -62,6 +64,7 @@ export function flatFromThreads<A>(threads: readonly Thread<A>[]): FlatComment<A
       author: m.author,
       date: m.date,
       text: m.text,
+      ...(m.edited ? { edited: m.edited } : {}),
       parent: i === 0 ? null : t.messages[0]!.id,
       ...(t.resolved ? { resolved: true } : {}),
       anchor: t.anchor,

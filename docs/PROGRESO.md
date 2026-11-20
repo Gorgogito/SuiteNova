@@ -132,7 +132,7 @@ Decisiones del usuario (2026-11-19): alcance como Office (completo en Writer, Ca
 ## Comentarios y Control de cambios (producto auxiliar compartido, plan en `docs/diseno-comentarios.md`)
 Decisiones del usuario (2026-11-20): comentarios en los productos donde Office los tiene (Writer, Calc, Slides, Diagram); núcleo compartido `comment-core` y Calc y Slides migran a él; control de cambios solo en Writer, como Office. OneNote no tiene comentarios.
 - [x] **Fase 1 HECHA: núcleo `comment-core`.** Hilo con respuestas y resolver (responder a uno resuelto lo reabre), editar, borrar, filtrar, ordenar, anterior y siguiente, listas planas de Office (sin perder respuestas huérfanas), menciones `@Nombre` y fechas «hace 5 minutos»; **un solo nombre de usuario para Writer, Slides y Calc** (se leen los antiguos). 22 pruebas del núcleo y 4 de la identidad; los productos aún no migran.
-- [ ] Fase 2: interfaz compartida y Writer como referencia (más repaso del control de cambios frente a Word).
+- [x] **Fase 2 HECHA: interfaz compartida y Writer.** Panel de comentarios compartido (filtros, menciones, editar, resolver, eliminar los resueltos, «hace 5 minutos»); Writer migrado al núcleo con el mismo `.docx`; control de cambios: filtrar y aceptar o rechazar por revisor. Faltan (fase 6) cambios de formato, de tablas y movimientos. e2e 12/12.
 - [ ] Fase 3: Slides (comentarios modernos de PowerPoint).
 - [ ] Fase 4: Calc (notas y comentarios encadenados).
 - [ ] Fase 5: Diagram (comentarios en formas y página, `.vsdx`).

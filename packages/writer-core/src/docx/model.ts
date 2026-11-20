@@ -16,6 +16,8 @@ export interface CommentData {
   /** The comment this one answers. */
   parent: string | null;
   done: boolean;
+  /** ISO date of the last edit (kept while the document is open; `.docx` has no place for it). */
+  edited?: string;
 }
 
 /** Editing restriction of the document (Word's "Restrict Editing"). */

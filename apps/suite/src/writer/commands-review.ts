@@ -41,6 +41,7 @@ export function reviewCommands(ui: WriterUI): CommandDef[] {
   });
   add({ id: 'writer.comment.delete', label: 'Eliminar comentario', icon: 'trash', enabled: () => !!c.activeComment && canComment(), run: () => c.deleteComment(c.activeComment!) });
   add({ id: 'writer.comment.deleteAll', label: 'Eliminar todos los comentarios', icon: 'trash', enabled: () => c.comments.length > 0 && canComment(), run: () => c.deleteAllComments() });
+  add({ id: 'writer.comment.deleteResolved', label: 'Eliminar los comentarios resueltos', icon: 'trash', enabled: () => c.comments.some((x) => x.done) && canComment(), run: () => c.deleteAllComments(true) });
   add({ id: 'writer.comment.next', label: 'Siguiente comentario', icon: 'arrowRight', enabled: () => c.comments.length > 0, run: () => c.stepComment(1) });
   add({ id: 'writer.comment.prev', label: 'Comentario anterior', icon: 'arrowLeft', enabled: () => c.comments.length > 0, run: () => c.stepComment(-1) });
   add({ id: 'writer.comment.pane', label: 'Mostrar comentarios', icon: 'comment', checked: () => c.showReview && c.reviewTab === 'comments', run: () => c.toggleReview('comments') });

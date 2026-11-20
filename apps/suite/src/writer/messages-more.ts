@@ -131,6 +131,7 @@ registerMessages('en', {
   'Añade un comentario al texto seleccionado o a la palabra donde está el cursor.': 'Adds a comment to the selected text or to the word at the cursor.',
   'Eliminar comentario': 'Delete comment',
   'Eliminar todos los comentarios': 'Delete all comments',
+  'Eliminar los comentarios resueltos': 'Delete resolved comments',
   'Siguiente comentario': 'Next comment',
   'Comentario anterior': 'Previous comment',
   'Mostrar comentarios': 'Show comments',

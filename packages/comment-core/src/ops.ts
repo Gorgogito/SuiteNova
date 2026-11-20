@@ -33,11 +33,11 @@ export function reply<A>(list: readonly Thread<A>[], threadId: string, author: A
   });
 }
 
-/** Change the text of one message (the comment or a reply). Nothing changes if the text is the same. */
+/** Change the text of one message (the comment or a reply). Nothing changes if the text is the same; writing the text of a comment just created (empty) is not an edit. */
 export function editMessage<A>(list: readonly Thread<A>[], messageId: string, text: string, date?: string): Thread<A>[] {
   return list.map((t) => ({
     ...t,
-    messages: t.messages.map((m): Message => (m.id === messageId && m.text !== text ? { ...m, text, edited: now(date) } : m)),
+    messages: t.messages.map((m): Message => (m.id === messageId && m.text !== text ? { ...m, text, ...(m.text === '' ? {} : { edited: now(date) }) } : m)),
   }));
 }
 

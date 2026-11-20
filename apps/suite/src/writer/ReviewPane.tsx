@@ -1,7 +1,9 @@
 import { t } from '@suitenova/core-ui';
 import { useState, useSyncExternalStore } from 'react';
 import type { WriterCtl } from './doc';
-import { applyChanges, listChanges, selectChange, type Change } from './review';
+import { CommentsPane, type CommentsHandlers } from '../comments/CommentsPane';
+import '../comments/messages';
+import { applyChanges, getUser, listChanges, selectChange, type Change } from './review';
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
@@ -32,119 +34,86 @@ export function ReviewPane({ ctl }: { ctl: WriterCtl }) {
 }
 
 function Comments({ ctl }: { ctl: WriterCtl }) {
-  const threads = ctl.threads();
-  const [reply, setReply] = useState<Record<string, string>>({});
-  const canEdit = !ctl.readOnly;
-  if (!threads.length) return <p className="nw-review-empty">{t('No hay comentarios. Seleccione texto y use "Nuevo comentario".')}</p>;
-  return (
-    <ul className="nw-threads">
-      {threads.map(({ root, replies, from }) => {
-        const active = ctl.activeComment === root.id;
-        const editing = ctl.editingComment === root.id;
-        return (
-          <li key={root.id} className={`nw-thread${active ? ' is-active' : ''}${root.done ? ' is-done' : ''}${from === null ? ' is-orphan' : ''}`} onClick={() => ctl.goToComment(root.id)}>
-            <Card ctl={ctl} c={root} editing={editing} />
-            {replies.map((r) => (
-              <div key={r.id} className="nw-reply">
-                <Card ctl={ctl} c={r} editing={ctl.editingComment === r.id} />
-              </div>
-            ))}
-            {active && canEdit && !editing && (
-              <div className="nw-thread-actions" onClick={(e) => e.stopPropagation()}>
-                <input
-                  className="nw-reply-input"
-                  placeholder={t('Responder')}
-                  aria-label={t('Responder')}
-                  value={reply[root.id] ?? ''}
-                  onChange={(e) => setReply({ ...reply, [root.id]: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (reply[root.id] ?? '').trim()) {
-                      ctl.replyTo(root.id, reply[root.id]!.trim());
-                      setReply({ ...reply, [root.id]: '' });
-                    }
-                  }}
-                />
-                <button type="button" className="nv-btn nv-btn--small" onClick={() => ctl.resolveComment(root.id, !root.done)}>
-                  {root.done ? t('Reabrir') : t('Resolver')}
-                </button>
-                <button type="button" className="nv-btn nv-btn--small" onClick={() => ctl.deleteComment(root.id)}>
-                  {t('Eliminar')}
-                </button>
-              </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function Card({ ctl, c, editing }: { ctl: WriterCtl; c: WriterCtl['comments'][number]; editing: boolean }) {
-  const [text, setText] = useState(c.text);
-  const done = () => {
-    ctl.editComment(c.id, text.trim());
-    ctl.editingComment = null;
-    // an empty new comment is dropped
-    if (!text.trim() && !c.text) ctl.deleteComment(c.id);
-    else ctl.touch();
+  const threads = ctl.threadList();
+  const find = (messageId: string) => ctl.comments.find((c) => c.id === messageId);
+  const handlers: CommentsHandlers = {
+    select: (id) => ctl.goToComment(id),
+    reply: (id, text) => ctl.replyTo(id, text),
+    startEdit: (id) => {
+      ctl.editingComment = id;
+      ctl.touch();
+    },
+    edit: (id, text) => {
+      const was = find(id)?.text ?? '';
+      ctl.editingComment = null;
+      // sending nothing: a comment that never had text is dropped, one that had keeps it
+      if (!text) {
+        if (!was) ctl.deleteComment(id);
+        else ctl.touch();
+        return;
+      }
+      ctl.editComment(id, text);
+    },
+    cancelEdit: (id) => {
+      ctl.editingComment = null;
+      if (!find(id)?.text) ctl.deleteComment(id);
+      else ctl.touch();
+    },
+    resolve: (id) => ctl.resolveComment(id, true),
+    reopen: (id) => ctl.resolveComment(id, false),
+    deleteMessage: (id) => ctl.deleteComment(id),
+    deleteThread: (id) => ctl.deleteComment(id),
+    deleteAll: (onlyResolved) => ctl.deleteAllComments(onlyResolved),
+    step: (dir) => ctl.stepComment(dir),
   };
   return (
-    <div className="nw-card" onClick={(e) => editing && e.stopPropagation()}>
-      <div className="nw-card-head">
-        <span className="nw-avatar" aria-hidden="true">
-          {c.initials || c.author.slice(0, 1)}
-        </span>
-        <span>
-          <strong>{c.author}</strong>
-          <small>{fmtDate(c.date)}</small>
-        </span>
-        {c.done && <span className="nw-done">{t('Resuelto')}</span>}
-      </div>
-      {editing ? (
-        <div>
-          <textarea
-            autoFocus
-            className="nw-card-edit"
-            aria-label={t('Texto del comentario')}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) done();
-              if (e.key === 'Escape') {
-                setText(c.text);
-                ctl.editingComment = null;
-                if (!c.text) ctl.deleteComment(c.id);
-                else ctl.touch();
-              }
-            }}
-          />
-          <button type="button" className="nv-btn nv-btn--small" onClick={done}>
-            {t('Publicar')}
-          </button>
-        </div>
-      ) : (
-        <p
-          className="nw-card-text"
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            if (!ctl.readOnly) {
-              ctl.editingComment = c.id;
-              ctl.touch();
-            }
-          }}
-        >
-          {c.text}
-        </p>
-      )}
-    </div>
+    <CommentsPane
+      threads={threads}
+      me={getUser()}
+      activeId={ctl.activeComment}
+      editingId={ctl.editingComment}
+      readOnly={ctl.readOnly}
+      empty={t('No hay comentarios. Seleccione texto y use "Nuevo comentario".')}
+      anchorOf={(th) => ctl.commentQuote(th.id) || null}
+      isLost={(th) => th.anchor.from === null}
+      handlers={handlers}
+    />
   );
 }
 
 function Changes({ ctl }: { ctl: WriterCtl }) {
-  const changes = ctl.mainView ? listChanges(ctl.body) : [];
-  if (!changes.length) return <p className="nw-review-empty">{t('No hay cambios controlados.')}</p>;
+  const all = ctl.mainView ? listChanges(ctl.body) : [];
+  const [who, setWho] = useState('');
+  if (!all.length) return <p className="nw-review-empty">{t('No hay cambios controlados.')}</p>;
+  const reviewers = [...new Set(all.map((c) => c.author))];
+  // a reviewer who has no changes left is no longer a filter
+  const sel = reviewers.includes(who) ? who : '';
+  const changes = sel ? all.filter((c) => c.author === sel) : all;
   const label = (c: Change) => (c.kind === 'ins' ? t('Insertado') : c.kind === 'del' ? t('Eliminado') : c.kind === 'pins' ? t('Párrafo insertado') : t('Párrafo eliminado'));
   return (
+    <>
+    {reviewers.length > 0 && (
+      <div className="nw-review-filter">
+        <select aria-label={t('Revisor')} value={sel} onChange={(e) => setWho(e.target.value)}>
+          <option value="">{t('Todos los revisores')}</option>
+          {reviewers.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </select>
+        {!ctl.readOnly && sel && (
+          <>
+            <button type="button" className="nv-btn nv-btn--small" onClick={() => ctl.mainView && applyChanges(ctl.mainView, changes, true)}>
+              {t('Aceptar los de {name}', { name: sel })}
+            </button>
+            <button type="button" className="nv-btn nv-btn--small" onClick={() => ctl.mainView && applyChanges(ctl.mainView, changes, false)}>
+              {t('Rechazar los de {name}', { name: sel })}
+            </button>
+          </>
+        )}
+      </div>
+    )}
     <ul className="nw-threads">
       {changes.map((c, i) => (
         <li key={`${c.kind}${c.id}${i}`} className="nw-thread" onClick={() => ctl.mainView && selectChange(ctl.mainView, c)}>
@@ -171,5 +140,6 @@ function Changes({ ctl }: { ctl: WriterCtl }) {
         </li>
       ))}
     </ul>
+    </>
   );
 }

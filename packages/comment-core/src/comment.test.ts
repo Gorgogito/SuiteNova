@@ -59,6 +59,13 @@ describe('threads', () => {
     expect(l[0]!.messages[0]).toMatchObject({ text: 'Revisar esto otra vez', edited: D(30) });
     l = editMessage(l, 'k2', 'Otra cosa');
     expect(l[1]!.messages[0]!.edited).toBeUndefined();
+    // the text of a comment just created (empty) is not an edit
+    l = editMessage(addThread([], { anchor: 1, author: ana, text: '', id: 'n' }).list, 'n', 'Primero', D(1));
+    expect(l[0]!.messages[0]).toMatchObject({ text: 'Primero' });
+    expect(l[0]!.messages[0]!.edited).toBeUndefined();
+    // and the date of an edit goes there and back through a flat list
+    const e = threadsFromFlat(flatFromThreads(editMessage(start(), 'k1', 'Otra', D(40))));
+    expect(e[0]!.messages[0]!.edited).toBe(D(40));
   });
   it('deleting a reply keeps the thread; deleting the comment deletes it all', () => {
     let l = reply(start(), 'k1', luis, 'sí', D(2), 'r1');

@@ -800,7 +800,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         icon: 'comment',
         items: [
           { kind: 'button', command: 'writer.comment.new', size: 'large', keytip: 'CN' },
-          { kind: 'button', command: 'writer.comment.delete', size: 'small', keytip: 'CD' },
+          { kind: 'dropdown', id: 'commentDelete', label: 'Eliminar', icon: 'trash', size: 'small', keytip: 'CD', entries: ['writer.comment.delete', 'writer.comment.deleteResolved', 'writer.comment.deleteAll'].map((command) => ({ kind: 'command' as const, command })) },
           { kind: 'button', command: 'writer.comment.prev', size: 'small', keytip: 'CP' },
           { kind: 'button', command: 'writer.comment.next', size: 'small', keytip: 'CX' },
           { kind: 'button', command: 'writer.comment.pane', size: 'large', keytip: 'CS' },
