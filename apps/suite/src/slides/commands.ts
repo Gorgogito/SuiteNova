@@ -1,4 +1,5 @@
 import type { CommandDef } from '@suitenova/core-ui';
+import { draftComment } from './comments-ops';
 import { redo as pmRedo, undo as pmUndo } from 'prosemirror-history';
 import type { SlidesCtl } from './ctl';
 import { applyPara, applyRun, applyTextFormat, canFormatText } from './textcmds';
@@ -42,7 +43,6 @@ export type SlidesDialog =
   | 'background'
   | 'transition'
   | 'setupShow'
-  | 'comment'
   | 'spelling'
   | 'autocorrect'
   | 'macros'
@@ -373,7 +373,7 @@ export function slidesCommands(ui: SlidesUI): CommandDef[] {
   add({ id: 'slides.insert.wordart', label: 'WordArt (NovaArt)…', icon: 'wordart', run: () => ui.openDialog('wordArt') });
   add({ id: 'slides.insert.hyperlink', label: 'Hipervínculo…', icon: 'link', shortcut: 'Ctrl+K', enabled: () => text() || hasSel(), run: () => ui.openDialog('hyperlink') });
   add({ id: 'slides.insert.headerFooter', label: 'Encabezado y pie de página…', icon: 'panelTop', run: () => ui.openDialog('headerFooter') });
-  add({ id: 'slides.insert.comment', label: 'Comentario nuevo…', icon: 'comment', run: () => ui.openDialog('comment') });
+  add({ id: 'slides.insert.comment', label: 'Comentario nuevo…', icon: 'comment', run: () => draftComment(c) });
   add({ id: 'slides.insert.equation', label: 'Ecuación…', icon: 'sigma', run: () => ui.openDialog('equation') });
 
   // ---- design, show, review, view

@@ -152,3 +152,48 @@ describe('picture originals and edits in a .pptx', () => {
     expect(Object.keys(zip.files).some((n) => /novaPictures/.test(n))).toBe(false);
   });
 });
+
+describe('comments in a .pptx (the modern kind PowerPoint 365 writes)', () => {
+  const at = Date.UTC(2026, 10, 20, 10, 0);
+  const withComments = () => {
+    const deck = newDeck();
+    deck.slides[0]!.comments = [
+      { id: 'c1', author: 'Ana María', initials: 'AM', text: 'Revisar este título', at, x: 100, y: 80 },
+      { id: 'c2', author: 'Luis Torres', initials: 'LT', text: 'De acuerdo\nSegunda línea', at: at + 60000, x: 100, y: 80, replyTo: 'c1' },
+      { id: 'c3', author: 'Luis Torres', initials: 'LT', text: 'Resuelto <ya> & hecho', at: at + 120000, x: 300, y: 200, resolved: true },
+    ];
+    return deck;
+  };
+  it('keeps the replies, who wrote, when, where, the text and «resolved»', async () => {
+    const back = (await readPptx((await writePptx(withComments())).data)).deck.slides[0]!.comments!;
+    expect(back).toHaveLength(3);
+    const [a, r, c] = back;
+    expect([a!.author, a!.initials, a!.text, a!.at, a!.x, a!.y, a!.resolved]).toEqual(['Ana María', 'AM', 'Revisar este título', at, 100, 80, undefined]);
+    expect([r!.author, r!.text, r!.replyTo]).toEqual(['Luis Torres', 'De acuerdo\nSegunda línea', a!.id]);
+    expect([c!.text, c!.resolved, c!.x, c!.y]).toEqual(['Resuelto <ya> & hecho', true, 300, 200]);
+  });
+  it('is the modern format: authors part, typed comments part, well-formed, and the comment keeps its id', async () => {
+    const data = (await writePptx(withComments())).data;
+    expect(await wellFormed(data)).toEqual([]);
+    const zip = await JSZip.loadAsync(data);
+    const names = Object.keys(zip.files);
+    expect(names).toContain('ppt/authors.xml');
+    expect(names.some((n) => /^ppt\/comments\/modernComment_100_[0-9A-F]{8}\.xml$/.test(n))).toBe(true);
+    expect(names.some((n) => /commentAuthors|ppt\/comments\/comment\d/.test(n))).toBe(false);
+    expect(await zip.file('[Content_Types].xml')!.async('string')).toMatch(/vnd\.ms-powerpoint\.comments\+xml/);
+    const first = (await readPptx(data)).deck.slides[0]!.comments![0]!.id;
+    const again = (await readPptx((await writePptx((await readPptx(data)).deck)).data)).deck.slides[0]!.comments![0]!.id;
+    expect(again).toBe(first);
+  });
+  it('still reads the old kind of comment, with its position and author', async () => {
+    const data = (await writePptx(newDeck())).data;
+    const zip = await JSZip.loadAsync(data);
+    zip.file('ppt/commentAuthors.xml', '<?xml version="1.0"?><p:cmAuthorLst xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cmAuthor id="0" name="Pablo" initials="P" lastIdx="1" clrIdx="0"/></p:cmAuthorLst>');
+    zip.file('ppt/comments/comment1.xml', '<?xml version="1.0"?><p:cmLst xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cm authorId="0" dt="2026-11-20T10:00:00.000" idx="1"><p:pos x="576" y="1152"/><p:text>Antiguo</p:text></p:cm></p:cmLst>');
+    zip.file('ppt/slides/_rels/slide1.xml.rels', (await zip.file('ppt/slides/_rels/slide1.xml.rels')!.async('string')).replace('</Relationships>', '<Relationship Id="rIdC" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment1.xml"/></Relationships>'));
+    zip.file('ppt/_rels/presentation.xml.rels', (await zip.file('ppt/_rels/presentation.xml.rels')!.async('string')).replace('</Relationships>', '<Relationship Id="rIdA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/commentAuthors" Target="commentAuthors.xml"/></Relationships>'));
+    const c = (await readPptx(await zip.generateAsync({ type: 'uint8array' }))).deck.slides[0]!.comments!;
+    expect(c).toHaveLength(1);
+    expect([c[0]!.author, c[0]!.text, c[0]!.x, c[0]!.y]).toEqual(['Pablo', 'Antiguo', 72, 144]);
+  });
+});

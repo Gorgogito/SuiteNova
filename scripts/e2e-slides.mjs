@@ -523,14 +523,14 @@ await check('size, find & replace, spelling, comments, sections, show setup, cus
   assert.equal(await titleText(), 'Hola mundo y mundo casa');
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   // comments
+  await ev(() => localStorage.setItem('nova.user', JSON.stringify({ name: 'Ana Pérez', initials: 'AP' })));
   await btn('Comentario nuevo…');
-  await page.getByLabel('Su nombre').fill('Ana Pérez');
-  await page.getByLabel('Comentario', { exact: true }).fill('Revisar el título');
+  await page.getByLabel('Texto del comentario').fill('Revisar el título');
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
-  await page.waitForSelector('.sl-comments .sl-comment');
+  await page.waitForSelector('.sl-comments .nv-cm-msg');
   assert.equal(await page.locator('.sl-cmark').count(), 1);
   await page.getByLabel('Responder', { exact: true }).fill('Hecho');
-  await page.getByRole('button', { name: 'Responder', exact: true }).click();
+  await page.getByLabel('Responder', { exact: true }).press('Enter');
   assert.equal(await ev(() => window.__novaSlides.ctl.slide.comments.length), 2);
   await page.getByRole('button', { name: 'Resolver', exact: true }).click();
   assert.equal(await ev(() => window.__novaSlides.ctl.slide.comments[0].resolved), true);

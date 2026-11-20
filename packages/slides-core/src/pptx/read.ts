@@ -325,11 +325,9 @@ export async function readPptx(data: Uint8Array): Promise<ReadResult> {
         const nXml = getText(nPath);
         if (nXml) slide.notes = readNotes(nXml, makeCtx(nPath));
       } else if (r.type === 'comments') {
+        // both kinds have a relationship that ends in «comments»: the modern one (PowerPoint 365) is told apart by its namespace
         const cx = getText(resolvePath(sPath, r.target));
-        if (cx) slide.comments = [...(slide.comments ?? []), ...readLegacyComments(cx, commentAuthors)];
-      } else if (r.type === 'slideComments') {
-        const cx = getText(resolvePath(sPath, r.target));
-        if (cx) slide.comments = [...(slide.comments ?? []), ...readModernComments(cx, getText, presRels, presPath)];
+        if (cx) slide.comments = [...(slide.comments ?? []), ...(cx.includes('powerpoint/2018/8/main') ? readModernComments(cx, getText, presRels, presPath) : readLegacyComments(cx, commentAuthors))];
       }
     }
     deck.slides.push(slide);
@@ -660,17 +658,22 @@ function readLegacyComments(xml: string, authors: Author[]): Comment[] {
   }
   return out;
 }
+/** PowerPoint writes the date of a modern comment in UTC without saying so (no «Z»). */
+const utcMs = (iso: string | undefined): number => (iso ? Date.parse(/(Z|[+-]\d\d:?\d\d)$/i.test(iso) ? iso : `${iso}Z`) || 0 : 0);
 function readModernComments(xml: string, get: (p: string) => string | null, presRels: Map<string, Rel>, presPath: string): Comment[] {
   const authors = readAuthors(presRels, presPath, get);
   const out: Comment[] = [];
   const walk = (list: XNode[], parent?: string) => {
     for (const c of list) {
-      if (tagOf(c) !== 'cm') continue;
-      const id = newId('c');
+      // a comment (`cm`) holds its answers as `reply` elements, which read the same way
+      if (tagOf(c) !== 'cm' && tagOf(c) !== 'reply') continue;
+      // the id the file gives (a GUID) is kept, so the comment is the same one every time the file is saved
+      const id = (attrOf(c, 'id') ?? '').replace(/[{}]/g, '') || newId('c');
       const a = authors.find((x) => x.id === attrOf(c, 'authorId'));
       const body = findKid(c, 'txBody');
+      const pos = findKid(c, 'pos');
       const text = findKids(body, 'p').map((p) => textOfNode(p)).join('\n');
-      out.push({ id, author: a?.name ?? 'Autor', initials: a?.initials, text, at: Date.parse(attrOf(c, 'created') ?? '') || 0, x: 0, y: 0, ...(attrOf(c, 'status') === 'resolved' ? { resolved: true } : {}), ...(parent ? { replyTo: parent } : {}) });
+      out.push({ id, author: a?.name ?? 'Autor', initials: a?.initials, text, at: utcMs(attrOf(c, 'created')), x: (numAttr(pos, 'x') ?? 0) / 12700, y: (numAttr(pos, 'y') ?? 0) / 12700, ...(attrOf(c, 'status') === 'resolved' ? { resolved: true } : {}), ...(parent ? { replyTo: parent } : {}) });
       walk(kidsOf(findKid(c, 'replyLst') ?? {}), id);
     }
   };

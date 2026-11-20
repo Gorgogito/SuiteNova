@@ -174,6 +174,8 @@ export class SlidesCtl {
   selEffect: string | null = null;
   /** the comment (thread) selected in the comments pane */
   selComment: string | null = null;
+  /** the comment being written or edited in the comments pane */
+  editingComment: string | null = null;
   /** format painter: the copied formatting and whether it stays on */
   painter: { fmt: Partial<SlideElement>; text?: { r: import('@suitenova/slides-core').RunProps; p: import('@suitenova/slides-core').ParaProps }; sticky: boolean } | null = null;
   clip: Clip | null = null;
@@ -313,6 +315,10 @@ export class SlidesCtl {
     }
   }
 
+  /** The last two changes become one step of undo (an empty comment and the text written in it). */
+  mergeLastUndo(): void {
+    this.undoStack.splice(this.undoStack.length - 1, 1);
+  }
   undo(): void {
     this.endEdit();
     const s = this.undoStack.pop();

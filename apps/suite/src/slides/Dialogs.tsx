@@ -20,7 +20,7 @@ import { FormatPictureDialog } from '../images/FormatPictureDialog';
 import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
 import { slidesPictureHost } from './pichost';
 import { TableCellDialog, TableSizeDialog, TableSplitDialog } from './FormDialogs6';
-import { CommentDialog, CustomShowsDialog, FindReplaceDialog, SectionsDialog, SetupShowDialog, SlideSizeDialog, SpellingDialog } from './FormDialogs2';
+import { CustomShowsDialog, FindReplaceDialog, SectionsDialog, SetupShowDialog, SlideSizeDialog, SpellingDialog } from './FormDialogs2';
 import { ChartDialog, HeaderFooterDialog, HyperlinkDialog, TableDialog } from './FormDialogs';
 
 export function Modal({ title, onClose, children, actions, wide }: { title: string; onClose: () => void; children: ReactNode; actions?: ReactNode; wide?: boolean }) {
@@ -114,7 +114,6 @@ export function Dialogs({ ui, dialog, onClose }: { ui: SlidesUI; dialog: { kind:
   if (kind === 'setupShow') return <SetupShowDialog ui={ui} onClose={onClose} />;
   if (kind === 'customShows') return <CustomShowsDialog ui={ui} onClose={onClose} />;
   if (kind === 'findReplace') return <FindReplaceDialog ui={ui} onClose={onClose} />;
-  if (kind === 'comment') return <CommentDialog ui={ui} onClose={onClose} />;
   if (kind === 'sections') return <SectionsDialog ui={ui} onClose={onClose} />;
   if (kind === 'spelling') return <SpellingDialog ui={ui} onClose={onClose} />;
   if (kind === 'macros') return <MacroListDialog ui={ui} onClose={onClose} onEdit={() => ui.openDialog('macroEditor')} />;

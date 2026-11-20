@@ -1,6 +1,6 @@
 import { completeMention, mentionQuery, suggestMentions, type Author } from '@suitenova/comment-core';
 import { t } from '@suitenova/core-ui';
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import './comments.css';
 
 /**
@@ -26,6 +26,7 @@ export function MentionInput({
   const [caret, setCaret] = useState(0);
   const [pick, setPick] = useState(0);
   const [closed, setClosed] = useState(false);
+  const pending = useRef<number | null>(null);
   const q = mentionQuery(value, caret);
   const options = q && !closed ? suggestMentions(q.query, people) : [];
   const open = options.length > 0;
@@ -35,12 +36,17 @@ export function MentionInput({
     if (!r) return;
     onChange(r.text);
     setPick(0);
-    requestAnimationFrame(() => {
-      ref.current?.focus();
-      ref.current?.setSelectionRange(r.caret, r.caret);
-      setCaret(r.caret);
-    });
+    pending.current = r.caret;
   };
+  // the caret goes after the name as soon as the new text is drawn (not a moment later, when fast typing would already have moved it)
+  useLayoutEffect(() => {
+    const at = pending.current;
+    if (at === null || !ref.current) return;
+    pending.current = null;
+    ref.current.focus();
+    ref.current.setSelectionRange(at, at);
+    setCaret(at);
+  });
 
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (open) {

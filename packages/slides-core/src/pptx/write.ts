@@ -319,7 +319,6 @@ export async function writePptx(deck: Deck, opts: { slideshow?: boolean; templat
   }
 
   // ---- slides
-  const authors = deck.commentAuthors;
   deck.slides.forEach((s, i) => {
     const path = slidePaths.get(s.id)!;
     const { w, rels } = makePart(path);
@@ -339,21 +338,21 @@ export async function writePptx(deck: Deck, opts: { slideshow?: boolean; templat
       rels.add(`${RT}/notesSlide`, relative(path, np));
     }
     if (s.comments?.length) {
-      const cp = `ppt/comments/comment${i + 1}.xml`;
-      const cx = `${XML}<p:cmLst ${NS}>${s.comments.map((c, k) => commentXml(c, k, authorIndex(authors, c))).join('')}</p:cmLst>`;
-      addPartRaw(cp, cx, 'application/vnd.openxmlformats-officedocument.presentationml.comments+xml');
-      rels.add(`${RT}/comments`, relative(path, cp));
+      // modern comments (what PowerPoint 365 writes): replies and «resolved» live in the file; the old kind has no place for them
+      const cp = `ppt/comments/modernComment_${(256 + i).toString(16).toUpperCase()}_${guidOf(s.id).slice(0, 8)}.xml`;
+      addPartRaw(cp, modernCommentsXml(s.comments, 256 + i), 'application/vnd.ms-powerpoint.comments+xml');
+      rels.add(RT_COMMENTS, relative(path, cp));
     }
     addPartRaw(relsPathOf(path), rels.xml());
     presRels.add(`${RT}/slide`, relative('ppt/presentation.xml', path));
   });
 
-  // comment authors
-  const allAuthors = [...authors];
-  for (const s of deck.slides) for (const c of s.comments ?? []) if (!allAuthors.some((a) => a.name === c.author)) allAuthors.push({ name: c.author, initials: c.initials ?? c.author.slice(0, 2).toUpperCase() });
-  if (allAuthors.length && deck.slides.some((s) => s.comments?.length)) {
-    addPartRaw('ppt/commentAuthors.xml', `${XML}<p:cmAuthorLst ${NS}>${allAuthors.map((a, i) => `<p:cmAuthor id="${i}" name="${esc(a.name)}" initials="${esc(a.initials)}" lastIdx="${deck.slides.reduce((n, s) => n + (s.comments?.length ?? 0), 0)}" clrIdx="${i % 8}"/>`).join('')}</p:cmAuthorLst>`, 'application/vnd.openxmlformats-officedocument.presentationml.commentAuthors+xml');
-    presRels.add(`${RT}/commentAuthors`, 'commentAuthors.xml');
+  // comment authors (every person who wrote a comment or a reply)
+  const people = new Map<string, { name: string; initials: string }>();
+  for (const s of deck.slides) for (const c of s.comments ?? []) if (!people.has(c.author)) people.set(c.author, { name: c.author, initials: c.initials ?? c.author.slice(0, 2).toUpperCase() });
+  if (people.size) {
+    addPartRaw('ppt/authors.xml', `${XML}<p188:authorLst ${NS_188}>${[...people.values()].map((a) => `<p188:author id="{${guidOf(a.name)}}" name="${esc(a.name)}" initials="${esc(a.initials)}" userId="${esc(a.name)}" providerId="None"/>`).join('')}</p188:authorLst>`, 'application/vnd.ms-powerpoint.authors+xml');
+    presRels.add(RT_AUTHORS, 'authors.xml');
   }
 
   // table styles, presProps, viewProps
@@ -463,14 +462,43 @@ function guid(i: number): string {
   return `${h(0x5a1e0000 + i)}-0000-4000-8000-${h(0x00ab0000 + i)}0000`.slice(0, 36);
 }
 
-function authorIndex(authors: { name: string }[], c: Comment): number {
-  const all = [...authors];
-  const i = all.findIndex((a) => a.name === c.author);
-  return i >= 0 ? i : all.length;
+const RT_COMMENTS = 'http://schemas.microsoft.com/office/2018/10/relationships/comments';
+const RT_AUTHORS = 'http://schemas.microsoft.com/office/2018/10/relationships/authors';
+const NS_188 = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p188="http://schemas.microsoft.com/office/powerpoint/2018/8/main"';
+
+/** A GUID made from a text: the same text gives the same GUID (so a person or a comment keeps its id every time the file is saved). */
+export function guidOf(text: string): string {
+  let out = '';
+  for (let k = 0; k < 4; k++) {
+    let h = 0x811c9dc5 ^ (k * 0x9e3779b1);
+    for (let n = 0; n < text.length; n++) h = Math.imul(h ^ text.charCodeAt(n), 0x01000193) >>> 0;
+    out += h.toString(16).toUpperCase().padStart(8, '0');
+  }
+  return `${out.slice(0, 8)}-${out.slice(8, 12)}-4${out.slice(13, 16)}-8${out.slice(17, 20)}-${out.slice(20, 32)}`;
 }
 
-function commentXml(c: Comment, i: number, authorId: number): string {
-  return `<p:cm authorId="${authorId}" dt="${new Date(c.at || Date.now()).toISOString().replace('Z', '')}" idx="${i + 1}"><p:pos x="${Math.round((c.x / 72) * 576)}" y="${Math.round((c.y / 72) * 576)}"/><p:text>${esc(c.text)}</p:text></p:cm>`;
+/** An id of a comment as a GUID: one that already is (read from a file) stays, any other is made from its text. */
+const commentGuid = (id: string): string => (/^[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$/.test(id) ? id.toUpperCase() : guidOf(id));
+const when = (at: number): string => new Date(at || Date.now()).toISOString().replace('Z', '');
+const bodyXml = (text: string): string => `<p188:txBody><a:bodyPr/><a:lstStyle/>${(text || ' ').split(/\r?\n/).map((l) => `<a:p><a:r><a:rPr lang="es-ES"/><a:t>${esc(l)}</a:t></a:r></a:p>`).join('')}</p188:txBody>`;
+
+/** The comments of one slide as PowerPoint 365 writes them: each comment with its replies, on the slide (`sldId`) at a position (EMU). */
+export function modernCommentsXml(comments: Comment[], sldId: number): string {
+  const byId = new Map(comments.map((c) => [c.id, c]));
+  const rootOf = (c: Comment): Comment => {
+    let cur = c;
+    for (let n = 0; cur.replyTo && byId.has(cur.replyTo) && n < comments.length; n++) cur = byId.get(cur.replyTo)!;
+    return cur;
+  };
+  const roots = comments.filter((c) => rootOf(c) === c);
+  const cm = roots
+    .map((r) => {
+      const replies = comments.filter((c) => c !== r && rootOf(c) === r);
+      const rl = replies.length ? `<p188:replyLst>${replies.map((p) => `<p188:reply id="{${commentGuid(p.id)}}" authorId="{${guidOf(p.author)}}" created="${when(p.at)}">${bodyXml(p.text)}</p188:reply>`).join('')}</p188:replyLst>` : '';
+      return `<p188:cm id="{${commentGuid(r.id)}}" authorId="{${guidOf(r.author)}}" created="${when(r.at)}"${r.resolved ? ' status="resolved"' : ''}><pc:sldMkLst xmlns:pc="http://schemas.microsoft.com/office/powerpoint/2013/main/command"><pc:docMk/><pc:sldMk cId="${Number.parseInt(guidOf(String(sldId)).slice(0, 7), 16)}" sldId="${sldId}"/></pc:sldMkLst><p188:pos x="${Math.round(r.x * 12700)}" y="${Math.round(r.y * 12700)}"/>${rl}${bodyXml(r.text)}</p188:cm>`;
+    })
+    .join('');
+  return `${XML}<p188:cmLst ${NS_188}>${cm}</p188:cmLst>`;
 }
 
 const P14_TRANSITIONS = new Set(['vortex', 'switch', 'flip', 'ripple', 'honeycomb', 'prism', 'doors', 'window', 'ferris', 'gallery', 'conveyor', 'pan', 'glitter', 'warp', 'flythrough', 'flash', 'shred', 'reveal', 'wheelReverse']);

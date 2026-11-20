@@ -133,7 +133,7 @@ Decisiones del usuario (2026-11-19): alcance como Office (completo en Writer, Ca
 Decisiones del usuario (2026-11-20): comentarios en los productos donde Office los tiene (Writer, Calc, Slides, Diagram); núcleo compartido `comment-core` y Calc y Slides migran a él; control de cambios solo en Writer, como Office. OneNote no tiene comentarios.
 - [x] **Fase 1 HECHA: núcleo `comment-core`.** Hilo con respuestas y resolver (responder a uno resuelto lo reabre), editar, borrar, filtrar, ordenar, anterior y siguiente, listas planas de Office (sin perder respuestas huérfanas), menciones `@Nombre` y fechas «hace 5 minutos»; **un solo nombre de usuario para Writer, Slides y Calc** (se leen los antiguos). 22 pruebas del núcleo y 4 de la identidad; los productos aún no migran.
 - [x] **Fase 2 HECHA: interfaz compartida y Writer.** Panel de comentarios compartido (filtros, menciones, editar, resolver, eliminar los resueltos, «hace 5 minutos»); Writer migrado al núcleo con el mismo `.docx`; control de cambios: filtrar y aceptar o rechazar por revisor. Faltan (fase 6) cambios de formato, de tablas y movimientos. e2e 12/12.
-- [ ] Fase 3: Slides (comentarios modernos de PowerPoint).
+- [x] **Fase 3 HECHA: Slides.** Panel compartido (todas las diapositivas, filtros, menciones, editar, resolver); «Comentario nuevo» se escribe en el panel; **`.pptx` con comentarios modernos** (respuestas, resuelto, quién, cuándo, posición) comprobado con PowerPoint real; corregida la lectura de modernos (respuestas, posición, fecha UTC). e2e 9/9.
 - [ ] Fase 4: Calc (notas y comentarios encadenados).
 - [ ] Fase 5: Diagram (comentarios en formas y página, `.vsdx`).
 - [ ] Fase 6: cierre con Word, Excel, PowerPoint y Visio reales por COM.

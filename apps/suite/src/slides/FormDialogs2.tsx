@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadSpeller, addToUserDictionary, SPELL_LANGS, type SpellLang } from '../spell';
 import { getReviewOptions, loadedEngine, reviewDoc, type SpellEngine } from '../spell';
 import { setSlidesLang, slidesLang, slidesMarkInfo } from './spell';
-import { addComment, rememberAuthor, savedAuthor } from './comments';
 import type { SlidesUI } from './commands';
 import { Modal } from './Dialogs';
 
@@ -361,45 +360,6 @@ export function FindReplaceDialog({ ui, onClose }: P) {
           {msg || (q ? (h ? t('Coincidencia {i} de {n} · diapositiva {s}: {ctx}', { i: i + 1, n: hits.length, s: h.slideIndex + 1, ctx: h.context.slice(0, 80) }) : t('{n} coincidencias', { n: hits.length })) : '')}
         </p>
       </form>
-    </Modal>
-  );
-}
-
-// ------------------------------------------------------------------------------------------------ new comment
-
-export function CommentDialog({ ui, onClose }: P) {
-  const c = ui.ctl;
-  const [author, setAuthor] = useState(savedAuthor(c));
-  const [text, setText] = useState('');
-  const ok = !!text.trim() && !!author.trim();
-  const save = () => {
-    rememberAuthor(author.trim());
-    addComment(c, text.trim(), author.trim());
-    c.pane = 'comments';
-    c.touch();
-    onClose();
-  };
-  return (
-    <Modal
-      title={t('Comentario nuevo')}
-      onClose={onClose}
-      actions={
-        <>
-          <Button onClick={onClose}>{t('Cancelar')}</Button>
-          <Button appearance="primary" disabled={!ok} onClick={save}>{t('Publicar')}</Button>
-        </>
-      }
-    >
-      <div className="sl-form">
-        <label className="sl-field">
-          <span>{t('Su nombre')}</span>
-          <input value={author} onChange={(e) => setAuthor(e.target.value)} aria-label={t('Su nombre')} />
-        </label>
-        <label className="sl-field">
-          <span>{t('Comentario')}</span>
-          <textarea autoFocus rows={4} value={text} onChange={(e) => setText(e.target.value)} aria-label={t('Comentario')} />
-        </label>
-      </div>
     </Modal>
   );
 }
