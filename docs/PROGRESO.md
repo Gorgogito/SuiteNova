@@ -141,7 +141,7 @@ Decisiones del usuario (2026-11-20): comentarios en los productos donde Office l
 ## OCR, texto en imágenes (producto auxiliar compartido, plan en `docs/diseno-ocr.md`)
 Decisiones del usuario (2026-11-20): OCR también en Writer, Slides, Mail y Diagram para copiar y buscar texto en imágenes (además de Notes y la tabla desde imagen de Calc); núcleo compartido `ocr-core` y Notes migra a él.
 - [x] **Fase 1 HECHA: núcleo `ocr-core`.** Resultado con palabras y cajas, clave por contenido, cola con prioridad y cancelar, preproceso (contraste, invertir, ampliar, zona, giro), **giro automático**, búsqueda con la caja de lo encontrado, tabla desde las palabras y números por idioma, guardado compacto que lee lo antiguo. Probado con Tesseract real. 28 pruebas y e2e 8/8; los productos aún no lo usan.
-- [ ] Fase 2: interfaz compartida y Notes como referencia (idioma, zona, giro, resaltar dónde).
+- [x] **Fase 2 HECHA: Notes con el núcleo.** El cuaderno guarda la lectura completa (palabras con caja; los cuadernos de antes se abren igual), lector compartido `apps/suite/src/ocr/` (`readImage`) y vista `OcrPreview` (cajas de las palabras, **dónde está lo buscado**, arrastrar una **zona**); el cuadro Imagen de Notes busca en la imagen, lee solo una zona, fija el giro y avisa si estaba girada; la cola de Notes se puede detener de verdad (cancela la lectura). e2e nueva `e2e-notes-ocr` (8, Tesseract real).
 - [ ] Fase 3: Writer (copiar, buscar en imágenes, `.docx`).
 - [ ] Fase 4: Slides y Calc (copiar, buscar, datos desde imagen).
 - [ ] Fase 5: Mail y Diagram.

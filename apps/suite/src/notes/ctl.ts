@@ -1,3 +1,4 @@
+import { packResult, unpackResult, type OcrResult } from '@suitenova/ocr-core';
 import {
   type ImageContainer,
   SECTION_COLORS,
@@ -236,6 +237,7 @@ export class NotesCtl {
   private redoStack: Undo[] = [];
   private urls = new Map<string, string>();
   private ocrRun = 0;
+  private ocrAbort: AbortController | null = null;
 
   subscribe = (fn: () => void): (() => void) => {
     this.listeners.add(fn);
@@ -1127,21 +1129,28 @@ export class NotesCtl {
   get ocrPending(): number {
     return pendingOcr(this.nb).length;
   }
-  /** Reconoce el texto de las imágenes que faltan, de una en una. `engine` devuelve el texto de una imagen (`data:`). */
-  async runOcr(engine: (src: string, lang: string) => Promise<string>, lang: string): Promise<void> {
+  /**
+   * Reconoce el texto de las imágenes que faltan, de una en una. `read` devuelve la lectura de una imagen (`data:`) con la posición de cada
+   * palabra; se guarda tal cual en el cuaderno.
+   */
+  async runOcr(read: (src: string, lang: string, signal: AbortSignal) => Promise<OcrResult>, lang: string): Promise<void> {
     if (this.ocr.running) return;
     const targets = pendingOcr(this.nb);
     if (!targets.length) return;
     const run = ++this.ocrRun;
+    const abort = new AbortController();
+    this.ocrAbort = abort;
     this.ocr = { running: true, done: 0, total: targets.length, error: '' };
     this.touch();
     for (const t of targets) {
       if (run !== this.ocrRun) return;
       try {
-        const text = (await engine(t.src, lang)).trim();
-        this.nb = { ...this.nb, ocr: { ...this.nb.ocr, [t.key]: { text, lang, at: Date.now() } } };
+        const r = await read(t.src, lang, abort.signal);
+        if (run !== this.ocrRun) return;
+        this.nb = { ...this.nb, ocr: { ...this.nb.ocr, [t.key]: packResult({ ...r, text: r.text.trim() }) } };
         this.mark();
       } catch (e) {
+        if (run !== this.ocrRun) return;
         this.ocr = { ...this.ocr, error: (e as Error).message };
         // una imagen que falla se marca como sin texto para no insistir
         this.nb = { ...this.nb, ocr: { ...this.nb.ocr, [t.key]: { text: '', lang, at: Date.now() } } };
@@ -1154,11 +1163,22 @@ export class NotesCtl {
   }
   stopOcr(): void {
     this.ocrRun++;
+    this.ocrAbort?.abort();
     this.ocr = { ...this.ocr, running: false };
     this.touch();
   }
   ocrTextOf(c: Container): string {
     return c.kind === 'image' ? (this.nb.ocr[c.asset]?.text ?? '') : '';
+  }
+  /** La lectura completa de una imagen (con la posición de cada palabra, si la tiene). */
+  ocrResultOf(key: string): OcrResult | null {
+    const s = this.nb.ocr[key];
+    return s ? unpackResult(s) : null;
+  }
+  /** Guarda una lectura hecha aparte (otra zona, otro giro) de una imagen. */
+  setOcrResult(key: string, r: OcrResult): void {
+    this.setNb({ ...this.nb, ocr: { ...this.nb.ocr, [key]: packResult({ ...r, text: r.text.trim() }) } });
+    this.touch();
   }
   inlineOcr(src: string): string {
     return this.nb.ocr[imageKey(src)]?.text ?? '';

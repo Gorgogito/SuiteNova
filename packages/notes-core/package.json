@@ -13,7 +13,8 @@
   "dependencies": {
     "@suitenova/writer-core": "workspace:*",
     "prosemirror-model": "^1.25.0",
-    "@suitenova/calc-engine": "workspace:*"
+    "@suitenova/calc-engine": "workspace:*",
+    "@suitenova/ocr-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

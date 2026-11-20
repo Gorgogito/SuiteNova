@@ -27,7 +27,7 @@ import { EmailDialog, EquationDialog, ImageDialog, LinkDialog, Modal, PageStyleD
 import { pageToDocx, pageToEml, pageToHtml } from './export';
 import './icons';
 import './messages';
-import { recognizeImage } from './ocr';
+import { readImage } from './ocr';
 import { blobToBase64, imageSize, mediaDuration, startRecording, type Recording } from './recorder';
 import { notesTabs } from './ribbonDef';
 import './notes.css';
@@ -369,7 +369,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
   });
   const ocrLangRef = useRef(ocrLang);
   ocrLangRef.current = ocrLang;
-  const runOcr = useCallback(() => void ctl.runOcr(recognizeImage, ocrLangRef.current), [ctl]);
+  const runOcr = useCallback(() => void ctl.runOcr((src, lang, signal) => readImage(src, lang, { signal }), ocrLangRef.current), [ctl]);
   // las imágenes nuevas se reconocen solas, en segundo plano
   useEffect(() => {
     if (ctl.ocr.running || ctl.ocrPending === 0 || ctl.locked) return;
@@ -904,6 +904,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
           <ImageDialog
             ctl={ctl}
             id={dialog.arg}
+            lang={ocrLang}
             onClose={closeDialog}
             onOcr={() => {
               closeDialog();

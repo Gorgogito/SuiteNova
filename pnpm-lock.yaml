@@ -524,6 +524,9 @@ importers:
       '@suitenova/calc-engine':
         specifier: workspace:*
         version: link:../calc-engine
+      '@suitenova/ocr-core':
+        specifier: workspace:*
+        version: link:../ocr-core
       '@suitenova/writer-core':
         specifier: workspace:*
         version: link:../writer-core

@@ -44,5 +44,12 @@ Cada fase se hace producto por producto y se prueba antes de pasar a la siguient
 **Límites:** (1) el núcleo todavía **no lo usa ningún producto** (Notes migra en la fase 2); (2) el giro automático solo prueba giros de cuarto de vuelta, no el texto **inclinado** unos grados; (3) la tabla se reconstruye bien con **columnas separadas por espacio**; con líneas de tabla dibujadas, celdas combinadas o texto muy desigual puede fallar (se probará con imágenes reales en la fase 6); (4) la confianza de Tesseract no es una probabilidad: sirve para comparar lecturas de la misma imagen, no para decidir si algo es correcto; (5) idiomas: español, inglés o los dos, como antes.
 
 
+### Fase 2 (hecha, 2026-11-20): interfaz compartida y Notes
+- **`apps/suite/src/ocr/`:** `read.ts` (`readImage(src, idioma, { zona, giro, signal })`: decodifica, lee con `ocr-core` y Tesseract, giro automático por defecto) y `OcrPreview.tsx` (imagen con las cajas encima, en píxeles de la imagen original; resalta las coincidencias de una búsqueda con `searchResult`; arrastrando se elige una zona). Es lo que reutilizarán Writer, Slides, Calc, Mail y Diagram.
+- **Notes:** `OcrResult` del cuaderno es ahora `StoredOcr` (palabras, cajas, giro, zona); `readOcr` usa `unpackResult`/`packResult`, así que **los cuadernos anteriores se abren** (3 pruebas en `notes-core`). `NotesCtl.runOcr` recibe un lector que devuelve la lectura completa y la guarda; `stopOcr` cancela la lectura en curso (antes solo dejaba de encolar); `ocrResultOf` y `setOcrResult` para leer y guardar una lectura aparte. El cuadro «Imagen» muestra la imagen con lo reconocido, buscar en la imagen, giro al leer (automático o fijo), «Reconocer solo la zona» y aviso de giro detectado. `notes/ocr.ts` queda como reexportación.
+- **Pruebas:** `notes-core` 77; app 448; e2e nueva `e2e-notes-ocr` 8/8 con Tesseract real (palabras con caja guardadas, búsqueda del cuaderno, imagen girada leída sola, dónde está «Total», zona de abajo con cajas en la imagen entera, volver a leer, cuaderno antiguo); `e2e-notes` 23/23, `e2e-notes-more` 35/35, `e2e-notes-image` 9/9.
+- **Límites:** el selector de idioma sigue en la cinta de Notes (no es aún un componente común); la vista de cajas no tiene zoom; leer una zona sustituye la lectura completa guardada de esa imagen.
+
+
 ## 6. Estado
-Fase 1 hecha.
+Fases 1 y 2 hechas.

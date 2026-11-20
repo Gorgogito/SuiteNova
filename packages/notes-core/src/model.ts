@@ -1,4 +1,5 @@
 import { emptyDoc, writerSchema } from '@suitenova/writer-core';
+import { packResult, unpackResult, type StoredOcr } from '@suitenova/ocr-core';
 import type { Node as PMNode } from 'prosemirror-model';
 import { baseTag, normalizeTag, type TagDef } from './tags';
 
@@ -155,12 +156,12 @@ export interface Asset {
   size: number;
 }
 
-/** Texto reconocido en una imagen (OCR). La clave es el identificador del activo, o `h:…` (una huella) para una imagen dentro de un texto. */
-export interface OcrResult {
-  text: string;
-  lang: string;
-  at: number;
-}
+/**
+ * Texto reconocido en una imagen (OCR). La clave es el identificador del activo, o `h:…` (una huella) para una imagen dentro de un texto. Es lo que
+ * guarda el OCR compartido (`ocr-core`): el texto y, si se leyó con el motor, dónde está cada palabra; los cuadernos anteriores solo tenían
+ * `{ text, lang, at }`, que se sigue leyendo.
+ */
+export type OcrResult = StoredOcr;
 
 export interface TrashItem {
   id: string;
@@ -442,7 +443,12 @@ function readAssets(v: unknown): Record<string, Asset> {
 function readOcr(v: unknown): Record<string, OcrResult> {
   const out: Record<string, OcrResult> = {};
   if (!v || typeof v !== 'object') return out;
-  for (const [k, r] of Object.entries(v as Record<string, Partial<OcrResult>>)) if (r && typeof r.text === 'string') out[k.slice(0, 100)] = { text: r.text.slice(0, 200000), lang: str(r.lang, '', 40), at: num(r.at, 0, 0, 4e12) };
+  for (const [k, raw] of Object.entries(v as Record<string, unknown>)) {
+    const r = unpackResult(raw);
+    if (!r) continue;
+    // lo dañado se descarta y los límites son los de siempre (texto, idioma y fecha)
+    out[k.slice(0, 100)] = packResult({ ...r, text: r.text.slice(0, 200000), lang: r.lang.slice(0, 40), at: num(r.at, 0, 0, 4e12) });
+  }
   return out;
 }
 

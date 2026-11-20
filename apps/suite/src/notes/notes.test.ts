@@ -1,5 +1,6 @@
 import { CommandRegistry, coreCommands, getLocale, setLocale, t, type RibbonItem } from '@suitenova/core-ui';
 import { describe, expect, it } from 'vitest';
+import { textResult } from '@suitenova/ocr-core';
 import { zoomCommands } from '../common';
 import { notesCommands, type NotesUI } from './commands';
 import { notesCommands2 } from './commands2';
@@ -210,7 +211,7 @@ describe('Nova Notes controller: new features', () => {
     expect(ctl.ocrPending).toBe(1);
     ctl.search('total a pagar');
     expect(ctl.results).toHaveLength(0);
-    return ctl.runOcr(async () => 'Total a pagar: 42 €', 'spa').then(() => {
+    return ctl.runOcr(async () => textResult('Total a pagar: 42 €', 'spa'), 'spa').then(() => {
       expect(ctl.ocrPending).toBe(0);
       ctl.search('TOTAL A PAGAR');
       expect(ctl.results[0]?.where).toBe('image');

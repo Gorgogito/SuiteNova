@@ -9,6 +9,9 @@ import { EquationEditor } from '../math/EquationEditor';
 import { EQUATION_SAMPLES } from '../writer/dlg-objects';
 import { ASPECT_RATIOS, NO_CROP, cropToAspect } from '@suitenova/image-core';
 import { notesPictureHost } from './pichost';
+import { OcrPreview } from '../ocr/OcrPreview';
+import { readImage } from '../ocr/read';
+import { hasPositions, type Box } from '@suitenova/ocr-core';
 import { createTable, insertBlockAfterCursor, markAttr, setLink } from './editing';
 
 export function Modal({ title, onClose, children, actions, wide }: { title: string; onClose: () => void; children: React.ReactNode; actions: React.ReactNode; wide?: boolean }) {
@@ -705,9 +708,14 @@ export function EquationDialog({ ctl, pos, onClose }: { ctl: NotesCtl; pos?: num
 
 // ------------------------------------------------------------------------------------------------ image properties and OCR text
 
-export function ImageDialog({ ctl, id, onClose, onOcr }: { ctl: NotesCtl; id: string; onClose: () => void; onOcr: () => void }) {
+export function ImageDialog({ ctl, id, lang, onClose, onOcr }: { ctl: NotesCtl; id: string; lang: string; onClose: () => void; onOcr: () => void }) {
   const c = ctl.page.containers.find((x) => x.id === id) as Extract<Container, { kind: 'image' }> | undefined;
   const [alt, setAlt] = useState(c?.alt ?? '');
+  const [find, setFind] = useState('');
+  const [zone, setZone] = useState<Box | null>(null);
+  const [turns, setTurns] = useState<'auto' | '0' | '1' | '2' | '3'>('auto');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
   if (!c) return null;
   const frame = (patch: { rotation?: number; flipH?: boolean; flipV?: boolean }) => ctl.setImageFrame(c.id, { rotation: c.rotation, flipH: c.flipH, flipV: c.flipV, crop: c.crop, ...patch });
   const aspect = async (id: string) => {
@@ -718,6 +726,20 @@ export function ImageDialog({ ctl, id, onClose, onOcr }: { ctl: NotesCtl; id: st
   };
   const text = ctl.ocrTextOf(c);
   const done = !!ctl.nb.ocr[c.asset];
+  const result = ctl.ocrResultOf(c.asset);
+  const asset = ctl.nb.assets[c.asset];
+  const src = asset ? `data:${asset.mime};base64,${asset.data}` : '';
+  const reread = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      ctl.setOcrResult(c.asset, await readImage(src, lang, { zone: zone ?? undefined, turns: turns === 'auto' ? 'auto' : (Number(turns) as 0 | 1 | 2 | 3) }));
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <Modal
       title={t('Imagen')}
@@ -783,7 +805,34 @@ export function ImageDialog({ ctl, id, onClose, onOcr }: { ctl: NotesCtl; id: st
       </div>
       <div style={field}>
         <span>{t('Texto reconocido en la imagen (OCR)')}</span>
+        {src && done && result && hasPositions(result) && (
+          <>
+            <OcrPreview src={src} result={result} query={find} zone={zone ?? result.zone ?? null} onZone={setZone} />
+            <Input aria-label={t('Buscar en el texto de la imagen')} placeholder={t('Buscar en el texto de la imagen')} value={find} onChange={(_e, d) => setFind(d.value)} />
+          </>
+        )}
         <textarea className="nn-eqsrc" readOnly rows={6} aria-label={t('Texto reconocido en la imagen')} value={done ? text || t('(no se encontró texto)') : t('(todavía no se ha reconocido)')} />
+        {result && result.rotation !== 0 && <span className="nn-note">{t('La imagen estaba girada {n}° y se leyó girándola.', { n: result.rotation })}</span>}
+        <div className="nn-row">
+          <label>
+            {t('Giro al leer')}{' '}
+            <select aria-label={t('Giro al leer')} value={turns} onChange={(e) => setTurns(e.target.value as typeof turns)}>
+              <option value="auto">{t('Automático')}</option>
+              <option value="0">{t('Sin girar')}</option>
+              <option value="1">{t('90° a la derecha')}</option>
+              <option value="2">{t('180°')}</option>
+              <option value="3">{t('90° a la izquierda')}</option>
+            </select>
+          </label>
+          <Button disabled={busy || !src} onClick={() => void reread()}>
+            {zone ? t('Reconocer solo la zona') : t('Reconocer con estos ajustes')}
+          </Button>
+          <Button disabled={!zone} onClick={() => setZone(null)}>
+            {t('Quitar la zona')}
+          </Button>
+          {busy && <span aria-live="polite">{t('Reconociendo…')}</span>}
+          {err && <span role="alert">{err}</span>}
+        </div>
       </div>
       <div className="nn-row">
         <Button
