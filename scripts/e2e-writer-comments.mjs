@@ -3,6 +3,7 @@
 import { chromium } from '../apps/suite/node_modules/playwright-core/index.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import JSZip from '../packages/writer-core/node_modules/jszip/lib/index.js';
 
 const URL = process.env.NOVA_URL ?? 'http://localhost:1420/?app=writer';
 const shotsDir = process.argv.includes('--shots') ? process.argv[process.argv.indexOf('--shots') + 1] : null;
@@ -216,6 +217,32 @@ await check('cambios controlados de dos revisores: filtrar por revisor y aceptar
   await pane().getByLabel('Revisor').selectOption('');
   assert.equal(await pane().getByRole('listitem').count(), 1, 'queda lo de Ana');
   assert.match(await ev(() => window.__novaWriter.ctl.body.textContent), /Añadido por Luis\./);
+});
+
+await check('un cambio de formato controlado: se anota con el formato de antes, sale en Revisiones como «Formato» y rechazarlo lo devuelve', async () => {
+  await ev(() => { window.__novaWriter.ctl.trackChanges = true; localStorage.setItem('nova.user', JSON.stringify({ name: 'Ana María', initials: 'AM' })); });
+  await select(2, 7);
+  await ev(() => { const v = window.__novaWriter.ctl.mainView; v.dispatch(v.state.tr.addMark(2, 7, v.state.schema.marks.strong.create())); });
+  await wait();
+  await page.getByRole('tab', { name: 'Revisiones' }).click();
+  assert.match(await pane().textContent(), /Formato/);
+  const hasBold = () => ev(() => { let n = 0; window.__novaWriter.ctl.body.descendants((x) => { if (x.marks.some((m) => m.type.name === 'strong')) n++; }); return n; });
+  assert.ok((await hasBold()) > 0);
+  const item = pane().getByRole('listitem').filter({ hasText: 'Formato' }).first();
+  await item.click();
+  await item.getByRole('button', { name: 'Rechazar' }).click();
+  await wait();
+  assert.equal(await hasBold(), 0, 'rechazar quita la negrita');
+  assert.equal(await ev(() => { let n = 0; window.__novaWriter.ctl.body.descendants((x) => { if (x.marks.some((m) => m.type.name === 'fmt')) n++; }); return n; }), 0);
+  const bytes = await ev(async () => {
+    const v = window.__novaWriter.ctl.mainView;
+    v.dispatch(v.state.tr.addMark(2, 7, v.state.schema.marks.em.create()));
+    const w = window.__novaWriter;
+    const { data } = await w.docx.writeDocx(w.ctl.toWriterDoc());
+    return [...data];
+  });
+  const v2 = (await (await JSZip.loadAsync(Buffer.from(bytes))).file('word/document.xml').async('string')).includes('<w:rPrChange ');
+  assert.ok(v2, 'el .docx lleva el cambio de formato (rPrChange)');
 });
 
 await check('sin errores de consola', async () => {

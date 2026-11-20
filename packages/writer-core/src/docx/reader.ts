@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { Fragment, type Mark, type Node as PMNode } from 'prosemirror-model';
-import { PARAGRAPH_STYLES, markTypes, nodeTypes, writerSchema, type Align, type ListFormat, type ParagraphStyleDef } from '../schema';
+import { FORMAT_MARKS, PARAGRAPH_STYLES, markTypes, nodeTypes, writerSchema, type Align, type ListFormat, type ParagraphStyleDef } from '../schema';
 import { DEFAULT_DOC_DEFAULTS, type DocDefaults } from '../styles';
 import { EMU_PER_PX, emptyWriterDoc, makeSection, twipsToPt, type CommentData, type NotesOptions, type Protection, type ReadResult, type Source, type Watermark, type WriterDoc } from './model';
 import { defaultSection, newSectionId, noRefs, oneColumn, type Columns, type HFRefs, type SectionProps } from '../sections';
@@ -10,7 +10,7 @@ import { cleanAdjust, hasPreset, parseGuide } from '@suitenova/shapes-core';
 import { emuToPx, type FxColor, type FxFill, type WordArtFx } from '@suitenova/wordart-core';
 import { drawingRelId, parseDataModel, type SmartArtParts } from '@suitenova/smartart-core';
 import { readChartPart } from '@suitenova/chart-core';
-import { parseFieldInstr } from './shared';
+import { fromWordDate, parseFieldInstr } from './shared';
 import { attrOf, findKid, findKids, kidsOf, parseXml, rootOf, tagOf, textOfNode, toggle, type XNode } from './xml';
 
 // ---------- property bags ----------
@@ -99,7 +99,7 @@ const num = (v: string | undefined): number | undefined => {
 const setDef = <T extends object>(o: T, k: keyof T, v: unknown) => {
   if (v !== undefined) (o as any)[k] = v;
 };
-const revOf = (n: XNode | undefined): Rev | undefined => (n ? { id: attrOf(n, 'id') ?? '', author: attrOf(n, 'author') ?? '', date: attrOf(n, 'date') ?? '' } : undefined);
+const revOf = (n: XNode | undefined): Rev | undefined => (n ? { id: attrOf(n, 'id') ?? '', author: attrOf(n, 'author') ?? '', date: fromWordDate(attrOf(n, 'date') ?? '') } : undefined);
 
 function parseRPr(n: XNode | undefined, fonts: Fonts): RP {
   const rp: RP = {};
@@ -691,7 +691,15 @@ class Converter {
     const eff = merge(rc.builtin ? {} : sh.baseRP, rc.base, charRP, direct);
     // a field with mode "link" turns its result runs into a link
     const lf = [...this.fields].reverse().find((f) => f.mode === 'link' && f.phase === 'result');
-    const marks = this.marks(eff, rc.builtin ? {} : sh.baseRP, lf?.href ?? link);
+    let marks = this.marks(eff, rc.builtin ? {} : sh.baseRP, lf?.href ?? link);
+    // a tracked change of formatting: the formatting the run had before is kept in a mark, so the change can be rejected
+    const chg = findKid(findKid(r, 'rPr') ?? {}, 'rPrChange');
+    if (chg) {
+      const rev = revOf(chg)!;
+      const beforeMarks = this.marks(merge(rc.builtin ? {} : sh.baseRP, rc.base, charRP, parseRPr(findKid(chg, 'rPr'), sh.fonts)), rc.builtin ? {} : sh.baseRP, lf?.href ?? link);
+      const before = beforeMarks.filter((m) => FORMAT_MARKS.includes(m.type.name)).map((m) => ({ type: m.type.name, attrs: m.attrs }));
+      marks = [...marks, markTypes.fmt!.create({ id: rev.id, author: rev.author, date: rev.date, before: JSON.stringify(before) })];
+    }
     let buf = '';
     const flush = () => {
       if (buf) cur().push(writerSchema.text(buf, marks));
@@ -1407,7 +1415,7 @@ function readComments(xml: string | null, extXml: string | null): { data: Commen
     const textParts = paras.map((p) => textOfNode(p).replace(/\s+$/, ''));
     const pid = paras.length ? attrOf(paras[paras.length - 1]!, 'paraId') : undefined;
     if (pid) paraOfId.set(pid.toUpperCase(), id);
-    data.push({ id, author: attrOf(c, 'author') ?? '', initials: attrOf(c, 'initials') ?? '', date: attrOf(c, 'date') ?? '', text: textParts.join('\n').trim(), parent: null, done: false });
+    data.push({ id, author: attrOf(c, 'author') ?? '', initials: attrOf(c, 'initials') ?? '', date: fromWordDate(attrOf(c, 'date') ?? ''), text: textParts.join('\n').trim(), parent: null, done: false });
   }
   if (extXml) {
     const eroot = rootOf(parseXml(extXml), 'commentsEx');

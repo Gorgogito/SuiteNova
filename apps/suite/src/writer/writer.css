@@ -1177,3 +1177,15 @@
   border: 1px solid var(--colorNeutralStroke1);
   border-radius: 3px;
 }
+/* tracked changes of formatting: a red dotted line under the text, only where markup is shown */
+.nw-doc span.nw-fmt {
+  border-bottom: 1px dotted #b32424;
+}
+.nw-mk-simple span.nw-fmt,
+.nw-mk-none span.nw-fmt {
+  border-bottom: none;
+}
+.nw-chg-fmt {
+  background: #e6edfa;
+  color: #1f4e9a;
+}

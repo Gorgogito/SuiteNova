@@ -86,6 +86,27 @@ describe('DOCX: control de cambios', () => {
   });
 });
 
+describe('DOCX: cambios de formato controlados (rPrChange)', () => {
+  const before = JSON.stringify([{ type: 'em', attrs: {} }]);
+  const meta = { id: '7', author: 'Ana', date: '2026-03-04T10:00:00Z', before };
+  it('el formato de ahora y el de antes se guardan y vuelven, para poder rechazar el cambio', async () => {
+    const { blocks, zip } = await rt(wd([p([t('Uno ', [mk('strong'), mk('fmt', meta)]), t('dos')])], { trackChanges: true }));
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toMatch(/<w:rPr>[^]*<w:b\/>[^]*<w:rPrChange [^>]*w:author="Ana"[^>]*><w:rPr><w:i\/><w:iCs\/><\/w:rPr><\/w:rPrChange><\/w:rPr>/);
+    const a = blocks[0]!.child(0);
+    expect(a.marks.map((m) => m.type.name).sort()).toEqual(['fmt', 'strong']);
+    const f = a.marks.find((m) => m.type.name === 'fmt')!;
+    expect(f.attrs.author).toBe('Ana');
+    expect(JSON.parse(f.attrs.before)).toEqual([{ type: 'em', attrs: {} }]);
+    expect(blocks[0]!.child(1).marks.some((m) => m.type.name === 'fmt')).toBe(false);
+  });
+  it('un formato que antes no tenía nada se guarda con un rPr vacío', async () => {
+    const { zip } = await rt(wd([p([t('Uno', [mk('strong'), mk('fmt', { ...meta, before: '[]' })])])]));
+    expect(await zip.file('word/document.xml')!.async('string')).toContain('<w:rPrChange ');
+    expect(await zip.file('word/document.xml')!.async('string')).toContain('<w:rPr/></w:rPrChange>');
+  });
+});
+
 describe('DOCX: notas, marcadores, campos y tabulaciones', () => {
   it('notas al pie y notas finales con su texto', async () => {
     const note = (kind: string, text: string) => nodeTypes.footnote!.create({ kind, id: kind[0]! + text, body: noteBodyOf([p(text)]) });

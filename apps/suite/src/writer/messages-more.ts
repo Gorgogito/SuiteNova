@@ -171,6 +171,7 @@ registerMessages('en', {
   'Texto del comentario': 'Comment text',
   Insertado: 'Inserted',
   Eliminado: 'Deleted',
+  Formato: 'Formatted',
   'Párrafo insertado': 'Paragraph inserted',
   'Párrafo eliminado': 'Paragraph deleted',
   Rechazar: 'Reject',

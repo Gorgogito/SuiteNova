@@ -670,6 +670,16 @@ const marks: Record<string, MarkSpec> = {
     parseDOM: [{ tag: 'del.nw-del', getAttrs: (dom) => ({ id: (dom as HTMLElement).dataset.id ?? '', author: (dom as HTMLElement).dataset.author ?? '', date: (dom as HTMLElement).dataset.date ?? '' }) }],
     toDOM: (m) => ['del', { class: 'nw-del', 'data-id': m.attrs.id, 'data-author': m.attrs.author, 'data-date': m.attrs.date }, 0],
   },
+  /**
+   * A tracked change of formatting (Word's `w:rPrChange`): the text keeps the formatting it has now, and `before` is the formatting it had (a list of
+   * `{ type, attrs }` marks as JSON) so the change can be rejected. Accepting it only removes this mark.
+   */
+  fmt: {
+    attrs: { id: { default: '' }, author: { default: '' }, date: { default: '' }, before: { default: '[]' } },
+    inclusive: false,
+    parseDOM: [{ tag: 'span.nw-fmt', getAttrs: (dom) => ({ id: (dom as HTMLElement).dataset.id ?? '', author: (dom as HTMLElement).dataset.author ?? '', date: (dom as HTMLElement).dataset.date ?? '', before: (dom as HTMLElement).dataset.before ?? '[]' }) }],
+    toDOM: (m) => ['span', { class: 'nw-fmt', 'data-id': m.attrs.id, 'data-author': m.attrs.author, 'data-date': m.attrs.date, 'data-before': m.attrs.before }, 0],
+  },
   /** Proofing language of a run. */
   lang: {
     attrs: { value: {} },
@@ -809,3 +819,6 @@ export function wordCount(doc: PMNode | string): number {
   const text = typeof doc === 'string' ? doc : plainText(doc);
   return text.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu)?.length ?? 0;
 }
+
+/** The marks that are formatting of text (what a tracked change of formatting records), as opposed to links, comments and tracked changes. */
+export const FORMAT_MARKS: readonly string[] = ['strong', 'em', 'underline', 'strike', 'dstrike', 'spacing', 'superscript', 'subscript', 'color', 'highlight', 'fontFamily', 'fontSize', 'caps'];

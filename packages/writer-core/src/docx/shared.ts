@@ -153,3 +153,23 @@ export const attrEsc = esc;
 
 /** Hex of a number, upper case, fixed width. */
 export const hex8 = (n: number): string => n.toString(16).toUpperCase().padStart(8, '0');
+
+/**
+ * The date of a comment or a tracked change. Word writes the **local wall-clock time followed by a «Z»** (it does not convert to UTC) and reads it
+ * back the same way; reading its «Z» as UTC shows every change hours off for anyone who is not in UTC. These two go between a real instant
+ * (an ISO date) and what Word writes.
+ */
+export function toWordDate(iso: string): string {
+  const d = iso && /^\d{4}-\d\d-\d\dT/.test(iso) ? new Date(iso) : new Date();
+  const t = Number.isNaN(d.getTime()) ? new Date() : d;
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}T${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}Z`;
+}
+
+export function fromWordDate(w: string): string {
+  const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)/.exec(w ?? '');
+  if (!m) return w ?? '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6]));
+  // whole seconds, as the dates of a file always are (so a date is the same text after every save)
+  return Number.isNaN(d.getTime()) ? w : d.toISOString().replace(/\.\d+Z$/, 'Z');
+}

@@ -11,7 +11,7 @@ import { avLstXml, presetOf, resolveKind } from '@suitenova/shapes-core';
 import { prstTxWarpXml, w14Fx, type WordArtFx } from '@suitenova/wordart-core';
 import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, NS_CX, REL_CHARTEX, chartParts, mainChartPath, renameBundle, rewriteRawChart, writeGridWorkbook, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 import { DIAGRAM_URI, PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel, type SmartArtParts } from '@suitenova/smartart-core';
-import { REL, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml } from './shared';
+import { REL, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml, toWordDate } from './shared';
 import { commentsExtendedXml, commentsXml, customXmlParts, footnotesXml, settingsXml, watermarkParagraph, type NoteOut } from './writer-parts';
 
 const NUM_FMT: Record<ListFormat, string> = { decimal: 'decimal', lowerLetter: 'lowerLetter', upperLetter: 'upperLetter', lowerRoman: 'lowerRoman', upperRoman: 'upperRoman' };
@@ -80,7 +80,7 @@ export class Ctx {
   }
 }
 
-const normDate = (d: string): string => (d && /^\d{4}-\d\d-\d\dT/.test(d) ? d.replace(/\.\d+Z$/, 'Z') : new Date().toISOString().replace(/\.\d+Z$/, 'Z'));
+const normDate = toWordDate;
 
 export function newPart(): PartCtx {
   return { rels: [], nextRel: 1, hyperlinks: new Map() };
@@ -454,6 +454,22 @@ interface Rev {
 }
 const revOf = (marks: readonly Mark[]): Rev => ({ ins: marks.find((m) => m.type.name === 'ins'), del: marks.find((m) => m.type.name === 'del') });
 
+/** `w:rPrChange` for a run whose formatting was changed with tracking: the formatting it had before, kept in the `fmt` mark. It goes last in `w:rPr`. */
+function fmtChange(marks: readonly Mark[], ctx: Ctx): string {
+  const f = marks.find((m) => m.type.name === 'fmt');
+  if (!f) return '';
+  let before: Mark[] = [];
+  try {
+    before = (JSON.parse(f.attrs.before) as { type: string; attrs: Record<string, unknown> }[]).flatMap((m) => {
+      const t = writerSchema.marks[m.type];
+      return t ? [t.create(m.attrs)] : [];
+    });
+  } catch {
+    /* damaged: the formatting before is unknown, so it is written as none */
+  }
+  return `<w:rPrChange ${ctx.rev(f.attrs.author, f.attrs.date)}>${rPr(before) || '<w:rPr/>'}</w:rPrChange>`;
+}
+
 function wrapRev(xml: string, rev: Rev, ctx: Ctx): string {
   let out = xml;
   if (rev.del) out = `<w:del ${ctx.rev(rev.del.attrs.author, rev.del.attrs.date)}>${out}</w:del>`;
@@ -490,7 +506,7 @@ function inlineXml(parent: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): stri
     const link = child.marks.find((m) => m.type.name === 'link');
     const rev = revOf(child.marks);
     const deleted = !!rev.del;
-    const props = rPr(child.marks.filter((m) => m.type.name !== 'link' || false), '', ctx.fxTail);
+    const props = rPr(child.marks.filter((m) => m.type.name !== 'link' || false), '', ctx.fxTail + fmtChange(child.marks, ctx));
     const ids = commentIdsOf(child.marks, ctx);
     let before = '';
     let after = '';
@@ -505,7 +521,7 @@ function inlineXml(parent: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): stri
     }
     let xml = '';
     const tn = child.type.name;
-    if (child.isText) xml = wrapRev(textRuns(child.text!, rPr(child.marks, '', ctx.fxTail), deleted), rev, ctx);
+    if (child.isText) xml = wrapRev(textRuns(child.text!, rPr(child.marks, '', ctx.fxTail + fmtChange(child.marks, ctx)), deleted), rev, ctx);
     else if (tn === 'hard_break') xml = wrapRev(`<w:r>${props}<w:br/></w:r>`, rev, ctx);
     else if (tn === 'image') xml = wrapRev(imageXml(child, ctx, part, rels, props), rev, ctx);
     else if (tn === 'field') xml = wrapRev(fieldXml(child, child.marks, deleted), rev, ctx);

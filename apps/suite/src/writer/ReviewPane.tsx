@@ -89,7 +89,7 @@ function Changes({ ctl }: { ctl: WriterCtl }) {
   // a reviewer who has no changes left is no longer a filter
   const sel = reviewers.includes(who) ? who : '';
   const changes = sel ? all.filter((c) => c.author === sel) : all;
-  const label = (c: Change) => (c.kind === 'ins' ? t('Insertado') : c.kind === 'del' ? t('Eliminado') : c.kind === 'pins' ? t('Párrafo insertado') : t('Párrafo eliminado'));
+  const label = (c: Change) => (c.kind === 'ins' ? t('Insertado') : c.kind === 'del' ? t('Eliminado') : c.kind === 'fmt' ? t('Formato') : c.kind === 'pins' ? t('Párrafo insertado') : t('Párrafo eliminado'));
   return (
     <>
     {reviewers.length > 0 && (

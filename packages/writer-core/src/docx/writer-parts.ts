@@ -2,7 +2,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { noteDoc } from '../notes';
 import { writerSchema } from '../schema';
 import type { CommentData, Source, Watermark, WriterDoc } from './model';
-import { W_NS, XML_HEAD, hex, hex8 } from './shared';
+import { W_NS, XML_HEAD, hex, hex8, toWordDate } from './shared';
 import { esc } from './xml';
 
 export interface NoteOut {
@@ -24,7 +24,7 @@ interface CtxLike {
 
 const paraBase = (i: number): number => 0x10000000 + i * 0x1000;
 
-const normDate = (d: string): string => (d && /^\d{4}-\d\d-\d\dT/.test(d) ? d.replace(/\.\d+Z$/, 'Z') : new Date().toISOString().replace(/\.\d+Z$/, 'Z'));
+const normDate = toWordDate;
 
 export function commentsXml(comments: CommentData[], ctx: CtxLike): string {
   void ctx;

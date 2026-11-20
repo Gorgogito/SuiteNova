@@ -1,4 +1,4 @@
-import { markTypes, nodeTypes, type CommentData } from '@suitenova/writer-core';
+import { FORMAT_MARKS, markTypes, nodeTypes, type CommentData } from '@suitenova/writer-core';
 import { Fragment, Mark, Slice, type Node as PMNode } from 'prosemirror-model';
 import { Plugin, TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 import { AddMarkStep, RemoveMarkStep, ReplaceStep } from 'prosemirror-transform';
@@ -76,8 +76,8 @@ export function removeCommentMarks(view: EditorView, ids: string[]): void {
 // ------------------------------------------------------------------------------------------------ tracked changes
 
 export interface Change {
-  /** `ins` / `del` of text and objects; `pins` / `pdel` of a paragraph mark. */
-  kind: 'ins' | 'del' | 'pins' | 'pdel';
+  /** `ins` / `del` of text and objects; `pins` / `pdel` of a paragraph mark; `fmt` of the formatting of text. */
+  kind: 'ins' | 'del' | 'pins' | 'pdel' | 'fmt';
   id: string;
   author: string;
   date: string;
@@ -108,6 +108,7 @@ export function listChanges(doc: PMNode): Change[] {
       for (const m of node.marks) {
         if (m.type.name === 'ins') add('ins', m.attrs as never, pos, pos + node.nodeSize, node.isText ? node.text! : '¤');
         else if (m.type.name === 'del') add('del', m.attrs as never, pos, pos + node.nodeSize, node.isText ? node.text! : '¤');
+        else if (m.type.name === 'fmt') add('fmt', m.attrs as never, pos, pos + node.nodeSize, node.isText ? node.text! : '¤');
       }
     } else if (node.type.name === 'paragraph') {
       if (node.attrs.ins) add('pins', node.attrs.ins, pos + node.nodeSize - 1, pos + node.nodeSize, '¶');
@@ -161,7 +162,22 @@ export function trackTransaction(tr: Transaction, state: EditorState, user: User
   const oldHead = state.selection.head;
   for (const step of steps) {
     if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
+      // a change of formatting is recorded with the formatting the text had, once (the first one is the one to go back to)
+      const formatting = FORMAT_MARKS.includes(step.mark.type.name);
+      const segs: { from: number; to: number; before: Mark[] }[] = [];
+      if (formatting) {
+        nt.doc.nodesBetween(step.from, step.to, (node, pos) => {
+          if (!node.isInline || !node.isText) return true;
+          const own = node.marks.some((m) => (m.type.name === 'ins' && m.attrs.author === user.name) || m.type.name === 'del' || m.type.name === 'fmt');
+          if (!own) segs.push({ from: Math.max(step.from, pos), to: Math.min(step.to, pos + node.nodeSize), before: node.marks.filter((m) => FORMAT_MARKS.includes(m.type.name)) });
+          return true;
+        });
+      }
       nt.step(step);
+      for (const sg of segs) {
+        const before = JSON.stringify(sg.before.map((m) => ({ type: m.type.name, attrs: m.attrs })));
+        nt.addMark(sg.from, sg.to, markTypes.fmt!.create({ ...rev, before }));
+      }
       continue;
     }
     const s = step as ReplaceStep;
@@ -233,7 +249,29 @@ function applyOne(tr: Transaction, c: Change, accept: boolean): void {
   for (const r of ranges) {
     const from = tr.mapping.map(r.from);
     const to = tr.mapping.map(r.to);
-    if (c.kind === 'ins') {
+    if (c.kind === 'fmt') {
+      if (!accept) {
+        // go back to the formatting the text had: take off what is formatting now and put the old one back
+        const nodes: { a: number; b: number; before: { type: string; attrs: Record<string, unknown> }[] }[] = [];
+        tr.doc.nodesBetween(from, to, (node, pos) => {
+          const f = node.isText ? node.marks.find((m) => m.type.name === 'fmt') : undefined;
+          if (!f) return true;
+          let before: { type: string; attrs: Record<string, unknown> }[] = [];
+          try {
+            before = JSON.parse(f.attrs.before);
+          } catch {
+            /* damaged: the text goes back to no formatting */
+          }
+          nodes.push({ a: Math.max(from, pos), b: Math.min(to, pos + node.nodeSize), before });
+          return true;
+        });
+        for (const n of nodes) {
+          for (const name of FORMAT_MARKS) if (markTypes[name]) tr.removeMark(n.a, n.b, markTypes[name]!);
+          for (const m of n.before) if (markTypes[m.type]) tr.addMark(n.a, n.b, markTypes[m.type]!.create(m.attrs));
+        }
+      }
+      tr.removeMark(from, to, markTypes.fmt);
+    } else if (c.kind === 'ins') {
       if (accept) tr.removeMark(from, to, markTypes.ins);
       else tr.delete(from, to);
     } else if (c.kind === 'del') {

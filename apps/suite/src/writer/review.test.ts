@@ -116,11 +116,53 @@ describe('control de cambios', () => {
     expect(listChanges(accepted.doc)).toHaveLength(0);
   });
 
-  it('los cambios de formato y de varios pasos se aplican sin registrar', () => {
-    const { state } = start(para('uno'));
-    const tr = state.tr.addMark(2, 4, writerSchema.marks.strong!.create());
-    const next = state.apply(trackTransaction(tr, state, USER));
-    expect(listChanges(next.doc)).toHaveLength(0);
+  describe('cambios de formato', () => {
+    const pp = (n: number) => 2 + n; // the text of the first paragraph starts at 2
+    const fmt = (st: EditorState) => listChanges(st.doc).filter((c) => c.kind === 'fmt');
+    const bold = (st: EditorState, a: number, b: number) => run(st, (x) => x.tr.addMark(a, b, writerSchema.marks.strong!.create()));
+    const names = (st: EditorState, pos: number) => st.doc.nodeAt(pos)!.marks.map((m) => m.type.name).sort();
+
+    it('poner negrita se registra con el formato que tenía y el texto queda en negrita', () => {
+      const { state } = start(para('uno dos'));
+      const next = bold(state, pp(0), pp(3));
+      const c = fmt(next);
+      expect(c).toHaveLength(1);
+      expect([c[0]!.author, c[0]!.text]).toEqual(['Ana', 'uno']);
+      expect(names(next, pp(0))).toEqual(['fmt', 'strong']);
+      expect(names(next, pp(5))).toEqual([]);
+    });
+
+    it('rechazar vuelve al formato de antes y aceptar lo deja y quita el registro', () => {
+      const { state } = start(para('uno dos'));
+      const withEm = state.apply(state.tr.addMark(pp(0), pp(3), writerSchema.marks.em!.create()));
+      const next = run(withEm, (x) => x.tr.addMark(pp(0), pp(3), writerSchema.marks.strong!.create()).removeMark(pp(0), pp(3), writerSchema.marks.em!));
+      expect(names(next, pp(0))).toEqual(['fmt', 'strong']);
+      const [chg] = fmt(next);
+      const view = { state: next, dispatch(tr: any) { this.state = this.state.apply(tr); } } as any;
+      applyChanges(view, [chg!], false);
+      expect(names(view.state, pp(0))).toEqual(['em']);
+      const view2 = { state: next, dispatch(tr: any) { this.state = this.state.apply(tr); } } as any;
+      applyChanges(view2, [chg!], true);
+      expect(names(view2.state, pp(0))).toEqual(['strong']);
+      expect(fmt(view2.state)).toHaveLength(0);
+    });
+
+    it('cambiar otra vez el mismo texto conserva el formato original, y el texto que uno mismo acaba de escribir no se registra', () => {
+      const { state } = start(para('uno'));
+      const a = bold(state, pp(0), pp(3));
+      const b = run(a, (x) => x.tr.addMark(pp(0), pp(3), writerSchema.marks.em!.create()));
+      const before = JSON.parse(b.doc.nodeAt(pp(0))!.marks.find((m) => m.type.name === 'fmt')!.attrs.before);
+      expect(before).toEqual([]);
+      const typed = run(state, (x) => x.tr.insertText('dos', pp(3)));
+      const boldTyped = bold(typed, pp(3), pp(6));
+      expect(fmt(boldTyped)).toHaveLength(0);
+    });
+
+    it('con la transacción sin registrar (cargar, aceptar) no se anota nada', () => {
+      const { state } = start(para('uno'));
+      const next = state.apply(trackTransaction(state.tr.addMark(pp(0), pp(3), writerSchema.marks.strong!.create()).setMeta('nw-no-track', true), state, USER));
+      expect(fmt(next)).toHaveLength(0);
+    });
   });
 });
 
