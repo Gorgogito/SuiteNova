@@ -22,6 +22,7 @@
     "@suitenova/forms-core": "workspace:*",
     "@suitenova/comment-core": "workspace:*",
     "@suitenova/image-core": "workspace:*",
+    "@suitenova/ocr-core": "workspace:*",
     "@suitenova/mail-core": "workspace:*",
     "@suitenova/math-core": "workspace:*",
     "@suitenova/notes-core": "workspace:*",

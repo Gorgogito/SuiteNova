@@ -211,6 +211,9 @@ importers:
       '@suitenova/notes-core':
         specifier: workspace:*
         version: link:../../packages/notes-core
+      '@suitenova/ocr-core':
+        specifier: workspace:*
+        version: link:../../packages/ocr-core
       '@suitenova/plan-core':
         specifier: workspace:*
         version: link:../../packages/plan-core
@@ -527,6 +530,19 @@ importers:
       prosemirror-model:
         specifier: ^1.25.0
         version: 1.25.12
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
+
+  packages/ocr-core:
+    dependencies:
+      '@suitenova/image-core':
+        specifier: workspace:*
+        version: link:../image-core
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

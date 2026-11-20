@@ -137,3 +137,12 @@ Decisiones del usuario (2026-11-20): comentarios en los productos donde Office l
 - [x] **Fase 4 HECHA: Calc.** Notas y comentarios (conversaciones con respuestas, resolver y menciones) con panel compartido, marca morada, convertir en los dos sentidos y `.xlsx` con `threadedComment` + `person` + nota de relleno como Excel. **Esta Excel no admite comentarios encadenados: sus partes no se pudieron comprobar con Excel real.** e2e 11/11.
 - [x] **Fase 5 HECHA: Diagram.** Comentarios en formas y en la página (pestaña Revisar, panel compartido, marcas en el lienzo, borrar la forma los borra); `.novadiagram` lo guarda todo y el **`.vsdx` escribe `visio/comments.xml`** (Visio no tiene respuestas ni «resuelto»: cada mensaje es un comentario de la misma forma y vuelven como conversación); comprobado con Visio real. e2e 11/11.
 - [x] **Fase 6 HECHA: cierre con Office real.** Word: comentarios idénticos en los dos sentidos; **fechas corregidas (Word guarda la hora local con «Z»: salían con horas de diferencia)**; **cambios de formato controlados** (leer, escribir, registrar, aceptar y rechazar); movimientos leídos como borrado e inserción. PowerPoint y Visio ya comprobados; **Excel no admite comentarios encadenados en esta máquina**. **Comentarios y Control de cambios terminado (6 fases).** Quedan: filas de tabla controladas, marcado de un solo revisor, comprobar Excel.
+
+## OCR, texto en imágenes (producto auxiliar compartido, plan en `docs/diseno-ocr.md`)
+Decisiones del usuario (2026-11-20): OCR también en Writer, Slides, Mail y Diagram para copiar y buscar texto en imágenes (además de Notes y la tabla desde imagen de Calc); núcleo compartido `ocr-core` y Notes migra a él.
+- [x] **Fase 1 HECHA: núcleo `ocr-core`.** Resultado con palabras y cajas, clave por contenido, cola con prioridad y cancelar, preproceso (contraste, invertir, ampliar, zona, giro), **giro automático**, búsqueda con la caja de lo encontrado, tabla desde las palabras y números por idioma, guardado compacto que lee lo antiguo. Probado con Tesseract real. 28 pruebas y e2e 8/8; los productos aún no lo usan.
+- [ ] Fase 2: interfaz compartida y Notes como referencia (idioma, zona, giro, resaltar dónde).
+- [ ] Fase 3: Writer (copiar, buscar en imágenes, `.docx`).
+- [ ] Fase 4: Slides y Calc (copiar, buscar, datos desde imagen).
+- [ ] Fase 5: Mail y Diagram.
+- [ ] Fase 6: calidad con imágenes reales y cierre con Word, PowerPoint y Excel reales.
