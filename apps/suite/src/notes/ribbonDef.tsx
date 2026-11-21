@@ -545,7 +545,7 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
           L('notes.a11y', 'large', 'AC'),
         ],
       },
-      { id: 'reading', label: 'Lectura', icon: 'nnSpeaker', items: [L('notes.read', 'large', 'RD')] },
+      { id: 'reading', label: 'Lectura', icon: 'nnSpeaker', items: [L('notes.read', 'large', 'RD'), L('notes.readAloud', 'large', 'RV')] },
     ],
   };
 

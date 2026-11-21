@@ -17,6 +17,7 @@ import './messages';
 import { setTransport } from './remote';
 import { ComposeBody, FolderTree, LinkConfirm, MessageList, ReadingPane } from './MailViews';
 import { MessageImagesForm } from './dlg-ocr';
+import { ReadAloudBar } from '../voice/ReadAloudBar';
 import { StickyDialog } from './StickyDialog';
 import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
 import { ContactsView, TasksView } from './PeopleViews';
@@ -424,6 +425,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
             </div>
             {ctl.showReadingPane && (
               <div className="ml-mail__pane">
+                {ctl.readAloud.visible && <ReadAloudBar ctrl={ctl.readAloud.voice} onClose={() => ctl.readAloud.stop()} />}
                 {sel ? (
                   <>
                     <div className="ml-mail__actions" role="toolbar" aria-label={t('Acciones del mensaje')}>

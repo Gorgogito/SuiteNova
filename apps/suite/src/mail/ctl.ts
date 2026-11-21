@@ -1,5 +1,6 @@
 import { htmlBody, picturesOfDraft, type ComposePicture } from './pictures';
 import { MailImageOcr } from './ocr-images';
+import { MailReader } from './read-aloud';
 import {
   RFC_FLAGS,
   addRaw,
@@ -193,6 +194,9 @@ export class MailCtl {
 
   /** The text read from the pictures of messages (OCR): read, copy, and found by the mailbox search. */
   readonly imageOcr = new MailImageOcr(this);
+
+  /** Read Aloud: the open message is read with the shared reader. */
+  readonly readAloud = new MailReader(this);
 
   /** Lee las preferencias de sincronización y arranca la sincronización automática. */
   startSync(): void {

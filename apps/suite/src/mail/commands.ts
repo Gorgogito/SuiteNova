@@ -1,6 +1,7 @@
 import type { CommandDef } from '@suitenova/core-ui';
 import type { MailCtl } from './ctl';
 import { ocrCommands } from './commands-ocr';
+import { voiceCommands } from './commands-voice';
 
 export type MailDialog = 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
 export type ImportKind = 'eml' | 'mbox' | 'ics' | 'contacts' | 'outlook';
@@ -116,5 +117,6 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   add({ id: 'data.export.vcf', label: 'Exportar contactos (.vcf)…', icon: 'exportFile', enabled: () => c.data.contacts.length > 0, run: () => void ui.exportContacts(false) });
   add({ id: 'data.export.csv', label: 'Exportar contactos (.csv)…', icon: 'exportFile', enabled: () => c.data.contacts.length > 0, run: () => void ui.exportContacts(true) });
   defs.push(...ocrCommands(ui));
+  defs.push(...voiceCommands(ui));
   return defs;
 }

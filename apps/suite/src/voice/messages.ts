@@ -1,4 +1,5 @@
 import { registerMessages } from '@suitenova/core-ui';
+import './icons';
 
 // English text for the shared read-aloud bar and its use in the products.
 registerMessages('en', {

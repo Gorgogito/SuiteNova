@@ -183,6 +183,15 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
   const view = viewTab({ zoom: false });
   view.groups.splice(1, 0, { id: 'pane', label: 'Disposición', icon: 'panelRight', items: [{ kind: 'button', command: 'mail.readingPane', size: 'large', keytip: 'PL' }] });
   view.groups.push({
+    id: 'voice',
+    label: 'Voz',
+    icon: 'volume',
+    items: [
+      { kind: 'button', command: 'mail.read.start', size: 'large', keytip: 'XV' },
+      { kind: 'button', command: 'mail.read.stop', size: 'small', keytip: 'XP' },
+    ],
+  });
+  view.groups.push({
     id: 'imgOcr',
     label: 'Texto de imágenes',
     icon: 'sparkles',

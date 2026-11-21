@@ -79,6 +79,13 @@ export class VoiceController {
     this.reader.play(at ? this.reader.indexAt(at.block, at.offset) : undefined);
   }
 
+  /** Gives the text and shows the bar without reading yet (the person presses play). */
+  open(blocks: Block[]): void {
+    this.reader.load(blocks);
+    this.visible = true;
+    this.changed();
+  }
+
   /** Stops and hides the bar. */
   close(): void {
     this.reader.stop();

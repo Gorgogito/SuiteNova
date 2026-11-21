@@ -1,5 +1,6 @@
 import { Button, Input } from '@fluentui/react-components';
-import { t } from '@suitenova/core-ui';
+import { getLocale, t } from '@suitenova/core-ui';
+import type { Block } from '@suitenova/speech-core';
 import { groupIntoLines, newTextContainer, readableText, strokeBounds, strokesToSvg } from '@suitenova/notes-core';
 import { nodeTypes, writerSchema } from '@suitenova/writer-core';
 import { setCellAttr } from 'prosemirror-tables';
@@ -11,6 +12,9 @@ import { SYMBOL_GROUPS } from '../writer/symbols';
 import type { NotesCtl } from './ctl';
 import { Modal } from './Dialogs';
 import { recognizeImage } from './ocr';
+import { VoiceController } from '../voice/controller';
+import '../voice/messages';
+import { ReadAloudBar } from '../voice/ReadAloudBar';
 
 const field: React.CSSProperties = { display: 'grid', gap: 4, marginBottom: 10 };
 const closeBtn = (onClose: () => void) => (
@@ -30,121 +34,53 @@ export function NotesSpellDialog({ ctl, onClose }: { ctl: NotesCtl; onClose: () 
 
 // ------------------------------------------------------------------------------------------------ lector inmersivo y voz
 
-export function ReadDialog({ ctl, onClose }: { ctl: NotesCtl; onClose: () => void }) {
+export function ReadDialog({ ctl, onClose, autoplay = false }: { ctl: NotesCtl; onClose: () => void; autoplay?: boolean }) {
   const text = useMemo(() => readableText(ctl.page), [ctl.page]);
-  const synth = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [voice, setVoice] = useState('');
-  const [rate, setRate] = useState(1);
+  // the page is read line by line with the shared reader (the same bar, speed and voices as every product); `offset` places each line in the text shown
+  const voice = useMemo(() => new VoiceController(), []);
+  const blocks = useMemo(() => {
+    const out: (Block & { offset: number })[] = [];
+    let offset = 0;
+    for (const line of text.split('\n')) {
+      if (line.trim()) out.push({ text: line, offset });
+      offset += line.length + 1;
+    }
+    return out;
+  }, [text]);
+  useSyncExternalStore(voice.subscribe, voice.getVersion);
   const [size, setSize] = useState(22);
   const [spacing, setSpacing] = useState(1.6);
   const [theme, setTheme] = useState<'light' | 'cream' | 'dark'>('light');
-  const [pos, setPos] = useState<{ start: number; end: number } | null>(null);
-  const [state, setState] = useState<'idle' | 'playing' | 'paused'>('idle');
   useEffect(() => {
-    if (!synth) return;
-    const load = () => {
-      const all = synth.getVoices();
-      setVoices(all);
-      setVoice((cur) => cur || all.find((v) => v.lang.toLowerCase().startsWith('es'))?.name || all[0]?.name || '');
-    };
-    load();
-    synth.addEventListener?.('voiceschanged', load);
-    return () => {
-      synth.removeEventListener?.('voiceschanged', load);
-      synth.cancel();
-    };
-  }, [synth]);
-  const play = () => {
-    if (!synth || !text) return;
-    synth.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    const v = voices.find((x) => x.name === voice);
-    if (v) {
-      u.voice = v;
-      u.lang = v.lang;
-    }
-    u.rate = rate;
-    u.onboundary = (e) => {
-      const len = e.charLength || (/\S+/.exec(text.slice(e.charIndex))?.[0].length ?? 1);
-      setPos({ start: e.charIndex, end: e.charIndex + len });
-    };
-    u.onend = () => {
-      setState('idle');
-      setPos(null);
-    };
-    u.onerror = () => setState('idle');
-    synth.speak(u);
-    setState('playing');
+    voice.lang = getLocale() === 'en' ? 'en-US' : 'es-ES';
+    if (autoplay) voice.start(blocks);
+    else voice.open(blocks);
+    return () => voice.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice]);
+  const snap = voice.snapshot;
+  const at = (blockIdx: number, a: number, e: number): { start: number; end: number } | null => {
+    const b = blocks[blockIdx];
+    return b ? { start: b.offset + a, end: b.offset + e } : null;
   };
+  const pos = snap.state !== 'idle' && snap.word ? at(snap.block, snap.word.start, snap.word.end) : null;
+  const piece = snap.state !== 'idle' && snap.piece ? at(snap.block, snap.piece.start, snap.piece.end) : null;
+  const markRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    markRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [pos?.start]);
   const colors = { light: ['#fff', '#111'], cream: ['#f6edd6', '#2b2418'], dark: ['#1c1c1c', '#eee'] }[theme];
+  const close = () => {
+    voice.close();
+    onClose();
+  };
+  // the text is drawn in up to three parts: before the sentence read, the sentence (with the word marked in it), and after it
+  const part = (from: number, to: number) => text.slice(from, to);
+  const sentence = piece;
   return (
-    <Modal
-      wide
-      title={t('Lector inmersivo')}
-      onClose={() => {
-        synth?.cancel();
-        onClose();
-      }}
-      actions={closeBtn(() => {
-        synth?.cancel();
-        onClose();
-      })}
-    >
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
-        {synth ? (
-          <>
-            {state !== 'playing' ? (
-              <Button
-                appearance="primary"
-                onClick={() => {
-                  if (state === 'paused') {
-                    synth.resume();
-                    setState('playing');
-                  } else play();
-                }}
-              >
-                {state === 'paused' ? t('Continuar') : t('Leer en voz alta')}
-              </Button>
-            ) : (
-              <Button
-                onClick={() => {
-                  synth.pause();
-                  setState('paused');
-                }}
-              >
-                {t('Pausa')}
-              </Button>
-            )}
-            <Button
-              disabled={state === 'idle'}
-              onClick={() => {
-                synth.cancel();
-                setState('idle');
-                setPos(null);
-              }}
-            >
-              {t('Detener')}
-            </Button>
-            <label>
-              {t('Voz')}{' '}
-              <select className="nv-select" aria-label={t('Voz')} value={voice} onChange={(e) => setVoice(e.target.value)}>
-                {voices.map((v) => (
-                  <option key={v.name} value={v.name}>
-                    {v.name} ({v.lang})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {t('Velocidad')} <input type="range" min={0.5} max={2} step={0.25} value={rate} aria-label={t('Velocidad')} onChange={(e) => setRate(Number(e.target.value))} />
-            </label>
-          </>
-        ) : (
-          <span role="alert">{t('Este sistema no tiene síntesis de voz disponible.')}</span>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+    <Modal wide title={t('Lector inmersivo')} onClose={close} actions={closeBtn(close)}>
+      <ReadAloudBar ctrl={voice} onClose={close} label={t('Leer en voz alta')} />
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', margin: '8px 0' }}>
         <label>
           {t('Tamaño del texto')} <input type="range" min={14} max={48} value={size} aria-label={t('Tamaño del texto')} onChange={(e) => setSize(Number(e.target.value))} />
         </label>
@@ -162,11 +98,23 @@ export function ReadDialog({ ctl, onClose }: { ctl: NotesCtl; onClose: () => voi
       </div>
       <div className="nn-immersive" data-testid="nn-immersive" style={{ background: colors[0], color: colors[1], fontSize: size, lineHeight: spacing }}>
         {text ? (
-          pos ? (
+          sentence ? (
             <>
-              {text.slice(0, pos.start)}
-              <mark style={{ background: '#ffd54a', color: '#000' }}>{text.slice(pos.start, pos.end)}</mark>
-              {text.slice(pos.end)}
+              {part(0, sentence.start)}
+              <span style={{ background: theme === 'dark' ? 'rgba(120,170,255,.25)' : 'rgba(60,140,255,.14)' }}>
+                {pos && pos.start >= sentence.start && pos.end <= sentence.end ? (
+                  <>
+                    {part(sentence.start, pos.start)}
+                    <mark ref={markRef} style={{ background: '#ffd54a', color: '#000' }}>
+                      {part(pos.start, pos.end)}
+                    </mark>
+                    {part(pos.end, sentence.end)}
+                  </>
+                ) : (
+                  part(sentence.start, sentence.end)
+                )}
+              </span>
+              {part(sentence.end, text.length)}
             </>
           ) : (
             text

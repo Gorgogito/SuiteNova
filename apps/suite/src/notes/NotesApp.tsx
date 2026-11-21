@@ -861,7 +861,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         {dlg === 'autocorrect' && <AutoCorrectDialog product="Nova Notes" initial={getAutoCorrect()} onSave={setAutoCorrect} onClose={closeDialog} />}
         {dlg === 'userDict' && <DictionaryDialog onClose={closeDialog} />}
         {spellMenu?.issue && <ReviewMenu host={notesHost(ctl)} viewId={spellMenu.viewId} issue={spellMenu.issue} x={spellMenu.x} y={spellMenu.y} onClose={() => setSpellMenu(null)} onOptions={() => setDialog({ kind: 'reviewOptions' })} />}
-        {dlg === 'read' && <ReadDialog ctl={ctl} onClose={closeDialog} />}
+        {dlg === 'read' && <ReadDialog ctl={ctl} autoplay={dialog?.arg === 'play'} onClose={closeDialog} />}
         {spellMenu && !spellMenu.issue && spellMenu.word && ctl.views.get(spellMenu.viewId) && <WordMenu host={notesHost(ctl)} view={ctl.views.get(spellMenu.viewId)!} target={spellMenu.word} x={spellMenu.x} y={spellMenu.y} onClose={() => setSpellMenu(null)} onThesaurus={() => ((ctl.showThesaurus = true), ctl.touch())} />}
         {dlg === 'symbol' && <SymbolDialog ctl={ctl} onClose={closeDialog} />}
         {dlg === 'inkText' && <InkToTextDialog ctl={ctl} lang={ocrLang} onClose={closeDialog} />}

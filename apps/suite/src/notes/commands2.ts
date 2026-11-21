@@ -89,6 +89,7 @@ export function notesCommands2(ui: NotesUI): CommandDef[] {
   add({ id: 'notes.count', label: 'Contar palabras', icon: 'nnCount', run: () => ui.openDialog('count') });
   add({ id: 'notes.a11y', label: 'Comprobar accesibilidad', icon: 'nnA11y', run: () => ui.openDialog('a11y') });
   add({ id: 'notes.read', label: 'Lector inmersivo y voz', icon: 'nnSpeaker', enabled: () => open, run: () => ui.openDialog('read') });
+  add({ id: 'notes.readAloud', label: 'Leer en voz alta', icon: 'nnSpeaker', shortcut: 'Ctrl+Alt+Space', description: 'Lee la página en voz alta con el lector inmersivo y marca la frase y la palabra que suena.', enabled: () => open, run: () => ui.openDialog('read', 'play') });
   add({ id: 'notes.print', label: 'Imprimir o guardar como PDF…', icon: 'print', shortcut: 'Ctrl+P', enabled: () => open, run: () => ui.print() });
   add({ id: 'notes.view.fullPage', label: 'Página completa', icon: 'nnMax', checked: () => c.fullPage, description: 'Oculta las pestañas de secciones y la lista de páginas para dejar solo la página.', run: () => c.toggleFullPage() });
   add({ id: 'notes.view.hideTitle', label: 'Ocultar el título de la página', icon: 'nnEye', checked: () => c.hideTitle, run: () => c.toggleHideTitle() });
