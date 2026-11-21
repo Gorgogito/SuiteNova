@@ -1322,6 +1322,22 @@ function buildLists(items: ListItem[]): PMNode[] {
 
 // ---------- entry point ----------
 
+/**
+ * One of our own parts under `customXml/`: by its name, or, when a program saved the file again and renamed it (Word keeps the content and calls
+ * it `item1.xml`), by the namespace written inside it.
+ */
+async function customPart(zip: JSZip, name: string, marker: string): Promise<string | null> {
+  const own = await text(zip, `customXml/${name}`);
+  if (own) return own;
+  for (const f of Object.keys(zip.files)) {
+    if (!/^customXml\/[^/]+\.xml$/.test(f)) continue;
+    const xml = await text(zip, f);
+    // the part itself, not the properties part that names the same schema
+    if (xml && xml.includes(marker) && /<suitenova[\s>]/.test(xml)) return xml;
+  }
+  return null;
+}
+
 async function text(zip: JSZip, path: string): Promise<string | null> {
   const f = zip.file(path);
   return f ? f.async('string') : null;
@@ -1574,7 +1590,7 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
 
   const pictures = new Map<string, { orig: string; edits: unknown }>();
   {
-    const xml = await text(zip, 'customXml/novaPictures1.xml');
+    const xml = await customPart(zip, 'novaPictures1.xml', 'urn:suitenova:pictures:1');
     const m = xml && xml.includes('urn:suitenova:pictures:1') ? /<!\[CDATA\[([\s\S]*?)\]\]>/.exec(xml.replace(/\]\]\]\]><!\[CDATA\[>/g, ']]>')) : null;
     if (m) {
       try {
@@ -1592,7 +1608,7 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
 
   const ocr = new Map<string, unknown>();
   {
-    const xml = await text(zip, 'customXml/novaOcr1.xml');
+    const xml = await customPart(zip, 'novaOcr1.xml', 'urn:suitenova:ocr:1');
     const m = xml && xml.includes('urn:suitenova:ocr:1') ? /<!\[CDATA\[([\s\S]*?)\]\]>/.exec(xml.replace(/\]\]\]\]><!\[CDATA\[>/g, ']]>')) : null;
     if (m) {
       try {

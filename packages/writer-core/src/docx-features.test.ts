@@ -306,6 +306,20 @@ describe('DOCX: ecuaciones, formas y controles de contenido', () => {
     expect(none.zip.file('customXml/novaOcr1.xml')).toBeNull();
   });
 
+  it('si Word (u otro programa) guarda el archivo de nuevo y renombra la parte del OCR a item7.xml, la lectura se recupera por su espacio de nombres', async () => {
+    const ocr = { text: 'Factura 4821', lang: 'spa', at: 7, size: [100, 40], lines: [[2, 2, 90, 20, [['Factura', 2, 2, 50, 20, 90]]]], confidence: 89 };
+    const img = nodeTypes.image!.create({ src: PNG, alt: 'Una factura', width: 80, height: 40, ocr });
+    const { data } = await writeDocx(wd([p([t('Hola '), img])]));
+    const zip = await JSZip.loadAsync(data);
+    const xml = await zip.file('customXml/novaOcr1.xml')!.async('string');
+    zip.remove('customXml/novaOcr1.xml');
+    zip.file('customXml/item7.xml', xml);
+    const back = (await readDocx(await zip.generateAsync({ type: 'uint8array' }))).doc;
+    let found: PMNode | null = null;
+    back.body.descendants((n) => { if (n.type.name === 'image') found = n; });
+    expect((found as unknown as PMNode).attrs.ocr).toEqual(ocr);
+  });
+
   it('un grupo con imágenes (también anidado): cada imagen conserva sitio, tamaño, recorte, giro y texto alternativo', async () => {
     const base = { fill: '#ffffff', stroke: '#000000', strokeWidth: 1, wrap: 'front' };
     const rect = nodeTypes.shape!.create({ ...base, kind: 'rect', width: 100, height: 60, x: 0, y: 0 }, []);

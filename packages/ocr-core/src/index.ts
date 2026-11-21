@@ -1,5 +1,6 @@
 export * from './model';
 export * from './prepare';
+export * from './deskew';
 export * from './recognize';
 export * from './key';
 export * from './queue';

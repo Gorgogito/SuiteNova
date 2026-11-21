@@ -1,4 +1,5 @@
 import { cropPixels, resample, type Pixels } from '@suitenova/image-core';
+import { estimateSkew, removeRules, rotateGrey, unrotateBox } from './deskew';
 import type { Box } from './model';
 
 /**
@@ -10,9 +11,11 @@ export interface Transform {
   crop: { x: number; y: number };
   /** Quarter turns clockwise. */
   turns: 0 | 1 | 2 | 3;
-  /** Size of the part read before turning and scaling. */
+  /** Size of the part read before turning and scaling (after straightening, when it was straightened). */
   w: number;
   h: number;
+  /** The page was straightened: the degrees it was rotated (clockwise) and the size of the part before that. */
+  skew?: { deg: number; w: number; h: number };
   /** Prepared pixels per pixel of the part read. */
   scale: number;
 }
@@ -25,6 +28,10 @@ export interface PrepareOptions {
   /** Letters are read best when their lines are about this tall: a picture whose text is smaller is enlarged (capped by `maxSide`). */
   maxSide?: number;
   minSide?: number;
+  /** Straighten a page that is a few degrees crooked (on by default). */
+  deskew?: boolean;
+  /** Take out the ruled lines of tables (on by default). */
+  rules?: boolean;
 }
 
 /** Grey levels (0–255) of each pixel, with the transparent ones taken as white (text on a transparent background). */
@@ -99,8 +106,20 @@ const fromGrey = (grey: Uint8ClampedArray, w: number, h: number): Pixels => {
 export function prepare(p: Pixels, o: PrepareOptions = {}): { pixels: Pixels; transform: Transform } {
   const zone = o.zone ? clampBox(o.zone, p.w, p.h) : { x: 0, y: 0, w: p.w, h: p.h };
   const part = zone.w === p.w && zone.h === p.h ? p : cropPixels(p, zone);
-  const { grey } = invertIfDark(stretchContrast(toGrey(part)));
-  let px = fromGrey(grey, part.w, part.h);
+  let { grey } = invertIfDark(stretchContrast(toGrey(part)));
+  let gw = part.w;
+  let gh = part.h;
+  let skew: Transform['skew'];
+  if (o.deskew !== false) {
+    const a = estimateSkew(grey, gw, gh);
+    if (a) {
+      const r = rotateGrey(grey, gw, gh, -a);
+      skew = { deg: -a, w: gw, h: gh };
+      [grey, gw, gh] = [r.grey, r.w, r.h];
+    }
+  }
+  if (o.rules !== false) grey = removeRules(grey, gw, gh);
+  let px = fromGrey(grey, gw, gh);
   const turns = (o.turns ?? 0) as 0 | 1 | 2 | 3;
   px = rotate90(px, turns);
   // small pictures are enlarged (letters of fewer than ~20 px are misread) and huge ones reduced (they only slow it down)
@@ -109,7 +128,7 @@ export function prepare(p: Pixels, o: PrepareOptions = {}): { pixels: Pixels; tr
   const side = Math.max(px.w, px.h);
   const scale = side < minSide ? Math.min(3, minSide / side) : side > maxSide ? maxSide / side : 1;
   if (scale !== 1) px = resample(px, Math.max(1, Math.round(px.w * scale)), Math.max(1, Math.round(px.h * scale)));
-  return { pixels: px, transform: { crop: { x: zone.x, y: zone.y }, turns, w: part.w, h: part.h, scale } };
+  return { pixels: px, transform: { crop: { x: zone.x, y: zone.y }, turns, w: gw, h: gh, scale, ...(skew ? { skew } : {}) } };
 }
 
 export function clampBox(b: Box, w: number, h: number): Box {
@@ -139,5 +158,6 @@ export function unmapBox(b: Box, t: Transform): Box {
   y = Math.min(back[0]![1], back[1]![1]);
   w = Math.abs(back[1]![0] - back[0]![0]);
   h = Math.abs(back[1]![1] - back[0]![1]);
+  if (t.skew) ({ x, y, w, h } = unrotateBox({ x, y, w, h }, t.skew.deg, t.skew.w, t.skew.h, t.w, t.h));
   return { x: Math.round((x + t.crop.x) * 10) / 10, y: Math.round((y + t.crop.y) * 10) / 10, w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10 };
 }

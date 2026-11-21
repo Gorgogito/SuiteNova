@@ -164,6 +164,48 @@ await check('la cola lee varias imágenes una a una, no repite la misma y se pue
   assert.match(out.text, /Factura/);
 });
 
+await check('una página torcida 5° se endereza y las cajas siguen cayendo sobre las palabras; una tabla con líneas se lee sin ellas', async () => {
+  const r = await page.evaluate(async () => {
+    const core = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/ocr-core/src/index.ts');
+    const { tesseractEngine } = await import('/src/ocr/tesseract.ts');
+    const W = 900, H = 420, deg = 5;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    g.translate(W / 2, H / 2); g.rotate((deg * Math.PI) / 180); g.translate(-W / 2, -H / 2);
+    g.fillStyle = '#000'; g.textBaseline = 'top'; g.font = '40px Arial';
+    for (const [t, x, y] of [['Factura número 1234 vence pronto', 60, 120], ['Total a pagar cuarenta euros', 60, 220]]) g.fillText(t, x, y);
+    const d = g.getImageData(0, 0, W, H);
+    const rd = await core.recognize(tesseractEngine, { data: d.data, w: W, h: H }, { lang: 'spa+eng' });
+    const w = rd.lines.flatMap((l) => l.words).find((x) => /Factura/.test(x.text));
+    // where the start of «Factura» was drawn, turned like the page
+    const a = (deg * Math.PI) / 180, cx = 60 - W / 2, cy = 120 + 20 - H / 2;
+    const ex = cx * Math.cos(a) - cy * Math.sin(a) + W / 2, ey = cx * Math.sin(a) + cy * Math.cos(a) + H / 2;
+    // a table with ruled lines
+    const t = document.createElement('canvas');
+    t.width = 700; t.height = 330;
+    const tg = t.getContext('2d');
+    tg.fillStyle = '#fff'; tg.fillRect(0, 0, 700, 330);
+    tg.fillStyle = '#000'; tg.font = '28px Arial'; tg.textBaseline = 'top';
+    const rows = [['Producto', 'Unidades', 'Precio'], ['Lápiz', '12', '3,5'], ['Cuaderno', '4', '1200']];
+    rows.forEach((r2, i) => r2.forEach((x, j) => tg.fillText(x, [42, 282, 492][j], 24 + i * 72)));
+    tg.strokeStyle = '#303030'; tg.lineWidth = 2;
+    for (let i = 0; i <= 3; i++) { tg.beginPath(); tg.moveTo(20, 14 + i * 72); tg.lineTo(680, 14 + i * 72); tg.stroke(); }
+    for (const x of [20, 260, 470, 680]) { tg.beginPath(); tg.moveTo(x, 14); tg.lineTo(x, 230); tg.stroke(); }
+    const td = tg.getImageData(0, 0, 700, 330);
+    const rt = await core.recognize(tesseractEngine, { data: td.data, w: 700, h: 330 }, { lang: 'spa+eng', turns: 'auto' });
+    return { text: rd.text, box: w?.box, ex, ey, rotation: rt.rotation, table: core.tableFromWords(rt).rows };
+  });
+  assert.match(r.text, /Factura/);
+  assert.match(r.text, /cuarenta/);
+  assert.ok(r.box, 'la caja de «Factura»');
+  assert.ok(Math.abs(r.box.x - r.ex) < 60 && Math.abs(r.box.y + r.box.h / 2 - r.ey) < 60, `caja ${JSON.stringify(r.box)} esperada cerca de ${Math.round(r.ex)},${Math.round(r.ey)}`);
+  assert.equal(r.rotation, 0, 'las líneas de la tabla no hacen girar la página');
+  assert.deepEqual(r.table.map((row) => row.length), [3, 3, 3]);
+  assert.equal(r.table[2][2], '1200');
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors, []);
 });
