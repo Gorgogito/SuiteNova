@@ -60,6 +60,8 @@ export interface Snapshot {
   /** Where the piece is, in the written text of its block. */
   block: number;
   piece: { start: number; end: number } | null;
+  /** The language the piece is read in. */
+  lang: string;
   /** The word being read, in the written text of its block. */
   word: { start: number; end: number } | null;
   rate: number;
@@ -121,6 +123,7 @@ export class Reader {
       count: this.units.length,
       block: u?.block ?? -1,
       piece: u ? { start: u.start, end: u.end } : null,
+      lang: u?.lang ?? this.lang,
       word: this.state === 'idle' ? null : this.word,
       rate: this.rate,
       error: this.error,
@@ -237,8 +240,10 @@ export class Reader {
     this.state = 'playing';
     this.error = '';
     this.word = null;
-    const voice = pickVoice(this.synth.voices(), u.lang, this.voices[u.lang.toLowerCase().split(/[-_]/)[0]!]);
-    this.noVoice = !voice;
+    const all = this.synth.voices();
+    const voice = pickVoice(all, u.lang, this.voices[u.lang.toLowerCase().split(/[-_]/)[0]!]);
+    // an empty list is not «no voice»: some engines hand it over only after the first look
+    this.noVoice = !voice && all.length > 0;
     const text = u.spoken.text.slice(offset);
     this.emit();
     if (!text.trim()) {

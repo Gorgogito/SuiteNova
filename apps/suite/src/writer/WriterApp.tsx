@@ -16,6 +16,7 @@ import { EditorPane, ReviewMenu, ThesaurusPane, WordMenu } from '../spell';
 import { writerHost, writerThesaurusHost } from './review-host';
 import { OpenPasswordDialog } from './dlg-security';
 import { PAGE_GAP, WriterCtl, findKey } from './doc';
+import { ReadAloudBar } from '../voice/ReadAloudBar';
 import './icons';
 import './icons-more';
 import './messages';
@@ -553,6 +554,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
     >
       <div className="nw-app">
         <style>{styleCss(ctl.styles, ctl.defaults)}</style>
+        {ctl.readAloud.visible && <ReadAloudBar ctrl={ctl.readAloud.voice} onClose={() => ctl.readAloud.stop()} />}
         {find && <FindBar ui={ui} replace={find.replace} key={String(find.replace)} onClose={() => { setFind(null); ctl.clearFind(); ctl.focus(); }} />}
         <div className="nw-body">
         {ctl.showNav && <NavPane ctl={ctl} onClose={() => { ctl.showNav = false; ctl.touch(); }} />}

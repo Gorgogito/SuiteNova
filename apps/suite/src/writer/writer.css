@@ -136,6 +136,13 @@
 .nw-doc .nw-find-cur {
   background: #ffa940;
 }
+.nw-doc .nw-reading-piece {
+  background: rgba(60, 140, 255, 0.14);
+}
+.nw-doc .nw-reading {
+  background: #8cc4ff;
+  border-radius: 2px;
+}
 .nw-doc .nw-find-img {
   outline: 3px solid #ffe58f;
   outline-offset: 2px;

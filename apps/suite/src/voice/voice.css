@@ -1,0 +1,46 @@
+.nv-voicebar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--colorNeutralBackground3, #f3f3f3);
+  border-bottom: 1px solid var(--colorNeutralStroke2, #d0d0d0);
+  font-size: 13px;
+}
+.nv-voicebar__btn {
+  min-width: 32px;
+  height: 30px;
+  border: 1px solid var(--colorNeutralStroke1, #bbb);
+  border-radius: 4px;
+  background: var(--colorNeutralBackground1, #fff);
+  color: inherit;
+  cursor: pointer;
+  font-size: 15px;
+}
+.nv-voicebar__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.nv-voicebar__btn--main {
+  min-width: 40px;
+  background: var(--colorBrandBackground, #0f6cbd);
+  border-color: transparent;
+  color: var(--colorNeutralForegroundOnBrand, #fff);
+}
+.nv-voicebar__field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.nv-voicebar__status {
+  margin-left: 4px;
+  opacity: 0.8;
+}
+.nv-voicebar__warn {
+  flex-basis: 100%;
+  color: var(--colorPaletteDarkOrangeForeground1, #a4430c);
+}
+.nv-voicebar__close {
+  margin-left: auto;
+}

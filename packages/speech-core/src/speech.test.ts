@@ -219,6 +219,14 @@ describe('the reader', () => {
     expect(r.voices).toEqual({ es: 'Helena' });
   });
 
+  it('an engine that has not handed over its voices yet is not reported as having none', () => {
+    const { synth, r } = read([{ text: 'Hola.' }]);
+    synth.list = [];
+    r.play();
+    expect(r.snapshot.noVoice).toBe(false);
+    expect(synth.last.o.voice).toBeNull();
+  });
+
   it('a real error stops and says so; an interruption does not', () => {
     const { synth, r } = read([{ text: 'Uno. Dos.' }]);
     r.play();

@@ -150,7 +150,7 @@ Decisiones del usuario (2026-11-20): OCR también en Writer, Slides, Mail y Diag
 ## Voz, Leer en voz alta (producto auxiliar compartido, plan en `docs/diseno-voz.md`)
 En Office es un servicio compartido por Word, Outlook y OneNote (misma barra, el producto solo da el texto); Excel tiene aparte «Hablar celdas»; PowerPoint y Visio no tienen. Decisiones del usuario (2026-11-21): alcance como Office más Slides (Writer, Notes, Mail, Calc con «Hablar celdas» y Slides), solo voces del sistema, núcleo compartido `speech-core` y Notes migra a él.
 - [x] **Fase 1 HECHA: núcleo `speech-core` y adaptador.** Frases (abreviaturas, decimales, signos de apertura, líneas, cortar las largas), lo que se dice con mapa de vuelta al texto escrito, elección de voz por idioma, lector con reproducir, pausa (cancela y sigue desde la palabra), continuar, detener, siguiente, anterior, velocidad y voz; adaptador del motor del navegador (`apps/suite/src/voice/`). 19 pruebas y e2e nueva `e2e-voice-core` (8) con las voces reales de Windows; los productos aún no lo usan.
-- [ ] Fase 2: interfaz compartida (barra, ajustes) y Writer como referencia.
+- [x] **Fase 2 HECHA: interfaz compartida y Writer.** `VoiceController` y `ReadAloudBar` (frase anterior, pausa, siguiente, detener, velocidad, voz por idioma; ajustes comunes a todos los productos); Writer lee desde el cursor o la selección con Ctrl+Alt+Espacio, marca la frase y la palabra que suenan, y se detiene si el texto cambia. e2e nueva `e2e-writer-voice` (7) con las voces reales.
 - [ ] Fase 3: Notes (migra su lector inmersivo) y Mail.
 - [ ] Fase 4: Slides y Calc («Hablar celdas»).
 - [ ] Fase 5: idioma por tramo, pronunciación, aviso de voces que faltan.

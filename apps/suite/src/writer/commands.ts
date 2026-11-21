@@ -21,6 +21,7 @@ import { tableCommands } from './commands-table';
 import { pageCommands } from './commands-page';
 import { docReviewCommands } from './commands-docreview';
 import { ocrCommands } from './commands-ocr';
+import { voiceCommands } from './commands-voice';
 import { imageCommands } from './commands-image';
 import {
   FONT_SIZES,
@@ -281,6 +282,7 @@ export function writerCommands(ui: WriterUI): CommandDef[] {
   defs.push(...docReviewCommands(ui));
   defs.push(...imageCommands(ui));
   defs.push(...ocrCommands(ui));
+  defs.push(...voiceCommands(ui));
   defs.push(...layoutCommands(ui));
   defs.push(...reviewCommands(ui));
   defs.push(...refsCommands(ui));

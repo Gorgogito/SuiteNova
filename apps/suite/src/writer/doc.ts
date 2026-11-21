@@ -74,6 +74,7 @@ import { ObjectView } from './objectview';
 import { shapeSelectionPlugin } from './shape-selection';
 import { imageObjectsPlugin } from './image-objects';
 import { ImageOcr, searchImages } from './ocr-images';
+import { WriterReader, readPlugin } from './read-aloud';
 import { wordArtEditingPlugin } from './wordart-editing';
 import { commentRanges, getUser, protectionPlugin, trackTransaction } from './review';
 import { outlinePlugin, setOutlineActive } from './outline';
@@ -407,6 +408,9 @@ export class WriterCtl {
   /** The text read from the pictures (OCR): copy it, find it, read again. */
   readonly imageOcr = new ImageOcr(this);
 
+  /** Read Aloud: the shared reader with the sentence and word being read shown in the document. */
+  readonly readAloud = new WriterReader(this);
+
   // ---------- digital signature and password ----------
 
   /** Whether the signature still matches the content (null: not signed or not checked yet). */
@@ -479,6 +483,7 @@ export class WriterCtl {
       sectionFixup(),
       trailingParagraph(),
       findPlugin(),
+      readPlugin(),
       notesPlugin(() => this.notesOptions),
       tabsPlugin(),
       formsPlugin(),

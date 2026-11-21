@@ -857,6 +857,15 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           { kind: 'button', command: 'writer.user.name', size: 'large', keytip: 'PU' },
         ],
       },
+      {
+        id: 'voice',
+        label: 'Voz',
+        icon: 'volume',
+        items: [
+          { kind: 'button', command: 'writer.read.start', size: 'large', keytip: 'LV' },
+          { kind: 'button', command: 'writer.read.stop', size: 'small', keytip: 'LD' },
+        ],
+      },
     ],
   };
 
