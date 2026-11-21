@@ -1,6 +1,7 @@
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
 import { newMathBox, newMedia, newPicture, readOdp, readPpt, readPptx, writePptx, type Deck } from '@suitenova/slides-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { ReadAloudBar } from '../voice/ReadAloudBar';
 import { zoomCommands } from '../common';
 import { pickAndRead, readPath, saveBytes } from '../fileio';
 import { addRecent } from '../recents';
@@ -467,6 +468,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
           </div>
         )}
         <div className="sl-main">
+          {ctl.readAloud.visible && <ReadAloudBar ctrl={ctl.readAloud.voice} onClose={() => ctl.readAloud.stop()} showText />}
           {view === 'outline' ? (
             <OutlineView ui={ui} />
           ) : view === 'sorter' ? (

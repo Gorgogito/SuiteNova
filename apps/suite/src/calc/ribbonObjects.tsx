@@ -249,7 +249,7 @@ export function developerTab(): RibbonTab {
           { kind: 'button', command: 'calc.macroPause', size: 'small', keytip: 'PG' },
         ],
       },
-      { id: 'security', label: 'Seguridad', icon: 'run', items: [{ kind: 'button', command: 'calc.macroEnable', size: 'large', keytip: 'HC' }, { kind: 'button', command: 'calc.macroSecurity', size: 'large', keytip: 'SE' }] },
+      { id: 'security', label: 'Seguridad', icon: 'run', items: [{ kind: 'button', command: 'calc.macroEnable', size: 'large', keytip: 'YC' }, { kind: 'button', command: 'calc.macroSecurity', size: 'large', keytip: 'SE' }] },
     ],
   };
 }

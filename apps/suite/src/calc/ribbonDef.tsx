@@ -587,6 +587,18 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
   };
 
   const view = viewTab();
+  view.groups.push({
+    id: 'speak',
+    label: 'Voz',
+    icon: 'volume',
+    items: [
+      { kind: 'button', command: 'calc.speak.cells', size: 'large', keytip: 'YV' },
+      { kind: 'button', command: 'calc.speak.stop', size: 'small', keytip: 'YD' },
+      { kind: 'button', command: 'calc.speak.byRows', size: 'small', keytip: 'YF' },
+      { kind: 'button', command: 'calc.speak.byColumns', size: 'small', keytip: 'YC' },
+      { kind: 'button', command: 'calc.speak.enter', size: 'small', keytip: 'YI' },
+    ],
+  });
   view.groups.unshift(
     {
       id: 'show',

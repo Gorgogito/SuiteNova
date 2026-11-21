@@ -58,6 +58,7 @@ import { MacroRecorder } from '../macros/recorder';
 import { CalcRecorder } from './recorder';
 import { t } from '@suitenova/core-ui';
 import { CalcImageOcr } from './ocr-images';
+import { CalcReader } from './read-aloud';
 
 /** The parts of `r` not covered by `cut` (up to four rectangles). */
 export function subtractRect(r: Rect, cut: Rect): Rect[] {
@@ -289,6 +290,12 @@ export class CalcDoc {
 
   /** The text read from the pictures (OCR): copy it, find it, read again. */
   readonly imageOcr = new CalcImageOcr(this);
+
+  /** Told after a cell is entered (for «Hablar celdas al pulsar Intro»). */
+  onCommitted: ((sheetId: number, row: number, col: number) => void) | null = null;
+
+  /** «Hablar celdas»: the selected cells are read with the shared reader. */
+  readonly reader = new CalcReader(this);
 
   /** Keeps the reading of a picture (derived data, kept with the picture's content: not an undoable step). */
   setImageOcr(media: string, ocr: unknown): void {
@@ -747,6 +754,7 @@ export class CalcDoc {
     this.edit = null;
     this.x.alert = null;
     this.macros.onChange(e.sheetId, e.row, e.col);
+    this.onCommitted?.(e.sheetId, e.row, e.col);
     const origin = this.tabOrigin ?? e.col;
     if (move === 'down' && this.tabOrigin !== null) {
       this.selectCell(e.row + 1, this.tabOrigin);

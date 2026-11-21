@@ -44,3 +44,14 @@
 .nv-voicebar__close {
   margin-left: auto;
 }
+
+.nv-voicebar__text {
+  flex-basis: 100%;
+  padding: 2px 4px;
+  font-size: 14px;
+}
+.nv-voicebar__text mark {
+  background: #ffd54a;
+  color: #000;
+  border-radius: 2px;
+}

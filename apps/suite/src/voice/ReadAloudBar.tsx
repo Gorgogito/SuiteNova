@@ -11,7 +11,7 @@ const primary = (l: string): string => l.toLowerCase().split(/[-_]/)[0]!;
  * The bar every product shows while it reads aloud (as in Word, Outlook and OneNote): previous, play or pause, next, stop, speed and voice, and where
  * the reading is. The product decides what is read and shows the words; the bar only drives the reader.
  */
-export function ReadAloudBar({ ctrl, onClose, label }: { ctrl: VoiceController; onClose: () => void; label?: string }) {
+export function ReadAloudBar({ ctrl, onClose, label, showText = false, prefix }: { ctrl: VoiceController; onClose: () => void; label?: string; showText?: boolean; prefix?: (block: number) => string }) {
   useSyncExternalStore(ctrl.subscribe, ctrl.getVersion);
   // the list of voices can arrive late (the system loads it after the first look)
   const [voices, setVoices] = useState(() => ctrl.voices());
@@ -74,6 +74,7 @@ export function ReadAloudBar({ ctrl, onClose, label }: { ctrl: VoiceController; 
           <span className="nv-voicebar__status" aria-live="polite">
             {s.error ? t('No se pudo leer: {e}', { e: s.error }) : s.index >= 0 ? t('Frase {n} de {total}', { n: s.index + 1, total: s.count }) : t('Nada que leer')}
           </span>
+          {showText && s.piece && s.index >= 0 && s.state !== 'idle' && <SentenceLine ctrl={ctrl} prefix={prefix} />}
           {s.noVoice && (
             <span className="nv-voicebar__warn" role="status">
               {t('No hay una voz instalada para este idioma; se usa la del sistema. Puede añadir voces en la configuración de Windows (Hora e idioma › Voz).')}
@@ -85,5 +86,27 @@ export function ReadAloudBar({ ctrl, onClose, label }: { ctrl: VoiceController; 
         ✕
       </button>
     </div>
+  );
+}
+
+/** The sentence being read, with the word marked (for products that do not draw it on the document). */
+function SentenceLine({ ctrl, prefix }: { ctrl: VoiceController; prefix?: (block: number) => string }) {
+  const s = ctrl.snapshot;
+  const text = ctrl.reader.blockOf(s.index)?.text ?? '';
+  const p = s.piece!;
+  const w = s.word && s.word.start >= p.start && s.word.end <= p.end ? s.word : null;
+  return (
+    <span className="nv-voicebar__text" data-testid="nv-voicebar-text">
+      {prefix ? prefix(s.block) : ''}
+      {w ? (
+        <>
+          {text.slice(p.start, w.start)}
+          <mark>{text.slice(w.start, w.end)}</mark>
+          {text.slice(w.end, p.end)}
+        </>
+      ) : (
+        text.slice(p.start, p.end)
+      )}
+    </span>
   );
 }

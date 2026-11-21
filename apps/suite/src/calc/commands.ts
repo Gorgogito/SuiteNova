@@ -8,6 +8,7 @@ import { chartData } from './chartOption';
 import { ICON_LABELS, SCALE_PRESETS } from './cfDialogs';
 import { objectCommands } from './commands-objects';
 import { ocrCommands } from './commands-ocr';
+import { voiceCommands } from './commands-voice';
 import type { CalcDoc } from './doc';
 
 export type DialogKind =
@@ -447,5 +448,5 @@ export function calcCommands(ui: CalcUI): CommandDef[] {
   add({ id: 'calc.unfreeze', label: 'Movilizar paneles', icon: 'freeze', enabled: () => d.sheet.freeze.rows > 0 || d.sheet.freeze.cols > 0, run: () => d.freezePanes('none') });
   add({ id: 'calc.gridlines', label: 'Líneas de cuadrícula', icon: 'gridlines', checked: () => d.sheet.showGrid, run: () => d.toggleGridlines() });
 
-  return [...cmds, ...objectCommands(ui), ...ocrCommands(ui)];
+  return [...cmds, ...objectCommands(ui), ...ocrCommands(ui), ...voiceCommands(ui)];
 }

@@ -314,6 +314,7 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
       ],
     },
       { id: 'docReview', label: 'Documento', icon: 'compareDocs', items: [L('slides.review.compare', 'CM'), L('slides.doc.properties', 'DQ')] },
+      { id: 'voice', label: 'Voz', icon: 'volume', items: [L('slides.read.start', 'LV'), S('slides.read.notes', 'LN'), S('slides.read.withNotes', 'LI'), S('slides.read.stop', 'LD')] },
       { id: 'comm', label: 'Comentarios', icon: 'comment', items: [L('slides.insert.comment', 'CN'), L('slides.review.comments', 'CP')] },
     ],
   };

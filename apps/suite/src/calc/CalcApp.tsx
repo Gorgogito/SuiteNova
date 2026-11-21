@@ -1,5 +1,6 @@
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useCommandState, useCore, useLocale, useThemeMode, useSetting, SETTING_LOCALE, type BackstageEntry, type Locale } from '@suitenova/core-ui';
 import { useImageSources } from '../images/useSources';
+import { ReadAloudBar } from '../voice/ReadAloudBar';
 import { Workbook, filterCounts, formatRect, parseA1, type Scalar } from '@suitenova/calc-engine';
 import { readXlsx, writeXlsx } from '@suitenova/xlsx-io';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -393,6 +394,7 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
           </div>
         )}
         <FormulaBar doc={doc} />
+        {doc.reader.visible && <ReadAloudBar ctrl={doc.reader.voice} onClose={() => doc.reader.stop()} showText prefix={(b) => doc.reader.label(b)} />}
         <div className="calc-body">
           <div className="calc-main">
             <GridView

@@ -73,6 +73,7 @@ import type { EditorView } from 'prosemirror-view';
 import { SlidesRuntime } from './macros';
 import { AssetUrls } from './render/assets';
 import { SlidesImageOcr } from './ocr-images';
+import { SlidesReader } from './read-aloud';
 
 export type SlidesView = 'normal' | 'sorter' | 'reading' | 'outline' | 'master' | 'notes';
 export type Tool = { kind: 'select' } | { kind: 'text' } | { kind: 'shape'; prst: string } | { kind: 'freeform'; mode: 'polygon' | 'curve' | 'scribble' } | { kind: 'line'; prst: string };
@@ -237,6 +238,9 @@ export class SlidesCtl {
 
   /** The text read from the pictures (OCR): copy it, find it, read again. */
   readonly imageOcr = new SlidesImageOcr(this);
+
+  /** Read Aloud: the slides (or their notes) are read with the shared reader. */
+  readonly readAloud = new SlidesReader(this);
 
   /** Keeps the reading of a picture's asset (derived data: not an undoable step). */
   setAssetOcr(id: string, ocr: unknown): void {
