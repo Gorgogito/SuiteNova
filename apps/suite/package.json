@@ -28,6 +28,7 @@
     "@suitenova/notes-core": "workspace:*",
     "@suitenova/plan-core": "workspace:*",
     "@suitenova/shapes-core": "workspace:*",
+    "@suitenova/speech-core": "workspace:*",
     "@suitenova/spell-core": "workspace:*",
     "@suitenova/slides-core": "workspace:*",
     "@suitenova/smartart-core": "workspace:*",
