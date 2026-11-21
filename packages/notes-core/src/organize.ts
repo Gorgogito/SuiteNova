@@ -210,3 +210,32 @@ export const addFile = <P extends { containers: Container[] }>(p: P, f: FileCont
 export function readableText(p: Page): string {
   return [p.title.trim(), pageText(p)].filter(Boolean).join('\n');
 }
+
+/**
+ * The runs of `readableText(p)` that are marked with a language (offsets into that text): to read them with a voice of their language. Runs without a
+ * mark have the language of the notebook and are not listed.
+ */
+export function readableLangs(p: Page): { start: number; end: number; lang: string }[] {
+  const out: { start: number; end: number; lang: string }[] = [];
+  const title = p.title.trim();
+  // the title, then one line break, then the text of each box that has any (the same pieces and separators as `readableText`)
+  let base = title ? title.length + 1 : 0;
+  for (const c of textContainers(p)) {
+    const doc = contentNode(c.content);
+    const text = nodeText(doc);
+    if (!text.trim()) continue;
+    doc.descendants((n, pos) => {
+      if (n.isText) {
+        const m = n.marks.find((x) => x.type.name === 'lang');
+        const lang = m ? String(m.attrs.value ?? '') : '';
+        if (lang) {
+          const start = base + doc.textBetween(0, pos, '\n', ' ').length;
+          out.push({ start, end: start + n.text!.length, lang });
+        }
+      }
+      return true;
+    });
+    base += text.length + 1;
+  }
+  return out;
+}

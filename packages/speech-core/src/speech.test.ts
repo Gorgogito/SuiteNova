@@ -250,3 +250,53 @@ describe('the reader', () => {
     expect(marks.synth.last.text).toBe('Sí.');
   });
 });
+
+describe('how things that are written are said', () => {
+  const es = (t: string) => toSpeech(t, 'es-ES').text;
+  const en = (t: string) => toSpeech(t, 'en-US').text;
+
+  it('Spanish: abbreviations, symbols, ordinals, dates and initials', () => {
+    expect(es('El Sr. Pérez y la Dra. Gómez, etc.')).toBe('El señor Pérez y la doctora Gómez, etcétera');
+    expect(es('Vive en EE.UU. y en EE. UU.')).toBe('Vive en Estados Unidos y en Estados Unidos');
+    expect(es('Sube un 15% y cuesta 5 € o $20 o £3,50')).toBe('Sube un 15 por ciento y cuesta 5 euros o 20 dólares o 3,50 libras');
+    expect(es('A las 10 a. m. y a las 4 p.m.')).toBe('A las 10 de la mañana y a las 4 de la tarde');
+    expect(es('Es el 1.º, la 2.ª y el 3º')).toBe('Es el primero, la segunda y el tercero');
+    expect(es('Nació el 5/3/1990 y vence el 31/12/2026; 45/13/2026 no es fecha')).toBe('Nació el 5 de marzo de 1990 y vence el 31 de diciembre de 2026; 45/13/2026 no es fecha');
+    expect(es('Hace 25°C y 3 ° de pendiente, 70°F')).toBe('Hace 25 grados centígrados y 3 grados de pendiente, 70 grados Fahrenheit');
+    expect(es('Casa #12 & jardín, 3 × 4 ÷ 2 ≥ 6 ≠ 5')).toBe('Casa número 12  y  jardín, 3  por  4  entre  2  mayor o igual que  6  distinto de  5');
+  });
+
+  it('English: titles, symbols and currencies', () => {
+    expect(en('Mr. Smith and Dr. Jones, e.g. today vs. tomorrow')).toBe('Mister Smith and Doctor Jones, for example today versus tomorrow');
+    expect(en('It rose 15% to $20 or €5 or £3.50, at 25°C')).toBe('It rose 15 percent to 20 dollars or 5 euros or 3.50 pounds, at 25 degrees Celsius');
+    expect(en('Item #7 & more')).toBe('Item number 7  and  more');
+  });
+
+  it('letters that make no word are spelled; initials that can be said, and Roman numerals, are not; other languages are left as they are', () => {
+    expect(es('Abre el PDF en la CPU o el HTML, la ONU y el IVA, siglo XX')).toBe('Abre el P D F en la CPU o el H T M L, la ONU y el IVA, siglo XX');
+    expect(toSpeech('Bonjour M. Dupont, 5 € et 10%', 'fr-FR').text).toBe('Bonjour M. Dupont, 5 € et 10%');
+  });
+
+  it('the map still takes what is said back to what is written', () => {
+    const t = 'Pagó el 15% al Sr. Pérez';
+    const sp = toSpeech(t, 'es-ES');
+    const at = sp.text.indexOf('señor');
+    const r = writtenRange(sp, at, at + 'señor'.length);
+    expect(t.slice(r.start, r.end)).toBe('Sr.');
+    const k = sp.text.indexOf('ciento');
+    const r2 = writtenRange(sp, k, k + 6);
+    expect(t.slice(r2.start, r2.end)).toContain('%');
+  });
+});
+
+describe('what the installed voices cover', () => {
+  it('lists languages with no voice at all, and those read with a voice of another region', () => {
+    const synth = new Fake();
+    const r = new Reader(synth, { lang: 'es-ES' });
+    r.load([{ text: 'Hola.' }, { text: 'Hola.', lang: 'es-PE' }, { text: 'Hello.', lang: 'en-US' }, { text: 'Bonjour.', lang: 'fr-FR' }]);
+    expect(r.snapshot.missing).toEqual(['fr-FR']);
+    expect(r.snapshot.regional).toEqual(['es-PE']);
+    synth.list = [];
+    expect(r.snapshot.missing).toEqual([]);
+  });
+});

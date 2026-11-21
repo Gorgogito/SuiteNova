@@ -118,6 +118,18 @@ await check('en la cinta, Vista › Voz tiene «Hablar celdas»', async () => {
   assert.ok(names.some((n) => /Hablar celdas/.test(n)), 'botón «Hablar celdas»');
 });
 
+await check('si se abre otro libro mientras se lee, la lectura se detiene', async () => {
+  await select(0, 0, 2, 2);
+  await ev(() => window.__novaCalc.doc.reader.start());
+  await bar().waitFor();
+  await ev(async () => {
+    const m = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/calc-engine/src/index.ts');
+    window.__novaCalc.doc.load(new m.Workbook(), 'otro.xlsx', null);
+  });
+  await bar().waitFor({ state: 'detached' });
+  assert.equal(await ev(() => window.speechSynthesis.speaking), false);
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors, []);
 });

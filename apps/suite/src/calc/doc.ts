@@ -231,6 +231,8 @@ export class CalcDoc {
 
   /** Replace the whole workbook (opening a file). Resets selection, history and clipboard. */
   load(wb: Workbook, name: string | null, path: string | null): void {
+    // what was being read is not in the workbook that is opened
+    this.reader?.stop();
     this.unsubscribeWb?.();
     this.wb = wb;
     this.unsubscribeWb = wb.subscribe(() => this.touch());

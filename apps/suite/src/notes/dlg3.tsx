@@ -1,7 +1,7 @@
 import { Button, Input } from '@fluentui/react-components';
 import { getLocale, t } from '@suitenova/core-ui';
 import type { Block } from '@suitenova/speech-core';
-import { groupIntoLines, newTextContainer, readableText, strokeBounds, strokesToSvg } from '@suitenova/notes-core';
+import { groupIntoLines, newTextContainer, readableLangs, readableText, strokeBounds, strokesToSvg } from '@suitenova/notes-core';
 import { nodeTypes, writerSchema } from '@suitenova/writer-core';
 import { setCellAttr } from 'prosemirror-tables';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -13,6 +13,7 @@ import type { NotesCtl } from './ctl';
 import { Modal } from './Dialogs';
 import { recognizeImage } from './ocr';
 import { VoiceController } from '../voice/controller';
+import { speechLang } from '../voice/lang';
 import '../voice/messages';
 import { ReadAloudBar } from '../voice/ReadAloudBar';
 
@@ -40,12 +41,30 @@ export function ReadDialog({ ctl, onClose, autoplay = false }: { ctl: NotesCtl; 
   const voice = useMemo(() => new VoiceController(), []);
   const blocks = useMemo(() => {
     const out: (Block & { offset: number })[] = [];
+    const def = getLocale() === 'en' ? 'en-US' : 'es-ES';
+    // a line is cut where the language of the text changes (a run marked as English is read by an English voice)
+    const spans = readableLangs(ctl.page);
     let offset = 0;
     for (const line of text.split('\n')) {
-      if (line.trim()) out.push({ text: line, offset });
-      offset += line.length + 1;
+      const end = offset + line.length;
+      let at = offset;
+      const piece = (a: number, b: number, lang: string) => {
+        const t = text.slice(a, b);
+        if (t.trim()) out.push({ text: t, lang, offset: a });
+      };
+      for (const s of spans) {
+        if (s.end <= at || s.start >= end) continue;
+        if (s.start > at) piece(at, s.start, def);
+        const a = Math.max(at, s.start);
+        const b = Math.min(end, s.end);
+        piece(a, b, speechLang(s.lang, def));
+        at = b;
+      }
+      if (at < end) piece(at, end, def);
+      offset = end + 1;
     }
     return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
   useSyncExternalStore(voice.subscribe, voice.getVersion);
   const [size, setSize] = useState(22);

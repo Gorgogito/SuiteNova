@@ -1,3 +1,5 @@
+import { pronounceRules } from './pronounce';
+
 /*
  * What is given to the voice is not always what is written: a web address spelled out letter by letter is not worth hearing, the marks that only draw
  * (bullets, zero-width characters) are noise. The text is turned into what is spoken, and a map says, for each character spoken, which character of the
@@ -35,6 +37,8 @@ const RULES = (lang: string): Rule[] => {
     { re: /[•·▪■□◦●○▶►✓✔→]/g, to: () => ' ' },
     // several marks in a row (a line of dashes, a row of dots) are not read
     { re: /([-_=*#~.])\1{3,}/g, to: () => ' ' },
+    // abbreviations, symbols, ordinals, dates and initials as a person would say them
+    ...pronounceRules(lang),
   ];
 };
 

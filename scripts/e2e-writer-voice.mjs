@@ -142,6 +142,33 @@ await check('«Detener la lectura» y la lectura de un documento sin texto no fa
   await bar.waitFor({ state: 'detached' });
 });
 
+await check('un tramo marcado en otro idioma se lee con una voz de ese idioma, aunque esté dentro de un párrafo', async () => {
+  await ev(() => window.__novaWriter.ctl.newDoc());
+  await editor.click();
+  await page.keyboard.type('Hola mundo cruel. Hello beautiful world. Adiós amigo.');
+  await ev(() => {
+    const v = window.__novaWriter.ctl.mainView;
+    let from = null;
+    v.state.doc.descendants((n, p) => { if (n.isText && from === null) from = p + n.text.indexOf('Hello'); });
+    const to = from + 'Hello beautiful world.'.length;
+    v.dispatch(v.state.tr.addMark(from, to, v.state.schema.marks.lang.create({ value: 'en' })));
+    window.__novaWriter.ctl.readAloud.start();
+  });
+  await bar.waitFor();
+  const info = await ev(() => { const r = window.__novaWriter.ctl.readAloud.voice.reader; return r.pieces.map((u, i) => [r.blockOf(i).text.slice(u.start, u.end), u.lang]); });
+  assert.deepEqual(info.map((x) => x[1]), ['es-ES', 'en-US', 'es-ES']);
+  assert.equal(info[1][0], 'Hello beautiful world.');
+  await ev(() => window.__novaWriter.ctl.readAloud.stop());
+});
+
+await check('si se abre otro documento mientras se lee, la lectura se detiene', async () => {
+  await ev(() => { window.__novaWriter.ctl.readAloud.start(); });
+  await bar.waitFor();
+  await ev(() => window.__novaWriter.ctl.newDoc());
+  await bar.waitFor({ state: 'detached' });
+  assert.equal(await ev(() => window.speechSynthesis.speaking), false);
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors, []);
 });

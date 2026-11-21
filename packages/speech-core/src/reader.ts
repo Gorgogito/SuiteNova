@@ -1,6 +1,6 @@
 import { toSpeech, writtenRange, type Spoken } from './prepare';
 import { pieces } from './sentences';
-import { pickVoice, type Voice } from './voices';
+import { fit, pickVoice, type Voice } from './voices';
 
 /*
  * The reader: it takes the text a product wants read (as blocks: paragraphs, cells, notes, messages), cuts it into pieces, and has an engine speak them
@@ -68,6 +68,9 @@ export interface Snapshot {
   error: string;
   /** No voice reads the language of the piece (the engine will use its own). */
   noVoice: boolean;
+  /** Languages in the text that no installed voice reads at all, and those read with a voice of another region (`es-PE` with a voice of Spain). */
+  missing: string[];
+  regional: string[];
 }
 
 export const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5] as const;
@@ -128,7 +131,22 @@ export class Reader {
       rate: this.rate,
       error: this.error,
       noVoice: this.noVoice,
+      ...this.coverage(),
     };
+  }
+
+  /** Which of the languages of the text the installed voices do not cover (empty while the engine has not given its list). */
+  private coverage(): { missing: string[]; regional: string[] } {
+    const all = this.synth.voices();
+    const missing: string[] = [];
+    const regional: string[] = [];
+    if (!all.length) return { missing, regional };
+    for (const lang of new Set(this.units.map((u) => u.lang))) {
+      const v = pickVoice(all, lang, this.voices[lang.toLowerCase().split(/[-_]/)[0]!]);
+      if (!v) missing.push(lang);
+      else if (fit(v, lang) < 3 && /^[a-z]+[-_][a-z]+$/i.test(lang) && v.lang.toLowerCase().replace('_', '-') !== lang.toLowerCase().replace('_', '-')) regional.push(lang);
+    }
+    return { missing, regional };
   }
 
   /** The block given for piece `i` (its `ref`, to show it). */

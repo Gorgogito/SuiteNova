@@ -130,6 +130,33 @@ await check('en la cinta, Revisar › Voz tiene los comandos', async () => {
   assert.ok(names.some((n) => /Leer en voz alta/.test(n)), 'botón «Leer en voz alta»');
 });
 
+await check('un texto marcado en otro idioma se lee con una voz de ese idioma', async () => {
+  await ev(async () => {
+    const core = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/slides-core/src/index.ts');
+    const c = window.__novaSlides.ctl;
+    c.apply('idioma', (d) => ({ ...d, slides: d.slides.map((s, i) => (i === 0 ? { ...s, shapes: s.shapes.map((e) => (e.id === 'cuerpo1' ? { ...e, text: { ...e.text, doc: core.makeDoc([{ runs: [{ text: 'Texto en español. ' }, { text: 'Text in English.', r: { lang: 'en-US' } }] }]).toJSON() } } : e)) } : s)) }));
+    c.goTo(0);
+    c.readAloud.start();
+  });
+  await bar().waitFor();
+  const info = await ev(() => { const r = window.__novaSlides.ctl.readAloud.voice.reader; return r.pieces.map((u, i) => [r.blockOf(i).text.slice(u.start, u.end), u.lang]); });
+  const en = info.find((x) => x[0] === 'Text in English.');
+  assert.ok(en && en[1] === 'en-US', JSON.stringify(info));
+  assert.ok(info.some((x) => /^Texto en español/.test(x[0]) && x[1] === 'es-ES'));
+  await ev(() => window.__novaSlides.ctl.readAloud.stop());
+});
+
+await check('si se abre otra presentación mientras se lee, la lectura se detiene', async () => {
+  await ev(() => { window.__novaSlides.ctl.goTo(0); window.__novaSlides.ctl.readAloud.start(); });
+  await bar().waitFor();
+  await ev(async () => {
+    const core = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/slides-core/src/index.ts');
+    window.__novaSlides.ctl.load(core.newDeck(), 'otra.pptx', null);
+  });
+  await bar().waitFor({ state: 'detached' });
+  assert.equal(await ev(() => window.speechSynthesis.speaking), false);
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors, []);
 });

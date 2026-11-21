@@ -2,6 +2,7 @@ import { getLocale } from '@suitenova/core-ui';
 import { docNode, type Deck, type SlideElement, type TextBody } from '@suitenova/slides-core';
 import type { Block } from '@suitenova/speech-core';
 import { VoiceController } from '../voice/controller';
+import { speechLang } from '../voice/lang';
 import type { SlidesCtl } from './ctl';
 
 /*
@@ -19,27 +20,38 @@ export interface SlideRef {
 
 const TITLES = new Set(['title', 'ctrTitle']);
 
-const paragraphs = (body: TextBody | null | undefined): string[] => {
+/** A paragraph as runs of text with the language they are marked with (null: the language of the presentation). */
+type Runs = { text: string; lang: string | null }[];
+
+const paragraphRuns = (body: TextBody | null | undefined): Runs[] => {
   if (!body) return [];
-  const out: string[] = [];
+  const out: Runs[] = [];
   docNode(body.doc).forEach((p) => {
-    const t = p.textBetween(0, p.content.size, '\n', ' ').trim();
-    if (t) out.push(t);
+    const runs: Runs = [];
+    p.forEach((child) => {
+      const text = child.isText ? child.text! : child.type.name === 'hard_break' ? '\n' : child.type.name === 'field' ? '' : '';
+      if (!text) return;
+      const lang = (child.marks.find((m) => m.type.name === 'run')?.attrs.r?.lang as string | undefined) || null;
+      const last = runs[runs.length - 1];
+      if (last && last.lang === lang) last.text += text;
+      else runs.push({ text, lang });
+    });
+    if (runs.some((r) => r.text.trim())) out.push(runs);
   });
   return out;
 };
 
 /** The text of the objects of a slide in reading order: the title first, then the others as they are in the slide. */
-function elementTexts(shapes: SlideElement[]): { id: string; text: string }[] {
-  const flat: { id: string; text: string; title: boolean }[] = [];
+function elementTexts(shapes: SlideElement[]): { id: string; runs: Runs }[] {
+  const flat: { id: string; runs: Runs; title: boolean }[] = [];
   const walk = (els: SlideElement[]) => {
     for (const e of els) {
       if (e.kind === 'group') walk(e.children);
       else if (e.kind === 'shape') {
         const title = !!e.ph && TITLES.has(e.ph.type);
-        for (const t of paragraphs(e.text)) flat.push({ id: e.id, text: t, title });
+        for (const runs of paragraphRuns(e.text)) flat.push({ id: e.id, runs, title });
       } else if (e.kind === 'table') {
-        for (const row of e.rows) for (const cell of row.cells) for (const t of paragraphs(cell.text)) flat.push({ id: e.id, text: t, title: false });
+        for (const row of e.rows) for (const cell of row.cells) for (const runs of paragraphRuns(cell.text)) flat.push({ id: e.id, runs, title: false });
       }
     }
   };
@@ -51,6 +63,10 @@ export interface SlideBlock extends Block {
   ref: SlideRef;
 }
 
+/** The blocks of a paragraph: one for each run with its own language. */
+const runBlocks = (runs: Runs, lang: string, ref: SlideRef): SlideBlock[] =>
+  runs.filter((r) => r.text.trim()).map((r) => ({ text: r.text.trim(), lang: speechLang(r.lang, lang), ref }));
+
 /** The blocks to read from slide `from` on (or only the one slide when `only`), with the notes or only the notes. */
 export function collectSlideBlocks(deck: Deck, from: number, lang: string, o: { notes: boolean; onlyNotes?: boolean; only?: boolean } = { notes: false }): SlideBlock[] {
   const en = lang.startsWith('en');
@@ -61,14 +77,14 @@ export function collectSlideBlocks(deck: Deck, from: number, lang: string, o: { 
     const start = out.length;
     if (!o.onlyNotes) {
       out.push({ text: en ? `Slide ${i + 1}.` : `Diapositiva ${i + 1}.`, lang, ref: { slide: i, element: null } });
-      for (const t of elementTexts(s.shapes)) out.push({ text: t.text, lang, ref: { slide: i, element: t.id } });
+      for (const t of elementTexts(s.shapes)) out.push(...runBlocks(t.runs, lang, { slide: i, element: t.id }));
     }
     if (o.notes || o.onlyNotes) {
-      const notes = paragraphs(s.notes);
+      const notes = paragraphRuns(s.notes);
       if (notes.length) {
         if (!o.onlyNotes) out.push({ text: en ? 'Notes.' : 'Notas.', lang, ref: { slide: i, element: null, notes: true } });
         else out.push({ text: en ? `Notes of slide ${i + 1}.` : `Notas de la diapositiva ${i + 1}.`, lang, ref: { slide: i, element: null, notes: true } });
-        for (const t of notes) out.push({ text: t, lang, ref: { slide: i, element: null, notes: true } });
+        for (const runs of notes) out.push(...runBlocks(runs, lang, { slide: i, element: null, notes: true }));
       }
     }
     // a slide with nothing to say but its number is not announced
@@ -85,6 +101,7 @@ export class SlidesReader {
   private deck: Deck | null = null;
   private mode: { notes: boolean; onlyNotes: boolean } = { notes: false, onlyNotes: false };
   private shown = -1;
+  private defaultLang = 'es-ES';
 
   constructor(private ctl: SlidesCtl) {
     this.voice.reader.subscribe(() => this.follow());
@@ -115,6 +132,7 @@ export class SlidesReader {
   /** Reads from the open slide on: its text (and the notes, if that is on), or only the notes. */
   start(onlyNotes = false): void {
     const lang = getLocale() === 'en' ? 'en-US' : 'es-ES';
+    this.defaultLang = lang;
     this.mode = { notes: this.withNotes, onlyNotes };
     this.deck = this.ctl.realDeck;
     this.blocks = collectSlideBlocks(this.deck, this.ctl.index, lang, this.mode);
@@ -151,7 +169,7 @@ export class SlidesReader {
   private check(): void {
     if (!this.voice.visible || this.ctl.realDeck === this.deck) return;
     this.deck = this.ctl.realDeck;
-    const lang = this.blocks[0]?.lang ?? 'es-ES';
+    const lang = this.defaultLang;
     const first = this.blocks[0]?.ref.slide ?? 0;
     const next = collectSlideBlocks(this.deck, first, lang, this.mode);
     const same = (a: SlideBlock[]) => a.map((b) => `${b.ref.slide}:${b.text}`).join('\n');

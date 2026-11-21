@@ -103,6 +103,23 @@ await check('con el mensaje abierto otra vez, cerrar la barra detiene la voz', a
   assert.equal(await ev(() => window.speechSynthesis.speaking), false);
 });
 
+await check('un mensaje que dice su idioma, o un trozo con lang, se lee con la voz de ese idioma, y se avisa si falta la voz', async () => {
+  const frHtml = '<html><body><p>Hola a todos.</p><p lang="fr">Bonjour tout le monde.</p></body></html>';
+  const r = ['From: Paul <p@x.fr>', 'To: yo@x.org', 'Subject: Mezcla', 'Content-Language: en', 'MIME-Version: 1.0', 'Content-Type: text/html; charset=utf-8', '', frHtml].join('\r\n');
+  const id = await importMsg(r);
+  await select(id);
+  await page.waitForTimeout(600);
+  await ev(() => window.__novaMail.ctl.readAloud.start());
+  await bar().waitFor();
+  const info = await ev(() => { const rd = window.__novaMail.ctl.readAloud.voice.reader; return rd.pieces.map((u, i) => [rd.blockOf(i).text.slice(u.start, u.end), u.lang]); });
+  assert.equal(info[0][0], 'Message from Paul.');
+  assert.equal(info[0][1], 'en-US');
+  assert.equal(info.find((x) => /^Hola a todos/.test(x[0]))[1], 'en-US', 'sin lang propio usa el del encabezado');
+  assert.equal(info.find((x) => /^Bonjour/.test(x[0]))[1], 'fr');
+  assert.match(await bar().innerText(), /No hay una voz instalada para: francés/);
+  await ev(() => window.__novaMail.ctl.readAloud.stop());
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors, []);
 });

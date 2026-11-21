@@ -55,3 +55,9 @@
   color: #000;
   border-radius: 2px;
 }
+
+.nv-voicebar__note {
+  flex-basis: 100%;
+  opacity: 0.75;
+  font-size: 12px;
+}

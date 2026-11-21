@@ -2,6 +2,7 @@ import { getLocale } from '@suitenova/core-ui';
 import { formatAddress, parseMessage, rawOf } from '@suitenova/mail-core';
 import type { Block } from '@suitenova/speech-core';
 import { VoiceController } from '../voice/controller';
+import { speechLang } from '../voice/lang';
 import type { MailCtl } from './ctl';
 
 /*
@@ -27,9 +28,9 @@ export function domBlocks(doc: Document, lang: string): DomBlock[] {
   const out: DomBlock[] = [];
   if (!doc.body) return out;
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
-  let cur: { el: Element; text: string; spots: Spot[] } | null = null;
+  let cur: { el: Element; text: string; spots: Spot[]; lang: string } | null = null;
   const flush = () => {
-    if (cur && cur.text.trim()) out.push({ text: cur.text, lang, spots: cur.spots });
+    if (cur && cur.text.trim()) out.push({ text: cur.text, lang: cur.lang, spots: cur.spots });
     cur = null;
   };
   for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
@@ -38,7 +39,8 @@ export function domBlocks(doc: Document, lang: string): DomBlock[] {
     const el = parent.closest(BLOCKS) ?? doc.body;
     if (!cur || cur.el !== el) {
       flush();
-      cur = { el, text: '', spots: [] };
+      // a block (or a part of the message) that says what language it is in is read in it
+      cur = { el, text: '', spots: [], lang: speechLang(el.closest('[lang]')?.getAttribute('lang'), lang) };
     }
     const s = n.data;
     for (let i = 0; i < s.length; i++) {
@@ -76,9 +78,11 @@ export class MailReader {
   start(): void {
     const rec = this.ctl.selected;
     if (!rec) return;
-    const lang = getLocale() === 'en' ? 'en-US' : 'es-ES';
-    const en = lang.startsWith('en');
     const m = parseMessage(rawOf(rec));
+    // the language the message says it is in (Content-Language), else the one of the interface
+    const header = m.headers.find(([n]) => n.toLowerCase() === 'content-language')?.[1]?.split(',')[0]?.trim();
+    const lang = speechLang(header, getLocale() === 'en' ? 'en-US' : 'es-ES');
+    const en = lang.toLowerCase().startsWith('en');
     const from = m.from[0] ? m.from[0].name || formatAddress(m.from[0]) : '';
     const head: Block[] = [];
     if (from) head.push({ text: en ? `Message from ${from}.` : `Mensaje de ${from}.`, lang });

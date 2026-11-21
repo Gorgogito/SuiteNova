@@ -23,4 +23,7 @@ registerMessages('en', {
   'Este sistema no tiene síntesis de voz disponible.': 'This system has no speech synthesis available.',
   'No hay una voz instalada para este idioma; se usa la del sistema. Puede añadir voces en la configuración de Windows (Hora e idioma › Voz).':
     'There is no voice installed for this language; the system one is used. You can add voices in Windows settings (Time & language › Speech).',
+  'No hay una voz instalada para: {l}. Esas partes se leen con la voz del sistema. Puede añadir voces en la configuración de Windows (Hora e idioma › Voz).':
+    'There is no voice installed for: {l}. Those parts are read with the system voice. You can add voices in Windows settings (Time & language › Speech).',
+  'Se lee con la voz de otra región: {l}.': 'Read with a voice of another region: {l}.',
 });

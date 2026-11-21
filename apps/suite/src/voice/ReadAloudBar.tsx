@@ -1,4 +1,4 @@
-import { t } from '@suitenova/core-ui';
+import { getLocale, t } from '@suitenova/core-ui';
 import { RATES } from '@suitenova/speech-core';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { VoiceController } from './controller';
@@ -6,6 +6,15 @@ import './messages';
 import './voice.css';
 
 const primary = (l: string): string => l.toLowerCase().split(/[-_]/)[0]!;
+
+/** The name of a language in the language of the interface («francés», «español (Perú)»). */
+const languageName = (tag: string): string => {
+  try {
+    return new Intl.DisplayNames([getLocale() === 'en' ? 'en' : 'es'], { type: 'language' }).of(tag.replace('_', '-')) ?? tag;
+  } catch {
+    return tag;
+  }
+};
 
 /**
  * The bar every product shows while it reads aloud (as in Word, Outlook and OneNote): previous, play or pause, next, stop, speed and voice, and where
@@ -75,9 +84,16 @@ export function ReadAloudBar({ ctrl, onClose, label, showText = false, prefix }:
             {s.error ? t('No se pudo leer: {e}', { e: s.error }) : s.index >= 0 ? t('Frase {n} de {total}', { n: s.index + 1, total: s.count }) : t('Nada que leer')}
           </span>
           {showText && s.piece && s.index >= 0 && s.state !== 'idle' && <SentenceLine ctrl={ctrl} prefix={prefix} />}
-          {s.noVoice && (
+          {(s.missing.length > 0 || s.noVoice) && (
             <span className="nv-voicebar__warn" role="status">
-              {t('No hay una voz instalada para este idioma; se usa la del sistema. Puede añadir voces en la configuración de Windows (Hora e idioma › Voz).')}
+              {s.missing.length > 0
+                ? t('No hay una voz instalada para: {l}. Esas partes se leen con la voz del sistema. Puede añadir voces en la configuración de Windows (Hora e idioma › Voz).', { l: s.missing.map(languageName).join(', ') })
+                : t('No hay una voz instalada para este idioma; se usa la del sistema. Puede añadir voces en la configuración de Windows (Hora e idioma › Voz).')}
+            </span>
+          )}
+          {s.regional.length > 0 && s.missing.length === 0 && (
+            <span className="nv-voicebar__note" role="status">
+              {t('Se lee con la voz de otra región: {l}.', { l: s.regional.map(languageName).join(', ') })}
             </span>
           )}
         </>

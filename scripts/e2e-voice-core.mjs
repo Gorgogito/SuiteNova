@@ -124,6 +124,39 @@ await check('un texto en inglés se lee con una voz en inglés', async () => {
   assert.match(voice, /^en/i);
 });
 
+await check('lo escrito se dice como una persona lo diría (abreviaturas, símbolos, fechas) y cada idioma usa su voz', async () => {
+  const r = await page.evaluate(async () => {
+    const spoken = [];
+    const orig = window.speechSynthesis.speak.bind(window.speechSynthesis);
+    window.speechSynthesis.speak = (u) => { spoken.push({ text: u.text, lang: u.voice?.lang ?? u.lang }); return orig(u); };
+    const r = window.__v.reader;
+    r.load([{ text: 'El Sr. Pérez pagó 5 € el 5/3/1990.' }, { text: 'It costs $20 and 15%.', lang: 'en-US' }]);
+    r.play();
+    await new Promise((res) => setTimeout(res, 600));
+    r.next();
+    await new Promise((res) => setTimeout(res, 600));
+    r.stop();
+    window.speechSynthesis.speak = orig;
+    return spoken;
+  });
+  assert.equal(r[0].text, 'El señor Pérez pagó 5 euros el 5 de marzo de 1990.');
+  assert.match(r[0].lang, /^es/i);
+  const en = r.find((x) => /dollars/.test(x.text));
+  assert.ok(en, JSON.stringify(r));
+  assert.equal(en.text, 'It costs 20 dollars and 15 percent.');
+  assert.match(en.lang, /^en/i);
+});
+
+await check('avisa de los idiomas sin voz y de los que se leen con la voz de otra región', async () => {
+  const s = await page.evaluate(() => {
+    const r = window.__v.reader;
+    r.load([{ text: 'Hola.' }, { text: 'Hola.', lang: 'es-PE' }, { text: 'Bonjour.', lang: 'fr-FR' }]);
+    return { missing: r.snapshot.missing, regional: r.snapshot.regional };
+  });
+  assert.deepEqual(s.missing, ['fr-FR']);
+  assert.deepEqual(s.regional, ['es-PE']);
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors, []);
 });
