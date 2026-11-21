@@ -12,10 +12,12 @@ import type { CalcDoc } from './doc';
 export class CalcImageOcr extends ImageOcrDriver {
   constructor(private doc: CalcDoc) {
     super('calc');
+    // what the document has now is its own: only pictures put in from here on are read by themselves
+    this.resetBaseline();
   }
 
   protected ready(): boolean {
-    return this.doc.wb.sheets.length > 0;
+    return !!this.doc.wb?.sheets?.length;
   }
   protected changed(): void {
     this.doc.touch();

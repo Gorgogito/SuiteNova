@@ -11,10 +11,12 @@ import type { SlidesCtl } from './ctl';
 export class SlidesImageOcr extends ImageOcrDriver {
   constructor(private ctl: SlidesCtl) {
     super('slides');
+    // what the document has now is its own: only pictures put in from here on are read by themselves
+    this.resetBaseline();
   }
 
   protected ready(): boolean {
-    return this.ctl.realDeck.slides.length > 0;
+    return !!this.ctl.realDeck?.slides?.length;
   }
   protected changed(): void {
     this.ctl.touch();

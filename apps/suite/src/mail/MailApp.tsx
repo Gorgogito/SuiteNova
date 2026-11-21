@@ -16,6 +16,7 @@ import { MailCtl } from './ctl';
 import './messages';
 import { setTransport } from './remote';
 import { ComposeBody, FolderTree, LinkConfirm, MessageList, ReadingPane } from './MailViews';
+import { MessageImagesForm } from './dlg-ocr';
 import { StickyDialog } from './StickyDialog';
 import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
 import { ContactsView, TasksView } from './PeopleViews';
@@ -501,6 +502,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
         {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={() => setDialog(null)} />}
         {dialog === 'macroSecurity' && <MacroSecurity ctl={ctl} onClose={() => setDialog(null)} />}
         <StickyDialog open={dialog !== null && dialog !== 'macros' && dialog !== 'macroEditor'} onClose={() => setDialog(null)} width={dialog === 'accounts' ? 640 : undefined}>
+          {dialog === 'imageText' && <MessageImagesForm ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'settings' && <SettingsDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'accounts' && <AccountsDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'about' && (

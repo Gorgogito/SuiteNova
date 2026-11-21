@@ -10,4 +10,5 @@ export * from './vsdx';
 export * from './groups';
 export * from './layers';
 export * from './container';
+export * from './find';
 export * from './layout';

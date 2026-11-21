@@ -1,7 +1,8 @@
 import type { CommandDef } from '@suitenova/core-ui';
 import type { MailCtl } from './ctl';
+import { ocrCommands } from './commands-ocr';
 
-export type MailDialog = 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
+export type MailDialog = 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
 export type ImportKind = 'eml' | 'mbox' | 'ics' | 'contacts' | 'outlook';
 
 export interface MailUI {
@@ -114,5 +115,6 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   add({ id: 'data.export.ics', label: 'Exportar calendario y tareas (.ics)…', icon: 'exportFile', run: () => void ui.exportCalendar() });
   add({ id: 'data.export.vcf', label: 'Exportar contactos (.vcf)…', icon: 'exportFile', enabled: () => c.data.contacts.length > 0, run: () => void ui.exportContacts(false) });
   add({ id: 'data.export.csv', label: 'Exportar contactos (.csv)…', icon: 'exportFile', enabled: () => c.data.contacts.length > 0, run: () => void ui.exportContacts(true) });
+  defs.push(...ocrCommands(ui));
   return defs;
 }

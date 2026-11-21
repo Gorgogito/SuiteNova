@@ -23,6 +23,9 @@ import {
   rawOf,
   reSubject,
   searchMessages,
+  messageImages,
+  setImageReading,
+  decodeBase64,
   serializeMail,
   unreadCount,
   writeIcs,
@@ -440,5 +443,45 @@ describe('mail store', () => {
     expect(odd.messages).toHaveLength(1);
     expect(odd.messages[0]!.folder).toBe('inbox');
     expect(odd.events).toHaveLength(1);
+  });
+});
+
+describe('the text of the pictures of a message (OCR)', () => {
+  const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
+  const withPicture = () =>
+    [
+      'From: a@x.org', 'To: yo@x.org', 'Subject: Factura', 'MIME-Version: 1.0', 'Content-Type: multipart/mixed; boundary="B"', '',
+      '--B', 'Content-Type: text/plain; charset=utf-8', '', 'Mira la imagen', '--B',
+      'Content-Type: image/png; name="factura.png"', 'Content-Disposition: attachment; filename="factura.png"', 'Content-Transfer-Encoding: base64', '',
+      btoa(String.fromCharCode(...png)), '--B--', '',
+    ].join('\r\n');
+
+  it('finds the pictures a message has, keeps their readings, and the search finds what is written in them', () => {
+    const d = newMailData();
+    const rec = addRaw(d, 'inbox', withPicture());
+    const imgs = messageImages(rec.raw ? decodeBase64(rec.raw) : '');
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0]!.filename).toBe('factura.png');
+    expect(searchMessages(d, 'total a pagar', null)).toHaveLength(0);
+    setImageReading(rec, imgs[0]!.key, { text: 'Factura 4821\nTotal a pagar 350 €' } as never);
+    expect(searchMessages(d, 'TOTAL a pagar', null).map((m) => m.id)).toEqual([rec.id]);
+    expect(searchMessages(d, 'factura mira', null)).toHaveLength(1);
+    const back = parseMailData(serializeMail(d));
+    expect(back.messages[0]!.imageText).toContain('total a pagar');
+    expect((back.messages[0]!.ocr![imgs[0]!.key] as { text: string }).text).toContain('4821');
+    setImageReading(rec, imgs[0]!.key, null);
+    expect(rec.imageText).toBeUndefined();
+    expect(searchMessages(d, 'total a pagar', null)).toHaveLength(0);
+  });
+
+  it('a damaged reading in a saved file is dropped without harming the message', () => {
+    const d = newMailData();
+    const rec = addRaw(d, 'inbox', withPicture());
+    const odd = JSON.parse(serializeMail(d));
+    odd.messages[0].ocr = { bien: { text: 'hola' }, mal: 5, peor: { text: 3 } };
+    const back = parseMailData(JSON.stringify(odd));
+    expect(Object.keys(back.messages[0]!.ocr!)).toEqual(['bien']);
+    expect(back.messages[0]!.imageText).toBe('hola');
+    expect(back.messages[0]!.id).toBe(rec.id);
   });
 });

@@ -1,4 +1,5 @@
 import { htmlBody, picturesOfDraft, type ComposePicture } from './pictures';
+import { MailImageOcr } from './ocr-images';
 import {
   RFC_FLAGS,
   addRaw,
@@ -187,7 +188,11 @@ export class MailCtl {
     if (this.muted) return;
     this.version++;
     this.listeners.forEach((l) => l());
+    this.imageOcr.schedule();
   }
+
+  /** The text read from the pictures of messages (OCR): read, copy, and found by the mailbox search. */
+  readonly imageOcr = new MailImageOcr(this);
 
   /** Lee las preferencias de sincronización y arranca la sincronización automática. */
   startSync(): void {

@@ -19,6 +19,8 @@ export type { ImageOcrState } from '../ocr/driver';
 export class ImageOcr extends ImageOcrDriver {
   constructor(private ctl: WriterCtl) {
     super('writer');
+    // what the document has now is its own: only pictures put in from here on are read by themselves
+    this.resetBaseline();
   }
 
   protected ready(): boolean {

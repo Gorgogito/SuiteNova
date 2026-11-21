@@ -95,6 +95,7 @@ await check('Buscar encuentra el texto de dentro de la imagen y la selecciona; r
   const [m] = await media();
   assert.match(m.text, /Total a pagar/);
   await dialog().getByRole('button', { name: 'Cerrar' }).click();
+  await page.waitForFunction(() => !document.querySelector('[role=dialog]'));
 });
 
 await check('el cuadro «Texto de la imagen» señala dónde está lo buscado y lee solo una zona', async () => {
@@ -117,6 +118,7 @@ await check('el cuadro «Texto de la imagen» señala dónde está lo buscado y 
   await dlg.getByRole('button', { name: 'Leer con estos ajustes' }).click();
   await page.waitForFunction(() => { const d = window.__novaCalc.doc; const t = d.wb.media.get(d.sheet.images[0].media).ocr?.text ?? ''; return /Factura/.test(t) && /Total/.test(t); });
   await dlg.getByRole('button', { name: 'Cerrar' }).click();
+  await page.waitForFunction(() => !document.querySelector('[role=dialog]'));
 });
 
 await check('copiar el texto de la imagen lo deja en el portapapeles', async () => {

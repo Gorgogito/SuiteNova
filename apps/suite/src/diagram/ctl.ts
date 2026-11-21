@@ -13,6 +13,7 @@ import { applyOpenPolicy, type SignatureInfo } from '../macros/security';
 import { MacroRecorder } from '../macros/recorder';
 import { DiagramRuntime } from './macros';
 import { recordChange } from './recorder';
+import { DiagramImageOcr } from './ocr-images';
 
 const MAX_UNDO = 100;
 
@@ -107,6 +108,29 @@ export class DiagramCtl {
   touch(): void {
     this.version++;
     this.listeners.forEach((l) => l());
+    this.imageOcr.schedule();
+  }
+
+  /** The text read from the pictures (OCR): copy it, find it, read again. */
+  readonly imageOcr = new DiagramImageOcr(this);
+
+  /** Keeps a reading in every picture with this source that has none (derived data: not an undoable step, the document is not marked as changed). */
+  setImageOcr(src: string, ocr: unknown): void {
+    let changed = false;
+    const pages = this.diagram.pages.map((p) => ({
+      ...p,
+      shapes: p.shapes.map((s) => (s.image && s.image.src === src && !s.image.ocr ? ((changed = true), { ...s, image: { ...s.image, ocr } }) : s)),
+    }));
+    if (!changed) return;
+    this.diagram = { ...this.diagram, pages };
+    this.touch();
+  }
+
+  /** Keeps a new reading of one picture (other language, a zone, a turn). */
+  setShapeOcr(id: string, ocr: unknown): void {
+    const pages = this.diagram.pages.map((p) => ({ ...p, shapes: p.shapes.map((s) => (s.id === id && s.image ? { ...s, image: { ...s.image, ocr } } : s)) }));
+    this.diagram = { ...this.diagram, pages };
+    this.touch();
   }
 
   // ---------- state
@@ -218,6 +242,7 @@ export class DiagramCtl {
     this.filePath = path;
     this.dirty = false;
     this.message = '';
+    this.imageOcr.resetBaseline();
     this.touch();
   }
   reset(): void {

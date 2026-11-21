@@ -1,10 +1,12 @@
 import type { CommandDef } from '@suitenova/core-ui';
+import { ocrCommands } from './commands-ocr';
+import '../ocr/messages';
 import { neighbor } from '@suitenova/comment-core';
 import { STENCILS, type Arrow, type Dash, type Routing } from '@suitenova/diagram-core';
 import type { DiagramCtl } from './ctl';
 import { resetPicture } from './pichost';
 
-export type DiagramDialog = 'page' | 'rename' | 'png' | 'about' | 'shortcuts' | 'link' | 'layout' | 'macros' | 'macroEditor' | 'macroSecurity' | 'recordMacro' | 'pictureCorrections' | 'pictureColor' | 'pictureArtistic' | 'removeBg' | 'imageAlt';
+export type DiagramDialog = 'page' | 'rename' | 'png' | 'about' | 'shortcuts' | 'link' | 'layout' | 'macros' | 'macroEditor' | 'macroSecurity' | 'recordMacro' | 'pictureCorrections' | 'pictureColor' | 'pictureArtistic' | 'removeBg' | 'imageAlt' | 'imageText' | 'find';
 
 export interface DiagramUI {
   ctl: DiagramCtl;
@@ -216,5 +218,6 @@ export function diagramCommands(ui: DiagramUI): CommandDef[] {
   add({ id: 'diagram.grid.show', label: 'Mostrar cuadrícula', icon: 'grid', checked: () => c.showGrid, run: () => { c.showGrid = !c.showGrid; c.touch(); } });
   add({ id: 'diagram.grid.snap', label: 'Ajustar a la cuadrícula', icon: 'magnet', checked: () => c.snapToGrid, run: () => { c.snapToGrid = !c.snapToGrid; c.touch(); } });
   add({ id: 'diagram.fit', label: 'Ajustar a la ventana', icon: 'zoomIn', shortcut: 'Ctrl+Shift+H', run: () => ui.fitPage() });
+  defs.push(...ocrCommands(ui));
   return defs;
 }

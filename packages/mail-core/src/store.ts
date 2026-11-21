@@ -45,6 +45,10 @@ export interface MailRecord {
   remote?: { account: string; folder: string; key: string };
   /** Message-ID, para reconocer la copia local de un mensaje cuando el servidor lo devuelve. */
   mid?: string;
+  /** The text read from the pictures of the message (OCR), by picture (`imagePartKey`): `StoredOcr` of the shared OCR, opaque here. */
+  ocr?: Record<string, unknown>;
+  /** Lower-case text of those readings for searching (limited in length): searching the mailbox also finds what is written in a picture. */
+  imageText?: string;
 }
 
 /** Un cambio hecho aquí que falta enviar al servidor. Se reintenta en cada sincronización hasta que se logra. */
@@ -170,8 +174,44 @@ export const unreadCount = (d: MailData, folder: string): number => d.messages.f
 export function searchMessages(d: MailData, query: string, folder: string | null): MailRecord[] {
   const words = fold(query).split(/\s+/).filter(Boolean);
   return d.messages
-    .filter((m) => (folder === null || m.folder === folder) && words.every((w) => m.search.includes(w)))
+    .filter((m) => {
+      if (folder !== null && m.folder !== folder) return false;
+      const hay = m.imageText ? `${m.search}
+${m.imageText}` : m.search;
+      return words.every((w) => hay.includes(w));
+    })
     .sort((a, b) => b.date - a.date);
+}
+
+/** The pictures of a message the OCR can read: image attachments and inline images (not drawings in SVG), each with the key its reading is kept under. */
+export interface MessageImage {
+  key: string;
+  filename: string;
+  mime: string;
+  data: Uint8Array;
+}
+export const imagePartKey = (a: { filename: string; contentType: string; data: Uint8Array }, i: number): string => `${i}:${a.filename}:${a.data.length}`;
+export function messageImages(raw: string | Uint8Array, maxEach = 8_000_000): MessageImage[] {
+  const m = parseMessage(raw);
+  return [...m.attachments, ...m.inlineParts]
+    .map((a, i) => ({ a, i }))
+    .filter(({ a }) => /^image\/(png|jpe?g|gif|webp|bmp)$/i.test(a.contentType) && a.data.length > 0 && a.data.length <= maxEach)
+    .map(({ a, i }) => ({ key: imagePartKey(a, i), filename: a.filename, mime: a.contentType.toLowerCase(), data: a.data }));
+}
+
+/** Keeps the reading of one picture of a message and makes the mailbox search find its text. Not a change of the message itself. */
+export function setImageReading(r: MailRecord, key: string, reading: { text?: unknown } | null): void {
+  const ocr = { ...(r.ocr ?? {}) };
+  if (reading) ocr[key] = reading;
+  else delete ocr[key];
+  if (Object.keys(ocr).length) r.ocr = ocr;
+  else delete r.ocr;
+  const text = Object.values(ocr)
+    .map((x) => (x as { text?: unknown }).text)
+    .filter((x): x is string => typeof x === 'string' && x.length > 0)
+    .join('\n');
+  if (text) r.imageText = fold(text.replace(/\s+/g, ' ')).slice(0, 4000);
+  else delete r.imageText;
 }
 
 /** Move a message; from the deleted-items folder it is removed for good. */
@@ -225,6 +265,11 @@ function readRecord(m: MailRecord, ids: Set<string>): MailRecord {
     else delete rec.remote;
   } else delete rec.remote;
   if (typeof rec.mid !== 'string') delete rec.mid;
+  // the readings of the pictures: kept only when they are readings, and the search text follows them
+  const ocr = m.ocr && typeof m.ocr === 'object' ? Object.entries(m.ocr).filter(([k, v]) => k.length < 300 && v && typeof (v as { text?: unknown }).text === 'string') : [];
+  delete rec.ocr;
+  delete rec.imageText;
+  for (const [k, v] of ocr) setImageReading(rec, k, v as { text: string });
   return rec;
 }
 

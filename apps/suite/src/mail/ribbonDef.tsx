@@ -182,6 +182,18 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
 
   const view = viewTab({ zoom: false });
   view.groups.splice(1, 0, { id: 'pane', label: 'Disposición', icon: 'panelRight', items: [{ kind: 'button', command: 'mail.readingPane', size: 'large', keytip: 'PL' }] });
+  view.groups.push({
+    id: 'imgOcr',
+    label: 'Texto de imágenes',
+    icon: 'sparkles',
+    items: [
+      { kind: 'button', command: 'mail.ocr.dialog', size: 'large', keytip: 'XI' },
+      { kind: 'button', command: 'mail.ocr.run', size: 'small', keytip: 'XM' },
+      { kind: 'button', command: 'mail.ocr.runAll', size: 'small', keytip: 'XB' },
+      { kind: 'button', command: 'mail.ocr.stop', size: 'small', keytip: 'XD' },
+      { kind: 'button', command: 'mail.ocr.auto', size: 'small', keytip: 'XA' },
+    ],
+  });
   const developer: RibbonTab = {
     id: 'developer',
     label: 'Programador',

@@ -13,6 +13,9 @@ import { AspectItems } from '../images/galleries';
 import { PicPopover } from '../images/PicPopover';
 import { imageSize } from '../calc/imagePick';
 import { mailPictureHost, tokenOf, uniqueName, type ComposePicture } from './pictures';
+import { PictureTextForm } from './dlg-ocr';
+import { dataUriOf } from './ocr-images';
+import { packResult } from '@suitenova/ocr-core';
 
 // ---------------------------------------------------------------------------------------------- folders
 export function FolderTree({ ctl }: { ctl: MailCtl }) {
@@ -396,6 +399,7 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
   const caret = useRef<number | null>(null);
   const [selPic, setSelPic] = useState<string | null>(null);
   const [picTool, setPicTool] = useState<null | 'corrections' | 'color' | 'artistic' | 'removeBg'>(null);
+  const [textPic, setTextPic] = useState(false);
   // the picture tools read the picture as it is now (a dialog stays open while the message changes)
   const sRef = useRef(s);
   sRef.current = s;
@@ -569,6 +573,7 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
                         <input aria-label={t('Ancho de la imagen (px)')} type="number" min={16} max={2000} value={Math.round(pic.width)} onChange={(e) => setPic({ width: Math.max(16, Number(e.target.value) || 16) })} />
                       </label>
                       <div className="ml-pics__btns">
+                        <button type="button" className="ml-btn" onClick={() => setTextPic(true)}>{t('Texto de la imagen…')}</button>
                         <button type="button" className="ml-btn" onClick={() => setPicTool('removeBg')}>{t('Quitar fondo…')}</button>
                         <button type="button" className="ml-btn" onClick={() => setPicTool('corrections')}>{t('Correcciones…')}</button>
                         <button type="button" className="ml-btn" onClick={() => setPicTool('color')}>{t('Color…')}</button>
@@ -580,6 +585,22 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
                     </div>
                   )}
                 </div>
+              )}
+              {textPic && pic && (
+                <Dialog open modalType="modal" onOpenChange={(_e, d) => !d.open && setTextPic(false)}>
+                  <DialogSurface style={{ maxWidth: 640, width: '92vw' }}>
+                    <DialogBody>
+                      <PictureTextForm
+                        src={dataUriOf(pic.orig)}
+                        reading={pic.ocr}
+                        lang={ctl.imageOcr.lang}
+                        onLang={(l) => (ctl.imageOcr.lang = l)}
+                        onReading={(r) => setPic({ ocr: packResult({ ...r, text: r.text.trim() }) })}
+                        onClose={() => setTextPic(false)}
+                      />
+                    </DialogBody>
+                  </DialogSurface>
+                </Dialog>
               )}
               {picTool === 'removeBg' && <RemoveBackgroundDialog host={picHost} onClose={() => setPicTool(null)} />}
               {picTool && picTool !== 'removeBg' && <FormatPictureDialog host={picHost} tab={picTool} onClose={() => setPicTool(null)} />}

@@ -106,6 +106,7 @@ function readExtras(s: any): { image?: ShapeImage; link?: ShapeLink; data?: Data
     if (typeof o === 'string' && /^data:image\/(png|jpeg|gif|webp|bmp);/.test(o) && o.length < 12_000_000) out.image.orig = o;
     if (out.image.orig && typeof s.image.edits === 'string' && s.image.edits.length < 200_000) out.image.edits = s.image.edits;
     if (typeof s.image.alt === 'string' && s.image.alt.trim()) out.image.alt = s.image.alt.slice(0, 500);
+    if (s.image.ocr && typeof s.image.ocr === 'object' && typeof s.image.ocr.text === 'string' && JSON.stringify(s.image.ocr).length < 2_000_000) out.image.ocr = s.image.ocr;
   }
   if (s?.link && typeof s.link === 'object') {
     const url = str(s.link.url).slice(0, 2000);

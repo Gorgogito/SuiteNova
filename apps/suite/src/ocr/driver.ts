@@ -44,7 +44,7 @@ export const isReadableMime = (mime: string): boolean => /^image\/(png|jpe?g|gif
 
 export abstract class ImageOcrDriver {
   state: ImageOcrState = { running: false, done: 0, total: 0, error: '' };
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  protected timer: ReturnType<typeof setTimeout> | null = null;
   private runId = 0;
   private abort: AbortController | null = null;
   private baseline = new Set<string>();

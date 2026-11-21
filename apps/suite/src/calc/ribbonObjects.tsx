@@ -89,16 +89,6 @@ export function reviewTab(): RibbonTab {
     keytip: 'R',
     groups: [
       {
-        id: 'imgOcr',
-        label: 'Texto de imágenes',
-        icon: 'sparkles',
-        items: [
-          { kind: 'button', command: 'calc.ocr.run', size: 'large', keytip: 'TI' },
-          { kind: 'button', command: 'calc.ocr.stop', size: 'small', keytip: 'TS' },
-          { kind: 'button', command: 'calc.ocr.auto', size: 'small', keytip: 'TA' },
-        ],
-      },
-      {
         id: 'proofing',
         label: 'Revisión',
         icon: 'spell',
@@ -168,6 +158,16 @@ export function reviewTab(): RibbonTab {
           { kind: 'button', command: 'calc.protectBook', size: 'large', keytip: 'L' },
           { kind: 'button', command: 'calc.unprotectBook', size: 'large', keytip: 'D' },
           { kind: 'button', command: 'calc.lockCells', size: 'small', keytip: 'B' },
+        ],
+      },
+      {
+        id: 'imgOcr',
+        label: 'Texto de imágenes',
+        icon: 'sparkles',
+        items: [
+          { kind: 'button', command: 'calc.ocr.run', size: 'large', keytip: 'TI' },
+          { kind: 'button', command: 'calc.ocr.stop', size: 'small', keytip: 'TS' },
+          { kind: 'button', command: 'calc.ocr.auto', size: 'small', keytip: 'TA' },
         ],
       },
     ],

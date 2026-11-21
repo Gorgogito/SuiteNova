@@ -497,6 +497,19 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
     label: 'Revisar',
     keytip: 'RV',
     groups: [
+      { id: 'find', label: 'Buscar', icon: 'search', items: [{ kind: 'button', command: 'diagram.find', size: 'large', keytip: 'BF' }] },
+      {
+        id: 'imgOcr',
+        label: 'Texto de imágenes',
+        icon: 'sparkles',
+        items: [
+          { kind: 'button', command: 'diagram.ocr.dialog', size: 'large', keytip: 'TT' },
+          { kind: 'button', command: 'diagram.ocr.copyText', size: 'small', keytip: 'TC' },
+          { kind: 'button', command: 'diagram.ocr.run', size: 'small', keytip: 'TL' },
+          { kind: 'button', command: 'diagram.ocr.stop', size: 'small', keytip: 'TD' },
+          { kind: 'button', command: 'diagram.ocr.auto', size: 'small', keytip: 'TA' },
+        ],
+      },
       {
         id: 'comments',
         label: 'Comentarios',

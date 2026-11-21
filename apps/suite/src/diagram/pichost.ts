@@ -44,7 +44,8 @@ export async function editedImage(im: ShapeImage, pixels: PixelEdits, crop: Crop
   const orig = im.orig ?? im.src;
   const edits = normalizePixelEdits(pixels);
   const cr = isCropped(crop) ? crop : undefined;
-  const { orig: _o, edits: _e, ...rest } = im;
+  // the reading belongs to the picture it was made from: a changed picture is read again
+  const { orig: _o, edits: _e, ocr: _r, ...rest } = im;
   if (!edits && !cr) return { ...rest, src: orig };
   let px = await pixelsOf(orig);
   if (!px) return null;

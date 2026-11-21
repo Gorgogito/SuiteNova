@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { zoomCommands } from '../common';
 import { pickAndRead, readPath, saveBytes } from '../fileio';
 import { StickyDialog } from '../mail/StickyDialog';
+import { FindForm, ImageTextForm } from './dlg-ocr';
 import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
@@ -618,6 +619,12 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
       {dialog === 'pictureArtistic' && <FormatPictureDialog host={diagramPictureHost(ctl)} tab="artistic" onClose={close} />}
       {sources.dialog}
       {dialog === 'removeBg' && <RemoveBackgroundDialog host={diagramPictureHost(ctl)} onClose={close} />}
+      <StickyDialog open={dialog === 'imageText'} onClose={close} width={640}>
+        {dialog === 'imageText' && <ImageTextForm ctl={ctl} onClose={close} />}
+      </StickyDialog>
+      <StickyDialog open={dialog === 'find'} onClose={close}>
+        {dialog === 'find' && <FindForm ctl={ctl} onClose={close} />}
+      </StickyDialog>
       <StickyDialog open={dialog === 'imageAlt'} onClose={close}>
         {dialog === 'imageAlt' && <AltForm ctl={ctl} onClose={close} />}
       </StickyDialog>

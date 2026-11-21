@@ -60,6 +60,8 @@ export interface ShapeImage {
   edits?: string;
   /** Alternative text for assistive technology (it is also the description of the shape in exports). */
   alt?: string;
+  /** The text read from the picture (OCR) with where each word is: `StoredOcr` of the shared OCR, opaque here. Derived data: it is read again when `src` changes. */
+  ocr?: unknown;
 }
 
 /** A lane of a swimlane: its title and its size across the lanes' axis (height of a horizontal lane, width of a vertical one). */

@@ -24,6 +24,8 @@ export interface ComposePicture {
   /** Displayed width in px; the height follows the picture. */
   width: number;
   alt: string;
+  /** The text read from the original (OCR, `StoredOcr` of the shared OCR, opaque here): only for the person writing, it does not travel in the message. */
+  ocr?: unknown;
 }
 
 export const tokenOf = (name: string): string => `[Imagen: ${name}]`;
