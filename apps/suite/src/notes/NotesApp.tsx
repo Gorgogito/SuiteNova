@@ -18,7 +18,8 @@ import { Canvas, LockedPanel } from './Canvas';
 import { notesCommands, type NotesDialog, type NotesUI } from './commands';
 import { notesCommands2 } from './commands2';
 import { AccessibilityDialog, CountDialog, FindDialog, MergeSectionDialog, MovePageDialog, RecentDialog } from './dlg2';
-import { InkToTextDialog, NotesSpellDialog, NotesTableLookDialog, NotesTableSortDialog, ReadDialog, ScreenClipDialog, SymbolDialog, captureScreen } from './dlg3';
+import { InkToTextDialog, NotesSpellDialog, NotesTableLookDialog, NotesTableSortDialog, ReadDialog, SymbolDialog } from './dlg3';
+import { ClipDialog, captureScreenCanvas } from '../clip';
 import { ReplayBar } from './ReplayBar';
 import './messages-notes3';
 import './messages-image';
@@ -453,11 +454,10 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
       insertPdf: () => pdfRef.current?.click(),
       screenClip: async () => {
         try {
-          setClip(await captureScreen());
+          const cv = await captureScreenCanvas();
+          if (cv) setClip(cv);
         } catch (e) {
-          const err = e as Error;
-          // cancelar el selector de pantalla no es un error
-          if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') window.alert(err.message);
+          window.alert((e as Error).message);
         }
       },
       print: () => {
@@ -868,7 +868,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         {dlg === 'tableSort' && <NotesTableSortDialog ctl={ctl} onClose={closeDialog} />}
         {dlg === 'tableLook' && <NotesTableLookDialog ctl={ctl} onClose={closeDialog} />}
         {clip && (
-          <ScreenClipDialog
+          <ClipDialog
             canvas={clip}
             onClose={() => setClip(null)}
             onInsert={(png, w, h) => {

@@ -2,6 +2,7 @@ import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface
 import { getLocale, t } from '@suitenova/core-ui';
 import { loadCatalog, loadPaths, searchIcons, type Catalog, type IconInfo, type IconStyle, type PathsFile } from '@suitenova/icon-core';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useRestorePage } from '../clip/restorePage';
 import './messages';
 import { makeIconPick, type IconPick } from './raster';
 
@@ -42,6 +43,7 @@ function Glyph({ info, paths, style, color, size = 28 }: { info: IconInfo; paths
  * filled, and a colour. It hands back each icon as SVG plus PNG; what to do with them is the product's.
  */
 export function IconsDialog({ onPick, onClose }: { onPick: (picks: IconPick[]) => void | Promise<void>; onClose: () => void }) {
+  useRestorePage();
   const [data, setData] = useState<{ cat: Catalog; paths: PathsFile } | null>(null);
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<string | null>(null);

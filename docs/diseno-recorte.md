@@ -29,3 +29,11 @@ Decisiones del usuario (2026-11-23): **producto auxiliar compartido** (`clip-cor
 - El recorte nativo solo en Windows (primero); macOS y Linux sin probar.
 - Sin miniaturas de ventanas abiertas (decisión del usuario).
 - El anotador es básico (no la regla, texto ni difuminado de Windows).
+
+## 6. Bitácora
+### Fase 1 (hecha, 2026-11-23): `clip-core` y recorte en el navegador
+- **`packages/clip-core`** (10 pruebas): geometría pura de la zona en píxeles de la captura (`rectBetween`, `clampPoint`, `isZone`, `moveRect`, `resizeRect`, `cropBox` con enteros dentro de la captura y nunca vacío, `fitScale`, `clipFileName` con fecha local, `describeSize`).
+- **`apps/suite/src/clip`:** `ClipDialog` compartido (elegir la zona arrastrando, moverla arrastrando desde dentro, teclado: flechas, Ctrl+flechas para el tamaño, Mayús de 10 en 10, Supr para quitarla; **Copiar** al portapapeles, **Guardar como PNG** con nombre con fecha, **Insertar**; sin zona se usa la captura entera; el tamaño se anuncia con `aria-live`), `captureScreenCanvas` (selector del navegador; cancelar devuelve `null`, otro fallo da un mensaje claro) y `useRestorePage` (Fluent deja `aria-hidden` en la página si el padre desmonta el diálogo abierto; también se aplicó a `IconsDialog`).
+- **Notes** usa ya el diálogo compartido; se quitó su `ScreenClipDialog` duplicado. Los otros cinco productos siguen con la captura completa hasta la fase 3.
+- **Pruebas:** `scripts/e2e-clip.mjs` 11/11 (captura simulada de 1600×900: zona en píxeles reales, mover, límites, teclado, guardar solo la zona, copiar, insertar con y sin zona, cancelar, fallo del sistema, sin errores); `e2e-notes-more` sin fallos (se actualizó el selector), `e2e-icons-close`, `e2e-image-sources`, `e2e-calc-icons`; app 450 y `tsc` limpio.
+- **Límites:** solo se probó con una captura simulada, no con el selector real de pantallas de Edge/WebView2; en el navegador la ventana de SuiteNova aparece en la captura si se elige su pantalla (el ocultado llega con el modo nativo, fases 4 y 5); copiar al portapapeles depende del permiso del navegador.

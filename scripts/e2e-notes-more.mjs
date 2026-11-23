@@ -251,7 +251,7 @@ await check('recorte de pantalla: captura simulada, zona elegida e imagen insert
   const imgsBefore = await ctl((c) => c.page.containers.filter((x) => x.kind === 'image').length);
   await tab('Insertar');
   await btn('Recorte de pantalla…');
-  const cv = page.getByTestId('nn-clip-canvas');
+  const cv = page.getByTestId('clip-canvas');
   await cv.waitFor();
   const b = await cv.boundingBox();
   await page.mouse.move(b.x + 150, b.y + 80);

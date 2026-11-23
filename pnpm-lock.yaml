@@ -187,6 +187,9 @@ importers:
       '@suitenova/chart-core':
         specifier: workspace:*
         version: link:../../packages/chart-core
+      '@suitenova/clip-core':
+        specifier: workspace:*
+        version: link:../../packages/clip-core
       '@suitenova/comment-core':
         specifier: workspace:*
         version: link:../../packages/comment-core
@@ -415,6 +418,15 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
+
+  packages/clip-core:
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
