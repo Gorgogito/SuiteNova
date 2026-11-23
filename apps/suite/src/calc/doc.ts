@@ -59,6 +59,7 @@ import { CalcRecorder } from './recorder';
 import { t } from '@suitenova/core-ui';
 import { CalcImageOcr } from './ocr-images';
 import { CalcReader } from './read-aloud';
+import { findInText, replaceAllInText, type Compiled } from '@suitenova/find-core';
 
 /** The parts of `r` not covered by `cut` (up to four rectangles). */
 export function subtractRect(r: Rect, cut: Rect): Rect[] {
@@ -138,6 +139,24 @@ export interface FindOptions {
   backwards?: boolean;
   /** also the text read from pictures (OCR): found, never replaced */
   pictures?: boolean;
+  /** A search compiled by find-core (Excel wildcards, regular expression…): takes the place of `query`, `matchCase` and `wholeCell`. */
+  compiled?: Compiled;
+  /** What the matches become (as `expandReplacement` reads it); with `compiled` it takes the place of the plain replacement. */
+  template?: string;
+  /** Go through the cells by columns instead of by rows (Excel's «Search: By Columns»). */
+  byColumns?: boolean;
+  /** Also the notes (comments) of the cells. */
+  inNotes?: boolean;
+}
+
+/** A place where the search found something: a cell, or a picture of the sheet (its read text). */
+export interface FindHit {
+  sheetId: number;
+  row: number;
+  col: number;
+  image?: string;
+  /** What was found in, for the list of results. */
+  text: string;
 }
 
 export class CalcDoc {
@@ -1871,11 +1890,87 @@ export class CalcDoc {
   }
 
   private matcher(query: string, o: FindOptions): (t: string) => boolean {
+    const c = o.compiled;
+    if (c) return (t) => findInText(c, t).length > 0;
     const q = o.matchCase ? query : query.toLowerCase();
     return (t) => {
       const s = o.matchCase ? t : t.toLowerCase();
       return o.wholeCell ? s === q : s.includes(q);
     };
+  }
+
+  /** The place of a cell in the order of the search: by rows (the default) or by columns. */
+  private rank(row: number, col: number, byColumns?: boolean): number {
+    return byColumns ? col * MAX_ROWS + row : cellKey(row, col);
+  }
+
+  /** Every cell (and picture) that has the text, in the order of the search, starting with the active sheet. */
+  findHits(query: string, o: FindOptions = {}): FindHit[] {
+    if (!query && !o.compiled) return [];
+    const test = this.matcher(query, o);
+    const sheets = o.allSheets ? this.wb.sheets : [this.sheet];
+    const start = Math.max(0, sheets.findIndex((s) => s.id === this.activeSheetId));
+    const out: FindHit[] = [];
+    for (let i = 0; i < sheets.length; i++) {
+      const sheet = sheets[(start + i) % sheets.length]!;
+      const list: { rank: number; hit: FindHit }[] = [];
+      for (const k of sheet.cells.keys()) {
+        const row = keyRow(k);
+        const col = keyCol(k);
+        if (isRowHidden(sheet, row) || sheet.hiddenCols.has(col)) continue;
+        const text = this.cellText(sheet.id, row, col, !!o.inFormulas);
+        if (test(text)) list.push({ rank: this.rank(row, col, o.byColumns), hit: { sheetId: sheet.id, row, col, text } });
+      }
+      if (o.inNotes) {
+        for (const c of sheet.comments) {
+          const rank = this.rank(c.row, c.col, o.byColumns);
+          if (test(c.text) && !list.some((x) => x.rank === rank)) list.push({ rank, hit: { sheetId: sheet.id, row: c.row, col: c.col, text: c.text } });
+        }
+      }
+      list.sort((a, b) => a.rank - b.rank);
+      out.push(...list.map((x) => x.hit));
+      if (o.pictures) {
+        sheet.images.forEach((im) => {
+          const text = (this.wb.media.get(im.media)?.ocr as { text?: unknown } | undefined)?.text;
+          if (typeof text === 'string' && (o.compiled || !o.wholeCell ? test(text) : text.split(String.fromCharCode(10)).some(test))) out.push({ sheetId: sheet.id, row: 0, col: 0, image: im.id, text: text.split(String.fromCharCode(10)).find(test) ?? text });
+        });
+      }
+    }
+    return out;
+  }
+
+  /** Where a hit is in the order of the search, to know which one comes after the active cell. */
+  hitIsAfterActive(h: FindHit, byColumns?: boolean): boolean {
+    if (h.sheetId !== this.activeSheetId) return false;
+    if (h.image) return true;
+    return this.rank(h.row, h.col, byColumns) >= this.rank(this.sel.active.row, this.sel.active.col, byColumns);
+  }
+
+  selectHit(h: FindHit): void {
+    if (h.sheetId !== this.activeSheetId) this.activeSheetId = h.sheetId;
+    if (h.image) this.x.selectObject('image', h.image);
+    else this.selectCell(h.row, h.col);
+  }
+
+  /** Replaces in one cell what the search finds in it (not in a picture). Returns whether it changed. */
+  replaceHit(h: FindHit, o: FindOptions, replacement: string): boolean {
+    if (h.image || !o.compiled) return false;
+    const sheet = this.wb.sheets.find((s) => s.id === h.sheetId);
+    if (!sheet || (sheet.protection && this.wb.styles.get(sheet.cells.get(cellKey(h.row, h.col))?.style ?? 0).locked !== false)) return false;
+    const text = this.cellText(h.sheetId, h.row, h.col, !!o.inFormulas || !!sheet.cells.get(cellKey(h.row, h.col))?.formula);
+    const next = replaceAllInText(o.compiled, text, o.template ?? replacement).text;
+    if (next === text) return false;
+    let ok = false;
+    this.run('Reemplazar', () => {
+      try {
+        const p = this.writeTyped(h.sheetId, h.row, h.col, next);
+        ok = true;
+        return [p];
+      } catch {
+        return [];
+      }
+    });
+    return ok;
   }
 
   /**
@@ -1924,7 +2019,7 @@ export class CalcDoc {
   }
 
   replaceAll(query: string, replacement: string, o: FindOptions = {}): number {
-    if (!query) return 0;
+    if (!query && !o.compiled) return 0;
     const test = this.matcher(query, o);
     const flags = o.matchCase ? 'g' : 'gi';
     const re = new RegExp(o.wholeCell ? '^' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$' : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
@@ -1940,7 +2035,7 @@ export class CalcDoc {
           if (sheet.protection && this.wb.styles.get(c.style).locked !== false) continue;
           const text = this.cellText(sheet.id, row, col, !!o.inFormulas || !!c.formula);
           if (!test(text)) continue;
-          const next = text.replace(re, () => replacement);
+          const next = o.compiled ? replaceAllInText(o.compiled, text, o.template ?? replacement).text : text.replace(re, () => replacement);
           try {
             patches.push(this.writeTyped(sheet.id, row, col, next));
             count++;

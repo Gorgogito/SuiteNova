@@ -735,9 +735,21 @@ export class BaseDb {
     const cols = this.columns(table);
     const names = cols.map((c) => c.name);
     const targets = (o.cols?.length ? o.cols : names).filter((n) => names.includes(n));
-    if (!o.find || !targets.length) return [];
+    if ((!o.find && !o.test) || !targets.length) return [];
     const where = this.searchClause(cols, opts.search, opts.filter, opts.filters);
     const order = opts.sorts?.length ? orderClause(opts.sorts, new Set(names)) : opts.orderBy && names.includes(opts.orderBy) ? ` ORDER BY ${q(opts.orderBy)} ${opts.desc ? 'DESC' : 'ASC'}` : ' ORDER BY rowid';
+    // a search of the product's own (wildcards, regular expression) cannot be said in SQL: the values are read and tested here
+    if (o.test) {
+      const rows = this.db.exec(`SELECT rn, rid, ${targets.map((n) => q(n)).join(', ')} FROM (SELECT ROW_NUMBER() OVER (${order.trim()}) - 1 AS rn, rowid AS rid, ${targets.map((n) => q(n)).join(', ')} FROM ${q(table)}${where}) ORDER BY rn`)[0];
+      const found: { row: number; rid: number; col: string }[] = [];
+      for (const row of rows?.values ?? []) {
+        for (let i = 0; i < targets.length && found.length < limit; i++) {
+          const v = row[2 + i];
+          if (v !== null && v !== undefined && o.test(String(v))) found.push({ row: Number(row[0]), rid: Number(row[1]), col: targets[i]! });
+        }
+      }
+      return found;
+    }
     const sel = targets.map((n, i) => `${findCondition([n], o)} AS m${i}`).join(', ');
     const r = this.db.exec(`SELECT rn, rid, ${targets.map((_n, i) => `m${i}`).join(', ')} FROM (SELECT ROW_NUMBER() OVER (${order.trim()}) - 1 AS rn, rowid AS rid, ${sel} FROM ${q(table)}${where}) WHERE ${targets.map((_n, i) => `m${i}`).join(' OR ')} ORDER BY rn LIMIT ${Math.max(1, limit)}`)[0];
     const out: { row: number; rid: number; col: string }[] = [];

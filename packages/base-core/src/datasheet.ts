@@ -140,10 +140,14 @@ export interface FindOptions {
   matchCase?: boolean;
   /** 'any' = anywhere in the value, 'whole' = the whole value, 'start' = the start of the value */
   match?: 'any' | 'whole' | 'start';
+  /** A search of the product's own (wildcards, regular expression…): says if a value matches, and replaces in it. It takes the place of `find`, `matchCase` and `match`. */
+  test?: (text: string) => boolean;
+  replacer?: (text: string, to: string) => string;
 }
 
 /** Does the text match? Same rules as the find box. */
 export function matches(text: string, o: FindOptions): boolean {
+  if (o.test) return o.test(text);
   const a = o.matchCase ? text : text.toLowerCase();
   const f = o.matchCase ? o.find : o.find.toLowerCase();
   if (o.match === 'whole') return a === f;
@@ -153,6 +157,7 @@ export function matches(text: string, o: FindOptions): boolean {
 
 /** The text with what matched replaced (every occurrence, or the whole value for 'whole'). */
 export function replaceIn(text: string, o: FindOptions, to: string): string {
+  if (o.replacer) return o.replacer(text, to);
   if (o.match === 'whole') return matches(text, o) ? to : text;
   const esc = o.find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return text.replace(new RegExp(o.match === 'start' ? '^' + esc : esc, o.matchCase ? 'g' : 'gi'), () => to);

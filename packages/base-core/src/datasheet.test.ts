@@ -128,3 +128,12 @@ describe('applyEdits', () => {
     expect(db.canUndo).toBe(before);
   });
 });
+
+describe('find with a search of the product', () => {
+  it('uses the given test and replacer instead of the plain text', () => {
+    const o = { find: '', test: (t: string) => /^M/.test(t), replacer: (t: string, to: string) => t.replace(/^M/, to) };
+    expect(matches('Madrid', o)).toBe(true);
+    expect(matches('Lima', o)).toBe(false);
+    expect(replaceIn('Madrid', o, 'N')).toBe('Nadrid');
+  });
+});

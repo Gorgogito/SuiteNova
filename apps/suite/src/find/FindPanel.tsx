@@ -48,6 +48,7 @@ export function FindPanel({ host, replace: withReplace = false, goTo: withGoTo =
   const [goKind, setGoKind] = useState(f.goTo?.[0]?.id ?? '');
   const [goValue, setGoValue] = useState('');
   const [goMsg, setGoMsg] = useState('');
+  const [results, setResults] = useState<{ label: string; detail: string; go(): void }[] | null>(null);
   const [lastField, setLastField] = useState<'find' | 'rep'>('find');
   const findRef = useRef<HTMLInputElement>(null);
   const repRef = useRef<HTMLInputElement>(null);
@@ -69,6 +70,7 @@ export function FindPanel({ host, replace: withReplace = false, goTo: withGoTo =
     return { text: value, query: c.query, filters: fl };
   };
   const run = (value = text, o = opts, fl = filters) => {
+    setResults(null);
     const req = request(value, o, fl);
     if (!req) {
       host.clear();
@@ -131,6 +133,10 @@ export function FindPanel({ host, replace: withReplace = false, goTo: withGoTo =
   };
   const kind = f.goTo?.find((k) => k.id === goKind);
   const kindOptions = kind?.options?.() ?? null;
+  const doList = () => {
+    const req = request();
+    setResults(req && host.list ? host.list(req) : []);
+  };
   const doGo = () => setGoMsg(host.goTo?.(goKind, goValue) ?? '');
   const showGo = withGoTo && canGo;
 
@@ -170,6 +176,11 @@ export function FindPanel({ host, replace: withReplace = false, goTo: withGoTo =
         <label>
           <input type="checkbox" checked={opts.wholeWord} disabled={opts.mode === 'wildcards' || opts.mode === 'excel'} onChange={(e) => change({ wholeWord: e.target.checked })} /> {t('Palabras completas')}
         </label>
+        {host.list && (
+          <button type="button" className="nv-btn nv-btn--small" onClick={doList}>
+            {t('Buscar todos')}
+          </button>
+        )}
         <button type="button" className="nv-btn nv-btn--small" aria-expanded={more} aria-label={t('Opciones de búsqueda')} title={t('Opciones de búsqueda')} onClick={() => setMore(!more)}>
           ⋯
         </button>
@@ -242,6 +253,19 @@ export function FindPanel({ host, replace: withReplace = false, goTo: withGoTo =
             {t('Reemplazar todo')}
           </button>
         </div>
+      )}
+      {results && (
+        <ul className="nv-find-list" aria-label={t('Resultados')}>
+          {results.length === 0 && <li>{t('Sin resultados')}</li>}
+          {results.slice(0, 500).map((r, i) => (
+            <li key={i}>
+              <button type="button" onClick={r.go}>
+                <strong>{r.label}</strong> {r.detail}
+              </button>
+            </li>
+          ))}
+          {results.length > 500 && <li>{t('Se muestran los primeros 500 de {n}.', { n: results.length })}</li>}
+        </ul>
       )}
       {showGo && (
         <div className="nv-find-row">

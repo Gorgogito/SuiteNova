@@ -60,6 +60,8 @@ export interface FindHost {
   replaceCurrent(req: FindRequest, template: string): FindStatus;
   /** Replaces every match; returns how many. */
   replaceAll(req: FindRequest, template: string): number;
+  /** Every match as a list to choose from (Excel's «Find All»); a product without it does not offer the button. */
+  list?(req: FindRequest): { label: string; detail: string; go(): void }[];
   /** Takes the shown matches away. */
   clear(): void;
   /** Goes to a place; returns an error text, or null when it went. */

@@ -135,3 +135,55 @@ if (mode === 'compare-ppt') {
   console.log(`casos iguales: ${same} de ${PPT.length}`);
   process.exit(same === PPT.length ? 0 : 1);
 }
+
+// Excel: [name, cells (column A, one per row), query, matchCase, whole cell]
+export const XL = [
+  ['signo ?', ['gato', 'pato', 'rato', 'ato', 'gatos'], '?ato', false, false],
+  ['signo ? entera', ['gato', 'pato', 'gatos', 'ato'], '?ato', false, true],
+  ['asterisco', ['abc', 'a', 'xay', 'bbb'], 'a*c', false, false],
+  ['asterisco solo', ['x', '', 'y'], '*', false, false],
+  ['interrogante solo', ['x', 'xy', ''], '?', false, true],
+  ['tilde asterisco', ['a*b', 'axb', 'a*bc'], 'a~*b', false, false],
+  ['tilde interrogante', ['a?b', 'axb'], 'a~?b', false, false],
+  ['tilde tilde', ['a~b', 'ab'], 'a~~b', false, false],
+  ['tilde sola', ['a~b', 'ab'], 'a~b', false, false],
+  ['mayusculas', ['Gato', 'gato', 'GATO'], 'gato', true, false],
+  ['sin mayusculas', ['Gato', 'gato', 'GATO'], 'gato', false, false],
+  ['celda entera', ['gato', 'gato negro', 'el gato'], 'gato', false, true],
+  ['parte', ['gato', 'gato negro', 'el gato', 'perro'], 'gato', false, false],
+  ['asterisco al principio', ['perro', 'gato', 'pero'], '*ro', false, true],
+  ['dos asteriscos', ['a1b2c', 'abc', 'ac'], 'a*b*c', false, false],
+  ['acentos', ['canción', 'cancion'], 'cancion', false, false],
+  ['signos de regex', ['a.b', 'axb', 'a+b'], 'a.b', false, false],
+  ['corchetes literales', ['[x]', 'x'], '[x]', false, false],
+].map(([name, cells, query, matchCase, whole]) => ({ name, cells, query, matchCase, whole }));
+if (mode === 'write-excel') fs.writeFileSync(path.join(dir, 'casos-excel.json'), JSON.stringify(XL));
+if (mode === 'compare-excel') {
+  const { chromium } = await import('../../apps/suite/node_modules/playwright-core/index.mjs');
+  const xl = JSON.parse(fs.readFileSync(path.join(dir, 'resultados-excel.json'), 'utf8').replace(/^﻿/, ''));
+  const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] });
+  const page = await (await browser.newContext()).newPage();
+  await page.goto('http://localhost:1420/?app=writer', { waitUntil: 'load' });
+  await page.waitForSelector('.ProseMirror');
+  const ours = await page.evaluate(async (cases) => {
+    const F = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/find-core/src/index.ts');
+    return cases.map((c) => {
+      const r = F.compileQuery(c.query, { mode: 'excel', matchCase: c.matchCase, wholeUnit: c.whole });
+      if (!r.ok) return ['<error>'];
+      const out = [];
+      c.cells.forEach((t, i) => {
+        if (t !== '' && F.findInText(r.query, t).length) out.push(i + 1);
+      });
+      return out;
+    });
+  }, XL);
+  await browser.close();
+  let same = 0;
+  XL.forEach((c, i) => {
+    const w = [].concat(xl.results[i].found ?? []);
+    if (JSON.stringify(w) === JSON.stringify(ours[i])) same++;
+    else console.log(`  ✘ ${c.name}: «${c.query}» en ${JSON.stringify(c.cells)} → Excel filas ${JSON.stringify(w)}, nosotros ${JSON.stringify(ours[i])}`);
+  });
+  console.log(`casos iguales: ${same} de ${XL.length}`);
+  process.exit(same === XL.length ? 0 : 1);
+}

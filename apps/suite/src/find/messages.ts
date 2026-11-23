@@ -41,4 +41,7 @@ registerMessages('en', {
   'Ir a qué': 'Go to what',
   'Ir': 'Go',
   'Nada que buscar': 'Nothing to find',
+  'Buscar todos': 'Find All',
+  'Resultados': 'Results',
+  'Se muestran los primeros 500 de {n}.': 'The first 500 of {n} are shown.',
 });

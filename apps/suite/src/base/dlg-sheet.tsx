@@ -1,8 +1,10 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import type { ColumnFilter, FilterOp, FindOptions } from '@suitenova/base-core';
+import type { ColumnFilter, FilterOp } from '@suitenova/base-core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { BaseCtl, SheetState, Tab } from './ctl';
+import { FindPanel } from '../find';
+import { baseFindHost } from './find-host';
 
 /** Fluent leaves aria-hidden on the page when a dialog unmounts without closing: give the page back once no dialog is left. */
 export function useRestorePage(): void {
@@ -195,117 +197,18 @@ export function FilterDialog({ ctl, tab, sheet, col, type }: { ctl: BaseCtl; tab
 // ------------------------------------------------------------------------------------------------ find and replace
 
 /** Find and replace in the datasheet (in the order and with the filter that are on screen). */
-export function FindReplaceDialog({ ctl, table, sheetOpts, cols, activeCol, activeRow, replace, onGo, onChanged }: { ctl: BaseCtl; table: string; sheetOpts: object; cols: string[]; activeCol: string | null; activeRow: number | null; replace: boolean; onGo: (row: number, col?: string) => void; onChanged: () => void }) {
-  const db = ctl.db!;
-  const [mode, setMode] = useState<'find' | 'replace'>(replace ? 'replace' : 'find');
-  const [find, setFind] = useState('');
-  const [to, setTo] = useState('');
-  const [scope, setScope] = useState<'all' | 'col'>('all');
-  const [match, setMatch] = useState<'any' | 'whole' | 'start'>('any');
-  const [matchCase, setMatchCase] = useState(false);
-  const [msg, setMsg] = useState('');
-  const cur = useRef<{ row: number; rid: number; col: string } | null>(null);
-  const opts = (): FindOptions => ({ find, match, matchCase, ...(scope === 'col' && activeCol ? { cols: [activeCol] } : {}) });
-  const list = () => db.findCells(table, opts(), sheetOpts);
-  const order = (c: { row: number; col: string }) => c.row * 1000 + Math.max(0, cols.indexOf(c.col));
-
-  const step = (dir: 1 | -1): boolean => {
-    if (!find) return false;
-    const cells = list().sort((a, b) => order(a) - order(b));
-    if (!cells.length) {
-      setMsg(t('No se encontró «{text}».', { text: find }));
-      cur.current = null;
-      return false;
-    }
-    const from = cur.current ?? (activeRow !== null ? { row: activeRow, col: activeCol ?? cols[0]! } : null);
-    let next = from ? (dir === 1 ? cells.find((c) => order(c) > order(from)) : [...cells].reverse().find((c) => order(c) < order(from))) : dir === 1 ? cells[0] : cells[cells.length - 1];
-    let wrapped = false;
-    if (!next) {
-      next = dir === 1 ? cells[0] : cells[cells.length - 1];
-      wrapped = true;
-    }
-    cur.current = next!;
-    onGo(next!.row, next!.col);
-    setMsg(wrapped ? t('Se llegó al final: sigue desde el principio. {n} coincidencias.', { n: cells.length }) : t('{n} coincidencias.', { n: cells.length }));
-    return true;
-  };
-  const replaceOne = () => {
-    if (!find) return;
-    if (!cur.current) {
-      step(1);
-      return;
-    }
-    const r = db.replaceCells(table, opts(), to, [{ rid: cur.current.rid, col: cur.current.col }], sheetOpts);
-    if (!r.changed) setMsg(r.failed ? t('Esa columna no admite el valor nuevo.') : t('Esta celda ya no coincide.'));
-    onChanged();
-    step(1);
-  };
-  const replaceAll = () => {
-    if (!find || !window.confirm(t('¿Reemplazar todas las coincidencias? Podrá deshacerlo con Ctrl+Z.'))) return;
-    const r = db.replaceCells(table, opts(), to, undefined, sheetOpts);
-    setMsg(r.failed ? t('Se reemplazaron {n} y {f} no admitieron el valor nuevo.', { n: r.changed, f: r.failed }) : t('Se reemplazaron {n}.', { n: r.changed }));
-    cur.current = null;
-    onChanged();
-  };
+export function FindReplaceDialog({ ctl, table, sheetOpts, cols, activeCol, activeRow, rowCount, replace, onGo, onChanged }: { ctl: BaseCtl; table: string; sheetOpts: object; cols: string[]; activeCol: string | null; activeRow: number | null; rowCount: number; replace: boolean; onGo: (row: number, col?: string) => void; onChanged: () => void }) {
+  // the cursor moves while the panel is open: the host reads it through a reference
+  const live = useRef({ activeCol, activeRow, rowCount, onGo, onChanged });
+  live.current = { activeCol, activeRow, rowCount, onGo, onChanged };
+  const host = useMemo(
+    () => baseFindHost({ ctl, table, sheetOpts, cols, active: () => ({ col: live.current.activeCol, row: live.current.activeRow }), rows: () => live.current.rowCount, onGo: (r, c) => live.current.onGo(r, c), onChanged: () => live.current.onChanged() }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ctl, table],
+  );
   return (
     <Dlg title={t('Buscar y reemplazar')} onClose={() => closeDialog(ctl)}>
-      <div className="bs-dlgform" role="tablist" aria-label={t('Buscar y reemplazar')}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" role="tab" aria-selected={mode === 'find'} className={`bs-btn${mode === 'find' ? ' is-on' : ''}`} onClick={() => setMode('find')}>
-            {t('Buscar')}
-          </button>
-          <button type="button" role="tab" aria-selected={mode === 'replace'} className={`bs-btn${mode === 'replace' ? ' is-on' : ''}`} onClick={() => setMode('replace')}>
-            {t('Reemplazar')}
-          </button>
-        </div>
-        <label>
-          {t('Buscar')}
-          <input aria-label={t('Texto que se busca')} autoFocus value={find} onChange={(e) => ((cur.current = null), setFind(e.target.value))} onKeyDown={(e) => e.key === 'Enter' && step(e.shiftKey ? -1 : 1)} />
-        </label>
-        {mode === 'replace' && (
-          <label>
-            {t('Reemplazar con')}
-            <input aria-label={t('Texto nuevo')} value={to} onChange={(e) => setTo(e.target.value)} />
-          </label>
-        )}
-        <label>
-          {t('Buscar en')}
-          <select aria-label={t('Dónde buscar')} value={scope} onChange={(e) => ((cur.current = null), setScope(e.target.value as 'all' | 'col'))}>
-            <option value="all">{t('Todos los campos')}</option>
-            <option value="col" disabled={!activeCol}>{`${t('Solo el campo actual')}${activeCol ? ` (${activeCol})` : ''}`}</option>
-          </select>
-        </label>
-        <label>
-          {t('Coincidencia')}
-          <select aria-label={t('Tipo de coincidencia')} value={match} onChange={(e) => ((cur.current = null), setMatch(e.target.value as 'any' | 'whole' | 'start'))}>
-            <option value="any">{t('Cualquier parte del campo')}</option>
-            <option value="whole">{t('Campo completo')}</option>
-            <option value="start">{t('Comienzo del campo')}</option>
-          </select>
-        </label>
-        <label className="bs-check">
-          <input type="checkbox" checked={matchCase} onChange={(e) => ((cur.current = null), setMatchCase(e.target.checked))} /> {t('Distinguir mayúsculas y minúsculas')}
-        </label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button appearance="primary" disabled={!find} onClick={() => step(1)}>
-            {t('Buscar siguiente')}
-          </Button>
-          <Button disabled={!find} onClick={() => step(-1)}>
-            {t('Buscar anterior')}
-          </Button>
-          {mode === 'replace' && (
-            <>
-              <Button disabled={!find} onClick={replaceOne}>
-                {t('Reemplazar')}
-              </Button>
-              <Button disabled={!find} onClick={replaceAll}>
-                {t('Reemplazar todo')}
-              </Button>
-            </>
-          )}
-        </div>
-        <p className="bs-note" role="status" aria-live="polite">{msg}</p>
-      </div>
+      <FindPanel host={host} replace={replace} onClose={() => closeDialog(ctl)} />
     </Dlg>
   );
 }

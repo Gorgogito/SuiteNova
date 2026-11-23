@@ -23,63 +23,17 @@ import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
 import { calcPictureHost } from './pichost';
 import { ProtectBookDialog, ProtectSheetDialog, UnprotectDialog } from './dlg-protect';
 import { PivotCreateDialog, PivotFieldDialog, PivotOptionsDialog, ValueFieldDialog } from './dlg-pivot';
+import { FindPanel } from '../find';
+import { calcFindHost } from './find-host';
 import { SlicerDialog, SparklineDialog, TableCreateDialog, TableResizeDialog } from './dlg-table';
 
 
 // -------------------------------------------------------------------------------------------- find / replace
 function FindDialog({ ui, replace, onClose }: { ui: CalcUI; replace: boolean; onClose: () => void }) {
-  const d = ui.doc;
-  const [query, setQuery] = useState('');
-  const [rep, setRep] = useState('');
-  const [matchCase, setMatchCase] = useState(false);
-  const [wholeCell, setWholeCell] = useState(false);
-  const [inFormulas, setInFormulas] = useState(false);
-  const [allSheets, setAllSheets] = useState(false);
-  const [pictures, setPictures] = useState(true);
-  const [msg, setMsg] = useState('');
-  const opts = { matchCase, wholeCell, inFormulas, allSheets, pictures };
+  const host = useMemo(() => calcFindHost(ui.doc), [ui.doc]);
   return (
-    <Modal
-      title={replace ? t('Reemplazar') : t('Buscar')}
-      onClose={onClose}
-      actions={
-        <>
-          <Button onClick={() => setMsg(d.findNext(query, opts) ? '' : t('No se encontró el texto.'))}>{t('Buscar siguiente')}</Button>
-          <Button onClick={() => setMsg(d.findNext(query, { ...opts, backwards: true }) ? '' : t('No se encontró el texto.'))}>{t('Buscar anterior')}</Button>
-          {replace && (
-            <Button
-              onClick={() => {
-                const n = d.replaceAll(query, rep, opts);
-                setMsg(n ? t('Se reemplazaron {n} celdas.', { n }) : t('No se encontró el texto.'));
-              }}
-            >
-              {t('Reemplazar todo')}
-            </Button>
-          )}
-          <Button appearance="primary" onClick={onClose}>
-            {t('Cerrar')}
-          </Button>
-        </>
-      }
-    >
-      <div style={field}>
-        <label htmlFor="find-q">{t('Buscar')}</label>
-        <Input id="find-q" autoFocus value={query} onChange={(_e, v) => setQuery(v.value)} onKeyDown={(e) => e.key === 'Enter' && setMsg(d.findNext(query, opts) ? '' : t('No se encontró el texto.'))} />
-      </div>
-      {replace && (
-        <div style={field}>
-          <label htmlFor="find-r">{t('Reemplazar con')}</label>
-          <Input id="find-r" value={rep} onChange={(_e, v) => setRep(v.value)} />
-        </div>
-      )}
-      <Checkbox label={t('Coincidir mayúsculas y minúsculas')} checked={matchCase} onChange={(_e, v) => setMatchCase(!!v.checked)} />
-      <Checkbox label={t('Coincidir con el contenido de toda la celda')} checked={wholeCell} onChange={(_e, v) => setWholeCell(!!v.checked)} />
-      <Checkbox label={t('Buscar en fórmulas')} checked={inFormulas} onChange={(_e, v) => setInFormulas(!!v.checked)} />
-      <Checkbox label={t('Buscar también en el texto de las imágenes')} checked={pictures} onChange={(_e, v) => setPictures(!!v.checked)} />
-      <Checkbox label={t('En todas las hojas')} checked={allSheets} onChange={(_e, v) => setAllSheets(!!v.checked)} />
-      <p role="status" style={{ minHeight: 20, color: 'var(--colorNeutralForeground3)' }}>
-        {msg}
-      </p>
+    <Modal title={replace ? t('Reemplazar') : t('Buscar')} onClose={onClose} actions={<Button appearance="primary" onClick={onClose}>{t('Cerrar')}</Button>}>
+      <FindPanel host={host} replace={replace} onClose={onClose} />
     </Modal>
   );
 }

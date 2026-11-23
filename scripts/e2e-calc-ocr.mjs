@@ -88,13 +88,13 @@ await check('Buscar encuentra el texto de dentro de la imagen y la selecciona; r
   await ev(() => window.__novaCalc.ui?.openDialog?.('find'));
   if (!(await dialog().count())) await page.keyboard.press('Control+F');
   await dialog().getByLabel('Buscar', { exact: true }).fill('TOTAL a pagar');
-  await dialog().getByRole('button', { name: 'Buscar siguiente' }).click();
+  await page.waitForTimeout(250);
   assert.equal(await ev(() => window.__novaCalc.doc.x.selectedImage), imgId);
   await dialog().getByLabel('Buscar', { exact: true }).fill('total');
-  await dialog().getByRole('button', { name: 'Buscar siguiente' }).click();
+  await page.waitForTimeout(250);
   const [m] = await media();
   assert.match(m.text, /Total a pagar/);
-  await dialog().getByRole('button', { name: 'Cerrar' }).click();
+  await dialog().getByRole('button', { name: 'Cerrar' }).first().click();
   await page.waitForFunction(() => !document.querySelector('[role=dialog]'));
 });
 

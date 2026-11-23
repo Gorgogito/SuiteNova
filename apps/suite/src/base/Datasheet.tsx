@@ -394,7 +394,7 @@ export function TableDatasheet({ ctl, table }: { ctl: BaseCtl; table: string }) 
       {menu && <ColumnMenu ctl={ctl} tab={tab} sheet={sheet} table={table} col={menu.col} rect={menu.rect} search={search} filters={filters} onClose={() => setMenu(null)} />}
       {ctl.sheetDialog?.kind === 'filter' && ctl.sheetDialog.col && <FilterDialog ctl={ctl} tab={tab} sheet={sheet} col={ctl.sheetDialog.col} type={cols.find((c) => c.name === ctl.sheetDialog!.col)?.type ?? 'TEXT'} />}
       {(ctl.sheetDialog?.kind === 'find' || ctl.sheetDialog?.kind === 'replace') && (
-        <FindReplaceDialog ctl={ctl} table={table} sheetOpts={opts} cols={cols.map((c) => c.name)} activeCol={active.col} activeRow={active.row} replace={ctl.sheetDialog.kind === 'replace'} onGo={goTo} onChanged={bump} />
+        <FindReplaceDialog ctl={ctl} table={table} sheetOpts={opts} cols={cols.map((c) => c.name)} activeCol={active.col} activeRow={active.row} rowCount={count} replace={ctl.sheetDialog.kind === 'replace'} onGo={goTo} onChanged={bump} />
       )}
       {attach && <AttachmentsDialog ctl={ctl} table={table} rid={attach.rid} column={attach.col} onClose={() => setAttach(null)} onChanged={bump} />}
       {ctl.sheetDialog?.kind === 'columns' && <ColumnsDialog ctl={ctl} tab={tab} sheet={sheet} cols={cols.map((c) => c.name)} />}
