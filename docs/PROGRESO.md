@@ -164,3 +164,12 @@ En Office es un servicio compartido por Word, Excel, PowerPoint y Outlook (Inser
 - [x] **Fase 4 HECHA: Convertir en forma.** El icono pasa a forma libre de Writer (trazos SVG con arcos convertidos a curvas, `a:custGeom` en el `.docx`) con su relleno y contorno; Word real la abre como dibujo libre de 56 nodos y la edita. Los 2649 iconos se convierten sin error. Se pierden sombra, resplandor y transparencia del relleno. `e2e-writer-icons-edit` 12/12.
 - [x] **Fase 5 HECHA: Slides, Calc, Mail y Diagram.** Todos usan la galería compartida. Slides (PNG + SVG en el `.pptx`, estilos, relleno, contorno, Convertir en forma) y Calc (PNG + SVG en el `.xlsx`, estilos, relleno, contorno, sombra) guardan el icono como Office; Mail, Diagram y Notes lo insertan como PNG. PowerPoint y Excel reales lo ven como gráfico SVG y lo conservan. `e2e-slides-icons` 10/10, `e2e-calc-icons` 10/10.
 - [x] **Fase 6 HECHA: cierre.** Rendimiento medido (abrir 0,5–1,1 s la primera vez y 0,17 s después; búsqueda 0,07 s), accesibilidad por teclado corregida (flechas y un solo punto de Tab por lista) y baldosas claras en tema oscuro; Word, PowerPoint y Excel reales comprobados en cada fase. `e2e-icons-close` 7/7. **Iconos terminado (6 fases).**
+
+## Recorte de pantalla (subproducto compartido)
+Plan en `docs/diseno-recorte.md`. Decisiones (2026-11-23): `clip-core` compartido; alcance Writer, Calc, Slides, Mail, Diagram y Notes; recorte nativo en escritorio y cuadro propio en el navegador; insertar, copiar, guardar PNG y anotador.
+- [ ] Fase 1: `clip-core` y recorte en el navegador (sustituye el de Notes).
+- [ ] Fase 2: anotador.
+- [ ] Fase 3: Insertar › Captura › Recorte en los seis productos.
+- [ ] Fase 4: nativo (Tauri), captura.
+- [ ] Fase 5: nativo, selección sobre la pantalla real.
+- [ ] Fase 6: cierre.
