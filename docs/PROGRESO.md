@@ -168,7 +168,7 @@ En Office es un servicio compartido por Word, Excel, PowerPoint y Outlook (Inser
 ## Recorte de pantalla (subproducto compartido)
 Plan en `docs/diseno-recorte.md`. Decisiones (2026-11-23): `clip-core` compartido; alcance Writer, Calc, Slides, Mail, Diagram y Notes; recorte nativo en escritorio y cuadro propio en el navegador; insertar, copiar, guardar PNG y anotador.
 - [x] **Fase 1 HECHA: `clip-core` y recorte en el navegador.** Geometría con 10 pruebas, diálogo compartido (zona con puntero y teclado, copiar, guardar PNG, insertar) que sustituye el de Notes; `e2e-clip` 11/11.
-- [ ] Fase 2: anotador.
+- [x] **Fase 2 HECHA: anotador.** Lápiz, resaltador, flecha, rectángulo y borrador con seis colores, tres grosores, deshacer y rehacer; las marcas entran en lo que se copia, guarda o inserta. `clip-core` 26 pruebas, `e2e-clip-marks` 12/12.
 - [ ] Fase 3: Insertar › Captura › Recorte en los seis productos.
 - [ ] Fase 4: nativo (Tauri), captura.
 - [ ] Fase 5: nativo, selección sobre la pantalla real.
