@@ -155,3 +155,12 @@ En Office es un servicio compartido por Word, Outlook y OneNote (misma barra, el
 - [x] **Fase 4 HECHA: Slides y Calc.** La barra muestra la frase con la palabra marcada; Slides lee desde la diapositiva abierta (la anuncia, el título primero), con o sin notas, o solo las notas, mostrando la diapositiva y eligiendo el objeto; Calc «Hablar celdas» (por filas o columnas, salta vacías y ocultas, «al pulsar Intro», sin mover la selección). e2e nuevas `e2e-slides-voice` (8) y `e2e-calc-voice` (8) con las voces reales.
 - [x] **Fase 5 HECHA: calidad.** Idioma por tramo en Writer, Notes, Slides y Mail (marcas `lang`, `lang` de Slides, `lang`/`Content-Language` de Mail); pronunciación (abreviaturas, símbolos, monedas, ordinales, fechas, siglas deletreadas) en español e inglés con el mapa al texto escrito; aviso antes de leer de los idiomas sin voz y de los que usan la voz de otra región; la lectura se detiene al cambiar de documento (también Calc). speech-core 25 pruebas; e2e ampliadas con las voces reales.
 - [x] **Fase 6 HECHA: cierre.** Comparación de la segmentación en frases con Word por COM (su «Hablar» moderno no se puede automatizar): halló y corregí tres fallos (tras un número, tras °C, comilla de cierre); 14 de 28 párrafos idénticos y en el resto Word corta en abreviaturas; documentos grandes (600 párrafos, 60 diapositivas, 5000 celdas, mensaje de 1000 párrafos) se preparan en menos de 1,5 s; 100 órdenes al azar no dejan el lector en mal estado. `e2e-voice-docs` 7/7. **Voz, Leer en voz alta, terminado (6 fases).**
+
+## Iconos, Galería de iconos (producto auxiliar compartido, plan en `docs/diseno-iconos.md`)
+En Office es un servicio compartido por Word, Excel, PowerPoint y Outlook (Insertar › Iconos, gráfico SVG con respaldo PNG). Decisiones del usuario (2026-11-22): `icon-core` compartido; Writer, Calc, Slides, Mail y Diagram; biblioteca abierta incluida, sin Internet; edición como Office (color, contorno, efectos, Convertir en forma).
+- [x] **Fase 1 HECHA: `icon-core` y catálogo.** 2649 iconos de Fluent System Icons (MIT) con nombre en español, 18 categorías, buscador (español e inglés, sin tildes), SVG de un color y recoloreado; trazos de carga perezosa (2,5 MB, 550 kB comprimido). 12 pruebas.
+- [ ] Fase 2: diálogo «Iconos» y Writer (`.docx` con `svgBlip` y respaldo PNG, comprobado en Word).
+- [ ] Fase 3: edición (relleno, contorno, efectos, girar, texto alternativo).
+- [ ] Fase 4: Convertir en forma.
+- [ ] Fase 5: Slides, Calc, Mail y Diagram.
+- [ ] Fase 6: cierre (comparación con Office por COM, límites).

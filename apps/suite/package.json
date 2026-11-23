@@ -21,6 +21,7 @@
     "@suitenova/diagram-core": "workspace:*",
     "@suitenova/forms-core": "workspace:*",
     "@suitenova/comment-core": "workspace:*",
+    "@suitenova/icon-core": "workspace:*",
     "@suitenova/image-core": "workspace:*",
     "@suitenova/ocr-core": "workspace:*",
     "@suitenova/mail-core": "workspace:*",

@@ -199,6 +199,9 @@ importers:
       '@suitenova/forms-core':
         specifier: workspace:*
         version: link:../../packages/forms-core
+      '@suitenova/icon-core':
+        specifier: workspace:*
+        version: link:../../packages/icon-core
       '@suitenova/image-core':
         specifier: workspace:*
         version: link:../../packages/image-core
@@ -483,6 +486,15 @@ importers:
         version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
 
   packages/forms-core:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
+
+  packages/icon-core:
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
