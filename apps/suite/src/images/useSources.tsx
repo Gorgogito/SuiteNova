@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { IconPickerDialog } from './IconPickerDialog';
+import { IconsDialog } from '../icons/IconsDialog';
+import { pickFile, type IconPick } from '../icons/raster';
 import { clipboardImage, screenshot, SourceError } from './sources';
 
 export interface ImageSources {
@@ -10,11 +11,16 @@ export interface ImageSources {
   dialog: ReactNode;
 }
 
-/** The three non-file sources of a picture, wired to the product's own way to insert a File. */
-export function useImageSources(insert: (file: File) => void | Promise<void>): ImageSources {
+/**
+ * The three non-file sources of a picture, wired to the product's own way to insert a File. A product that keeps icons as icons (SVG with its PNG
+ * fallback) passes `insertIcons`; the others get each icon as a PNG file.
+ */
+export function useImageSources(insert: (file: File) => void | Promise<void>, insertIcons?: (picks: IconPick[]) => void | Promise<void>): ImageSources {
   const [icons, setIcons] = useState(false);
   const ins = useRef(insert);
   ins.current = insert;
+  const insIcons = useRef(insertIcons);
+  insIcons.current = insertIcons;
   const run = async (get: () => Promise<File | null>) => {
     try {
       const f = await get();
@@ -27,6 +33,14 @@ export function useImageSources(insert: (file: File) => void | Promise<void>): I
     fromClipboard: () => run(clipboardImage),
     fromScreen: () => run(screenshot),
     openIcons: () => setIcons(true),
-    dialog: icons ? <IconPickerDialog onPick={(f) => void run(async () => f)} onClose={() => setIcons(false)} /> : null,
+    dialog: icons ? (
+      <IconsDialog
+        onPick={async (picks) => {
+          if (insIcons.current) return void (await insIcons.current(picks));
+          for (const p of picks) await run(() => pickFile(p));
+        }}
+        onClose={() => setIcons(false)}
+      />
+    ) : null,
   };
 }

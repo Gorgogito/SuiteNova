@@ -828,6 +828,8 @@ class Converter {
 
   /** The image node for a relationship id (with a warning and `null` when the picture cannot be read). */
   private imageNode(rid: string | undefined, w: number | null, h: number | null, alt: string, marks: Mark[] = [], extra: Record<string, unknown> = {}): PMNode | null {
+    const { svgRid, ...rest } = extra as { svgRid?: string } & Record<string, unknown>;
+    extra = rest;
     const rel = rid ? this.rels.get(rid) : undefined;
     if (!rel) return null;
     if (rel.external) {
@@ -842,7 +844,10 @@ class Converter {
     }
     const made = this.sh.pictures.get(path.replace(/^word\/word\//, 'word/'));
     const read = this.sh.ocr.get(path.replace(/^word\/word\//, 'word/'));
-    return nodeTypes.image!.create({ src: uri, alt, width: w, height: h, ...(made ? { orig: made.orig, edits: made.edits } : {}), ...(read ? { ocr: read } : {}), ...extra }, null, marks.filter((m) => m.type.name === 'ins' || m.type.name === 'del' || m.type.name === 'comment'));
+    // an SVG hung from the picture (`asvg:svgBlip`, an icon): the SVG is the picture and the PNG is kept as its fallback
+    const svgRel = svgRid ? this.rels.get(svgRid) : undefined;
+    const svgUri = svgRel && !svgRel.external ? this.sh.media.get((this.baseDir + svgRel.target.replace(/^\//, '').replace(/^word\//, '')).replace(/^word\/word\//, 'word/')) : undefined;
+    return nodeTypes.image!.create({ src: svgUri ?? uri, ...(svgUri ? { png: uri } : {}), alt, width: w, height: h, ...(made ? { orig: made.orig, edits: made.edits } : {}), ...(read ? { ocr: read } : {}), ...extra }, null, marks.filter((m) => m.type.name === 'ins' || m.type.name === 'del' || m.type.name === 'comment'));
   }
 
   private drawing(d: XNode, cur: () => PMNode[], marks: Mark[]) {
@@ -909,6 +914,8 @@ class Converter {
         extra.y = at.y;
       }
     }
+    const svgBlip = findDeep(blip, 'svgBlip');
+    if (svgBlip && attrOf(svgBlip, 'embed')) extra.svgRid = attrOf(svgBlip, 'embed');
     this.image(attrOf(blip, 'embed'), cx ? Math.round(cx / EMU_PER_PX) : null, cy ? Math.round(cy / EMU_PER_PX) : null, (pr && (attrOf(pr, 'descr') ?? attrOf(pr, 'title'))) || '', cur, marks, extra);
   }
 
@@ -1167,6 +1174,8 @@ class Converter {
         const ln = sp && findKid(sp, 'ln');
         const lc = ln && findDeep(ln, 'srgbClr');
         if (ln && lc && !findDeep(ln, 'noFill')) extra.border = { color: `#${(attrOf(lc, 'val') ?? '000000').toLowerCase()}`, width: Math.max(0.25, Math.round(((num(attrOf(ln, 'w')) ?? 12700) / 12700) * 4) / 4) };
+        const gSvg = findDeep(blip, 'svgBlip');
+        if (gSvg && attrOf(gSvg, 'embed')) extra.svgRid = attrOf(gSvg, 'embed');
         const img = this.imageNode(attrOf(blip, 'embed'), Math.max(1, Math.round(((num(attrOf(ex, 'cx')) ?? 0) / EMU_PER_PX) * sx)), Math.max(1, Math.round(((num(attrOf(ex, 'cy')) ?? 0) / EMU_PER_PX) * sy)), (nv && attrOf(nv, 'descr')) || '', [], extra);
         if (img) kids.push(img);
       } else if (tag === 'graphicFrame' || tag === 'contentPart') {

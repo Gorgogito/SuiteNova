@@ -159,7 +159,7 @@ En Office es un servicio compartido por Word, Outlook y OneNote (misma barra, el
 ## Iconos, Galería de iconos (producto auxiliar compartido, plan en `docs/diseno-iconos.md`)
 En Office es un servicio compartido por Word, Excel, PowerPoint y Outlook (Insertar › Iconos, gráfico SVG con respaldo PNG). Decisiones del usuario (2026-11-22): `icon-core` compartido; Writer, Calc, Slides, Mail y Diagram; biblioteca abierta incluida, sin Internet; edición como Office (color, contorno, efectos, Convertir en forma).
 - [x] **Fase 1 HECHA: `icon-core` y catálogo.** 2649 iconos de Fluent System Icons (MIT) con nombre en español, 18 categorías, buscador (español e inglés, sin tildes), SVG de un color y recoloreado; trazos de carga perezosa (2,5 MB, 550 kB comprimido). 12 pruebas.
-- [ ] Fase 2: diálogo «Iconos» y Writer (`.docx` con `svgBlip` y respaldo PNG, comprobado en Word).
+- [x] **Fase 2 HECHA: diálogo «Iconos» y Writer.** Galería compartida (categorías, búsqueda en español e inglés, línea o relleno, color, varios iconos a la vez) que ya usan Writer, Calc, Notes, Diagram y Mail (Slides en la fase 5); en Writer el icono es un SVG con su PNG de respaldo y en el `.docx` va como en Word (`asvg:svgBlip`); Word real lo abre como gráfico SVG y lo conserva al guardar. `e2e-writer-icons` 8/8.
 - [ ] Fase 3: edición (relleno, contorno, efectos, girar, texto alternativo).
 - [ ] Fase 4: Convertir en forma.
 - [ ] Fase 5: Slides, Calc, Mail y Diagram.

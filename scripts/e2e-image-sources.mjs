@@ -67,8 +67,8 @@ const putOnClipboard = (page) =>
 const deselect = (page) => page.mouse.click(1500, 300);
 const iconInsert = async (page) => {
   const d = page.getByRole('dialog');
-  await d.getByLabel('Buscar icono').fill('heart');
-  await d.getByRole('option', { name: 'Heart', exact: true }).click();
+  await d.getByLabel('Buscar icono').fill('corazon');
+  await d.getByRole('listbox', { name: 'Iconos' }).getByRole('option', { name: /^Corazón/ }).first().click();
   await d.getByRole('button', { name: 'Insertar', exact: true }).click();
   await page.waitForTimeout(900);
 };

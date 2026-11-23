@@ -1,4 +1,5 @@
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
+import type { IconPick } from '../icons/raster';
 import { useImageSources } from '../images/useSources';
 import { readDoc, readOdt, readRtf, writeOdt, writeRtf, WrongPasswordError, decryptPackage, encryptPackage, isEncryptedPackage, nodeTypes, ptToPx, readDocx, styleCss, writeDocx } from '@suitenova/writer-core';
 import { isInTable } from 'prosemirror-tables';
@@ -253,7 +254,16 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
     };
     reader.readAsDataURL(f);
   };
-  const sources = useImageSources(insertImageFile);
+  // an icon goes in as an icon: the SVG is what the page shows and its PNG goes in the file as the fallback
+  const insertIcons = (picks: IconPick[]) => {
+    const v = ctl.view;
+    if (!v || !picks.length) return;
+    const nodes = picks.map((p) => nodeTypes.image!.create({ src: p.svg, png: p.png, alt: p.name, width: p.size, height: p.size }));
+    v.dispatch(v.state.tr.replaceSelectionWith(nodes[0]!).scrollIntoView());
+    for (const n of nodes.slice(1)) v.dispatch(v.state.tr.insert(v.state.selection.to, n));
+    v.focus();
+  };
+  const sources = useImageSources(insertImageFile, insertIcons);
 
   // Esc sale del modo «Seleccionar objetos» aunque el foco no esté en el documento
   const selecting = ctl.selectObjects;

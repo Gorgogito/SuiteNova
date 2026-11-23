@@ -161,7 +161,7 @@ function b64ToBytes(b64: string): Uint8Array {
 
 /** Store an image data URI as a media file of the package; returns its name, or null when it cannot be embedded. */
 export function addMedia(src: string, ctx: Ctx): string | null {
-  const m = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(src);
+  const m = /^data:([^;,]+)(?:;charset=[^;,]*)?(;base64)?,(.*)$/s.exec(src);
   if (!m) return null;
   const ext = MIME_EXT[m[1]!.toLowerCase()];
   if (!ext) return null;
@@ -188,7 +188,7 @@ function writePictureOriginals(zip: JSZip, ctx: Ctx, mainRels: string[], overrid
   for (const [name, p] of ctx.pictures) {
     let file = byOrig.get(p.orig);
     if (!file) {
-      const m = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(p.orig);
+      const m = /^data:([^;,]+)(?:;charset=[^;,]*)?(;base64)?,(.*)$/s.exec(p.orig);
       const ext = m && MIME_EXT[m[1]!.toLowerCase()];
       if (!m || !ext) continue;
       file = `novaorig${++n}.${ext}`;
@@ -222,8 +222,18 @@ function writePictureOcr(zip: JSZip, ctx: Ctx, mainRels: string[], overrides: [s
 }
 
 /** The media of a picture, stored in the package: its name and relationship id, or null (with a warning) when it cannot go in. */
-function embedPicture(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): { name: string; rid: string } | null {
+function embedPicture(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): { name: string; rid: string; svgRid?: string } | null {
   const src: string = node.attrs.src;
+  // an SVG picture (an icon) goes as Word does it: the PNG is the picture and the SVG hangs from it (`asvg:svgBlip`), so readers without SVG still see it
+  const png: string | null = node.attrs.png;
+  if (/^data:image\/svg\+xml/i.test(src) && png && /^data:image\/png/i.test(png)) {
+    const pngName = addMedia(png, ctx);
+    const svgName = addMedia(src, ctx);
+    if (pngName && svgName) {
+      if (node.attrs.ocr) ctx.ocr.set(pngName, node.attrs.ocr);
+      return { name: pngName, rid: rels.media(pngName, part), svgRid: rels.media(svgName, part) };
+    }
+  }
   if (!/^data:/.test(src)) {
     ctx.warn('Hay imágenes enlazadas desde internet; no se incrustan y se sustituyen por su texto alternativo.');
     return null;
@@ -240,7 +250,7 @@ function embedPicture(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): { n
 }
 
 /** The `<pic:pic>` of a picture; inside a group (`off`) it sits at that offset (px) from the group's corner. */
-function picElement(node: PMNode, id: number, name: string, rid: string, off?: { x: number; y: number }): string {
+function picElement(node: PMNode, id: number, name: string, rid: string, off?: { x: number; y: number }, svgRid?: string): string {
   const w = Math.round((node.attrs.width ?? 200) * EMU_PER_PX);
   const h = Math.round((node.attrs.height ?? 150) * EMU_PER_PX);
   const alt = esc(node.attrs.alt ?? '');
@@ -255,7 +265,7 @@ function picElement(node: PMNode, id: number, name: string, rid: string, off?: {
   const oy = off ? Math.round(off.y * EMU_PER_PX) : 0;
   return (
     `<pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="${esc(name)}" descr="${alt}"/><pic:cNvPicPr/></pic:nvPicPr>` +
-    `<pic:blipFill><a:blip r:embed="${rid}"/>${crop ? `<a:srcRect l="${pct(crop.l)}" t="${pct(crop.t)}" r="${pct(crop.r)}" b="${pct(crop.b)}"/>` : ''}<a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:blipFill>${svgRid ? `<a:blip r:embed="${rid}"><a:extLst><a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}"><asvg:svgBlip xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main" r:embed="${svgRid}"/></a:ext></a:extLst></a:blip>` : `<a:blip r:embed="${rid}"/>`}${crop ? `<a:srcRect l="${pct(crop.l)}" t="${pct(crop.t)}" r="${pct(crop.r)}" b="${pct(crop.b)}"/>` : ''}<a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
     `<pic:spPr>${xfrm}<a:off x="${ox}" y="${oy}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${line}</pic:spPr></pic:pic>`
   );
 }
@@ -271,7 +281,7 @@ function imageXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, props: s
   const graphic =
     `<wp:docPr id="${id}" name="Imagen ${id}" descr="${alt}"/>` +
     `<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>` +
-    `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">${picElement(node, id, media.name, media.rid)}</a:graphicData></a:graphic>`;
+    `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">${picElement(node, id, media.name, media.rid, undefined, media.svgRid)}</a:graphicData></a:graphic>`;
   const extent = `<wp:extent cx="${w}" cy="${h}"/>`;
   const wrap = at.wrap as 'left' | 'right' | 'top' | 'front' | 'behind' | null;
   if (wrap === 'front' || wrap === 'behind') {
@@ -361,7 +371,7 @@ function wgpXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, nested?: {
     const at = { x: c.attrs.x ?? 0, y: c.attrs.y ?? 0 };
     if (c.type.name === 'image') {
       const media = embedPicture(c, ctx, part, rels);
-      if (media) kids += picElement(c, ctx.docPrId++, media.name, media.rid, at);
+      if (media) kids += picElement(c, ctx.docPrId++, media.name, media.rid, at, media.svgRid);
     } else kids += c.type.name === 'shape_group' ? wgpXml(c, ctx, part, rels, at) : wspXml(c, ctx, part, rels, at);
   });
   const tag = nested ? 'wpg:grpSp' : 'wpg:wgp';

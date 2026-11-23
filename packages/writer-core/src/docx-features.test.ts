@@ -306,6 +306,34 @@ describe('DOCX: ecuaciones, formas y controles de contenido', () => {
     expect(none.zip.file('customXml/novaOcr1.xml')).toBeNull();
   });
 
+  it('un icono SVG viaja como lo hace Word: el PNG es la imagen y el SVG cuelga de ella (asvg:svgBlip); al leerlo vuelve el SVG con su PNG', async () => {
+    const SVG = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="#c00000"><path d="M2 2h20v20H2z"/></svg>');
+    const img = nodeTypes.image!.create({ src: SVG, png: PNG, alt: 'Cuadrado', width: 48, height: 48 });
+    const { blocks, zip } = await rt(wd([p([t('Hola '), img])]));
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toMatch(/<a:blip r:embed="(rId\w+)"><a:extLst><a:ext uri="\{96DAC541-7B7A-43D3-8B79-37D633B846F1\}"><asvg:svgBlip [^>]*r:embed="(rId\w+)"\/>/);
+    const files = Object.keys(zip.files).filter((f) => f.startsWith('word/media/') && !f.endsWith('/'));
+    expect(files.sort()).toEqual(['word/media/image1.png', 'word/media/image2.svg']);
+    expect(await zip.file('[Content_Types].xml')!.async('string')).toContain('Extension="svg" ContentType="image/svg+xml"');
+    let back: PMNode | null = null;
+    blocks[0]!.forEach((c) => c.type.name === 'image' && (back = c));
+    expect((back as unknown as PMNode).attrs.src).toMatch(/^data:image\/svg\+xml;base64,/);
+    expect(atob((back as unknown as PMNode).attrs.src.split(',')[1])).toBe(decodeURIComponent(SVG.split(',')[1]!));
+    expect((back as unknown as PMNode).attrs.png).toBe(PNG);
+    expect((back as unknown as PMNode).attrs.alt).toBe('Cuadrado');
+    // un icono al que se aplicó un efecto: el original (SVG) y las ediciones sobreviven, y lo que ve Word es el PNG editado
+    const edited = nodeTypes.image!.create({ src: PNG, orig: SVG, edits: { brightness: 0.2 }, width: 48, height: 48 });
+    const e2 = await rt(wd([p([edited])]));
+    let eb: PMNode | null = null;
+    e2.blocks[0]!.forEach((c) => c.type.name === 'image' && (eb = c));
+    expect((eb as unknown as PMNode).attrs.edits).toEqual({ brightness: 0.2 });
+    expect(atob((eb as unknown as PMNode).attrs.orig.split(',')[1])).toBe(decodeURIComponent(SVG.split(',')[1]!));
+    expect((eb as unknown as PMNode).attrs.src).toBe(PNG);
+    // un PNG normal no lleva SVG
+    const plain = await rt(wd([p([nodeTypes.image!.create({ src: PNG, width: 8, height: 8 })])]));
+    expect(await plain.zip.file('word/document.xml')!.async('string')).not.toContain('svgBlip');
+  });
+
   it('si Word (u otro programa) guarda el archivo de nuevo y renombra la parte del OCR a item7.xml, la lectura se recupera por su espacio de nombres', async () => {
     const ocr = { text: 'Factura 4821', lang: 'spa', at: 7, size: [100, 40], lines: [[2, 2, 90, 20, [['Factura', 2, 2, 50, 20, 90]]]], confidence: 89 };
     const img = nodeTypes.image!.create({ src: PNG, alt: 'Una factura', width: 80, height: 40, ocr });
