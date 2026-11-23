@@ -32,11 +32,15 @@ function endsSentence(text: string, stopAt: number, end: number): boolean {
   const ch = text[stopAt]!;
   if (ch === '.') {
     // a word before the stop: an abbreviation («Sr.», «etc.») or an initial («J. Pérez») does not end it
-    const word = /([\p{L}\p{N}.]+)$/u.exec(text.slice(0, stopAt))?.[1]?.toLowerCase() ?? '';
+    const before = text.slice(0, stopAt);
+    const raw = /([\p{L}\p{N}.]+)$/u.exec(before)?.[1] ?? '';
+    const word = raw.toLowerCase();
     const bare = word.replace(/\.$/, '');
+    // a number and a stop at the start of a line is a list item («3. Punto»), not the end of a sentence; after other words it is («desde 2010. Antes»)
+    if (/^\d+$/.test(word)) return !/(^|\n)[ \t]*\d+$/.test(before);
+    // the unit of a temperature («25 °C. Mañana») is not an initial
+    if (word.length === 1 && /°\s?$/.test(before.slice(0, before.length - 1))) return true;
     if (word.length === 1 || TITLES.has(word) || TITLES.has(bare)) return false;
-    // «3. Punto» (a number and a stop at the start of a list item) is not the end either
-    if (/^\d+$/.test(word)) return false;
   }
   return true;
 }
@@ -50,7 +54,8 @@ export function sentences(text: string): Span[] {
     while (b > a && /\s/.test(text[b - 1]!)) b--;
     if (b > a) out.push({ start: a, end: b });
   };
-  const re = /[.!?…]+|\n/g;
+  // the stop and the closing quotes and brackets that go with it («…tarde.»)
+  const re = /[.!?…]+["'”’»)\]]*|\n/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     const end = m.index + m[0].length;

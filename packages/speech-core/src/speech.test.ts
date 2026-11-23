@@ -300,3 +300,20 @@ describe('what the installed voices cover', () => {
     expect(r.snapshot.missing).toEqual([]);
   });
 });
+
+describe('sentences found by comparing with Word', () => {
+  it('a number before a stop ends the sentence unless it is a list item at the start of a line', () => {
+    expect(cut('Vive en EE.UU. desde 2010. Antes vivía en Lima.')).toEqual(['Vive en EE.UU. desde 2010.', 'Antes vivía en Lima.']);
+    expect(cut('Son las 3:45 del 20/11/2026. Hoy es viernes.')).toEqual(['Son las 3:45 del 20/11/2026.', 'Hoy es viernes.']);
+    expect(cut('1. Primero\n2. Segundo')).toEqual(['1. Primero', '2. Segundo']);
+  });
+  it('the unit of a temperature ends the sentence', () => {
+    expect(cut('Hace 25 °C. Mañana bajará a 18 °C. Fin.')).toEqual(['Hace 25 °C.', 'Mañana bajará a 18 °C.', 'Fin.']);
+    expect(cut('Escribió J. Pérez en la hoja.')).toEqual(['Escribió J. Pérez en la hoja.']);
+  });
+  it('the closing quote or bracket goes with the sentence it closes', () => {
+    expect(cut('«Vamos», dijo ella. «Ya es tarde.» Y se marcharon.')).toEqual(['«Vamos», dijo ella.', '«Ya es tarde.»', 'Y se marcharon.']);
+    expect(cut('Él preguntó: "¿Vienes?" Ella respondió que sí.')).toEqual(['Él preguntó: "¿Vienes?"', 'Ella respondió que sí.']);
+    expect(cut('Ocurrió (véase pág. 3). Luego pasó.')).toEqual(['Ocurrió (véase pág. 3).', 'Luego pasó.']);
+  });
+});
