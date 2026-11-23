@@ -210,38 +210,6 @@
   margin-top: 0 !important;
 }
 
-/* ---- find bar ---- */
-.nw-find-bar {
-  display: grid;
-  gap: 4px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--colorNeutralStroke2);
-  background: var(--colorNeutralBackground1);
-}
-.nw-find-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.nw-find-row input[type='text'],
-.nw-find-row input:not([type]) {
-  width: 220px;
-  height: 24px;
-  box-sizing: border-box;
-  padding: 0 6px;
-  border: 1px solid var(--colorNeutralStroke1);
-  border-radius: 3px;
-  background: var(--colorNeutralBackground1);
-  color: var(--colorNeutralForeground1);
-  font: inherit;
-}
-.nw-find-info {
-  min-width: 80px;
-  font-size: 12px;
-  color: var(--colorNeutralForeground2);
-}
-
 /* ---- header / footer mini editor ---- */
 .nw-mini-bar {
   display: flex;

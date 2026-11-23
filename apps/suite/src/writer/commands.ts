@@ -49,7 +49,7 @@ export type WriterDialog = 'link' | 'pageSetup' | 'about' | 'shortcuts' | 'table
 export interface WriterUI {
   ctl: WriterCtl;
   openDialog(kind: WriterDialog, arg?: unknown): void;
-  openFind(replace: boolean): void;
+  openFind(replace: boolean, goTo?: boolean): void;
   getZoom(): number;
   setZoom(z: number): void;
   fitWidth(): void;
@@ -273,6 +273,7 @@ export function writerCommands(ui: WriterUI): CommandDef[] {
   // ---- find
   add({ id: 'writer.find', label: 'Buscar', icon: 'search', shortcut: 'Ctrl+F', run: () => ui.openFind(false) });
   add({ id: 'writer.replace', label: 'Reemplazar', icon: 'replace', shortcut: 'Ctrl+H', run: () => ui.openFind(true) });
+  add({ id: 'writer.goTo', label: 'Ir a', icon: 'search', shortcut: 'Ctrl+G', run: () => ui.openFind(false, true) });
 
   // ---- view
   add({ id: 'writer.zoomFit', label: 'Ajustar al ancho', icon: 'fit', run: () => ui.fitWidth() });

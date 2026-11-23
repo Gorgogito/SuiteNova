@@ -75,6 +75,9 @@ import { ObjectView } from './objectview';
 import { shapeSelectionPlugin } from './shape-selection';
 import { imageObjectsPlugin } from './image-objects';
 import { ImageOcr, searchImages } from './ocr-images';
+import type { Match } from '@suitenova/find-core';
+import type { FindRequest } from '../find';
+import { findRanges, replaceRange } from './find-text';
 import { WriterReader, readPlugin } from './read-aloud';
 import { wordArtEditingPlugin } from './wordart-editing';
 import { commentRanges, getUser, protectionPlugin, trackTransaction } from './review';
@@ -110,10 +113,8 @@ class NovaTableView extends TableView {
 
 export interface FindState {
   query: string;
-  matchCase: boolean;
-  wholeWord: boolean;
   /** `image`: the match is in the text read from a picture (the range is the picture itself, `boxes` where it is in it). */
-  matches: { from: number; to: number; image?: boolean }[];
+  matches: { from: number; to: number; image?: boolean; match?: Match }[];
   current: number;
 }
 
@@ -123,7 +124,7 @@ function findPlugin(): Plugin<FindState> {
   return new Plugin<FindState>({
     key: findKey,
     state: {
-      init: () => ({ query: '', matchCase: false, wholeWord: false, matches: [], current: -1 }),
+      init: () => ({ query: '', matches: [], current: -1 }),
       apply(tr, value) {
         const meta = tr.getMeta(findKey) as FindState | undefined;
         if (meta) return meta;
@@ -142,26 +143,6 @@ function findPlugin(): Plugin<FindState> {
       },
     },
   });
-}
-
-export function findMatches(doc: PMNode, query: string, matchCase: boolean, wholeWord: boolean): { from: number; to: number }[] {
-  const out: { from: number; to: number }[] = [];
-  if (!query) return out;
-  const q = matchCase ? query : query.toLocaleLowerCase();
-  doc.descendants((node, pos) => {
-    if (!node.isTextblock) return true;
-    const text = node.textBetween(0, node.content.size, undefined, '￼');
-    const hay = matchCase ? text : text.toLocaleLowerCase();
-    let i = hay.indexOf(q);
-    while (i !== -1) {
-      const end = i + q.length;
-      const word = (c: string | undefined) => !!c && /[\p{L}\p{N}_]/u.test(c);
-      if (!wholeWord || (!word(hay[i - 1]) && !word(hay[end]))) out.push({ from: pos + 1 + i, to: pos + 1 + end });
-      i = hay.indexOf(q, end);
-    }
-    return false;
-  });
-  return out;
 }
 
 /** Labels the footnote references (the number is drawn by CSS from `data-label`). */
@@ -1300,14 +1281,16 @@ export class WriterCtl {
 
   // ---------- find / replace ----------
 
-  find(query: string, opts: { matchCase?: boolean; wholeWord?: boolean } = {}, from?: number): FindState {
+  find(req: FindRequest, from?: number): FindState {
     const v = this.mainView!;
-    const matchCase = !!opts.matchCase, wholeWord = !!opts.wholeWord;
-    const matches = [...findMatches(v.state.doc, query, matchCase, wholeWord), ...searchImages(v.state.doc, query, { matchCase, wholeWord }).map((m) => ({ from: m.pos, to: m.pos + 1, image: true }))].sort((a, b) => a.from - b.from);
+    const o = req.query.options;
+    // the text of the pictures is read as plain text (it has no formatting to filter by)
+    const images = o.mode === 'normal' && !Object.keys(req.filters).length ? searchImages(v.state.doc, req.text, { matchCase: o.matchCase, wholeWord: o.wholeWord }).map((m) => ({ from: m.pos, to: m.pos + 1, image: true })) : [];
+    const matches = [...findRanges(v.state.doc, req.query, req.filters).map((d) => ({ from: d.from, to: d.to, match: d.match })), ...images].sort((a, b) => a.from - b.from);
     const start = from ?? v.state.selection.from;
     let current = matches.findIndex((m) => m.from >= start);
     if (current === -1) current = matches.length ? 0 : -1;
-    const st: FindState = { query, matchCase, wholeWord, matches, current };
+    const st: FindState = { query: req.text, matches, current };
     v.dispatch(v.state.tr.setMeta(findKey, st).setMeta('addToHistory', false));
     this.reveal(st);
     return st;
@@ -1330,25 +1313,54 @@ export class WriterCtl {
     return st;
   }
 
-  replaceCurrent(text: string): FindState | null {
+  replaceCurrent(req: FindRequest, template: string): FindState | null {
     const v = this.mainView!;
-    const f = findKey.getState(v.state);
-    const m = f?.matches[f.current];
-    if (!f || !m) return f ?? null;
+    let f = findKey.getState(v.state);
+    if (!f || !f.matches.length) f = this.find(req);
+    const m = f.matches[f.current];
+    if (!m) return f;
     // the text of a picture is not the document's: it is found, not replaced (the next match is shown)
-    if (m.image) return this.findStep(1);
-    v.dispatch(v.state.tr.insertText(text, m.from, m.to));
-    return this.find(f.query, f, m.from + text.length);
+    if (m.image || !m.match) return this.findStep(1);
+    const tr = v.state.tr;
+    replaceRange(tr, req.query, { from: m.from, to: m.to, match: m.match }, template);
+    const after = tr.mapping.map(m.to);
+    v.dispatch(tr);
+    return this.find(req, after);
   }
 
-  replaceAll(query: string, text: string, opts: { matchCase?: boolean; wholeWord?: boolean } = {}): number {
+  replaceAll(req: FindRequest, template: string): number {
     const v = this.mainView!;
-    const matches = findMatches(v.state.doc, query, !!opts.matchCase, !!opts.wholeWord);
+    const matches = findRanges(v.state.doc, req.query, req.filters);
     if (!matches.length) return 0;
     const tr = v.state.tr;
-    for (const m of [...matches].reverse()) tr.insertText(text, m.from, m.to);
+    for (const m of [...matches].reverse()) replaceRange(tr, req.query, m, template);
     v.dispatch(tr);
     return matches.length;
+  }
+
+  /** Puts the caret at the start of a page (1-based). */
+  goToPage(n: number): boolean {
+    const v = this.mainView;
+    const r = this.pageRects()[n - 1];
+    if (!v || !r || !this.host) return false;
+    const sheet = this.host.getBoundingClientRect();
+    const s = this.host.offsetWidth ? sheet.width / this.host.offsetWidth || 1 : 1;
+    // the first position whose line ends below the top of the page (positions go down the sheet in order)
+    const top = sheet.top + r.top * s;
+    let lo = 1;
+    let hi = Math.max(1, v.state.doc.content.size - 1);
+    try {
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (v.coordsAtPos(mid).bottom > top + 1) hi = mid;
+        else lo = mid + 1;
+      }
+    } catch {
+      return false;
+    }
+    v.dispatch(v.state.tr.setSelection(TextSelection.near(v.state.doc.resolve(lo))).scrollIntoView());
+    v.focus();
+    return true;
   }
 
   // ---------- estilos de párrafo ----------
@@ -1443,7 +1455,7 @@ export class WriterCtl {
   clearFind(): void {
     const v = this.mainView;
     if (!v) return;
-    v.dispatch(v.state.tr.setMeta(findKey, { query: '', matchCase: false, wholeWord: false, matches: [], current: -1 }).setMeta('addToHistory', false));
+    v.dispatch(v.state.tr.setMeta(findKey, { query: '', matches: [], current: -1 }).setMeta('addToHistory', false));
   }
 
   focus(): void {

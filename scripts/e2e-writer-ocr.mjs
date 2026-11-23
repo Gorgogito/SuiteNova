@@ -85,13 +85,13 @@ await check('Ctrl+F encuentra el texto de dentro de la imagen y la marca', async
   await page.keyboard.press('Control+F');
   await page.locator('.nw-find-bar').getByLabel('Buscar', { exact: true }).fill('TOTAL a pagar');
   await page.waitForSelector('.nw-find-img-cur');
-  assert.equal(await page.locator('.nw-find-bar .nw-find-info').innerText(), '1 de 1');
+  assert.equal(await page.locator('.nw-find-bar .nv-find-info').innerText(), '1 de 1');
   const sel = await ev(() => window.__novaWriter.ctl.mainState.selection.node?.type.name);
   assert.equal(sel, 'image');
   await shot('buscar');
   // el texto del documento y el de la imagen se buscan a la vez
   await page.locator('.nw-find-bar').getByLabel('Buscar', { exact: true }).fill('texto');
-  await page.waitForFunction(() => /de/.test(document.querySelector('.nw-find-bar .nw-find-info')?.textContent ?? ''));
+  await page.waitForFunction(() => /de/.test(document.querySelector('.nw-find-bar .nv-find-info')?.textContent ?? ''));
 });
 
 await check('reemplazar no toca el texto de la imagen', async () => {

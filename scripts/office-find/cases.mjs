@@ -39,35 +39,62 @@ const CASES = [
   C('acentos distintos', 'canción cancion', 'cancion'),
 ];
 
+
+// Replacements: [name, text, query, replacement, {wild, matchCase}]. In the text a paragraph is «\n» (Word says «\r»).
+// `endMark`: «^p» also finds the last paragraph mark of the document in Word (it becomes the replacement, here a space); the text of a document here has none.
+const R = (name, text, query, rep, o = {}) => ({ name, text, query, rep, wild: !!o.wild, matchCase: !!o.matchCase, endMark: !!o.endMark });
+const REPLACES = [
+  R('texto simple', 'gato perro gato', 'gato', 'pez'),
+  R('mayusculas', 'Gato gato', 'gato', 'pez', { matchCase: true }),
+  R('^& lo encontrado', 'a b', 'a', '[^&]'),
+  R('grupos invertidos', 'Juan Lopez', '(<[A-Za-z]@>) (<[A-Za-z]@>)', '\\2, \\1', { wild: true }),
+  R('^p a la salida', 'uno dos', ' ', '^p'),
+  R('^p a la entrada', 'uno\ndos', '^p', ' ', { endMark: true }),
+  R('^t', 'a b', ' ', '^t'),
+  R('comodin ?', 'gato pato', '?ato', 'X', { wild: true }),
+  R('comodin *', 'a1b a22b', 'a*b', 'Z', { wild: true }),
+  R('repeticion', 'aaa aa a', '<a{2;}>', 'Y', { wild: true }),
+  R('vacio borra', 'uno dos', 'uno ', ''),
+  R('grupos numero y letras', 'ab12', '([a-z]@)([0-9]@)', '\\2\\1', { wild: true }),
+  R('dos grupos con texto', 'x=1 y=22', '([a-z])=([0-9]@)', '\\1:\\2', { wild: true }),
+];
+
 if (mode === 'write') {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'casos.json'), JSON.stringify(CASES));
-  console.log('casos:', CASES.length);
-} else if (mode === 'compare') {
+  fs.writeFileSync(path.join(dir, 'casos-reemplazo.json'), JSON.stringify(REPLACES.map((r) => ({ ...r, text: r.text.replace(/\n/g, '\r') }))));
+  console.log('casos:', CASES.length, 'reemplazos:', REPLACES.length);
+} else if (mode === 'compare' || mode === 'compare-replace') {
   // find-core is TypeScript: it is read through the Vite of `pnpm dev` (:1420), like the formula comparison
   const { chromium } = await import('../../apps/suite/node_modules/playwright-core/index.mjs');
-  const word = JSON.parse(fs.readFileSync(path.join(dir, 'resultados.json'), 'utf8').replace(/^﻿/, ''));
+  const rep = mode === 'compare-replace';
+  const list = rep ? REPLACES : CASES;
+  const word = JSON.parse(fs.readFileSync(path.join(dir, rep ? 'resultados-reemplazo.json' : 'resultados.json'), 'utf8').replace(/^﻿/, ''));
   const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] });
   const page = await (await browser.newContext()).newPage();
   await page.goto('http://localhost:1420/?app=writer', { waitUntil: 'load' });
   await page.waitForSelector('.ProseMirror');
-  const all = await page.evaluate(async (cases) => {
-    const F = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/find-core/src/index.ts');
-    return cases.map((c) => {
-      const r = F.compileQuery(c.query, { mode: c.wild ? 'wildcards' : 'normal', matchCase: c.matchCase, wholeWord: c.whole });
-      return r.ok ? F.findInText(r.query, c.text).map((m) => m.text) : ['<error>'];
-    });
-  }, CASES);
+  const all = await page.evaluate(
+    async ({ cases, rep }) => {
+      const F = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/find-core/src/index.ts');
+      return cases.map((c) => {
+        const r = F.compileQuery(c.query, { mode: c.wild ? 'wildcards' : 'normal', matchCase: c.matchCase, wholeWord: c.whole });
+        if (!r.ok) return ['<error>'];
+        return rep ? [F.replaceAllInText(r.query, c.text, c.rep).text] : F.findInText(r.query, c.text).map((m) => m.text);
+      });
+    },
+    { cases: list, rep },
+  );
   await browser.close();
   let same = 0;
   const diffs = [];
-  CASES.forEach((c, i) => {
+  list.forEach((c, i) => {
     const ours = all[i];
-    const w = [].concat(word.results[i].found ?? []);
+    const w = rep ? [String(word.results[i].text).replace(/\r/g, '\n').replace(c.endMark ? / $/ : /(?!)/, '')] : [].concat(word.results[i].found ?? []);
     if (JSON.stringify(ours) === JSON.stringify(w)) same++;
     else diffs.push(`${c.name}: «${c.query}» en «${c.text}» → Word ${JSON.stringify(w)}, nosotros ${JSON.stringify(ours)}`);
   });
-  console.log(`casos iguales: ${same} de ${CASES.length}`);
+  console.log(`casos iguales: ${same} de ${list.length}`);
   diffs.forEach((d) => console.log('  ✘', d));
   process.exit(diffs.length ? 1 : 0);
 }

@@ -3,7 +3,9 @@ import { DEFAULT_DOC_DEFAULTS, docFromText, emptyWriterDoc, ensureSections, node
 import { describe, expect, it } from 'vitest';
 import { zoomCommands } from '../common';
 import { writerCommands, type WriterUI } from './commands';
-import { WriterCtl, findMatches } from './doc';
+import { compileQuery } from '@suitenova/find-core';
+import { WriterCtl } from './doc';
+import { findRanges } from './find-text';
 import './messages';
 import './messages-more';
 import './messages-objects';
@@ -110,12 +112,16 @@ describe('Nova Writer ribbon', () => {
 describe('Nova Writer document controller', () => {
   it('finds matches across the document, honoring case and whole words', () => {
     const doc = docFromText('Gato gato gatos\nel gato');
-    expect(findMatches(doc, 'gato', false, false)).toHaveLength(4);
-    expect(findMatches(doc, 'gato', true, false)).toHaveLength(3);
-    expect(findMatches(doc, 'gato', false, true)).toHaveLength(3);
-    expect(findMatches(doc, '', false, false)).toEqual([]);
+    const find = (q: string, o: { matchCase?: boolean; wholeWord?: boolean } = {}) => {
+      const c = compileQuery(q, o);
+      return c.ok ? findRanges(doc, c.query) : [];
+    };
+    expect(find('gato')).toHaveLength(4);
+    expect(find('gato', { matchCase: true })).toHaveLength(3);
+    expect(find('gato', { wholeWord: true })).toHaveLength(3);
+    expect(find('')).toEqual([]);
     // positions point at the matched text
-    const [m] = findMatches(doc, 'Gato', true, false);
+    const [m] = find('Gato', { matchCase: true });
     expect(doc.textBetween(m!.from, m!.to)).toBe('Gato');
   });
 

@@ -1,0 +1,40 @@
+/* Shared search bar (Writer, Calc, Slides, Notes, Base). */
+.nv-find-bar {
+  display: grid;
+  gap: 4px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground1);
+}
+.nv-find-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.nv-find-row input[type='text'],
+.nv-find-row input:not([type]) {
+  width: 220px;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 3px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  font: inherit;
+}
+.nv-find-row select {
+  height: 24px;
+  max-width: 220px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 3px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  font: inherit;
+}
+.nv-find-info {
+  min-width: 80px;
+  font-size: 12px;
+  color: var(--colorNeutralForeground2);
+}

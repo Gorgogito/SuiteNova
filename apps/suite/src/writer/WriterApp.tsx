@@ -16,7 +16,9 @@ import { ControlPopup } from './ControlPopup';
 import { EditorPane, ReviewMenu, ThesaurusPane, WordMenu } from '../spell';
 import { writerHost, writerThesaurusHost } from './review-host';
 import { OpenPasswordDialog } from './dlg-security';
-import { PAGE_GAP, WriterCtl, findKey } from './doc';
+import { PAGE_GAP, WriterCtl } from './doc';
+import { FindPanel } from '../find';
+import { writerFindHost } from './find-host';
 import { ReadAloudBar } from '../voice/ReadAloudBar';
 import './icons';
 import './icons-more';
@@ -77,127 +79,6 @@ html,body{margin:0;padding:0;background:#fff!important;height:auto!important;ove
 </style></head><body>${clone.outerHTML}</body></html>`;
 }
 
-function FindBar({ ui, replace, onClose }: { ui: WriterUI; replace: boolean; onClose: () => void }) {
-  const ctl = ui.ctl;
-  const [q, setQ] = useState(() => {
-    const s = ctl.state;
-    return s && !s.selection.empty && s.selection.to - s.selection.from < 80 ? s.doc.textBetween(s.selection.from, s.selection.to) : '';
-  });
-  const [rep, setRep] = useState('');
-  const [matchCase, setMatchCase] = useState(false);
-  const [whole, setWhole] = useState(false);
-  const [info, setInfo] = useState('');
-  const run = (query: string, from?: number) => {
-    if (!query) {
-      ctl.clearFind();
-      setInfo('');
-      return;
-    }
-    const r = ctl.find(query, { matchCase, wholeWord: whole }, from);
-    setInfo(r.matches.length ? t('{n} de {total}', { n: r.current + 1, total: r.matches.length }) : t('Sin resultados'));
-  };
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented) onClose();
-    };
-    window.addEventListener('keydown', esc);
-    return () => window.removeEventListener('keydown', esc);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  useEffect(() => {
-    if (q) run(q);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchCase, whole]);
-  const step = (d: 1 | -1) => {
-    const r = ctl.findStep(d) ?? null;
-    if (!r || !r.matches.length) run(q);
-    else setInfo(t('{n} de {total}', { n: r.current + 1, total: r.matches.length }));
-  };
-  return (
-    <div className="nw-find-bar" role="search" aria-label={t('Buscar y reemplazar')}>
-      <div className="nw-find-row">
-        <input
-          autoFocus
-          aria-label={t('Buscar')}
-          placeholder={t('Buscar')}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            run(e.target.value);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              if (findCount(ctl) === 0) run(q);
-              else step(e.shiftKey ? -1 : 1);
-            } else if (e.key === 'Escape') {
-              onClose();
-            }
-          }}
-        />
-        <span className="nw-find-info" aria-live="polite">
-          {info}
-        </span>
-        <button type="button" className="nv-btn nv-btn--small" onClick={() => step(-1)} aria-label={t('Anterior')} title={t('Anterior')}>
-          ↑
-        </button>
-        <button type="button" className="nv-btn nv-btn--small" onClick={() => step(1)} aria-label={t('Siguiente')} title={t('Siguiente')}>
-          ↓
-        </button>
-        <label>
-          <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> {t('Coincidir mayúsculas')}
-        </label>
-        <label>
-          <input type="checkbox" checked={whole} onChange={(e) => setWhole(e.target.checked)} /> {t('Palabras completas')}
-        </label>
-        <button type="button" className="nv-btn nv-btn--small" onClick={onClose} aria-label={t('Cerrar')} title={t('Cerrar')}>
-          ✕
-        </button>
-      </div>
-      {replace && (
-        <div className="nw-find-row">
-          <input
-            aria-label={t('Reemplazar con')}
-            placeholder={t('Reemplazar con')}
-            value={rep}
-            onChange={(e) => setRep(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') onClose();
-            }}
-          />
-          <button
-            type="button"
-            className="nv-btn nv-btn--small"
-            onClick={() => {
-              if (!q) return;
-              if (findCount(ctl) === 0) run(q);
-              const r = ctl.replaceCurrent(rep);
-              setInfo(r && r.matches.length ? t('{n} de {total}', { n: r.current + 1, total: r.matches.length }) : t('Sin resultados'));
-            }}
-          >
-            {t('Reemplazar')}
-          </button>
-          <button
-            type="button"
-            className="nv-btn nv-btn--small"
-            onClick={() => {
-              const n = q ? ctl.replaceAll(q, rep, { matchCase, wholeWord: whole }) : 0;
-              ctl.clearFind();
-              setInfo(n ? t('Se reemplazaron {n} coincidencias.', { n }) : t('Sin resultados'));
-            }}
-          >
-            {t('Reemplazar todo')}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function findCount(ctl: WriterCtl): number {
-  return ctl.view ? (findKey.getState(ctl.view.state)?.matches.length ?? 0) : 0;
-}
-
 function Status({ ctl }: { ctl: WriterCtl }) {
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
   const w = ctl.words();
@@ -228,7 +109,8 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
   const [spellTarget, setSpellTarget] = useState<{ issue: import('../spell').Issue | null; word: import('../spell').WordTarget | null; x: number; y: number } | null>(null);
   const [pwPrompt, setPwPrompt] = useState<{ name: string; path: string | null; data: Uint8Array } | null>(null);
   const [controlPos, setControlPos] = useState<number | null>(null);
-  const [find, setFind] = useState<{ replace: boolean } | null>(null);
+  const [find, setFind] = useState<{ replace: boolean; goTo: boolean } | null>(null);
+  const findHost = useMemo(() => writerFindHost(ctl), [ctl]);
   useLocale();
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -329,7 +211,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
         setDialogArg(arg);
         setDialog(k);
       },
-      openFind: (replace) => setFind({ replace }),
+      openFind: (replace, goTo = false) => setFind({ replace, goTo }),
       getZoom: () => zoomRef.current,
       setZoom: (z) => setZoom(clampZoom(z)),
       fitWidth: () => {
@@ -565,7 +447,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
       <div className="nw-app">
         <style>{styleCss(ctl.styles, ctl.defaults)}</style>
         {ctl.readAloud.visible && <ReadAloudBar ctrl={ctl.readAloud.voice} onClose={() => ctl.readAloud.stop()} />}
-        {find && <FindBar ui={ui} replace={find.replace} key={String(find.replace)} onClose={() => { setFind(null); ctl.clearFind(); ctl.focus(); }} />}
+        {find && <FindPanel host={findHost} replace={find.replace} goTo={find.goTo} key={String(find.replace) + String(find.goTo)} className="nw-find-bar" onClose={() => { setFind(null); ctl.clearFind(); ctl.focus(); }} />}
         <div className="nw-body">
         {ctl.showNav && <NavPane ctl={ctl} onClose={() => { ctl.showNav = false; ctl.touch(); }} />}
         <div className="nw-scroll" ref={scrollRef}>
