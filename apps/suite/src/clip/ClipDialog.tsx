@@ -147,6 +147,14 @@ export function ClipDialog({ canvas, initialZone, onInsert, onClose }: { canvas:
     } else if (d && d.mode !== 'erase') setZone((z) => (isZone(z) ? z : null));
   };
 
+  // the notice («Copiado al portapapeles») gives way to the size and the marks as soon as they change, and goes away by itself
+  useEffect(() => setNote(''), [zone, strokes]);
+  useEffect(() => {
+    if (!note) return;
+    const id = setTimeout(() => setNote(''), 4000);
+    return () => clearTimeout(id);
+  }, [note]);
+
   // Ctrl+Z / Ctrl+Y work wherever the focus is while the dialog is open (a button that just got disabled leaves the focus on the page)
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {

@@ -41,6 +41,22 @@ keyring = { version = "3", features = ["apple-native"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "3", features = ["sync-secret-service"] }
 
+# la codificación de imágenes es muy lenta sin optimizar (una captura de 2560×1440 tardaba 2,4 s en el perfil de desarrollo)
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+[profile.dev.package.xcap]
+opt-level = 3
+
 [profile.release]
 lto = true
 codegen-units = 1

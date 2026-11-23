@@ -86,6 +86,24 @@ try {
     assert.ok(monitor.width >= 640 && monitor.height >= 480, JSON.stringify(monitor));
   });
 
+  const timings = (globalThis.__timings = {});
+  await check('tiempos: capturar el monitor (sin y con ocultar la aplicación) y tener la selección sobre la pantalla lista', async () => {
+    const cap = (hide) => ev(async ({ m, hide }) => { const t0 = performance.now(); const bytes = await window.__TAURI_INTERNALS__.invoke('clip_capture', { monitor: m, hide }); return { ms: Math.round(performance.now() - t0), kb: Math.round(bytes.byteLength / 1024) }; }, { m: monitor.index, hide });
+    const shown = await cap(false);
+    const hidden = await cap(true);
+    timings.captureMs = shown.ms;
+    timings.captureHiddenMs = hidden.ms;
+    timings.pngKB = shown.kb;
+    const t0 = Date.now();
+    const ov = await start();
+    timings.overlayReadyMs = Date.now() - t0 - 700;
+    await ov.keyboard.press('Escape');
+    await sleep(800);
+    assert.ok(shown.ms < 2000, `captura ${shown.ms} ms`);
+    assert.ok(hidden.ms < 3000, `captura oculta ${hidden.ms} ms`);
+    assert.ok(timings.overlayReadyMs < 8000, `selección ${timings.overlayReadyMs} ms`);
+  });
+
   await check('con ocultar la aplicación no sale en la captura; sin ocultarla, sí (se comparan las dos capturas del mismo monitor)', async () => {
     const r = await ev(async (m) => {
       const grab = async (hide) => {
@@ -202,5 +220,6 @@ try {
   spawn('taskkill', ['/F', '/T', '/PID', String(app.pid)], { stdio: 'ignore' });
 }
 
+console.log('tiempos (ms):', JSON.stringify(globalThis.__timings ?? {}));
 for (const r of results) console.log(r[0] === 'ok' ? '  ✔' : '  ✘', r[1], r[2] ? `\n      ${r[2]}` : '');
 if (results.some((r) => r[0] !== 'ok')) process.exit(1);

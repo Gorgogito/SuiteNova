@@ -51,6 +51,8 @@ pub struct ClipState {
 #[cfg(windows)]
 mod native {
     use super::{ClipMonitor, ClipState, PickResult};
+    use image::codecs::png::{CompressionType, FilterType, PngEncoder};
+    use image::{ExtendedColorType, ImageEncoder};
     use std::io::Cursor;
     use std::sync::mpsc;
     use std::time::Duration;
@@ -93,8 +95,11 @@ mod native {
         };
         let info = describe(i, &all[i])?;
         let img = all[i].capture_image().map_err(|e| format!("No se pudo capturar la pantalla: {e}"))?;
-        let mut out = Vec::new();
-        img.write_to(&mut Cursor::new(&mut out), image::ImageFormat::Png).map_err(|e| format!("No se pudo guardar la captura: {e}"))?;
+        // la captura solo viaja de esta ventana a la página: se prima la velocidad sobre el tamaño (el PNG final lo vuelve a hacer la página al recortar)
+        let mut out = Vec::with_capacity(img.as_raw().len() / 4);
+        PngEncoder::new_with_quality(Cursor::new(&mut out), CompressionType::Fast, FilterType::NoFilter)
+            .write_image(img.as_raw(), img.width(), img.height(), ExtendedColorType::Rgba8)
+            .map_err(|e| format!("No se pudo guardar la captura: {e}"))?;
         Ok((out, info))
     }
 
