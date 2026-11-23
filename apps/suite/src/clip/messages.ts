@@ -3,6 +3,7 @@ import { registerMessages } from '@suitenova/core-ui';
 // English text of the screen clip dialog.
 registerMessages('en', {
   'Recorte de pantalla': 'Screen Clipping',
+  'Recorte de pantalla…': 'Screen Clipping…',
   'Insertar el recorte': 'Insert clip',
   'Insertar todo': 'Insert all',
   'Copiar': 'Copy',

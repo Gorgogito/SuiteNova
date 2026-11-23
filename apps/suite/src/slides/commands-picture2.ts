@@ -25,7 +25,7 @@ export function pictureCommands2(ui: SlidesUI): CommandDef[] {
   defs.push({ id: 'slides.pic.toShape', label: 'Convertir en forma', icon: 'shapes', description: 'Convierte el icono en una forma que se puede editar: relleno, contorno y tamaño como el de cualquier forma. Ya no es una imagen.', enabled: () => selectedIcons(ui.ctl).length > 0, run: () => iconsToShapes(ui.ctl) });
   defs.push({ id: 'slides.insert.icons', label: 'Iconos…', icon: 'sparkles', description: 'Inserta un icono como imagen.', run: () => ui.openDialog('icons') });
   defs.push({ id: 'slides.insert.album', label: 'Álbum de fotografías…', icon: 'image', description: 'Crea diapositivas con varias imágenes.', run: () => ui.openDialog('album') });
-  defs.push({ id: 'slides.insert.screenshot', label: 'Captura de pantalla', icon: 'monitor', description: 'Elige una pantalla o una ventana y la inserta como imagen.', run: () => void ui.captureScreen() });
+  defs.push({ id: 'slides.insert.screenshot', label: 'Recorte de pantalla', icon: 'monitor', description: 'Elige una pantalla o una ventana, marca la zona que quieres, anótala e insértala.', run: () => void ui.captureScreen() });
   defs.push({
     id: 'slides.saveAsPicture',
     label: 'Guardar como imagen…',

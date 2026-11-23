@@ -1,7 +1,8 @@
 import { useRef, useState, type ReactNode } from 'react';
+import { useScreenClip } from '../clip/useScreenClip';
 import { IconsDialog } from '../icons/IconsDialog';
 import { pickFile, type IconPick } from '../icons/raster';
-import { clipboardImage, screenshot, SourceError } from './sources';
+import { clipboardImage, SourceError } from './sources';
 
 export interface ImageSources {
   fromClipboard(): Promise<void>;
@@ -12,7 +13,7 @@ export interface ImageSources {
 }
 
 /**
- * The three non-file sources of a picture, wired to the product's own way to insert a File. A product that keeps icons as icons (SVG with its PNG
+ * The non-file sources of a picture, wired to the product's own way to insert a File. A product that keeps icons as icons (SVG with its PNG
  * fallback) passes `insertIcons`; the others get each icon as a PNG file.
  */
 export function useImageSources(insert: (file: File) => void | Promise<void>, insertIcons?: (picks: IconPick[]) => void | Promise<void>): ImageSources {
@@ -21,6 +22,7 @@ export function useImageSources(insert: (file: File) => void | Promise<void>, in
   ins.current = insert;
   const insIcons = useRef(insertIcons);
   insIcons.current = insertIcons;
+  const clip = useScreenClip((f) => ins.current(f));
   const run = async (get: () => Promise<File | null>) => {
     try {
       const f = await get();
@@ -31,9 +33,12 @@ export function useImageSources(insert: (file: File) => void | Promise<void>, in
   };
   return {
     fromClipboard: () => run(clipboardImage),
-    fromScreen: () => run(screenshot),
+    fromScreen: () => clip.start(),
     openIcons: () => setIcons(true),
-    dialog: icons ? (
+    dialog: (
+      <>
+        {clip.dialog}
+        {icons ? (
       <IconsDialog
         onPick={async (picks) => {
           if (insIcons.current) return void (await insIcons.current(picks));
@@ -41,6 +46,8 @@ export function useImageSources(insert: (file: File) => void | Promise<void>, in
         }}
         onClose={() => setIcons(false)}
       />
-    ) : null,
+        ) : null}
+      </>
+    ),
   };
 }

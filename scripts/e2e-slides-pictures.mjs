@@ -203,11 +203,12 @@ await check('screenshot: asks for a screen and either inserts it or says why not
     navigator.mediaDevices.getDisplayMedia = async () => cv.captureStream(15);
   });
   await page.getByRole('tab', { name: 'Insertar', exact: true }).click();
-  await page.getByRole('button', { name: 'Captura de pantalla' }).click();
-  await settle(2500);
+  await page.getByRole('button', { name: 'Recorte de pantalla' }).click();
+  await page.getByRole('dialog', { name: 'Recorte de pantalla' }).getByRole('button', { name: 'Insertar todo', exact: true }).click();
+  await settle(1500);
   const info = await ev((n) => ({ n: window.__novaSlides.ctl.slide.shapes.length - n, msg: window.__novaSlides.ctl.message }), n0);
   assert.equal(info.n, 1, JSON.stringify(info));
-  const w = await ev(() => { const c = window.__novaSlides.ctl; const p = c.slide.shapes.find((e) => e.kind === 'pic' && e.descr?.includes('Captura')); return p ? c.deck.assets[p.src].mime : null; });
+  const w = await ev(() => { const c = window.__novaSlides.ctl; const p = c.slide.shapes.find((e) => e.kind === 'pic' && e.descr?.includes('Recorte')); return p ? c.deck.assets[p.src].mime : null; });
   assert.equal(w, 'image/png');
 });
 

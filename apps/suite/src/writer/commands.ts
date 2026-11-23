@@ -197,7 +197,7 @@ export function writerCommands(ui: WriterUI): CommandDef[] {
   add({ id: 'writer.unlink', label: 'Quitar hipervínculo', icon: 'unlink', enabled: () => !!st() && markActive(st()!, markTypes.link!), run: () => { ui.openDialog('link', { remove: true }); } });
   add({ id: 'writer.image', label: 'Imagen…', icon: 'image', enabled: ready, run: () => ui.insertImage() });
   add({ id: 'writer.image.clipboard', label: 'Imagen del portapapeles', icon: 'paste', description: 'Inserta la imagen que hay en el portapapeles del sistema.', enabled: ready, run: () => ui.pictureFromClipboard() });
-  add({ id: 'writer.image.screenshot', label: 'Captura de pantalla…', icon: 'image', description: 'Elige una pantalla, ventana o pestaña e inserta una captura.', enabled: ready, run: () => ui.pictureFromScreen() });
+  add({ id: 'writer.image.screenshot', label: 'Recorte de pantalla…', icon: 'image', description: 'Elige una pantalla, ventana o pestaña, marca la zona que quieres, anótala e insértala.', enabled: ready, run: () => ui.pictureFromScreen() });
   add({ id: 'writer.image.icons', label: 'Iconos…', icon: 'sparkles', description: 'Inserta un icono como imagen.', enabled: ready, run: () => ui.pictureIcons() });
   add({ id: 'writer.table', label: 'Tabla…', icon: 'tableGrid', enabled: ready, run: () => ui.openDialog('tableSize') });
   add({ id: 'writer.field.page', label: 'Número de página', icon: 'hash', enabled: ready, run: () => exec(insertNode(nodeTypes.field!.create({ kind: 'page' }))) });

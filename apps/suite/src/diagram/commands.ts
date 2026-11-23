@@ -169,7 +169,7 @@ export function diagramCommands(ui: DiagramUI): CommandDef[] {
   add({ id: 'diagram.image.insert', label: 'Imagen…', icon: 'image', description: 'Inserta una imagen (PNG, JPEG, GIF, WebP o SVG) en la página.', run: () => ui.insertImage() });
   add({ id: 'diagram.image.clipboard', label: 'Imagen del portapapeles', icon: 'paste', description: 'Inserta la imagen que hay en el portapapeles del sistema.', run: () => ui.pictureFromClipboard() });
   add({ id: 'diagram.image.icons', label: 'Iconos…', icon: 'sparkles', description: 'Inserta un icono como imagen.', run: () => ui.pictureIcons() });
-  add({ id: 'diagram.image.screenshot', label: 'Captura de pantalla…', icon: 'image', description: 'Elige una pantalla, ventana o pestaña e inserta una captura.', run: () => ui.pictureFromScreen() });
+  add({ id: 'diagram.image.screenshot', label: 'Recorte de pantalla…', icon: 'image', description: 'Elige una pantalla, ventana o pestaña, marca la zona que quieres, anótala e insértala.', run: () => ui.pictureFromScreen() });
   // the picture tools (the reduced set): they work on the selected shapes that hold a picture and are not locked
   const pics = () => c.selectedShapes().filter((s) => s.image && !s.locked);
   add({ id: 'diagram.image.corrections', label: 'Opciones de corrección de imagen…', icon: 'contrast', description: 'Brillo, contraste y nitidez de la imagen; no la cambian: se pueden quitar con «Restablecer imagen».', enabled: () => pics().length > 0, run: () => ui.openDialog('pictureCorrections') });

@@ -36,6 +36,7 @@ import { NotesPageView, OutlineView, ReadingView, SorterView } from './Views';
 import { Present, type PresentRequest } from './present/Present';
 import { PresenterWindow } from './present/Presenter';
 import './icons';
+import { useScreenClip } from '../clip';
 import './messages';
 import './slides.css';
 
@@ -64,6 +65,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
   const [dialog, setDialog] = useState<{ kind: SlidesDialog; arg?: unknown } | null>(null);
   const [saveState, setSaveState] = useState('');
   const [present, setPresent] = useState<PresentRequest | null>(null);
+  const screenClip = useScreenClip((f) => ctl.emit('files', [f]));
   const fileRef = useRef<HTMLInputElement>(null);
   const mediaRef = useRef<{ el: HTMLInputElement | null; kind: 'video' | 'audio' }>({ el: null, kind: 'video' });
   useLocale();
@@ -175,25 +177,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
         void openWindowQuery(`app=slides&role=presenter&session=${session}`, t('Vista de moderador'), `presenter-${session}`).then(() => setPresent({ from, ...opts, session }));
       },
       insertPicture: () => fileRef.current?.click(),
-      captureScreen: async () => {
-        try {
-          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-          const video = document.createElement('video');
-          video.srcObject = stream;
-          video.muted = true;
-          await video.play();
-          await new Promise((r) => setTimeout(r, 250));
-          const cv = document.createElement('canvas');
-          cv.width = video.videoWidth;
-          cv.height = video.videoHeight;
-          cv.getContext('2d')!.drawImage(video, 0, 0);
-          stream.getTracks().forEach((tr) => tr.stop());
-          const blob = await new Promise<Blob | null>((ok) => cv.toBlob(ok, 'image/png'));
-          if (blob) ctl.emit('files', [new File([blob], 'Captura de pantalla.png', { type: 'image/png' })]);
-        } catch (e) {
-          ctl.say((e as Error).name === 'NotAllowedError' ? 'No se concedió permiso para capturar la pantalla.' : 'No se pudo capturar la pantalla.');
-        }
-      },
+      captureScreen: () => screenClip.start(),
       pasteSystem: async (textOnly) => {
         try {
           const items = await navigator.clipboard.read();
@@ -519,6 +503,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
           }}
         />
         <Dialogs ui={ui} dialog={dialog} onClose={closeDialog} />
+        {screenClip.dialog}
         {present && <Present ctl={ctl} request={present} onClose={() => setPresent(null)} />}
       </div>
     </AppFrame>

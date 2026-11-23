@@ -506,7 +506,7 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
                   {t('Imagen del portapapeles')}
                 </button>
                 <button type="button" className="ml-btn" onClick={() => void sources.fromScreen()}>
-                  {t('Captura de pantalla…')}
+                  {t('Recorte de pantalla…')}
                 </button>
                 <button type="button" className="ml-btn" onClick={() => sources.openIcons()}>
                   {t('Iconos…')}

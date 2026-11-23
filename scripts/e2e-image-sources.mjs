@@ -107,11 +107,12 @@ for (const pr of PRODUCTS) {
     if (shotsDir) await page.screenshot({ path: `${shotsDir}/${String(++step).padStart(2, '0')}-${pr.app}-icono.png` });
   });
   if (pr.app !== 'notes') {
-    await check(`${pr.app}: la captura de pantalla inserta una imagen`, page, async () => {
+    await check(`${pr.app}: el recorte de pantalla (toda la captura) inserta una imagen`, page, async () => {
       if (pr.app === 'diagram') await deselect(page);
       const n = await pr.count(page);
-      await press(page, 'Captura de pantalla…', pr.tabs);
-      await page.waitForTimeout(2500);
+      await press(page, 'Recorte de pantalla…', pr.tabs);
+      await page.getByRole('dialog', { name: 'Recorte de pantalla' }).getByRole('button', { name: 'Insertar todo', exact: true }).click();
+      await page.waitForTimeout(1500);
       assert.equal(await pr.count(page), n + 1, alerts.join(' | '));
     });
   }
@@ -125,7 +126,7 @@ for (const pr of PRODUCTS) {
   await check('mail: se abre el mensaje nuevo con los tres orígenes de imagen', page, async () => {
     await page.keyboard.press('Control+Shift+M');
     await page.getByRole('button', { name: /Imagen del portapapeles/ }).waitFor();
-    await page.getByRole('button', { name: /Captura de pantalla/ }).waitFor();
+    await page.getByRole('button', { name: /Recorte de pantalla/ }).waitFor();
     await page.getByRole('button', { name: /Iconos/ }).waitFor();
   });
   await check('mail: la imagen del portapapeles y un icono quedan en el cuerpo', page, async () => {
