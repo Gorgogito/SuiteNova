@@ -192,3 +192,4 @@ Plan en `docs/diseno-buscar.md`. Decisiones (2026-11-23): `find-core` + interfaz
 - Buscar y Reemplazar, fase 2 (hecha, sin commit): panel común `apps/suite/src/find/` + adaptador de Writer, Ir a (Ctrl+G), filtros de formato; comparado con Word real (13 reemplazos iguales). Ver docs/diseno-buscar.md.
 - Buscar y Reemplazar, fase 3 (hecha, sin commit): Notes y Slides con la barra común; PowerPoint real 8/8 en reemplazos simples. Ver docs/diseno-buscar.md.
 - Buscar y Reemplazar, fase 4 (hecha, sin commit): Calc y Base con la barra común, «Buscar todos»; Excel real 18/18. Ver docs/diseno-buscar.md.
+- Buscar y Reemplazar, fase 5 (hecha, sin commit): Mail, F4 buscar en el mensaje (al leer y al escribir), Ctrl+H reemplaza al escribir. Ver docs/diseno-buscar.md.

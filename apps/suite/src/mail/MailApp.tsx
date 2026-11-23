@@ -65,6 +65,7 @@ const SHORTCUTS: [string, string][] = [
   ['Supr', 'Eliminar el mensaje'],
   ['Ctrl+Q / Ctrl+U', 'Marcar como leído / no leído'],
   ['Ctrl+E', 'Buscar'],
+  ['F4', 'Buscar en el mensaje (al leer y al escribir); Ctrl+H reemplaza al escribir'],
   ['Ctrl+Mayús+A', 'Evento nuevo'],
   ['Ctrl+Mayús+C', 'Contacto nuevo'],
   ['Ctrl+Mayús+K', 'Tarea nueva'],

@@ -6,6 +6,8 @@ import { childrenOf, encodeBase64, folderRows, formatAddress, parseMessage, rawO
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { saveBytes } from '../fileio';
 import type { ComposeState, MailCtl } from './ctl';
+import { FindPanel } from '../find';
+import { frameFindHost, textareaFindHost } from './find-hosts';
 import { ProofTextarea } from '../spell';
 import { FormatPictureDialog } from '../images/FormatPictureDialog';
 import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
@@ -322,11 +324,16 @@ export function ReadingPane({ rec, onLink }: { rec: MailRecord; onLink: (href: s
   const allowRemote = allow === rec.id;
   const { html, hasRemote } = useMemo(() => safeHtml(parsed, allowRemote), [parsed, allowRemote]);
   const frame = useRef<HTMLIFrameElement>(null);
+  const [finding, setFinding] = useState(false);
+  const findHost = useMemo(() => frameFindHost(() => frame.current?.contentDocument ?? null), []);
   const addr = (l: { name: string; email: string }[]) => l.map(formatAddress).join(', ');
 
   const onLoad = () => {
     const doc = frame.current?.contentDocument;
     if (!doc) return;
+    doc.addEventListener('keydown', (e) => {
+      if (e.key === 'F4') (e.preventDefault(), setFinding(true));
+    });
     // the frame has no scripts: clicks on links are caught from outside and confirmed before leaving the app
     doc.addEventListener('click', (e) => {
       const a = (e.target as HTMLElement).closest?.('a[href]') as HTMLAnchorElement | null;
@@ -340,9 +347,12 @@ export function ReadingPane({ rec, onLink }: { rec: MailRecord; onLink: (href: s
   };
 
   return (
-    <article className="ml-read" aria-label={t('Mensaje')}>
+    <article className="ml-read" aria-label={t('Mensaje')} onKeyDown={(e) => e.key === 'F4' && (e.preventDefault(), setFinding(true))}>
       <header>
         <h2>{parsed.subject || t('(sin asunto)')}</h2>
+        <button type="button" className="ml-btn" onClick={() => setFinding(true)} title="F4">
+          {t('Buscar en el mensaje')}
+        </button>
         <dl>
           <dt>{t('De')}</dt>
           <dd>{addr(parsed.from) || '—'}</dd>
@@ -384,6 +394,15 @@ export function ReadingPane({ rec, onLink }: { rec: MailRecord; onLink: (href: s
         )}
         {parsed.warnings.length > 0 && <div className="ml-remote">{parsed.warnings.join(' ')}</div>}
       </header>
+      {finding && (
+        <FindPanel
+          host={findHost}
+          onClose={() => {
+            findHost.clear();
+            setFinding(false);
+          }}
+        />
+      )}
       <iframe ref={frame} title={t('Contenido del mensaje')} className="ml-frame" sandbox="allow-same-origin" srcDoc={html} onLoad={onLoad} />
     </article>
   );
@@ -400,6 +419,9 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
   const fileRef = useRef<HTMLInputElement>(null);
   const picRef = useRef<HTMLInputElement>(null);
   const caret = useRef<number | null>(null);
+  const composeRef = useRef<HTMLDivElement>(null);
+  const [finding, setFinding] = useState<{ replace: boolean } | null>(null);
+  const findHost = useMemo(() => textareaFindHost(() => composeRef.current?.querySelector<HTMLTextAreaElement>('textarea[aria-label]') ?? null), []);
   const [selPic, setSelPic] = useState<string | null>(null);
   const [picTool, setPicTool] = useState<null | 'corrections' | 'color' | 'artistic' | 'removeBg'>(null);
   const [textPic, setTextPic] = useState(false);
@@ -489,7 +511,15 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
     <>
           <DialogTitle>{t('Mensaje nuevo')}</DialogTitle>
           <DialogContent>
-            <div className="ml-compose">
+            <div
+              className="ml-compose"
+              ref={composeRef}
+              onKeyDown={(e) => {
+                if (e.key === 'F4') (e.preventDefault(), setFinding({ replace: false }));
+                else if ((e.ctrlKey || e.metaKey) && (e.key === 'h' || e.key === 'H')) (e.preventDefault(), setFinding({ replace: true }));
+                else if (e.key === 'F3' && finding) (e.preventDefault(), findHost.step(e.shiftKey ? -1 : 1));
+              }}
+            >
               {canSend && ctl.accounts.length > 1 && (
                 <label>
                   <span>{t('Desde')}</span>
@@ -514,6 +544,7 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
                 <span>{t('Asunto')}</span>
                 <input aria-label={t('Asunto')} value={s.subject} onChange={(e) => set({ subject: e.target.value })} />
               </label>
+              {finding && <FindPanel host={findHost} replace={finding.replace} escape={false} key={String(finding.replace)} onClose={() => (findHost.clear(), setFinding(null))} />}
               <ProofTextarea aria-label={t('Cuerpo del mensaje')} value={s.body} onChange={(e) => set({ body: e.target.value })} onSelect={(e) => (caret.current = (e.target as HTMLTextAreaElement).selectionStart)} onBlur={(e) => (caret.current = e.target.selectionStart)} rows={12} />
               <div className="ml-compose__att">
                 <button type="button" className="ml-btn" onClick={() => fileRef.current?.click()}>

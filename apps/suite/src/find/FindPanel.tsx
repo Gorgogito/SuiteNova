@@ -26,6 +26,8 @@ export interface FindPanelProps {
   /** Opens with the «Go to» row. */
   goTo?: boolean;
   onClose: () => void;
+  /** Escape closes the bar (not where Escape already closes the window around it). */
+  escape?: boolean;
   /** An extra css class, for the product's own styles and tests. */
   className?: string;
 }
@@ -33,7 +35,7 @@ export interface FindPanelProps {
 const info = (s: FindStatus) => (s.count ? t('{n} de {total}', { n: s.current + 1, total: s.count }) : t('Sin resultados'));
 
 /** The search bar shared by Writer, Calc, Slides, Notes and Base: it reads what is typed with find-core and asks the product (its `FindHost`) to look. */
-export function FindPanel({ host, replace: withReplace = false, goTo: withGoTo = false, onClose, className }: FindPanelProps) {
+export function FindPanel({ host, replace: withReplace = false, goTo: withGoTo = false, onClose, escape = true, className }: FindPanelProps) {
   const f = host.features;
   const [text, setText] = useState(() => {
     const s = host.selectionText();
@@ -85,11 +87,11 @@ export function FindPanel({ host, replace: withReplace = false, goTo: withGoTo =
   }, []);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented) onClose();
+      if (e.key === 'Escape' && !e.defaultPrevented && escape) onClose();
     };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onClose]);
+  }, [onClose, escape]);
 
   const step = (d: 1 | -1) => {
     if (!request()) return;
