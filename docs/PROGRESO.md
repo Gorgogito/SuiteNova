@@ -173,3 +173,12 @@ Plan en `docs/diseno-recorte.md`. Decisiones (2026-11-23): `clip-core` compartid
 - [x] **Fase 4 HECHA: captura nativa (Tauri).** `clip_capture` oculta SuiteNova, captura el monitor y la vuelve a mostrar; si falla, selector del navegador. Comprobado con la aplicación real por WebView2 (`e2e-clip-native` 7/7) y `cargo test`. Solo Windows.
 - [x] **Fase 5 HECHA: selección sobre la pantalla real.** Ventana sin bordes a pantalla completa sobre cada monitor con la captura congelada; se arrastra la zona y el diálogo se abre con ella elegida. Probado con la aplicación real (`e2e-clip-native` 9/9); halló y corrigió que la ventana no medía el monitor y que la captura se pintaba pequeña. Varios monitores sin probar.
 - [x] **Fase 6 HECHA: cierre.** Rendimiento con 4K medido (abrir 0,4 s, guardar 0,3 s), captura nativa 4× más rápida (de 2,4 s a 0,55 s), aviso que tapaba el estado corregido, límites en LIMITACIONES.md. **Recorte de pantalla terminado (6 fases).**
+
+## Tablas (subproducto compartido)
+Plan en `docs/diseno-tablas.md`. Decisiones (2026-11-23): `table-core` + interfaz común; alcance Writer, Slides, Notes y Mail (Calc conserva sus tablas de datos); funciones las que Office tiene en todos (sin dibujar tabla ni borrador); fórmulas donde Office las tiene (Writer y Mail).
+- [ ] Fase 1: `table-core` (modelo, operaciones, estilos y opciones, bordes, texto↔tabla, ordenar, fórmulas).
+- [ ] Fase 2: interfaz común y Writer (y Notes).
+- [ ] Fase 3: Slides.
+- [ ] Fase 4: disposición y funciones (márgenes, autoajuste, repetir encabezado, texto alternativo, fórmulas en Writer).
+- [ ] Fase 5: Mail.
+- [ ] Fase 6: cierre.
