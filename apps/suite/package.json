@@ -33,6 +33,7 @@
     "@suitenova/speech-core": "workspace:*",
     "@suitenova/spell-core": "workspace:*",
     "@suitenova/slides-core": "workspace:*",
+    "@suitenova/table-core": "workspace:*",
     "@suitenova/smartart-core": "workspace:*",
     "@suitenova/thesaurus-core": "workspace:*",
     "@suitenova/wordart-core": "workspace:*",
