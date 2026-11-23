@@ -19,7 +19,7 @@ import { notesCommands, type NotesDialog, type NotesUI } from './commands';
 import { notesCommands2 } from './commands2';
 import { AccessibilityDialog, CountDialog, FindDialog, MergeSectionDialog, MovePageDialog, RecentDialog } from './dlg2';
 import { InkToTextDialog, NotesSpellDialog, NotesTableLookDialog, NotesTableSortDialog, ReadDialog, SymbolDialog } from './dlg3';
-import { ClipDialog, captureScreenCanvas } from '../clip';
+import { ClipDialog, captureForClip } from '../clip';
 import { ReplayBar } from './ReplayBar';
 import './messages-notes3';
 import './messages-image';
@@ -165,7 +165,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
   const previewRef = useRef<HTMLVideoElement>(null);
   const attachRef = useRef<HTMLInputElement>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
-  const [clip, setClip] = useState<HTMLCanvasElement | null>(null);
+  const [clip, setClip] = useState<{ canvas: HTMLCanvasElement; zone: import("@suitenova/clip-core").Rect | null } | null>(null);
   const [docked, setDocked] = useState(false);
   const dockedRef = useRef(docked);
   dockedRef.current = docked;
@@ -454,8 +454,8 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
       insertPdf: () => pdfRef.current?.click(),
       screenClip: async () => {
         try {
-          const cv = await captureScreenCanvas();
-          if (cv) setClip(cv);
+          const got = await captureForClip();
+          if (got) setClip(got);
         } catch (e) {
           window.alert((e as Error).message);
         }
@@ -869,7 +869,8 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         {dlg === 'tableLook' && <NotesTableLookDialog ctl={ctl} onClose={closeDialog} />}
         {clip && (
           <ClipDialog
-            canvas={clip}
+            canvas={clip.canvas}
+            initialZone={clip.zone}
             onClose={() => setClip(null)}
             onInsert={(png, w, h) => {
               setClip(null);

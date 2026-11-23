@@ -58,11 +58,11 @@ function marked(canvas: HTMLCanvasElement, strokes: Stroke[]): HTMLCanvasElement
  * (pen, highlighter, arrow, rectangle, eraser, undo), then inserts it, copies it or saves it as a PNG. With no area, the whole capture is used.
  * What to do with the PNG when inserting is the product's.
  */
-export function ClipDialog({ canvas, onInsert, onClose }: { canvas: HTMLCanvasElement; onInsert: (png: Blob, w: number, h: number) => void | Promise<void>; onClose: () => void }) {
+export function ClipDialog({ canvas, initialZone, onInsert, onClose }: { canvas: HTMLCanvasElement; /** The area already chosen (on the real screen), if any. */ initialZone?: Rect | null; onInsert: (png: Blob, w: number, h: number) => void | Promise<void>; onClose: () => void }) {
   useRestorePage();
   const bounds = { w: canvas.width, h: canvas.height };
   const view = useRef<HTMLCanvasElement>(null);
-  const [zone, setZone] = useState<Rect | null>(null);
+  const [zone, setZone] = useState<Rect | null>(initialZone && isZone(initialZone) ? initialZone : null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<Mode>('zone');
@@ -147,17 +147,21 @@ export function ClipDialog({ canvas, onInsert, onClose }: { canvas: HTMLCanvasEl
     } else if (d && d.mode !== 'erase') setZone((z) => (isZone(z) ? z : null));
   };
 
+  // Ctrl+Z / Ctrl+Y work wherever the focus is while the dialog is open (a button that just got disabled leaves the focus on the page)
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z') setHist((h) => (e.shiftKey ? redo(h) : undo(h)));
+      else if (k === 'y') setHist(redo);
+      else return;
+      e.preventDefault();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   const key = (e: KeyboardEvent<HTMLElement>) => {
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
-      e.preventDefault();
-      setHist((h) => (e.shiftKey ? redo(h) : undo(h)));
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
-      e.preventDefault();
-      setHist(redo);
-      return;
-    }
     if (e.target !== view.current || mode !== 'zone') return;
     const step = e.shiftKey ? 10 : 1;
     const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key as string];

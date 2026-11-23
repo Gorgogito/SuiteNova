@@ -56,12 +56,18 @@ fn open_file_from_args(app: &tauri::App) -> Result<(), Box<dyn std::error::Error
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(clip::ClipState::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| open_file_from_args(app))
         .invoke_handler(tauri::generate_handler![
             clip::clip_monitors,
             clip::clip_capture,
+            clip::clip_pick,
+            clip::clip_shot,
+            clip::clip_release,
+            clip::clip_overlay_ready,
+            clip::clip_pick_done,
             fonts::system_fonts,
             fonts::system_font_bytes,
             mail::commands::mail_accounts,

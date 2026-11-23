@@ -1,9 +1,9 @@
 import { t } from '@suitenova/core-ui';
-import { clipFileName } from '@suitenova/clip-core';
+import { clipFileName, type Rect } from '@suitenova/clip-core';
 import { useRef, useState, type ReactNode } from 'react';
 import { ClipDialog } from './ClipDialog';
 import './messages';
-import { captureScreenCanvas } from './source';
+import { captureForClip } from './source';
 
 export interface ScreenClip {
   /** Asks which screen, window or tab to take and opens the clip dialog on it (nothing happens if the person cancels). */
@@ -17,24 +17,25 @@ export interface ScreenClip {
  * (`insert` takes it as a file, the way every product already takes a picture).
  */
 export function useScreenClip(insert: (file: File) => void | Promise<void>): ScreenClip {
-  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [cap, setCap] = useState<{ canvas: HTMLCanvasElement; zone: Rect | null } | null>(null);
   const ins = useRef(insert);
   ins.current = insert;
   return {
     start: async () => {
       try {
-        const cv = await captureScreenCanvas();
-        if (cv) setCanvas(cv);
+        const got = await captureForClip();
+        if (got) setCap(got);
       } catch (e) {
         window.alert((e as Error).message);
       }
     },
-    dialog: canvas ? (
+    dialog: cap ? (
       <ClipDialog
-        canvas={canvas}
-        onClose={() => setCanvas(null)}
+        canvas={cap.canvas}
+        initialZone={cap.zone}
+        onClose={() => setCap(null)}
         onInsert={async (png) => {
-          setCanvas(null);
+          setCap(null);
           try {
             await ins.current(new File([png], clipFileName(t('Recorte de pantalla')), { type: 'image/png' }));
           } catch (e) {

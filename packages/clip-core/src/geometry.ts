@@ -70,3 +70,10 @@ export function clipFileName(base: string, when: Date = new Date()): string {
 export function describeSize(r: Size): string {
   return `${Math.round(r.w)} × ${Math.round(r.h)} px`;
 }
+
+/** A zone drawn over a view of the capture (in the pixels of the view) in the pixels of the capture itself. */
+export function viewToImage(r: Rect, view: Size, img: Size): Rect {
+  const kx = img.w / (view.w || 1);
+  const ky = img.h / (view.h || 1);
+  return { x: r.x * kx, y: r.y * ky, w: r.w * kx, h: r.h * ky };
+}

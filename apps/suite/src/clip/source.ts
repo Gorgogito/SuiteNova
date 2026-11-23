@@ -1,23 +1,42 @@
 import { t } from '@suitenova/core-ui';
 import './messages';
-import { captureNativeCanvas, hasNativeClip } from './native';
+import type { Rect } from '@suitenova/clip-core';
+import { captureNativeCanvas, hasNativeClip, pickNativeZone } from './native';
 
 /** Something went wrong taking the capture (the message is for the person). */
 export class ClipError extends Error {}
 
+/** A capture to clip and, when the person already chose the area on the real screen, that area (in pixels of the capture). */
+export interface ClipCapture {
+  canvas: HTMLCanvasElement;
+  zone: Rect | null;
+}
+
 /**
- * Takes the capture to clip. In the desktop app the program hides itself and captures the screen it is on (like Office); anywhere else, or if
- * that fails, the person picks a screen, window or tab in the browser's own picker. Returns null if the person cancels.
+ * Takes the capture to clip. In the desktop app the program hides itself and the person drags the area right on the real screen, like Office; if that
+ * is not possible it captures the screen without the choice, and anywhere else (or if that fails too) the person picks a screen, window or tab in
+ * the browser's own picker. Returns null if the person cancels.
  */
-export async function captureScreenCanvas(): Promise<HTMLCanvasElement | null> {
+export async function captureForClip(): Promise<ClipCapture | null> {
   if (hasNativeClip()) {
     try {
-      return await captureNativeCanvas();
+      return await pickNativeZone();
+    } catch (e) {
+      console.warn('La selección sobre la pantalla no está disponible, se captura la pantalla entera:', e);
+    }
+    try {
+      return { canvas: await captureNativeCanvas(), zone: null };
     } catch (e) {
       console.warn('Recorte nativo no disponible, se usa el selector del navegador:', e);
     }
   }
-  return captureWithPicker();
+  const canvas = await captureWithPicker();
+  return canvas ? { canvas, zone: null } : null;
+}
+
+/** The capture alone (see `captureForClip`). */
+export async function captureScreenCanvas(): Promise<HTMLCanvasElement | null> {
+  return (await captureForClip())?.canvas ?? null;
 }
 
 /** The capture of a screen, window or tab the person chooses (the browser's own picker) drawn on a canvas. Returns null if the person cancels. */

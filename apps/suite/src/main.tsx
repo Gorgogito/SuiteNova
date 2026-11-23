@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import { ClipOverlay } from './clip/ClipOverlay';
 import { Hub } from './hub/Hub';
 import './messages';
 import { findModule } from './modules';
@@ -17,6 +18,7 @@ import './app.css';
 
 function Root() {
   const app = new URLSearchParams(location.search).get('app');
+  if (app === 'clip-overlay') return <ClipOverlay />;
   if (import.meta.env.DEV && app === 'playground') return <Playground />;
   const module = findModule(app);
   if (module?.id === 'calc') return <CalcApp module={module} />;

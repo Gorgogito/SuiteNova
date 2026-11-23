@@ -217,8 +217,9 @@ await check('en la aplicación de escritorio se pide la captura nativa (ocultand
     await open();
     assert.match(await status(), /Toda la captura: 800 × 500 px/);
     const calls = await ev(() => window.__calls);
-    assert.deepEqual(calls.map((c) => c.cmd), ['clip_capture']);
-    assert.deepEqual(calls[0].args, { monitor: null, hide: true });
+    // first the selection on the real screen (the mock does not know it, as an old build would), then the plain capture with the app hidden
+    assert.deepEqual(calls.map((c) => c.cmd), ['clip_pick', 'clip_capture']);
+    assert.deepEqual(calls[1].args, { monitor: null, hide: true });
     await dlg().getByRole('button', { name: 'Cancelar', exact: true }).click();
     await dlg().waitFor({ state: 'detached' });
     await ev(() => {

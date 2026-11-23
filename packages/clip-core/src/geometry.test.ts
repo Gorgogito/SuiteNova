@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampPoint, clipFileName, cropBox, describeSize, fitScale, fullRect, isZone, moveRect, rectBetween, resizeRect } from './index';
+import { clampPoint, clipFileName, viewToImage, cropBox, describeSize, fitScale, fullRect, isZone, moveRect, rectBetween, resizeRect } from './index';
 
 const B = { w: 1000, h: 600 };
 
@@ -63,5 +63,13 @@ describe('fitScale, file name and size text', () => {
   });
   it('describes a size', () => {
     expect(describeSize({ w: 300.4, h: 199.6 })).toBe('300 × 200 px');
+  });
+});
+
+describe('viewToImage', () => {
+  it('turns a zone drawn on a smaller or larger view into capture pixels', () => {
+    expect(viewToImage({ x: 10, y: 20, w: 100, h: 50 }, { w: 1280, h: 720 }, { w: 2560, h: 1440 })).toEqual({ x: 20, y: 40, w: 200, h: 100 });
+    expect(viewToImage({ x: 10, y: 10, w: 10, h: 10 }, { w: 1000, h: 500 }, { w: 500, h: 250 })).toEqual({ x: 5, y: 5, w: 5, h: 5 });
+    expect(viewToImage({ x: 1, y: 1, w: 1, h: 1 }, { w: 0, h: 0 }, { w: 10, h: 10 }).w).toBe(10);
   });
 });

@@ -4,6 +4,7 @@ import { registerMessages } from '@suitenova/core-ui';
 registerMessages('en', {
   'Recorte de pantalla': 'Screen Clipping',
   'Recorte de pantalla…': 'Screen Clipping…',
+  'Arrastra para elegir la zona · Intro: toda la pantalla · Esc: cancelar': 'Drag to choose the area · Enter: whole screen · Esc: cancel',
   'Insertar el recorte': 'Insert clip',
   'Insertar todo': 'Insert all',
   'Copiar': 'Copy',

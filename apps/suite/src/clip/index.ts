@@ -1,4 +1,5 @@
 export { ClipDialog } from './ClipDialog';
 export { useScreenClip, type ScreenClip } from './useScreenClip';
-export { ClipError, captureScreenCanvas, cropToPng } from './source';
+export { ClipOverlay } from './ClipOverlay';
+export { ClipError, captureForClip, captureScreenCanvas, cropToPng, type ClipCapture } from './source';
 export { captureNativeCanvas, hasNativeClip, nativeMonitors, type ClipMonitor } from './native';
