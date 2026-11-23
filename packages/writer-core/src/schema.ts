@@ -181,6 +181,24 @@ function sectionDOM(node: PMNode): DOMOutputSpec {
 
 export interface ImageCrop { l: number; t: number; r: number; b: number }
 
+const PX_PER_PT = 4 / 3;
+/** The CSS `filter` that draws the shadow and the glow of a picture (empty when it has none). */
+export function pictureFxCss(fx: Record<string, any> | null | undefined): string {
+  if (!fx) return '';
+  const rgba = (hex: string, alpha: number) => {
+    const n = parseInt(String(hex).replace('#', '').padEnd(6, '0').slice(0, 6), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${Math.max(0, Math.min(1, alpha))})`;
+  };
+  const out: string[] = [];
+  const s = fx.shadow;
+  if (s) {
+    const a = ((s.angle ?? 45) * Math.PI) / 180;
+    out.push(`drop-shadow(${(Math.cos(a) * s.dist * PX_PER_PT).toFixed(1)}px ${(Math.sin(a) * s.dist * PX_PER_PT).toFixed(1)}px ${(s.blur * PX_PER_PT).toFixed(1)}px ${rgba(s.color, s.alpha)})`);
+  }
+  if (fx.glow) out.push(`drop-shadow(0 0 ${(fx.glow.radius * PX_PER_PT).toFixed(1)}px ${rgba(fx.glow.color, fx.glow.alpha)})`);
+  return out.join(' ');
+}
+
 /** DOM of an image: a plain `img`, or a clipping box around it when it is cropped. */
 export function imageDOM(a: Record<string, any>): DOMOutputSpec {
   const crop = a.crop as ImageCrop | null;
@@ -206,6 +224,9 @@ export function imageDOM(a: Record<string, any>): DOMOutputSpec {
   if (a.edits) data['data-edits'] = JSON.stringify(a.edits);
   if (a.ocr) data['data-ocr'] = JSON.stringify(a.ocr);
   if (a.png) data['data-png'] = a.png;
+  const fxCss = pictureFxCss(a.fx);
+  if (a.fx) data['data-fx'] = JSON.stringify(a.fx);
+  if (fxCss) outer.push(`filter:${fxCss}`);
   if (a.wrap === 'front' || a.wrap === 'behind') {
     data['data-x'] = String(a.x ?? 0);
     data['data-y'] = String(a.y ?? 0);
@@ -328,6 +349,11 @@ const nodes: Record<string, NodeSpec> = {
       ocr: { default: null },
       /** When `src` is an SVG (an icon from the gallery): the PNG of the same picture, which goes in the file as the fallback of the SVG. */
       png: { default: null },
+      /**
+       * Effects around the picture, in points and degrees: `shadow` {color, blur, dist, angle, alpha} and `glow` {color, radius, alpha}
+       * (the `PictureFx` of image-core). In the .docx they are the picture's own `a:effectLst`, which Word applies itself.
+       */
+      fx: { default: null },
     },
     parseDOM: [
       {
@@ -358,6 +384,7 @@ const nodes: Record<string, NodeSpec> = {
             edits: json('edits'),
             ocr: json('ocr'),
             png: el.dataset.png || null,
+            fx: json('fx'),
           };
         },
       },

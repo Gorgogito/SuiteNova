@@ -111,3 +111,52 @@
 .nv-img__menu button:focus-visible {
   background: rgba(128, 128, 128, 0.18);
 }
+
+/* Format Graphics menus (icons): fill, outline, effects */
+.nv-gfx {
+  display: grid;
+  min-width: 230px;
+  gap: 2px;
+}
+.nv-gfx button[role='menuitemradio'] {
+  text-align: left;
+  padding: 5px 10px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.nv-gfx button[role='menuitemradio']:hover,
+.nv-gfx button[role='menuitemradio']:focus-visible {
+  background: rgba(128, 128, 128, 0.18);
+}
+.nv-gfx__title {
+  padding: 6px 10px 2px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+.nv-gfx__swatches {
+  display: grid;
+  grid-template-columns: repeat(7, 24px);
+  gap: 4px;
+  padding: 6px 10px;
+}
+.nv-gfx__swatch {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(128, 128, 128, 0.6);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.nv-gfx__swatch[aria-pressed='true'] {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.nv-gfx__custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 10px 6px;
+}

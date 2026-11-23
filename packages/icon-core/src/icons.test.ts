@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { iconPaths, iconSvg, loadCatalog, loadPaths, normalize, parseIconSvg, recolorSvg, searchIcons } from './index';
+import { iconPaths, iconSvg, loadCatalog, loadPaths, normalize, parseIconSvg, recolorSvg, restyleSvg, searchIcons } from './index';
 
 describe('catálogo', () => {
   it('tiene miles de iconos con nombre en español y categoría', async () => {
@@ -89,6 +89,29 @@ describe('SVG', () => {
     expect(parseIconSvg(re)!.d).toEqual(d);
     expect(re).toContain('width="64"');
     expect(recolorSvg('<svg viewBox="0 0 10 20"></svg>', '#ffffff')).toBeNull();
+  });
+  it('relleno, transparencia y contorno: se escriben, se leen de vuelta y se cambian sin tocar el resto', async () => {
+    const [c, p] = await Promise.all([loadCatalog(), loadPaths()]);
+    const d = iconPaths(p, c.get('home')!, 'filled')!.d;
+    const svg = iconSvg(d, 24, { fill: '#00b050', opacity: 0.5, stroke: { color: '#002060', width: 1.5 }, px: 40 });
+    const a = parseIconSvg(svg)!;
+    expect(a.fill).toBe('#00b050');
+    expect(a.opacity).toBe(0.5);
+    expect(a.stroke).toEqual({ color: '#002060', width: 1.5 });
+    expect(a.d).toEqual(d);
+    const noFill = restyleSvg(svg, { fill: null })!;
+    expect(parseIconSvg(noFill)!.fill).toBeNull();
+    expect(parseIconSvg(noFill)!.stroke).toEqual({ color: '#002060', width: 1.5 });
+    expect(noFill).toContain('width="40"');
+    const noStroke = restyleSvg(svg, { stroke: null })!;
+    expect(parseIconSvg(noStroke)!.stroke).toBeNull();
+    expect(parseIconSvg(noStroke)!.fill).toBe('#00b050');
+    expect(parseIconSvg(noStroke)!.opacity).toBe(0.5);
+    // sin tocar nada, igual
+    expect(restyleSvg(svg, {})).toBe(svg);
+    // un contorno con un color raro o ancho 0 no se escribe
+    expect(iconSvg(d, 24, { stroke: { color: 'x" onload="y', width: 2 } })).not.toContain('stroke');
+    expect(iconSvg(d, 24, { stroke: { color: '#000000', width: 0 } })).not.toContain('stroke');
   });
   it('ignora colores que no son #rrggbb (nada que se cuele en el SVG)', () => {
     expect(iconSvg(['M0 0h1v1z'], 24, { color: 'red" onload="x' })).toContain('fill="#000000"');

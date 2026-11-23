@@ -334,6 +334,20 @@ describe('DOCX: ecuaciones, formas y controles de contenido', () => {
     expect(await plain.zip.file('word/document.xml')!.async('string')).not.toContain('svgBlip');
   });
 
+  it('sombra y resplandor de una imagen: van en su a:effectLst (lo dibuja Word) y vuelven iguales, también en un icono SVG', async () => {
+    const fx = { shadow: { color: '#000000', blur: 4, dist: 3, angle: 45, alpha: 0.4 }, glow: { color: '#4472c4', radius: 8, alpha: 0.6 } };
+    const SVG = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="#c00000"><path d="M2 2h20v20H2z"/></svg>');
+    const { blocks, zip } = await rt(wd([p([nodeTypes.image!.create({ src: PNG, width: 40, height: 40, fx }), nodeTypes.image!.create({ src: SVG, png: PNG, width: 40, height: 40, fx: { shadow: fx.shadow } })])]));
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('<a:effectLst><a:glow rad="101600"><a:srgbClr val="4472C4"><a:alpha val="60000"/></a:srgbClr></a:glow><a:outerShdw blurRad="50800" dist="38100" dir="2700000" algn="ctr" rotWithShape="0">');
+    const imgs: PMNode[] = [];
+    blocks[0]!.forEach((c) => c.type.name === 'image' && imgs.push(c));
+    expect(imgs[0]!.attrs.fx).toEqual(fx);
+    expect(imgs[1]!.attrs.fx).toEqual({ shadow: fx.shadow });
+    const none = await rt(wd([p([nodeTypes.image!.create({ src: PNG, width: 8, height: 8 })])]));
+    expect(await none.zip.file('word/document.xml')!.async('string')).not.toContain('effectLst');
+  });
+
   it('si Word (u otro programa) guarda el archivo de nuevo y renombra la parte del OCR a item7.xml, la lectura se recupera por su espacio de nombres', async () => {
     const ocr = { text: 'Factura 4821', lang: 'spa', at: 7, size: [100, 40], lines: [[2, 2, 90, 20, [['Factura', 2, 2, 50, 20, 90]]]], confidence: 89 };
     const img = nodeTypes.image!.create({ src: PNG, alt: 'Una factura', width: 80, height: 40, ocr });

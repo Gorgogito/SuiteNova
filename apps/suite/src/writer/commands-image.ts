@@ -43,14 +43,14 @@ export function imageCommands(ui: WriterUI): CommandDef[] {
       label: 'Restablecer imagen',
       icon: 'eraser',
       description: 'Quita el recorte, el giro, el volteo, el borde y el ajuste de texto (el tamaño se conserva).',
-      enabled: () => ready() && (!!at().edits || !!at().crop || !!at().rotate || !!at().flipH || !!at().flipV || !!at().border || !!at().wrap),
+      enabled: () => ready() && (!!at().edits || !!at().fx || !!at().crop || !!at().rotate || !!at().flipH || !!at().flipV || !!at().border || !!at().wrap),
       run: () => {
         const a = at();
         const crop = a.crop as { l: number; t: number; r: number; b: number } | null;
         const kx = crop ? 1 - crop.l - crop.r : 1;
         const ky = crop ? 1 - crop.t - crop.b : 1;
         // the picture goes back to its original too (the effects, the background removal and the colours)
-        patchImage(ui, { ...(a.edits ? { src: a.orig, orig: null, edits: null, ocr: null } : {}), crop: null, rotate: 0, flipH: false, flipV: false, border: null, wrap: null, x: 0, y: 0, width: a.width ? Math.round(a.width / kx) : null, height: a.height ? Math.round(a.height / ky) : null });
+        patchImage(ui, { ...(a.edits ? { src: a.orig, orig: null, edits: null, ocr: null } : {}), crop: null, rotate: 0, flipH: false, flipV: false, border: null, fx: null, wrap: null, x: 0, y: 0, width: a.width ? Math.round(a.width / kx) : null, height: a.height ? Math.round(a.height / ky) : null });
       },
     },
   ];

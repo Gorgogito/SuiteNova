@@ -250,6 +250,16 @@ function embedPicture(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): { n
 }
 
 /** The `<pic:pic>` of a picture; inside a group (`off`) it sits at that offset (px) from the group's corner. */
+/** The `a:effectLst` of a picture's shadow and glow (what Word draws itself); empty without effects. */
+function effectsXml(fx: { shadow?: { color: string; blur: number; dist: number; angle: number; alpha: number }; glow?: { color: string; radius: number; alpha: number } } | null): string {
+  if (!fx || (!fx.shadow && !fx.glow)) return '';
+  const clr = (c: string, alpha: number) => `<a:srgbClr val="${String(c).replace('#', '').toUpperCase().padEnd(6, '0').slice(0, 6)}"><a:alpha val="${Math.round(Math.max(0, Math.min(1, alpha)) * 100000)}"/></a:srgbClr>`;
+  const pt = (v: number) => Math.round(v * 12700);
+  const glow = fx.glow ? `<a:glow rad="${pt(fx.glow.radius)}">${clr(fx.glow.color, fx.glow.alpha)}</a:glow>` : '';
+  const sh = fx.shadow ? `<a:outerShdw blurRad="${pt(fx.shadow.blur)}" dist="${pt(fx.shadow.dist)}" dir="${Math.round((((fx.shadow.angle % 360) + 360) % 360) * 60000)}" algn="ctr" rotWithShape="0">${clr(fx.shadow.color, fx.shadow.alpha)}</a:outerShdw>` : '';
+  return `<a:effectLst>${glow}${sh}</a:effectLst>`;
+}
+
 function picElement(node: PMNode, id: number, name: string, rid: string, off?: { x: number; y: number }, svgRid?: string): string {
   const w = Math.round((node.attrs.width ?? 200) * EMU_PER_PX);
   const h = Math.round((node.attrs.height ?? 150) * EMU_PER_PX);
@@ -266,7 +276,7 @@ function picElement(node: PMNode, id: number, name: string, rid: string, off?: {
   return (
     `<pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="${esc(name)}" descr="${alt}"/><pic:cNvPicPr/></pic:nvPicPr>` +
     `<pic:blipFill>${svgRid ? `<a:blip r:embed="${rid}"><a:extLst><a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}"><asvg:svgBlip xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main" r:embed="${svgRid}"/></a:ext></a:extLst></a:blip>` : `<a:blip r:embed="${rid}"/>`}${crop ? `<a:srcRect l="${pct(crop.l)}" t="${pct(crop.t)}" r="${pct(crop.r)}" b="${pct(crop.b)}"/>` : ''}<a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
-    `<pic:spPr>${xfrm}<a:off x="${ox}" y="${oy}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${line}</pic:spPr></pic:pic>`
+    `<pic:spPr>${xfrm}<a:off x="${ox}" y="${oy}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${line}${effectsXml(at.fx)}</pic:spPr></pic:pic>`
   );
 }
 

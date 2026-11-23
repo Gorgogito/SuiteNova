@@ -382,6 +382,23 @@ interface FieldState {
   marks: Mark[];
 }
 
+/** The shadow and the glow of an `a:effectLst` as the picture keeps them (points and degrees), or undefined when there are none. */
+function readEffects(list: XNode | undefined): Record<string, unknown> | undefined {
+  if (!list) return undefined;
+  const clr = (n: XNode): { color: string; alpha: number } => {
+    const c = findDeep(n, 'srgbClr');
+    const a = c && findDeep(c, 'alpha');
+    return { color: `#${(c && attrOf(c, 'val') ? attrOf(c, 'val')! : '000000').toLowerCase()}`, alpha: a ? (num(attrOf(a, 'val')) ?? 100000) / 100000 : 1 };
+  };
+  const pt = (v: string | undefined) => Math.round(((num(v) ?? 0) / 12700) * 100) / 100;
+  const out: Record<string, unknown> = {};
+  const sh = findDeep(list, 'outerShdw');
+  if (sh) out.shadow = { ...clr(sh), blur: pt(attrOf(sh, 'blurRad')), dist: pt(attrOf(sh, 'dist')), angle: Math.round((num(attrOf(sh, 'dir')) ?? 0) / 60000) };
+  const gl = findDeep(list, 'glow');
+  if (gl) out.glow = { ...clr(gl), radius: pt(attrOf(gl, 'rad')) };
+  return Object.keys(out).length ? out : undefined;
+}
+
 const findDeep = (n: XNode, tag: string): XNode | undefined => {
   if (tagOf(n) === tag) return n;
   for (const k of kidsOf(n)) {
@@ -897,6 +914,8 @@ class Converter {
     const ln = findDeep(d, 'ln');
     const lc = ln && findDeep(ln, 'srgbClr');
     if (ln && lc && !findDeep(ln, 'noFill')) extra.border = { color: `#${(attrOf(lc, 'val') ?? '000000').toLowerCase()}`, width: Math.max(0.25, Math.round(((num(attrOf(ln, 'w')) ?? 12700) / 12700) * 4) / 4) };
+    const fx = readEffects(findDeep(d, 'effectLst'));
+    if (fx) extra.fx = fx;
     const anchor = findDeep(d, 'anchor');
     if (anchor) {
       if (findDeep(anchor, 'wrapTopAndBottom')) extra.wrap = 'top';
@@ -1174,6 +1193,8 @@ class Converter {
         const ln = sp && findKid(sp, 'ln');
         const lc = ln && findDeep(ln, 'srgbClr');
         if (ln && lc && !findDeep(ln, 'noFill')) extra.border = { color: `#${(attrOf(lc, 'val') ?? '000000').toLowerCase()}`, width: Math.max(0.25, Math.round(((num(attrOf(ln, 'w')) ?? 12700) / 12700) * 4) / 4) };
+        const gFx = readEffects(sp && findKid(sp, 'effectLst'));
+        if (gFx) extra.fx = gFx;
         const gSvg = findDeep(blip, 'svgBlip');
         if (gSvg && attrOf(gSvg, 'embed')) extra.svgRid = attrOf(gSvg, 'embed');
         const img = this.imageNode(attrOf(blip, 'embed'), Math.max(1, Math.round(((num(attrOf(ex, 'cx')) ?? 0) / EMU_PER_PX) * sx)), Math.max(1, Math.round(((num(attrOf(ex, 'cy')) ?? 0) / EMU_PER_PX) * sy)), (nv && attrOf(nv, 'descr')) || '', [], extra);

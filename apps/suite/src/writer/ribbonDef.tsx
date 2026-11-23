@@ -18,6 +18,8 @@ import { applyWordArtStyle, applyWordArtWarp, insertWordArt, wordArtTarget } fro
 import { insertShapeKind } from './commands-objects';
 import { ArtisticItems, AspectItems } from '../images/galleries';
 import { PicPopover } from '../images/PicPopover';
+import { GraphicEffectsItems, GraphicFillItems, GraphicOutlineItems, GraphicStyleItems } from '../icons/GraphicsMenus';
+import { writerGraphicsHost } from './graphics-host';
 import { writerPictureHost } from './pichost';
 import { FONT_NAMES, FONT_SIZES, type WriterUI } from './commands';
 import { markAttr, selectionParagraph, setMark, setStyle } from './editing';
@@ -933,6 +935,17 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           { kind: 'dropdown', id: 'imgCorrections', label: 'Correcciones', icon: 'contrast', size: 'small', keytip: 'KC', entries: [{ kind: 'command', command: 'writer.image.corrections' }, { kind: 'command', command: 'writer.image.color' }] },
           { kind: 'custom', id: 'imgArtistic', label: 'Efectos artísticos', keytip: 'KA', render: () => <PicPopover label="Efectos artísticos" icon="sparkles" size="small">{(close) => <ArtisticItems host={writerPictureHost(ui)} close={close} onOptions={() => ui.openDialog('pictureArtistic')} />}</PicPopover> },
           { kind: 'custom', id: 'imgAspect', label: 'Relación de aspecto', keytip: 'KS', render: () => <PicPopover label="Relación de aspecto" icon="crop" size="small">{(close) => <AspectItems host={writerPictureHost(ui)} close={close} />}</PicPopover> },
+        ],
+      },
+      {
+        id: 'imgGraphics',
+        label: 'Gráficos',
+        icon: 'sparkles',
+        items: [
+          { kind: 'custom', id: 'gfxStyles', label: 'Estilos de gráfico', keytip: 'GS', render: () => <PicPopover label="Estilos de gráfico" icon="sparkles" size="small" disabled={!writerGraphicsHost(ui).look()}>{(close) => <GraphicStyleItems host={writerGraphicsHost(ui)} close={close} />}</PicPopover> },
+          { kind: 'custom', id: 'gfxFill', label: 'Relleno de gráfico', keytip: 'GF', render: () => <PicPopover label="Relleno de gráfico" icon="palette" size="small" iconOnly disabled={!writerGraphicsHost(ui).look()}>{(close) => <GraphicFillItems host={writerGraphicsHost(ui)} close={close} />}</PicPopover> },
+          { kind: 'custom', id: 'gfxOutline', label: 'Contorno de gráfico', keytip: 'GO', render: () => <PicPopover label="Contorno de gráfico" icon="pen" size="small" iconOnly disabled={!writerGraphicsHost(ui).look()}>{(close) => <GraphicOutlineItems host={writerGraphicsHost(ui)} close={close} />}</PicPopover> },
+          { kind: 'custom', id: 'gfxEffects', label: 'Efectos de gráfico', keytip: 'GE', render: () => <PicPopover label="Efectos de gráfico" icon="sparkles" size="small" iconOnly>{(close) => <GraphicEffectsItems host={writerGraphicsHost(ui)} close={close} />}</PicPopover> },
         ],
       },
       {
