@@ -857,7 +857,7 @@ export function tableCssVars(attrs: Record<string, unknown>): [string, string][]
 }
 (tNodes.table as NodeSpec).toDOM = (node) => {
   const css = tableCssVars(node.attrs).map(([k, v]) => `${k}:${v}`).join(';');
-  return ['table', { class: `nw-table${node.attrs.borders && !node.attrs.tstyle ? ' nw-borders' : ''}`, ...(node.attrs.tstyle ? { 'data-tstyle': String(node.attrs.tstyle) } : {}), ...(css ? { style: css } : {}) }, ['tbody', 0]];
+  return ['table', { class: `nw-table${node.attrs.borders && !node.attrs.tstyle ? ' nw-borders' : ''}`, ...(node.attrs.tstyle ? { 'data-tstyle': String(node.attrs.tstyle) } : {}), ...(css ? { style: css } : {}), ...(node.attrs.caption ? { 'aria-label': String(node.attrs.caption) } : {}), ...(node.attrs.descr ? { 'aria-description': String(node.attrs.descr), title: String(node.attrs.descr) } : {}) }, ['tbody', 0]];
 };
 
 export const writerSchema = new Schema({ nodes: { ...nodes, ...tNodes }, marks });

@@ -100,6 +100,11 @@ class NovaTableView extends TableView {
     this.table.className = `nw-table${node.attrs.borders && !node.attrs.tstyle ? ' nw-borders' : ''}`;
     for (const k of ['margin-left', 'margin-right', '--nw-bc', '--nw-bw', '--nw-px', '--nw-py']) this.table.style.removeProperty(k);
     for (const [k, v] of tableCssVars(node.attrs)) this.table.style.setProperty(k, v);
+    // the alternative text of the table, for screen readers (Word's title and description)
+    const setAttr = (name: string, v: unknown) => (v ? this.table.setAttribute(name, String(v)) : this.table.removeAttribute(name));
+    setAttr('aria-label', node.attrs.caption);
+    setAttr('aria-description', node.attrs.descr);
+    this.table.setAttribute('data-tstyle', node.attrs.tstyle ? String(node.attrs.tstyle) : '');
   }
 }
 
