@@ -24,8 +24,11 @@ export function tableStyleXml(d: TableStyleDef, w: WriteCtx): string {
     if (!p) return '';
     const r = p.rPr;
     const tx = r ? `<a:tcTxStyle${r.b === true ? ' b="on"' : r.b === false ? ' b="off"' : ''}${r.i === true ? ' i="on"' : ''}><a:fontRef idx="minor"><a:prstClr val="black"/></a:fontRef>${r.color ? clrXml(r.color) : ''}</a:tcTxStyle>` : '';
-    const bd = p.ln ? `<a:tcBdr>${(Object.keys(edge) as (keyof typeof edge)[]).map((k) => (p.ln![k] ? `<a:${edge[k]}>${lnXml(p.ln![k], w, 'a:ln')}</a:${edge[k]}>` : '')).join('')}</a:tcBdr>` : '';
-    const fl = p.fill ? `<a:fill>${fillXml(p.fill, w)}</a:fill>` : '';
+    // PowerPoint draws a thin line on every edge a style leaves out, so the edges of the whole table are all written (the ones with no line as «no fill»)
+    const whole = tag === 'wholeTbl';
+    const none = '<a:ln><a:noFill/></a:ln>';
+    const bd = p.ln || whole ? `<a:tcBdr>${(Object.keys(edge) as (keyof typeof edge)[]).map((k) => (p.ln?.[k] ? `<a:${edge[k]}>${lnXml(p.ln[k]!, w, 'a:ln')}</a:${edge[k]}>` : whole ? `<a:${edge[k]}>${none}</a:${edge[k]}>` : '')).join('')}</a:tcBdr>` : '';
+    const fl = p.fill ? `<a:fill>${fillXml(p.fill, w)}</a:fill>` : whole ? '<a:fill><a:noFill/></a:fill>' : '';
     return `<a:${tag}>${tx}<a:tcStyle>${bd}${fl}</a:tcStyle></a:${tag}>`;
   };
   const order = ['wholeTbl', 'band1H', 'band2H', 'band1V', 'band2V', 'lastCol', 'firstCol', 'lastRow', 'seCell', 'swCell', 'firstRow', 'neCell', 'nwCell'] as const;

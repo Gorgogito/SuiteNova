@@ -161,16 +161,20 @@ function titleOfSlide(s: { shapes: SlideElement[] }): string {
 
 // ------------------------------------------------------------------------------------------------ table
 
+/** Puts a new table of `rows` × `cols` on the slide, 80 % of its width, in the lower part. */
+export function insertTable(c: SlidesUI['ctl'], rows: number, cols: number): void {
+  const w = c.deck.size.w * 0.8;
+  const rowH = Math.min(37, (c.deck.size.h * 0.7) / rows);
+  c.addElement(newTable(rows, cols, (c.deck.size.w - w) / 2, c.deck.size.h * 0.3, w, rowH));
+}
+
 export function TableDialog({ ui, onClose }: P) {
   const c = ui.ctl;
   const [rows, setRows] = useState(3);
   const [cols, setCols] = useState(4);
   const ok = rows >= 1 && rows <= 50 && cols >= 1 && cols <= 30;
   const insert = () => {
-    const w = c.deck.size.w * 0.8;
-    const rowH = Math.min(37, (c.deck.size.h * 0.7) / rows);
-    const tb = newTable(rows, cols, (c.deck.size.w - w) / 2, c.deck.size.h * 0.3, w, rowH);
-    c.addElement(tb);
+    insertTable(c, rows, cols);
     onClose();
   };
   return (

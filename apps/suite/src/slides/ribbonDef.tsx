@@ -14,6 +14,8 @@ import { TextEffectsMenu, TextFillPicker, TextOutlinePicker } from './ribbonPart
 import { GraphicFillButton, GraphicOutlineButton, GraphicStylesButton, selectedIcons } from './icons-ui';
 import { AspectGallery, CorrectionsMenu, PictureShapeGallery, PictureStylesGallery, RecolorMenu } from './PicRibbon';
 import { TableBordersMenu, TableShadingPicker, TableStyleGallery } from './TableRibbon';
+import { GridPicker } from '../tables';
+import { insertTable } from './FormDialogs';
 import { AnimGallery, AnimOptions, AnimTiming, TransitionGallery, TransitionOptions, TransitionTiming } from './animUi';
 
 type Leaf = Exclude<RibbonItem, { kind: 'separator' }>;
@@ -176,7 +178,7 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     keytip: 'N',
     groups: [
       { id: 'slidesI', label: 'Diapositivas', icon: 'slideNew', items: [{ kind: 'custom', id: 'newSlide2', label: 'Nueva diapositiva', keytip: 'NS', render: () => <LayoutGallery ui={ui} label="Nueva diapositiva" icon="slideNew" apply="new" /> }, btn('slides.insert.reuse', { keytip: 'RU' })] },
-      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [L('slides.insert.table', 'TB')] },
+      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [{ kind: 'custom', id: 'tablePicker', label: 'Tabla', keytip: 'TB', render: () => <GridPicker host={{ insert: (r, c) => insertTable(ui.ctl, r, c) }} onMore={() => ui.openDialog('table')} /> }] },
       { id: 'images', label: 'Imágenes', icon: 'image', items: [L('slides.insert.picture', 'IM'), btn('slides.insert.screenshot', { keytip: 'CP' }), btn('slides.insert.album', { keytip: 'AF' }), btn('slides.insert.icons', { keytip: 'IC' })] },
       { id: 'illustr', label: 'Ilustraciones', icon: 'shape-rect', items: [{ kind: 'custom', id: 'shapes2', label: 'Formas', keytip: 'FO', render: () => <ShapesGallery ui={ui} /> }, L('slides.insert.smartart', 'SA'), L('slides.insert.chart', 'GR'), S('slides.draw.polygon', 'FF'), S('slides.draw.curve', 'FC'), S('slides.draw.scribble', 'FG')] },
       { id: 'links', label: 'Vínculos', icon: 'link', items: [L('slides.insert.hyperlink', 'K'), L('slides.action', 'AX'), dd('zoomMenu', 'Zoom', 'zoomIn', 'ZM', ['slides.insert.zoomSummary', 'slides.insert.zoomSlide'])] },

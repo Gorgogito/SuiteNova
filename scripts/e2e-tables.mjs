@@ -13,8 +13,8 @@ const errors = [];
 let step = 0;
 
 const A = 'rgb(68, 114, 196)'; // accent 1
-const TINT40 = 'rgb(180, 199, 231)';
-const TINT20 = 'rgb(218, 227, 243)';
+const TINT40 = 'rgb(207, 213, 234)';
+const TINT20 = 'rgb(233, 235, 245)';
 
 async function session(app, ready) {
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
@@ -183,6 +183,51 @@ for (const P of PRODUCTS) {
     assert.ok(tabs <= 1);
   });
 
+  await ctx.close();
+}
+
+// ---- Slides: the same size picker, and the family «Lista» in its own gallery
+{
+  const { page, ctx, check } = await session('slides', '.sl-surface');
+  const table = () => page.evaluate(() => window.__novaSlides.ctl.slide.shapes.find((e) => e.kind === 'table') ?? null);
+  await check('el selector de tamaño de Insertar › Tabla inserta una tabla de 3 filas × 4 columnas', async () => {
+    await page.getByRole('tab', { name: 'Insertar', exact: true }).click();
+    await page.getByRole('button', { name: 'Insertar tabla', exact: true }).click();
+    await page.getByRole('gridcell', { name: '4 × 3', exact: true }).hover();
+    assert.match(await page.locator('.nv-tbl-size').innerText(), /Tabla de 4 × 3/);
+    await shot(page, 'slides-selector');
+    await page.getByRole('gridcell', { name: '4 × 3', exact: true }).click();
+    await page.waitForTimeout(500);
+    const t = await table();
+    assert.ok(t, 'hay una tabla');
+    assert.equal(t.rows.length, 3);
+    assert.equal(t.cols.length, 4);
+  });
+  await check('«Insertar tabla…» sigue abriendo el cuadro con el número de filas y columnas', async () => {
+    await page.getByRole('tab', { name: 'Insertar', exact: true }).click();
+    await page.getByRole('button', { name: 'Insertar tabla', exact: true }).click();
+    await page.getByRole('button', { name: 'Insertar tabla…', exact: true }).click();
+    await page.getByLabel('Número de columnas').fill('2');
+    await page.getByLabel('Número de filas').fill('2');
+    await page.getByRole('button', { name: 'Aceptar', exact: true }).click();
+    await page.waitForTimeout(400);
+    const n = await page.evaluate(() => window.__novaSlides.ctl.slide.shapes.filter((e) => e.kind === 'table').length);
+    assert.equal(n, 2);
+  });
+  await check('la galería de estilos tiene la familia «Lista» en los seis colores y aplicarla cambia el estilo de la tabla', async () => {
+    await page.evaluate(() => { const c = window.__novaSlides.ctl; c.select([c.slide.shapes.find((e) => e.kind === 'table').id]); });
+    await page.getByRole('tab', { name: /Diseño de tabla/ }).click();
+    await page.getByRole('button', { name: 'Estilos de tabla', exact: true }).click();
+    const items = page.getByRole('menuitem', { name: /^Lista - Énfasis \d$/ });
+    assert.equal(await items.count(), 6);
+    await shot(page, 'slides-galeria');
+    await items.nth(0).click();
+    await page.waitForTimeout(300);
+    const id = await page.evaluate(() => window.__novaSlides.ctl.slide.shapes.find((e) => e.kind === 'table').styleId);
+    assert.match(id, /^\{4E4F5641-0004-4000-8000-000000000001\}$/);
+    const def = await page.evaluate((i) => window.__novaSlides.ctl.deck.tableStyles.find((s) => s.id === i)?.name, id);
+    assert.equal(def, 'Lista - Énfasis 1');
+  });
   await ctx.close();
 }
 

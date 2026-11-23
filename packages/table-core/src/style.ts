@@ -71,15 +71,23 @@ const parse = (hex: string): [number, number, number] => {
 };
 const toHex = (c: [number, number, number]) => `#${c.map((v) => clamp(v).toString(16).padStart(2, '0')).join('')}`;
 
-/** The colour mixed with white: `pct` is how much of the colour stays (0.2 = a light tint), like `tint` in a theme. */
+const toLinear = (v: number) => {
+  const s = v / 255;
+  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+};
+const fromLinear = (l: number) => 255 * (l <= 0.0031308 ? l * 12.92 : 1.055 * l ** (1 / 2.4) - 0.055);
+
+/**
+ * The colour mixed with white: `pct` is how much of the colour stays (0.2 = a light tint). It is done the way DrawingML does it (in linear light,
+ * not on the sRGB numbers), so the colours are the ones PowerPoint draws for the same tint of the same accent: 20 % of #4472c4 is #e9ebf5.
+ */
 export function tint(hex: string, pct: number): string {
-  const c = parse(hex);
-  return toHex(c.map((v) => v * pct + 255 * (1 - pct)) as [number, number, number]);
+  return toHex(parse(hex).map((v) => fromLinear(toLinear(v) * pct + (1 - pct))) as [number, number, number]);
 }
 
-/** The colour mixed with black: `pct` is how much of the colour stays (0.7 = a dark shade). */
+/** The colour mixed with black: `pct` is how much of the colour stays (0.7 = a dark shade), also in linear light like DrawingML. */
 export function shade(hex: string, pct: number): string {
-  return toHex(parse(hex).map((v) => v * pct) as [number, number, number]);
+  return toHex(parse(hex).map((v) => fromLinear(toLinear(v) * pct)) as [number, number, number]);
 }
 
 /** Black or white, whichever reads better on the colour. */

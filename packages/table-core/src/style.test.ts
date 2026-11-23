@@ -7,9 +7,12 @@ const A = OFFICE_PALETTE.accents[0]!;
 
 describe('colours', () => {
   it('tints and shades like a theme', () => {
-    expect(tint('#000000', 0.2)).toBe('#cccccc');
+    // the colours PowerPoint draws for Medium Style 2 - Accent 1: the whole table is 20 % of the accent, the bands 40 %
+    expect(tint('#4472c4', 0.2)).toBe('#e9ebf5');
+    expect(tint('#4472c4', 0.4)).toBe('#cfd5ea');
+    expect(tint('#000000', 0.2)).toBe('#e7e7e7');
     expect(tint('#ffffff', 0.5)).toBe('#ffffff');
-    expect(shade('#ffffff', 0.5)).toBe('#808080');
+    expect(shade('#ffffff', 0.5)).toBe('#bcbcbc');
     expect(shade('#4472c4', 1)).toBe('#4472c4');
     expect(readableOn('#ffffff')).toBe('#000000');
     expect(readableOn('#1f3864')).toBe('#ffffff');

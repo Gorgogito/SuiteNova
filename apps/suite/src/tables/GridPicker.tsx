@@ -13,7 +13,7 @@ const ROWS = 8;
  * Insert › Table: a grid where the size is chosen by moving over it (or with the arrow keys), as in Word, PowerPoint and Outlook.
  * `onMore` opens the product's own «Insert Table…» dialog (for sizes beyond the grid).
  */
-export function GridPicker({ host, onMore, size = 'large' }: { host: TableHost; onMore: () => void; size?: 'large' | 'small' }) {
+export function GridPicker({ host, onMore, size = 'large' }: { host: Pick<TableHost, 'insert'>; onMore: () => void; size?: 'large' | 'small' }) {
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState({ r: 2, c: 4 });
   const pick = (r: number, c: number) => {

@@ -4,6 +4,8 @@ import JSZip from 'jszip';
 import { XMLParser } from 'fast-xml-parser';
 import { describe, expect, it } from 'vitest';
 import { newDeck, newId } from '../defaults';
+import { newTable } from '../factory';
+import { applyTableStyle, tableStyleFor } from '../table';
 import { docFromText, makeDoc } from '../text';
 import type { Deck, PicEl, SlideElement } from '../types';
 import { readPptx } from './read';
@@ -248,5 +250,41 @@ describe('comments in a .pptx (the modern kind PowerPoint 365 writes)', () => {
     const c = (await readPptx(await zip.generateAsync({ type: 'uint8array' }))).deck.slides[0]!.comments!;
     expect(c).toHaveLength(1);
     expect([c[0]!.author, c[0]!.text, c[0]!.x, c[0]!.y]).toEqual(['Pablo', 'Antiguo', 72, 144]);
+  });
+});
+
+describe('table styles in a .pptx', () => {
+  const withStyle = (family: Parameters<typeof tableStyleFor>[0]): Deck => {
+    const deck = newDeck();
+    const def = tableStyleFor(family, 2);
+    const el = newTable(3, 3, 50, 50, 300);
+    const r = applyTableStyle(deck, def);
+    el.styleId = r.id;
+    el.lastRow = true;
+    el.bandCol = true;
+    r.deck.slides[0]!.shapes.push(el);
+    return r.deck;
+  };
+  it('writes every edge of the whole table, the ones with no line as «no fill» (PowerPoint draws a thin line on an edge a custom style leaves out)', async () => {
+    for (const fam of ['light', 'dark', 'list'] as const) {
+      const zip = await JSZip.loadAsync((await writePptx(withStyle(fam))).data);
+      const xml = await zip.file('ppt/tableStyles.xml')!.async('string');
+      const whole = /<a:wholeTbl>.*?<\/a:wholeTbl>/s.exec(xml)![0];
+      for (const edge of ['left', 'right', 'top', 'bottom', 'insideH', 'insideV']) expect(whole, `${fam} ${edge}`).toContain(`<a:${edge}>`);
+      expect(whole).toContain('<a:ln><a:noFill/></a:ln>');
+      expect(whole).toContain('<a:fill>');
+    }
+  });
+  it('reads back the style it wrote, with its flags, and a second write gives the same style', async () => {
+    const first = await writePptx(withStyle('list'));
+    const back = (await readPptx(first.data)).deck;
+    const t = back.slides[0]!.shapes.find((e) => e.kind === 'table') as Extract<SlideElement, { kind: 'table' }>;
+    expect(t.lastRow).toBe(true);
+    expect(t.bandCol).toBe(true);
+    const def = back.tableStyles!.find((s) => s.id === t.styleId)!;
+    expect(def.name).toBe('Lista - Énfasis 2');
+    expect(def.firstRow?.rPr?.b).toBe(true);
+    const again = (await readPptx((await writePptx(back)).data)).deck;
+    expect(again.tableStyles!.find((s) => s.id === t.styleId)).toEqual(def);
   });
 });

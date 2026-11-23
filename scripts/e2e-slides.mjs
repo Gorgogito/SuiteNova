@@ -406,7 +406,8 @@ await check('dialogs: table, chart (data sheet, type, edit later), header & foot
   const S = () => ev(() => window.__novaSlides.ctl.slide.shapes.map((s) => ({ id: s.id, kind: s.kind, ph: s.ph?.type })));
   await tab('Insertar');
   // table
-  await btn('Tabla…');
+  await btn('Insertar tabla');
+  await btn('Insertar tabla…');
   await page.getByLabel('Número de columnas').fill('3');
   await page.getByLabel('Número de filas').fill('2');
   await page.getByRole('button', { name: 'Aceptar', exact: true }).click();
@@ -987,7 +988,8 @@ await check('tables: cells (click, type, Tab, drag-select), merge/split, rows an
   const cs = () => ev(() => { const s = window.__novaSlides.ctl.cellSelection; return s && { ...s.range, editing: !!window.__novaSlides.ctl.editingCell }; });
 
   await tab('Insertar');
-  await btn('Tabla…');
+  await btn('Insertar tabla');
+  await btn('Insertar tabla…');
   await page.getByLabel('Número de columnas').fill('3');
   await page.getByLabel('Número de filas').fill('3');
   await page.getByRole('button', { name: 'Aceptar', exact: true }).click();

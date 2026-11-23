@@ -389,12 +389,13 @@ const solid = (c: Clr): Fill => ({ t: 'solid', c });
 const acc = (n: number, mods?: Clr['mods']): Clr => ({ scheme: `accent${n}` as Clr['scheme'], ...(mods ? { mods } : {}) });
 const line = (c: Clr, w = 1): Ln => ({ w, fill: solid(c) });
 
-export type StyleFamily = 'medium2' | 'light' | 'grid' | 'dark';
+export type StyleFamily = 'medium2' | 'light' | 'grid' | 'dark' | 'list';
 export const STYLE_FAMILIES: { id: StyleFamily; name: string }[] = [
   { id: 'medium2', name: 'Medio' },
   { id: 'light', name: 'Claro' },
   { id: 'grid', name: 'Cuadrícula' },
   { id: 'dark', name: 'Oscuro' },
+  { id: 'list', name: 'Lista' },
 ];
 
 /** The definition of a style of a family in an accent colour (1–6). */
@@ -440,6 +441,20 @@ export function tableStyleFor(family: StyleFamily, accent: number): TableStyleDe
       band1V: { fill: solid(acc(accent, [{ t: 'tint', v: 20000 }])) },
       firstRow: { fill: solid(a), rPr: { b: true, color: { scheme: 'lt1' } } },
       lastRow: { fill: solid(a), rPr: { b: true, color: { scheme: 'lt1' } } },
+      firstCol: { rPr: { b: true } },
+      lastCol: { rPr: { b: true } },
+    };
+  }
+  if (family === 'list') {
+    const edge = line(a, 1.5);
+    return {
+      id: guid(4),
+      name: name('Lista'),
+      wholeTbl: { ln: { t: edge, b: edge }, rPr: { color: { scheme: 'dk1' } } },
+      band1H: { fill: solid(acc(accent, [{ t: 'tint', v: 15000 }])) },
+      band1V: { fill: solid(acc(accent, [{ t: 'tint', v: 15000 }])) },
+      firstRow: { fill: solid(a), rPr: { b: true, color: { scheme: 'lt1' } } },
+      lastRow: { rPr: { b: true }, ln: { t: edge } },
       firstCol: { rPr: { b: true } },
       lastCol: { rPr: { b: true } },
     };

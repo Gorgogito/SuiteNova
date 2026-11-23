@@ -178,7 +178,7 @@ Plan en `docs/diseno-recorte.md`. Decisiones (2026-11-23): `clip-core` compartid
 Plan en `docs/diseno-tablas.md`. Decisiones (2026-11-23): `table-core` + interfaz común; alcance Writer, Slides, Notes y Mail (Calc conserva sus tablas de datos); funciones las que Office tiene en todos (sin dibujar tabla ni borrador); fórmulas donde Office las tiene (Writer y Mail).
 - [x] **Fase 1 HECHA: `table-core`.** Cuadrícula con combinadas y bordes (300 operaciones al azar siempre válidas), 32 estilos de Office con opciones y regla de bordes, números, texto↔tabla, ordenar y fórmulas en español e inglés. 61 pruebas. Aún sin productos conectados; la regla de `ABOVE` está pendiente de comparar con Word.
 - [x] **Fase 2 HECHA: interfaz común, Writer y Notes.** Estilos vivos (la tabla recuerda su estilo y opciones; un plugin la dibuja), `.docx` con estilos de tabla reales de Word, selector de tamaño, galería con opciones, sombreado y bordes con lápiz. **Word real: 96 tablas y 1920 celdas sin ninguna diferencia** en relleno, negrita, color y bordes. `e2e-tables` 17/17.
-- [ ] Fase 3: Slides.
+- [x] **Fase 3 HECHA: Slides.** Familia Lista, mismo selector de tamaño y catálogo alineado; **PowerPoint real: 96 tablas y 1920 celdas sin diferencias.** Corregidos: PowerPoint dibujaba una línea negra en los bordes no definidos de los estilos propios, y el aclarado de colores no era el de DrawingML (ahora Writer, Notes y Slides se ven igual y como PowerPoint). `e2e-tables` 20/20.
 - [ ] Fase 4: disposición y funciones (márgenes, autoajuste, repetir encabezado, texto alternativo, fórmulas en Writer).
 - [ ] Fase 5: Mail.
 - [ ] Fase 6: cierre.
