@@ -194,3 +194,14 @@ Plan en `docs/diseno-buscar.md`. Decisiones (2026-11-23): `find-core` + interfaz
 - Buscar y Reemplazar, fase 4 (hecha, sin commit): Calc y Base con la barra común, «Buscar todos»; Excel real 18/18. Ver docs/diseno-buscar.md.
 - Buscar y Reemplazar, fase 5 (hecha, sin commit): Mail, F4 buscar en el mensaje (al leer y al escribir), Ctrl+H reemplaza al escribir. Ver docs/diseno-buscar.md.
 - Buscar y Reemplazar, fase 5 y 6: ver arriba y docs/diseno-buscar.md. **Fase 6 HECHA: cierre.** Word 30/30 y 13/13, PowerPoint 8/8, Excel 18/18 por COM; 3000 párrafos y 20 000 filas rápidos; accesibilidad con teclado y anuncios; límites en LIMITACIONES.md. **Buscar y Reemplazar, terminado (6 fases).**
+
+## Temas (subproducto compartido)
+
+Plan en `docs/diseno-temas.md`. Decisiones (2026-11-23): `theme-core` + interfaz común; alcance Writer, Calc y Slides; funciones estándar de Office (galería, colores, fuentes, efectos, personalizados, `.thmx`, paletas que usan el tema). Plan de 6 fases: 1 theme-core, 2 interfaz común y Slides, 3 Writer, 4 Calc, 5 paletas compartidas, 6 cierre.
+
+- [ ] Fase 1: theme-core.
+- [ ] Fase 2: interfaz común y Slides.
+- [ ] Fase 3: Writer.
+- [ ] Fase 4: Calc.
+- [ ] Fase 5: paletas compartidas.
+- [ ] Fase 6: cierre.
