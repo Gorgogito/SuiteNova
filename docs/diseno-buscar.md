@@ -77,3 +77,10 @@ Decisiones del usuario (2026-11-23): paquete compartido `find-core` + interfaz c
 - **Mensaje que se lee:** `frameFindHost` sobre el HTML del marco: se recorren sus nodos de texto y se pintan con las marcas de la página (`CSS.highlights`: todas en amarillo, la actual en naranja), sin cambiar el mensaje; solo buscar (no reemplaza). Botón «Buscar en el mensaje» en la cabecera.
 - **Pruebas:** `scripts/e2e-find-mail.mjs` 5/5 (F4, contar, seleccionar, F3, comodines con grupos, `^p` al reemplazar uno a uno, marcas del mensaje leído); e2e-mail 18/18 y e2e-mail-images bien; 458 pruebas de la app.
 - **Sin comparar con Outlook real** (el editor de mensajes de Outlook es el de Word, ya comparado: 30/30 y 13/13); el comportamiento del foco es propio de un campo de texto.
+
+### Fase 6 (hecha, 2026-11-23): cierre
+- **Office real por COM, pasada final** (`scripts/office-find/`): Word 30/30 búsquedas y 13/13 reemplazos, PowerPoint 8/8, Excel 18/18; find-core 26 pruebas. Comandos: `cases.mjs write|write-ppt|write-excel <dir>`, `word-find.ps1`, `word-replace.ps1`, `ppt-replace.ps1`, `excel-find.ps1` y `cases.mjs compare|compare-replace|compare-ppt|compare-excel <dir>`.
+- **Velocidad** (`scripts/e2e-find-close.mjs`, 7/7): 3000 párrafos de Writer, escribir «gato» y contar 6000 coincidencias en ~1,1 s; reemplazar todo en ~0,8 s con un solo paso de deshacer; un patrón que coincide en todas partes (`.`) se corta en el límite (2,2 s); Calc con 20 000 filas: buscar en 70 ms, «Buscar todos» en 0,4 s, reemplazar 6667 celdas en 0,5 s (un paso de deshacer).
+- **Accesibilidad:** la barra es una región `search` con nombre, todos los campos y botones tienen nombre, el recuento está en un `status` con `aria-live="polite"`, el botón de opciones lleva `aria-expanded`; todo con teclado (Intro siguiente, Mayús+Intro anterior, Tab, Escape cierra y el foco vuelve al documento). **Sin probar con un lector de pantalla real.**
+- **Límites** escritos en `docs/LIMITACIONES.md` (viñeta «Buscar y reemplazar») y arriba en §5.
+- **Buscar y Reemplazar, terminado (6 fases):** `find-core` + barra común (`apps/suite/src/find/`) + adaptadores de Writer, Notes, Slides, Calc, Base y Mail.
