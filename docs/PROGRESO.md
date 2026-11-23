@@ -185,3 +185,7 @@ Plan en `docs/diseno-tablas.md`. Decisiones (2026-11-23): `table-core` + interfa
 - [x] **Fase 4 HECHA: disposición y funciones.** Texto alternativo de la tabla (`.docx` real) y **fórmulas en Writer** (`=SUM(ABOVE)`, referencias, formato de número, ES/EN; cuadro «Fórmula…»; F9). **Sin comparar con Word real:** el Word del equipo rechaza hasta `=5` (ver `docs/diseno-tablas.md`). `e2e-tables` con la fórmula.
 - [x] **Fase 5 HECHA: Mail.** Tabla en el mensaje (marca `[Tabla: nombre]`, editor con la galería compartida, celdas con fórmulas como Outlook), HTML con estilos en línea y texto alineado al enviar, borrador que vuelve igual. `e2e-tables` con Mail.
 - [x] **Fase 6 HECHA: cierre. Tablas terminado (6 fases).** Word real con celdas combinadas, bordes y sombreado de celda y texto alternativo (0 diferencias); texto alternativo ahora sí llega al DOM de Writer; 400 × 6 celdas fluido; límites en `LIMITACIONES.md`. Sin comparar: fórmulas con Word, Outlook real.
+
+## Buscar y Reemplazar (subproducto compartido)
+Plan en `docs/diseno-buscar.md`. Decisiones (2026-11-23): `find-core` + interfaz común; alcance Writer, Calc, Slides, Notes y Base (y buscar en el mensaje de Mail); funciones estándar de Office.
+- [x] **Fase 1 HECHA: `find-core`.** Cuatro modos (normal con `^p ^t ^#…`, comodines de Word, comodines de Excel, regex), mayúsculas, palabra completa, acentos, todo el contenido de la celda, reemplazo con grupos, siguiente/anterior, Ir a. **Word real: 30 casos, 0 diferencias** (`@` y `{n;m}` corregidos). 26 pruebas.

@@ -20,6 +20,7 @@
     "@suitenova/clip-core": "workspace:*",
     "@suitenova/core-ui": "workspace:*",
     "@suitenova/diagram-core": "workspace:*",
+    "@suitenova/find-core": "workspace:*",
     "@suitenova/forms-core": "workspace:*",
     "@suitenova/comment-core": "workspace:*",
     "@suitenova/icon-core": "workspace:*",

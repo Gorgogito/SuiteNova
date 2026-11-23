@@ -199,6 +199,9 @@ importers:
       '@suitenova/diagram-core':
         specifier: workspace:*
         version: link:../../packages/diagram-core
+      '@suitenova/find-core':
+        specifier: workspace:*
+        version: link:../../packages/find-core
       '@suitenova/forms-core':
         specifier: workspace:*
         version: link:../../packages/forms-core
@@ -492,6 +495,15 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.2
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
+
+  packages/find-core:
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
