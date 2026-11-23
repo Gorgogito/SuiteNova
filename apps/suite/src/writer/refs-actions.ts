@@ -108,6 +108,49 @@ export function updateFields(ctl: WriterCtl): number {
   return changed;
 }
 
+/** The formula of the cell with the cursor (without the «=»), or null when the cell has none. */
+export function formulaAtCursor(ctl: WriterCtl): { arg: string; pos: number } | null {
+  const v = ctl.mainView;
+  if (!v) return null;
+  const { selection } = v.state;
+  const sel = (selection as { node?: PMNode }).node;
+  if (sel?.type.name === 'field' && sel.attrs.kind === 'formula') return { arg: String(sel.attrs.arg ?? ''), pos: selection.from };
+  let found: { arg: string; pos: number } | null = null;
+  const $f = selection.$from;
+  for (let d = $f.depth; d > 0 && !found; d--) {
+    const role = $f.node(d).type.spec.tableRole;
+    if (role !== 'cell' && role !== 'header_cell') continue;
+    $f.node(d).descendants((n, p) => {
+      if (!found && n.type.name === 'field' && n.attrs.kind === 'formula') found = { arg: String(n.attrs.arg ?? ''), pos: $f.start(d) + p };
+      return !found;
+    });
+  }
+  return found;
+}
+
+/** Put a formula field (`=SUM(ABOVE)`, `=B2*C2 \# "0.00"`) at the cursor, in a table cell; the formula of the cell is replaced. Returns false outside a table. */
+export function insertTableFormula(ctl: WriterCtl, formula: string): boolean {
+  const v = ctl.mainView;
+  if (!v || ctl.readOnly) return false;
+  const arg = formula.trim().replace(/^=\s*/, '');
+  if (!arg) return false;
+  const $f = v.state.selection.$from;
+  let inCell = false;
+  for (let d = $f.depth; d > 0; d--) {
+    const role = $f.node(d).type.spec.tableRole;
+    if (role === 'cell' || role === 'header_cell') inCell = true;
+  }
+  if (!inCell) return false;
+  const node = nodeTypes.field!.create({ kind: 'formula', arg, switches: null, result: '' });
+  const old = formulaAtCursor(ctl);
+  const tr = v.state.tr;
+  if (old) tr.replaceWith(old.pos, old.pos + 1, node);
+  else tr.replaceSelectionWith(node, false);
+  v.dispatch(tr.setMeta('nw-no-track', true).setMeta('nw-allow', true));
+  updateFields(ctl);
+  return true;
+}
+
 /** Rebuild tables of contents, of figures, bibliographies and indexes from the document. */
 export async function updateGenerated(ctl: WriterCtl, passes = 2): Promise<number> {
   const v = ctl.mainView;

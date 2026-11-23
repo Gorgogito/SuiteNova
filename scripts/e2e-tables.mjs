@@ -172,6 +172,26 @@ for (const P of PRODUCTS) {
     assert.ok(bgc === 'rgba(0, 0, 0, 0)' || bgc === 'transparent', bgc);
   });
 
+  if (P.app === 'writer')
+    await check('fórmula: «Fórmula…» suma la columna con SUM(ABOVE), recalcula y se puede editar', async () => {
+      const cols = await page.locator(`${P.row}`).first().locator('td, th').count();
+      const rows = await page.locator(P.row).count();
+      assert.ok(rows >= 3, `filas ${rows}`);
+      await cells().nth(0).click();
+      await page.keyboard.type('2');
+      await cells().nth(cols).click();
+      await page.keyboard.type('3');
+      await cells().nth(2 * cols).click();
+      await tab(P.tableTab);
+      await page.getByRole('button', { name: 'Fórmula…' }).click();
+      const dlg = page.getByRole('dialog');
+      await dlg.getByLabel('Fórmula', { exact: true }).waitFor();
+      await dlg.getByRole('button', { name: 'Aceptar' }).click();
+      await page.waitForTimeout(400);
+      const shown = await page.locator('.nw-doc .nw-field-formula').first().innerText();
+      assert.equal(shown.trim(), '5');
+    });
+
   await check('los controles de tabla están desactivados fuera de una tabla', async () => {
     if (P.app === 'writer') {
       await page.click('.nw-doc p, .nw-doc');

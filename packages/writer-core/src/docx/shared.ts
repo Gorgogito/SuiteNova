@@ -84,6 +84,8 @@ export function fieldInstr(f: FieldSpec): string {
     case 'mergefield': return ` MERGEFIELD ${quoteArg(f.arg ?? '')}${sw} `;
     case 'citation': return ` CITATION ${f.arg}${f.switches ? ` ${f.switches}` : ' \\l 1033'} `;
     case 'merge-rule': return ` ${f.arg ?? ''} ${f.switches ?? ''} `;
+    // a formula of a table cell: `arg` is what follows the «=», with its number picture
+    case 'formula': return ` =${f.arg ?? ''} `;
     case 'xe': return ` XE "${(f.arg ?? '').replace(/"/g, '\\"')}"${sw} `;
     default: return ` ${(f.switches ?? f.arg ?? f.kind).toString()} `;
   }
@@ -91,6 +93,7 @@ export function fieldInstr(f: FieldSpec): string {
 
 /** Understand the instruction of a field; `null` when it is one we do not model. */
 export function parseFieldInstr(instr: string): FieldSpec | null {
+  if (/^\s*=/.test(instr)) return { kind: 'formula', arg: instr.replace(/^\s*=\s*/, '').trim(), switches: null };
   const m = /^\s*([A-Za-z]+)\s*(.*)$/s.exec(instr);
   if (!m) return null;
   const word = m[1]!.toUpperCase();

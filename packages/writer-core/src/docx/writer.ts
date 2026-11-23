@@ -726,7 +726,7 @@ function tableXml(t: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
   const nova = t.attrs.tstyle ? styleById(String(t.attrs.tstyle)) : undefined;
   if (nova) ctx.tableStyles.set(nova.id, nova);
   const look = nova ? tblLookXml({ ...DEFAULT_OPTIONS, ...(t.attrs.topts ?? {}) }) : '<w:tblLook w:val="04A0"/>';
-  let out = `<w:tbl><w:tblPr>${nova ? `<w:tblStyle w:val="${novaStyleId(nova)}"/>` : t.attrs.borders ? '<w:tblStyle w:val="TableGrid"/>' : ''}<w:tblW w:w="0" w:type="auto"/>${jc}${nova ? '' : borders}<w:tblLayout w:type="fixed"/>${mar}${look}</w:tblPr>`;
+  let out = `<w:tbl><w:tblPr>${nova ? `<w:tblStyle w:val="${novaStyleId(nova)}"/>` : t.attrs.borders ? '<w:tblStyle w:val="TableGrid"/>' : ''}<w:tblW w:w="0" w:type="auto"/>${jc}${nova ? '' : borders}<w:tblLayout w:type="fixed"/>${mar}${look}${t.attrs.caption ? `<w:tblCaption w:val="${esc(String(t.attrs.caption))}"/>` : ''}${t.attrs.descr ? `<w:tblDescription w:val="${esc(String(t.attrs.descr))}"/>` : ''}</w:tblPr>`;
   out += `<w:tblGrid>${grid.map((w) => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>`;
   const occ: { left: number; span: number }[] = [];
   let rowIndex = 0;

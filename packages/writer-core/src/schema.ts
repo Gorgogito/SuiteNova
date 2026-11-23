@@ -836,6 +836,9 @@ const tNodes = tableNodes({
   /** The table style (`family-accent` of `@suitenova/table-core`, e.g. `medium-1`) and its options; null: no style (the borders flag decides). */
   tstyle: { default: null },
   topts: { default: null },
+  /** Alternative text of the table: a title and a description (read by screen readers; Word's `w:tblCaption` and `w:tblDescription`). */
+  caption: { default: null },
+  descr: { default: null },
 };
 
 /** Propiedades CSS de una tabla (alineación, borde y márgenes de celda) como pares [nombre, valor]. */

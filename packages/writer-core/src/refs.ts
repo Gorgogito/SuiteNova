@@ -1,3 +1,5 @@
+import { evalFormula } from '@suitenova/table-core';
+import { TableMap } from 'prosemirror-tables';
 import type { Node as PMNode } from 'prosemirror-model';
 import { bibliographyEntry, bibliographyTitle, citationText, isNumeric, sortSources } from './citations';
 import type { CiteStyle, Source } from './docx/model';
@@ -12,6 +14,8 @@ export interface RefContext {
   citeStyle: CiteStyle;
   /** Label of a footnote/endnote by id (for NOTEREF). */
   noteLabel(id: string): string | null;
+  /** The decimal mark of the numbers in table cells and in the result of a formula (the system's by default). */
+  decimal?: '.' | ',';
 }
 
 // ------------------------------------------------------------------------------------------------ headings and bookmarks
@@ -222,6 +226,9 @@ export function computeFieldResults(doc: PMNode, ctx: RefContext): Map<number, s
     if (node.type.name !== 'field') return true;
     const a = node.attrs;
     switch (a.kind) {
+      case 'formula':
+        // computed after the loop: a formula reads the results of the ones it depends on
+        break;
       case 'seq': {
         const l: string = a.arg ?? 'Figura';
         const n = (counters.get(l) ?? 0) + 1;
@@ -285,6 +292,27 @@ export function computeFieldResults(doc: PMNode, ctx: RefContext): Map<number, s
     }
     return true;
   });
+  // the formulas of table cells: one reads the results of the others, so they are computed again until none changes (a chain of formulas is as long as it is)
+  const formulas: { pos: number; formula: string }[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type.name === 'field' && node.attrs.kind === 'formula') formulas.push({ pos, formula: String(node.attrs.arg ?? '') });
+    return true;
+  });
+  if (formulas.length) {
+    const fresh = new Map<number, string>();
+    for (let pass = 0; pass < Math.min(formulas.length, 10) + 1; pass++) {
+      let changed = false;
+      for (const f of formulas) {
+        const r = formulaResult(doc, f.pos, f.formula, ctx.decimal, fresh);
+        if (fresh.get(f.pos) !== r) {
+          fresh.set(f.pos, r);
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    for (const [pos, r] of fresh) out.set(pos, r);
+  }
   return out;
 }
 
@@ -404,4 +432,52 @@ export function buildIndexContent(entries: IndexEntry[], ctx: RefContext): PMNod
   }
   if (!out.length) out.push(para('Normal', [text('No hay entradas de índice. Marque entradas y actualice el índice.')]));
   return out;
+}
+
+// ------------------------------------------------------------------------------------------------ formulas of table cells
+
+/** What a node shows as text: its text and the result of the fields in it (`fresh` has the results being computed, which are newer than the ones stored). */
+function shownText(node: PMNode, nodePos: number, fresh?: Map<number, string>): string {
+  let s = '';
+  node.descendants((n, p) => {
+    if (n.isText) s += n.text;
+    else if (n.type.name === 'field') s += fresh?.get(nodePos + 1 + p) ?? String(n.attrs.result ?? '');
+    return true;
+  });
+  return s.trim();
+}
+
+/** The result of the formula of the field at `pos`: the table and the cell it is in decide what ABOVE, LEFT and A1 mean. */
+export function formulaResult(doc: PMNode, pos: number, formula: string, decimal?: '.' | ',', fresh?: Map<number, string>): string {
+  const $p = doc.resolve(pos);
+  let tableDepth = -1;
+  for (let d = $p.depth; d > 0; d--) {
+    if ($p.node(d).type.name === 'table') {
+      tableDepth = d;
+      break;
+    }
+  }
+  if (tableDepth < 0) return '!Error de sintaxis';
+  const table = $p.node(tableDepth);
+  const tableStart = $p.start(tableDepth);
+  const map = TableMap.get(table);
+  let cellOffset = -1;
+  for (let d = $p.depth; d > tableDepth; d--) {
+    const role = $p.node(d).type.spec.tableRole;
+    if (role === 'cell' || role === 'header_cell') cellOffset = $p.before(d) - tableStart;
+  }
+  if (cellOffset < 0) return '!Error de sintaxis';
+  const at = map.findCell(cellOffset);
+  const r = evalFormula(formula, {
+    row: at.top,
+    col: at.left,
+    rows: map.height,
+    cols: map.width,
+    text: (row, col) => {
+      const off = map.map[row * map.width + col];
+      return off === undefined || off === cellOffset ? '' : shownText(table.nodeAt(off)!, tableStart + off, fresh);
+    },
+    decimal,
+  });
+  return r.text;
 }

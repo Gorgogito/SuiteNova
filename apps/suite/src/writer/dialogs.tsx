@@ -19,7 +19,7 @@ import { FormatPictureDialog } from '../images/FormatPictureDialog';
 import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
 import { writerPictureHost } from './pichost';
 import { AccessibilityDialog, CompareDialog, DocPropsDialog, WordCountDialog } from './dlg-docreview';
-import { TableConvertDialog, TablePropsDialog, TableSortDialog } from './dlg-table';
+import { TableConvertDialog, TablePropsDialog, TableFormulaDialog, TableSortDialog } from './dlg-table';
 import { StyleEditDialog, StylesDialog } from './dlg-styles';
 import { TemplatesDialog } from './dlg-templates';
 import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
@@ -291,6 +291,8 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
       return <LineNumbersDialog ui={ui} onClose={onClose} />;
     case 'tableProps':
       return <TablePropsDialog ui={ui} onClose={onClose} />;
+    case 'tableFormula':
+      return <TableFormulaDialog ui={ui} onClose={onClose} />;
     case 'tableSort':
       return <TableSortDialog ui={ui} onClose={onClose} />;
     case 'tableToText':

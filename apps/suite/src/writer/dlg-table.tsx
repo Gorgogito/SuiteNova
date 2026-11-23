@@ -5,6 +5,8 @@ import { TableMap } from 'prosemirror-tables';
 import { useState } from 'react';
 import type { WriterUI } from './commands';
 import { Modal, field, focusDocSoon } from './dialogs';
+import type { SortMode } from '@suitenova/table-core';
+import { formulaAtCursor, insertTableFormula } from './refs-actions';
 import { findTable, setTableProps, sortTable, tableToText, textToTable, type Separator } from './table-tools';
 
 const num = (s: string, fallback: number): number => {
@@ -27,6 +29,8 @@ export function TablePropsDialog({ ui, onClose }: { ui: WriterUI; onClose: () =>
   const [px, setPx] = useState(String(cur?.padding?.x ?? 5.4));
   const [py, setPy] = useState(String(cur?.padding?.y ?? 0));
   const [header, setHeader] = useState<boolean>(!!cur?.headerRow);
+  const [caption, setCaption] = useState<string>(cur?.caption ?? '');
+  const [descr, setDescr] = useState<string>(cur?.descr ?? '');
   const accept = () => {
     const bw = num(width, 0.75);
     const padding = num(px, 5.4) === 5.4 && num(py, 0) === 0 ? null : { x: Math.max(0, num(px, 5.4)), y: Math.max(0, num(py, 0)) };
@@ -39,6 +43,8 @@ export function TablePropsDialog({ ui, onClose }: { ui: WriterUI; onClose: () =>
         borderWidth: bw === 0.75 ? null : Math.min(6, Math.max(0.25, bw)),
         padding,
         headerRow: header,
+        caption: caption.trim() || null,
+        descr: descr.trim() || null,
       }),
     );
     onClose();
@@ -88,6 +94,14 @@ export function TablePropsDialog({ ui, onClose }: { ui: WriterUI; onClose: () =>
         </div>
       </div>
       <Checkbox label={t('La primera fila es un encabezado (se repite en cada página al imprimir desde Word)')} checked={header} onChange={(_e, v) => setHeader(!!v.checked)} />
+      <div style={field}>
+        <label htmlFor="tp-cap">{t('Título (texto alternativo)')}</label>
+        <Input id="tp-cap" value={caption} onChange={(_e, v) => setCaption(v.value)} />
+      </div>
+      <div style={field}>
+        <label htmlFor="tp-desc">{t('Descripción (texto alternativo)')}</label>
+        <Input id="tp-desc" value={descr} onChange={(_e, v) => setDescr(v.value)} />
+      </div>
     </Modal>
   );
 }
@@ -112,7 +126,7 @@ export function TableSortDialog({ ui, onClose }: { ui: WriterUI; onClose: () => 
   })();
   const [col, setCol] = useState(startCol);
   const [dir, setDir] = useState('asc');
-  const [mode, setMode] = useState<'text' | 'number'>('text');
+  const [mode, setMode] = useState<SortMode>('text');
   const [error, setError] = useState('');
   const accept = () => {
     const v = ui.ctl.view;
@@ -213,6 +227,83 @@ export function TableConvertDialog({ ui, toText, onClose }: { ui: WriterUI; toTe
           {error}
         </p>
       )}
+    </Modal>
+  );
+}
+
+// ------------------------------------------------------------------------------------------------ fórmula
+const FORMAT_PRESETS: [string, string][] = [
+  ['', 'Automático'],
+  ['0', '0'],
+  ['0.00', '0.00'],
+  ['#,##0', '#,##0'],
+  ['#,##0.00', '#,##0.00'],
+  ['0%', '0%'],
+  ['$#,##0.00', '$#,##0.00'],
+  ['$#,##0.00;($#,##0.00)', '$#,##0.00;($#,##0.00)'],
+];
+
+/** The formula of a cell, as the Fórmula dialog of Word: the formula, the number format and the functions to paste. */
+export function TableFormulaDialog({ ui, onClose }: { ui: WriterUI; onClose: () => void }) {
+  const old = formulaAtCursor(ui.ctl);
+  const split = (arg: string): [string, string] => {
+    const m = /^(.*?)\s*\\#\s*"([^"]*)"\s*$/.exec(arg);
+    return m ? [m[1]!, m[2]!] : [arg, ''];
+  };
+  const [initF, initP] = old ? split(old.arg) : ['SUM(ABOVE)', ''];
+  const [formula, setFormula] = useState('=' + initF);
+  const [picture, setPicture] = useState(initP);
+  const [error, setError] = useState('');
+  const accept = () => {
+    const f = formula.trim().replace(/^=\s*/, '');
+    if (!f) return setError(t('Escriba una fórmula, por ejemplo =SUM(ABOVE).'));
+    if (!insertTableFormula(ui.ctl, picture ? `${f} \\# "${picture}"` : f)) return setError(t('La fórmula va en una celda de una tabla.'));
+    onClose();
+    focusDocSoon(ui);
+  };
+  const paste = (name: string) => setFormula((cur) => (/^=?\s*$/.test(cur) ? `=${name}(ABOVE)` : `${cur}${name}()`));
+  return (
+    <Modal
+      title={t('Fórmula')}
+      onClose={onClose}
+      width={420}
+      actions={
+        <>
+          <Button onClick={onClose}>{t('Cancelar')}</Button>
+          <Button appearance="primary" onClick={accept}>
+            {t('Aceptar')}
+          </Button>
+        </>
+      }
+    >
+      <div style={field}>
+        <label htmlFor="fx-f">{t('Fórmula')}</label>
+        <Input id="fx-f" value={formula} onChange={(_e, v) => (setFormula(v.value), setError(''))} />
+      </div>
+      <div style={field}>
+        <label htmlFor="fx-p">{t('Formato del número')}</label>
+        <Input id="fx-p" value={picture} placeholder={t('Automático')} onChange={(_e, v) => setPicture(v.value)} />
+        <Select aria-label={t('Formatos de número')} value="" onChange={(_e, v) => v.value !== '__' && setPicture(v.value)}>
+          {FORMAT_PRESETS.map(([v, l]) => (
+            <option key={v || 'auto'} value={v}>
+              {t(l)}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div style={field}>
+        <label htmlFor="fx-fn">{t('Pegar función')}</label>
+        <Select id="fx-fn" value="" onChange={(_e, v) => v.value && paste(v.value)}>
+          <option value="">{''}</option>
+          {['SUM', 'AVERAGE', 'COUNT', 'MIN', 'MAX', 'PRODUCT', 'ROUND', 'IF'].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div style={{ fontSize: 12, opacity: 0.8 }}>{t('ARRIBA / ABOVE, IZQUIERDA / LEFT, DERECHA / RIGHT, ABAJO / BELOW y referencias como B2 o A1:C3. Los argumentos van separados por «;» (o por «,» si el decimal es «.»). Se recalcula con Actualizar campos (F9).')}</div>
+      {error ? <div role="alert" style={{ color: 'var(--colorPaletteRedForeground1)' }}>{error}</div> : null}
     </Modal>
   );
 }

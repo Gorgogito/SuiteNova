@@ -182,3 +182,4 @@ Plan en `docs/diseno-tablas.md`. Decisiones (2026-11-23): `table-core` + interfa
 - [ ] Fase 4: disposición y funciones (márgenes, autoajuste, repetir encabezado, texto alternativo, fórmulas en Writer).
 - [ ] Fase 5: Mail.
 - [ ] Fase 6: cierre.
+- [x] **Fase 4 HECHA: disposición y funciones.** Texto alternativo de la tabla (`.docx` real) y **fórmulas en Writer** (`=SUM(ABOVE)`, referencias, formato de número, ES/EN; cuadro «Fórmula…»; F9). **Sin comparar con Word real:** el Word del equipo rechaza hasta `=5` (ver `docs/diseno-tablas.md`). `e2e-tables` con la fórmula.

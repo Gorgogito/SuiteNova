@@ -1291,6 +1291,10 @@ class Converter {
     }
     const firstTr = findKids(t, 'tr')[0];
     if (firstTr && findKid(findKid(firstTr, 'trPr'), 'tblHeader')) tblProps.headerRow = true;
+    const cap = attrOf(findKid(tblPr, 'tblCaption') ?? {}, 'val');
+    const dsc = attrOf(findKid(tblPr, 'tblDescription') ?? {}, 'val');
+    if (cap) tblProps.caption = cap;
+    if (dsc) tblProps.descr = dsc;
     if (nova) {
       tblProps.tstyle = nova.id;
       tblProps.topts = optionsOfTblLook(findKid(tblPr, 'tblLook'));

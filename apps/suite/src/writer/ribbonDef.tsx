@@ -1151,6 +1151,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         icon: 'arrowDownAZ',
         items: [
           { kind: 'button', command: 'writer.table.sort', size: 'small', keytip: 'SO' },
+          { kind: 'button', command: 'writer.table.formula', size: 'small', keytip: 'FX' },
           { kind: 'button', command: 'writer.table.distribute', size: 'small', keytip: 'DC' },
           { kind: 'button', command: 'writer.table.fit', size: 'small', keytip: 'AF' },
           { kind: 'button', command: 'writer.table.toText', size: 'small', keytip: 'TT' },

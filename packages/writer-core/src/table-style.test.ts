@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_DOC_DEFAULTS,
   NO_SHADING,
+  computeFieldResults,
   defaultPage,
   defaultSection,
   emptyWriterDoc,
@@ -247,5 +248,71 @@ describe('the .docx', () => {
       return !t;
     });
     expect(t!.attrs).toMatchObject({ borders: true, tstyle: null });
+  });
+});
+
+describe('formulas in a table', () => {
+  const fieldIn = (arg: string, result: string | null = null) => nodeTypes.field!.create({ kind: 'formula', arg, switches: null, result });
+  const cellOf = (...content: PMNode[]) => nodeTypes.table_cell!.create({ colwidth: [100] }, nodeTypes.paragraph!.create(null, content));
+  const num = (t: string) => cellOf(writerSchema.text(t));
+  const ctx = { pageOf: () => null, textWidthPt: 400, sources: [], citeStyle: 'apa' as const, noteLabel: () => null };
+  const tableDoc = (t: PMNode) => nodeTypes.doc!.create(null, [nodeTypes.section!.create({ id: 's' }, [t])]);
+  const results = (d: PMNode, decimal?: '.' | ',') => {
+    const map = computeFieldResults(d, { ...ctx, decimal });
+    return [...map.values()];
+  };
+
+  it('computes ABOVE, LEFT and cell references from the cell the field is in', () => {
+    const t = nodeTypes.table!.create(null, [
+      row(num('Cant'), num('Precio'), num('Total')),
+      row(num('2'), num('10'), cellOf(fieldIn('B2*A2'))),
+      row(num('3'), num('20'), cellOf(fieldIn('B3*A3'))),
+      row(cellOf(writerSchema.text('Suma')), cellOf(fieldIn('SUM(ABOVE)')), cellOf(fieldIn('SUM(C2:C3)'))),
+    ]);
+    expect(results(tableDoc(t))).toEqual(['20', '60', '30', '80']);
+  });
+  it('reads the result of another formula as the text of its cell, and the Spanish names work', () => {
+    const t = nodeTypes.table!.create(null, [row(num('4'), cellOf(fieldIn('SUMA(IZQUIERDA)'))), row(cellOf(fieldIn('A1*2')), cellOf(fieldIn('SUMA(ARRIBA)')))]);
+    expect(results(tableDoc(t))).toEqual(['4', '8', '4']);
+  });
+  it('writes and reads the decimal comma, and a number picture', () => {
+    const t = nodeTypes.table!.create(null, [row(num('1,5')), row(num('2,25')), row(cellOf(fieldIn('SUM(ABOVE) \\# "0.00"')))]);
+    expect(results(tableDoc(t), ',')).toEqual(['3,75']);
+  });
+  it('a formula outside a table is a syntax error, and an error inside shows its message', () => {
+    const p = nodeTypes.paragraph!.create(null, [fieldIn('1+1')]);
+    expect(results(nodeTypes.doc!.create(null, [nodeTypes.section!.create({ id: 's' }, [p])]))).toEqual(['!Error de sintaxis']);
+    const t = nodeTypes.table!.create(null, [row(cellOf(fieldIn('1/0')))]);
+    expect(results(tableDoc(t))).toEqual(['!División por cero']);
+  });
+  it('goes to the .docx as a formula field with its result, and comes back the same', async () => {
+    const t = nodeTypes.table!.create(null, [row(num('2')), row(num('3')), row(cellOf(fieldIn('SUM(ABOVE) \\# "0.00"', '5.00')))]);
+    const props = defaultSection(defaultPage());
+    const d = { ...emptyWriterDoc({ ...DEFAULT_DOC_DEFAULTS }), body: nodeTypes.doc!.create(null, [makeSection([t], props)]) };
+    const w = await writeDocx(d);
+    const xml = await (await JSZip.loadAsync(w.data)).file('word/document.xml')!.async('string');
+    expect(xml).toMatch(/=SUM\(ABOVE\) \\# (&quot;|")0\.00(&quot;|")/);
+    expect(xml).toContain('5.00');
+    const r = await readDocx(w.data);
+    const found: PMNode[] = [];
+    r.doc.body.descendants((n) => (n.type.name === 'field' ? (found.push(n), false) : true));
+    expect(found).toHaveLength(1);
+    expect(found[0]!.attrs).toMatchObject({ kind: 'formula', arg: 'SUM(ABOVE) \\# "0.00"', result: '5.00' });
+  });
+});
+
+describe('alternative text of a table', () => {
+  it('goes to the .docx as the title and the description of the table and comes back', async () => {
+    const t = table([['a']], { caption: 'Ventas', descr: 'Ventas por trimestre de 2026' });
+    const props = defaultSection(defaultPage());
+    const d = { ...emptyWriterDoc({ ...DEFAULT_DOC_DEFAULTS }), body: nodeTypes.doc!.create(null, [makeSection([t], props)]) };
+    const w = await writeDocx(d);
+    const xml = await (await JSZip.loadAsync(w.data)).file('word/document.xml')!.async('string');
+    expect(xml).toContain('<w:tblCaption w:val="Ventas"/>');
+    expect(xml).toContain('<w:tblDescription w:val="Ventas por trimestre de 2026"/>');
+    const r = await readDocx(w.data);
+    let back: PMNode | null = null;
+    r.doc.body.descendants((n) => (n.type.name === 'table' ? ((back = n), false) : true));
+    expect(back!.attrs).toMatchObject({ caption: 'Ventas', descr: 'Ventas por trimestre de 2026' });
   });
 });

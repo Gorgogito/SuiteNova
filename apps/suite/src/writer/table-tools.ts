@@ -1,4 +1,8 @@
+import { compareCells, parseNumber, splitLine, type Separator, type SortMode } from '@suitenova/table-core';
 import { nodeTypes } from '@suitenova/writer-core';
+
+export { compareCells, parseNumber, splitLine, type Separator };
+const SEP: Record<Exclude<Separator, 'paragraph'>, string> = { tab: '\t', semicolon: ';', comma: ',' };
 import { Fragment, type Node as PMNode } from 'prosemirror-model';
 import { type Command, type EditorState, TextSelection, type Transaction } from 'prosemirror-state';
 import { TableMap } from 'prosemirror-tables';
@@ -21,6 +25,9 @@ export interface TableProps {
   borderWidth?: number | null;
   padding?: { x: number; y: number } | null;
   headerRow?: boolean;
+  /** Alternative text: a title and a description. */
+  caption?: string | null;
+  descr?: string | null;
 }
 
 /** Cambia las propiedades de la tabla en la que está el cursor. */
@@ -95,32 +102,8 @@ export const fitColumns = (width: number): Command => (state, dispatch) => {
 /** Texto de una celda para ordenar. */
 export const cellText = (cell: PMNode): string => cell.textContent.trim();
 
-/** Compara dos textos: números como números (con coma o punto decimal), el resto con la configuración regional. */
-export function compareCells(a: string, b: string, mode: 'text' | 'number'): number {
-  if (mode === 'number') {
-    const na = parseNumber(a);
-    const nb = parseNumber(b);
-    if (na === null && nb === null) return 0;
-    if (na === null) return 1;
-    if (nb === null) return -1;
-    return na - nb;
-  }
-  return a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
-}
-export function parseNumber(s: string): number | null {
-  const m = /^[^\d\-+.,]*([-+]?\d[\d.,\s]*)/.exec(s.trim());
-  if (!m) return null;
-  let x = m[1]!.replace(/\s/g, '');
-  const lastDot = x.lastIndexOf('.');
-  const lastComma = x.lastIndexOf(',');
-  if (lastDot >= 0 && lastComma >= 0) x = lastComma > lastDot ? x.replace(/\./g, '').replace(',', '.') : x.replace(/,/g, '');
-  else if (lastComma >= 0) x = /,\d{3}$/.test(x) && x.split(',').length > 2 ? x.replace(/,/g, '') : x.replace(',', '.');
-  const n = Number(x);
-  return Number.isFinite(n) ? n : null;
-}
-
 /** Ordena las filas por una columna (la fila de encabezado se queda arriba). No funciona con celdas combinadas verticalmente. */
-export const sortTable = (col: number, ascending: boolean, mode: 'text' | 'number'): Command => (state, dispatch) => {
+export const sortTable = (col: number, ascending: boolean, mode: SortMode): Command => (state, dispatch) => {
   const t = findTable(state);
   if (!t) return false;
   const map = TableMap.get(t.node);
@@ -151,14 +134,6 @@ export const sortTable = (col: number, ascending: boolean, mode: 'text' | 'numbe
 };
 
 // ------------------------------------------------------------------------------------------------ texto ↔ tabla
-export type Separator = 'tab' | 'semicolon' | 'comma' | 'paragraph';
-const SEP: Record<Exclude<Separator, 'paragraph'>, string> = { tab: '\t', semicolon: ';', comma: ',' };
-
-/** Divide el texto de un párrafo en celdas. */
-export function splitLine(text: string, sep: Separator): string[] {
-  return sep === 'paragraph' ? [text] : text.split(SEP[sep]);
-}
-
 /** Párrafos seleccionados que están juntos fuera de una tabla (o null si la selección no es convertible). */
 function selectedParagraphs(state: EditorState): { paras: { node: PMNode; pos: number }[]; from: number; to: number } | null {
   const { from, to } = state.selection;

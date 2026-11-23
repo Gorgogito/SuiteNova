@@ -20,6 +20,7 @@ export function tableCommands(ui: WriterUI): CommandDef[] {
 
   add({ id: 'writer.table.props', label: 'Propiedades de la tabla…', icon: 'settings', description: 'Alineación, borde, márgenes de celda y fila de encabezado.', enabled: inTable, run: () => ui.openDialog('tableProps') });
   add({ id: 'writer.table.sort', label: 'Ordenar…', icon: 'arrowDownAZ', description: 'Ordena las filas de la tabla por una columna.', enabled: inTable, run: () => ui.openDialog('tableSort') });
+  add({ id: 'writer.table.formula', label: 'Fórmula…', icon: 'sigma', description: 'Calcula en la celda con SUM, AVERAGE, ARRIBA, IZQUIERDA o A1; como en Word.', enabled: inTable, run: () => ui.openDialog('tableFormula') });
   add({ id: 'writer.table.toText', label: 'Convertir en texto…', icon: 'alignLeft', description: 'Convierte la tabla en párrafos separados por tabulaciones, comas o punto y coma.', enabled: inTable, run: () => ui.openDialog('tableToText') });
   add({ id: 'writer.table.fromText', label: 'Texto a tabla…', icon: 'tableGrid', description: 'Convierte los párrafos seleccionados en una tabla.', enabled: () => !!c.view && !inTable(), run: () => ui.openDialog('textToTable') });
   add({ id: 'writer.table.distribute', label: 'Distribuir columnas', icon: 'colRight', description: 'Da el mismo ancho a todas las columnas.', enabled: inTable, run: () => exec(distributeColumns) });
