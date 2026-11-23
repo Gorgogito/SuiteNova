@@ -1,12 +1,14 @@
 import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { addSection, docNode, eachText, slidesSchema, findAll, moveSection, removeSection, renameSection, replaceAll, resizeSlide, type Deck, type FindOptions, type ShowProps } from '@suitenova/slides-core';
+import { addSection, docNode, eachText, slidesSchema, moveSection, removeSection, renameSection, replaceAll, resizeSlide, type Deck, type ShowProps } from '@suitenova/slides-core';
 import { useEffect, useMemo, useState } from 'react';
 import { loadSpeller, addToUserDictionary, SPELL_LANGS, type SpellLang } from '../spell';
 import { getReviewOptions, loadedEngine, reviewDoc, type SpellEngine } from '../spell';
 import { setSlidesLang, slidesLang, slidesMarkInfo } from './spell';
 import type { SlidesUI } from './commands';
 import { Modal } from './Dialogs';
+import { FindPanel } from '../find';
+import { slidesFindHost } from './find-host';
 
 type P = { ui: SlidesUI; onClose: () => void; arg?: unknown };
 const PT_PER_CM = 72 / 2.54;
@@ -290,78 +292,10 @@ export function CustomShowsDialog({ ui, onClose }: P) {
 // ------------------------------------------------------------------------------------------------ find and replace
 
 export function FindReplaceDialog({ ui, onClose }: P) {
-  const c = ui.ctl;
-  const [q, setQ] = useState('');
-  const [r, setR] = useState('');
-  const [o, setO] = useState<FindOptions>({});
-  const [i, setI] = useState(-1);
-  const [msg, setMsg] = useState('');
-  const hits = useMemo(() => findAll(c.deck, q, { ...o, pictures: true }), [c.deck, q, o]); // eslint-disable-line react-hooks/exhaustive-deps
-  const go = (k: number) => {
-    const h = hits[k];
-    if (!h) return;
-    setI(k);
-    c.goTo(h.slideIndex);
-    c.select(h.elementId ? [h.elementId] : []);
-    if (!h.elementId && !c.showNotes) ((c.showNotes = true), c.touch());
-  };
-  useEffect(() => setI(-1), [q, o]);
-  const next = () => {
-    if (!hits.length) return setMsg(q ? t('No se encontró «{q}».', { q }) : '');
-    setMsg('');
-    go((i + 1) % hits.length);
-  };
-  const replaceOne = () => {
-    const h = hits[i < 0 ? 0 : i];
-    if (!h) return setMsg(t('No se encontró «{q}».', { q }));
-    // the text of a picture is found, not replaced: the next match is shown
-    if (h.where === 'picture') return next();
-    const res = replaceAll(c.deck, q, r, o, { slideId: h.slideId, elementId: h.elementId });
-    if (res.count) c.apply('Reemplazar', () => res.deck);
-    setMsg(t('Reemplazadas: {n}', { n: res.count }));
-    setI((k) => Math.max(-1, k - 1));
-  };
-  const replaceEvery = () => {
-    const res = replaceAll(c.deck, q, r, o);
-    if (res.count) c.apply('Reemplazar todo', () => res.deck);
-    setMsg(res.count ? t('Reemplazadas: {n}', { n: res.count }) : t('No se encontró «{q}».', { q }));
-    setI(-1);
-  };
-  const h = hits[i];
+  const host = useMemo(() => slidesFindHost(ui.ctl), [ui.ctl]);
   return (
     <Modal title={t('Buscar y reemplazar')} onClose={onClose}>
-      <form className="sl-form" onSubmit={(e) => (e.preventDefault(), next())}>
-        <label className="sl-field">
-          <span>{t('Buscar')}</span>
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('Buscar')} />
-        </label>
-        <label className="sl-field">
-          <span>{t('Reemplazar con')}</span>
-          <input value={r} onChange={(e) => setR(e.target.value)} aria-label={t('Reemplazar con')} />
-        </label>
-        <div className="sl-form__row">
-          <label className="sl-check">
-            <input type="checkbox" checked={!!o.matchCase} onChange={(e) => setO({ ...o, matchCase: e.target.checked })} />
-            {t('Coincidir mayúsculas y minúsculas')}
-          </label>
-          <label className="sl-check">
-            <input type="checkbox" checked={!!o.wholeWord} onChange={(e) => setO({ ...o, wholeWord: e.target.checked })} />
-            {t('Solo palabras completas')}
-          </label>
-          <label className="sl-check">
-            <input type="checkbox" checked={!!o.notes} onChange={(e) => setO({ ...o, notes: e.target.checked })} />
-            {t('Incluir las notas')}
-          </label>
-        </div>
-        <div className="sl-form__row">
-          <Button appearance="primary" type="submit" disabled={!q}>{t('Buscar siguiente')}</Button>
-          <Button disabled={!q} onClick={replaceOne}>{t('Reemplazar')}</Button>
-          <Button disabled={!q} onClick={replaceEvery}>{t('Reemplazar todas')}</Button>
-        </div>
-        <p role="status" aria-live="polite" className="sl-pane__empty">
-          {msg || (q ? (h ? t('Coincidencia {i} de {n} · diapositiva {s}: {ctx}', { i: i + 1, n: hits.length, s: h.slideIndex + 1, ctx: h.context.slice(0, 80) }) : t('{n} coincidencias', { n: hits.length })) : '')}
-        </p>
-      </form>
+      <FindPanel host={host} replace goTo onClose={onClose} />
     </Modal>
   );
 }

@@ -55,3 +55,10 @@ Decisiones del usuario (2026-11-23): paquete compartido `find-core` + interfaz c
 - **Word real:** `scripts/office-find/word-replace.ps1` (Replace All por COM): 13 reemplazos, 13 iguales (grupos `\2, \1`, `^&`, `^p`, `^t`, comodines); búsqueda 30 de 30. Diferencia conocida: Word también encuentra la última marca de párrafo del documento con `^p`; aquí el texto no la tiene.
 - **Pruebas:** 5 nuevas (`writer/find.test.ts`), 458 en total pasan; `scripts/e2e-find-writer.mjs` 9/9; e2e-writer y e2e-writer-ocr siguen bien.
 - **Límites:** no se reemplaza el formato (solo se filtra por él); `^m` (salto de página) no se inserta al reemplazar.
+
+### Fase 3 (hecha, 2026-11-23): Notes y Slides
+- **Notes:** `notes/find-host.ts`; el cuadro «Buscar en esta página» ahora lleva la barra común (modos texto, comodines de Word y expresión regular; caracteres especiales; ignorar acentos; reemplazar con grupos). Busca en todos los cuadros de texto de la página en orden de lectura y reemplaza en los que están abiertos en el editor (como antes). Sin resaltar todas las coincidencias: se selecciona la actual.
+- **Slides:** `slides/find-host.ts`; `slides-core/find.ts` acepta un patrón ya compilado (`regex`), ignorar acentos (`fold`) y una función de reemplazo (`expand`) sin depender de find-core. Sigue buscando formas, celdas de tablas, notas (casilla «Incluir las notas») y el texto leído de las imágenes (solo modo texto; se encuentra pero no se reemplaza). «Ir a» diapositiva (`5`, `+3`, `-2`).
+- **Límite:** en Slides y Notes cada párrafo es una unidad: una coincidencia no cruza párrafos (`^p` no encuentra nada entre dos párrafos).
+- **PowerPoint real** (`scripts/office-find/ppt-replace.ps1`, `TextRange.Replace`): solo reemplaza texto simple (mayúsculas y palabra completa); 8 casos, 8 iguales. Word sigue en 30/30 y 13/13.
+- **Pruebas:** 1 nueva en slides-core (116 pasan), 458 en la app; e2e-slides 26/26, e2e-notes-more 35/35, e2e-slides-ocr y e2e-writer-ocr bien (los selectores de los e2e pasan a la barra común).

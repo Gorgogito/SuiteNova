@@ -98,3 +98,40 @@ if (mode === 'write') {
   diffs.forEach((d) => console.log('  ✘', d));
   process.exit(diffs.length ? 1 : 0);
 }
+
+// PowerPoint only replaces plain text (TextRange.Replace: match case and whole words): [name, text, query, replacement, matchCase, whole]
+export const PPT = [
+  ['simple', 'gato perro gato', 'gato', 'pez', false, false],
+  ['mayusculas', 'Gato gato GATO', 'gato', 'pez', true, false],
+  ['sin mayusculas', 'Gato gato GATO', 'gato', 'pez', false, false],
+  ['palabra', 'casa casas encasa casa.', 'casa', 'X', false, true],
+  ['dentro de palabras', 'casa casas encasa', 'casa', 'X', false, false],
+  ['signos', 'a.b a.b', 'a.b', 'ok', false, false],
+  ['acentos', 'canción cancion', 'cancion', 'X', false, false],
+  ['borra', 'uno dos', 'uno ', '', false, false],
+].map(([name, text, query, rep, matchCase, whole]) => ({ name, text, query, rep, matchCase, whole }));
+if (mode === 'write-ppt') fs.writeFileSync(path.join(dir, 'casos-ppt.json'), JSON.stringify(PPT));
+if (mode === 'compare-ppt') {
+  const { chromium } = await import('../../apps/suite/node_modules/playwright-core/index.mjs');
+  const word = JSON.parse(fs.readFileSync(path.join(dir, 'resultados-ppt.json'), 'utf8').replace(/^﻿/, ''));
+  const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] });
+  const page = await (await browser.newContext()).newPage();
+  await page.goto('http://localhost:1420/?app=writer', { waitUntil: 'load' });
+  await page.waitForSelector('.ProseMirror');
+  const ours = await page.evaluate(async (cases) => {
+    const F = await import('/@fs/D:/ProjectsIA/SuiteNova/packages/find-core/src/index.ts');
+    return cases.map((c) => {
+      const r = F.compileQuery(c.query, { matchCase: c.matchCase, wholeWord: c.whole });
+      return r.ok ? F.replaceAllInText(r.query, c.text, c.rep).text : '<error>';
+    });
+  }, PPT);
+  await browser.close();
+  let same = 0;
+  PPT.forEach((c, i) => {
+    const w = String(word.results[i].text).replace(/\r/g, '\n');
+    if (w === ours[i]) same++;
+    else console.log(`  ✘ ${c.name}: «${c.query}» en «${c.text}» → PowerPoint ${JSON.stringify(w)}, nosotros ${JSON.stringify(ours[i])}`);
+  });
+  console.log(`casos iguales: ${same} de ${PPT.length}`);
+  process.exit(same === PPT.length ? 0 : 1);
+}

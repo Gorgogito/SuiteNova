@@ -5,7 +5,7 @@ import { zoomCommands } from '../common';
 import { writerCommands, type WriterUI } from './commands';
 import { compileQuery } from '@suitenova/find-core';
 import { WriterCtl } from './doc';
-import { findRanges } from './find-text';
+import { findRanges } from '../find/pm-text';
 import './messages';
 import './messages-more';
 import './messages-objects';

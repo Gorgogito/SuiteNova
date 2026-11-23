@@ -14,6 +14,12 @@ export interface FindOptions {
   notes?: boolean;
   /** also search the text read from pictures (OCR) */
   pictures?: boolean;
+  /** A compiled search (wildcards, regular expression…) that takes the place of the plain text and the two options above. */
+  regex?: RegExp;
+  /** The text is compared without accents (the pattern in `regex` was made for that); the offsets do not change. */
+  fold?: boolean;
+  /** What a match is replaced with, when it depends on the match (groups, `^&`). */
+  expand?: (m: { text: string; groups: string[] }) => string;
 }
 
 export interface Hit {
@@ -29,6 +35,7 @@ export interface Hit {
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export function makeRegex(query: string, o: FindOptions = {}): RegExp | null {
+  if (o.regex) return new RegExp(o.regex.source, o.regex.flags.includes('g') ? o.regex.flags : `${o.regex.flags}g`);
   if (!query) return null;
   const body = escapeRe(query);
   return new RegExp(o.wholeWord ? `(?<![\\p{L}\\p{N}_])${body}(?![\\p{L}\\p{N}_])` : body, o.matchCase ? 'gu' : 'giu');
@@ -36,13 +43,23 @@ export function makeRegex(query: string, o: FindOptions = {}): RegExp | null {
 
 const BOUNDARY = '\u0001';
 
+/** The same text without accents, letter by letter so that it keeps its length. */
+function foldText(s: string): string {
+  let out = '';
+  for (const ch of s) {
+    const d = ch.normalize('NFD');
+    out += d.length > 1 && /^\P{M}\p{M}+$/u.test(d) ? d[0] : ch;
+  }
+  return out;
+}
+
 interface Piece {
   node: PMNode;
   text: string;
 }
 
 /** Replaces matches paragraph by paragraph; returns the new document and how many were replaced. `limit` stops after N. */
-export function replaceInDoc(doc: unknown, re: RegExp, repl: string, limit = Infinity): { doc: unknown; count: number } {
+export function replaceInDoc(doc: unknown, re: RegExp, repl: string | ((m: { text: string; groups: string[] }) => string), limit = Infinity, fold = false): { doc: unknown; count: number } {
   const root = docNode(doc);
   let count = 0;
   const paras: PMNode[] = [];
@@ -51,11 +68,14 @@ export function replaceInDoc(doc: unknown, re: RegExp, repl: string, limit = Inf
     const pieces: Piece[] = [];
     para.forEach((c) => pieces.push({ node: c, text: c.type.name === 'text' ? c.text! : BOUNDARY }));
     const s = pieces.map((p) => p.text).join('');
+    const hay = fold ? foldText(s) : s;
     re.lastIndex = 0;
-    const ms: { a: number; b: number }[] = [];
-    for (let m = re.exec(s); m && count + ms.length < limit; m = re.exec(s)) {
+    const ms: { a: number; b: number; r: string }[] = [];
+    for (let m = re.exec(hay); m && count + ms.length < limit; m = re.exec(hay)) {
       if (m[0] === '') break;
-      ms.push({ a: m.index, b: m.index + m[0].length });
+      const a = m.index;
+      const b = a + m[0].length;
+      ms.push({ a, b, r: typeof repl === 'string' ? repl : repl({ text: s.slice(a, b), groups: m.slice(1).map((g) => g ?? '') }) });
     }
     if (!ms.length) return void paras.push(para);
     count += ms.length;
@@ -68,7 +88,7 @@ export function replaceInDoc(doc: unknown, re: RegExp, repl: string, limit = Inf
     for (let i = 0; i < s.length; ) {
       const m = ms[mi];
       if (m && i === m.a) {
-        out[owner[i]!] += repl;
+        out[owner[i]!] += m.r;
         i = m.b;
         mi++;
       } else {
@@ -86,14 +106,14 @@ export function replaceInDoc(doc: unknown, re: RegExp, repl: string, limit = Inf
   return { doc: root.copy(Fragment.fromArray(paras)).toJSON(), count };
 }
 
-function countIn(doc: unknown, re: RegExp): { n: number; first: string } {
+function countIn(doc: unknown, re: RegExp, fold = false): { n: number; first: string } {
   let n = 0;
   let first = '';
   docNode(doc).forEach((para) => {
     let s = '';
     para.forEach((c) => (s += c.type.name === 'text' ? c.text! : BOUNDARY));
     re.lastIndex = 0;
-    const m = s.match(re);
+    const m = (fold ? foldText(s) : s).match(re);
     if (m?.length) {
       n += m.length;
       first ||= s.replace(new RegExp(BOUNDARY, 'g'), ' ').trim();
@@ -120,7 +140,7 @@ export function findAll(deck: Deck, query: string, o: FindOptions = {}): Hit[] {
         continue;
       }
       for (const { body, where } of bodiesOf(el)) {
-        const { n, first } = countIn(body.doc, re);
+        const { n, first } = countIn(body.doc, re, o.fold);
         for (let k = 0; k < n; k++) hits.push({ slideId: s.id, slideIndex: i, elementId: el.id, where, context: first });
       }
       // the text of a picture is found, not replaced: one hit for each picture
@@ -134,7 +154,7 @@ export function findAll(deck: Deck, query: string, o: FindOptions = {}): Hit[] {
   deck.slides.forEach((s, i) => {
     visit(s, i, s.shapes);
     if (o.notes && s.notes) {
-      const { n, first } = countIn(s.notes.doc, re);
+      const { n, first } = countIn(s.notes.doc, re, o.fold);
       for (let k = 0; k < n; k++) hits.push({ slideId: s.id, slideIndex: i, elementId: null, where: 'notes', context: first });
     }
   });
@@ -152,7 +172,7 @@ export function replaceAll(deck: Deck, query: string, repl: string, o: FindOptio
   const limit = only ? 1 : Infinity;
   const body = (t: TextBody): TextBody => {
     if (count >= limit) return t;
-    const r = replaceInDoc(t.doc, re, repl, limit - count);
+    const r = replaceInDoc(t.doc, re, o.expand ?? repl, limit - count, o.fold);
     count += r.count;
     return r.count ? { ...t, doc: r.doc as never } : t;
   };

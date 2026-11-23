@@ -1,11 +1,11 @@
-import { Button, Input } from '@fluentui/react-components';
+import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
 import { contentNode, countPage, displayTitle, recentPages, type Page } from '@suitenova/notes-core';
-import { TextSelection } from 'prosemirror-state';
-import type { Node as PMNode } from 'prosemirror-model';
 import { useMemo, useState } from 'react';
 import type { NotesCtl } from './ctl';
 import { Modal } from './Dialogs';
+import { FindPanel } from '../find';
+import { notesFindHost } from './find-host';
 
 const field: React.CSSProperties = { display: 'grid', gap: 4, marginBottom: 10 };
 const closeBtn = (onClose: () => void) => (
@@ -184,155 +184,15 @@ export function RecentDialog({ ctl, mode, onClose }: { ctl: NotesCtl; mode: 'rec
 
 // ------------------------------------------------------------------------------------------------ buscar y reemplazar en la página
 
-interface Match {
-  box: string;
-  from: number;
-  to: number;
-}
-
-const fold = (s: string, matchCase: boolean) => (matchCase ? s : s.toLocaleLowerCase());
-
-/** Las coincidencias en un documento: se busca bloque por bloque, así que una palabra con partes en negrita también se encuentra. */
-function matchesIn(doc: PMNode, box: string, q: string, matchCase: boolean): Match[] {
-  const out: Match[] = [];
-  const needle = fold(q, matchCase);
-  doc.descendants((node, pos) => {
-    if (!node.isTextblock) return true;
-    let text = '';
-    const offsets: number[] = [];
-    node.descendants((n, p) => {
-      if (n.isText) {
-        for (let i = 0; i < n.text!.length; i++) offsets.push(pos + 1 + p + i);
-        text += n.text!;
-      } else if (n.isLeaf) {
-        offsets.push(pos + 1 + p);
-        text += '￼';
-      }
-      return true;
-    });
-    const hay = fold(text, matchCase);
-    for (let i = hay.indexOf(needle); i >= 0; i = hay.indexOf(needle, i + needle.length)) {
-      const a = offsets[i]!;
-      const b = offsets[i + needle.length - 1]! + 1;
-      // una coincidencia que cruza un objeto no es texto corrido
-      if (b - a === needle.length) out.push({ box, from: a, to: b });
-    }
-    return false;
-  });
-  return out;
-}
-
 export function FindDialog({ ctl, onClose }: { ctl: NotesCtl; onClose: () => void }) {
-  const [q, setQ] = useState('');
-  const [rep, setRep] = useState('');
-  const [matchCase, setMatchCase] = useState(false);
-  const [idx, setIdx] = useState(-1);
-  const [msg, setMsg] = useState('');
-  const boxes = () =>
-    ctl.page.containers
-      .filter((c) => c.kind === 'text')
-      .sort((a, b) => a.y - b.y || a.x - b.x)
-      .map((c) => ({ id: c.id, doc: ctl.views.get(c.id)?.state.doc ?? contentNode((c as { content: unknown }).content) }));
-  const all = (): Match[] => (q ? boxes().flatMap((b) => matchesIn(b.doc, b.id, q, matchCase)) : []);
-  const show = (m: Match) => {
-    const v = ctl.views.get(m.box);
-    if (!v) return;
-    ctl.select(null);
-    v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, m.from, m.to)).scrollIntoView());
-    v.dom.scrollIntoView({ block: 'nearest' });
-  };
-  const next = (dir: 1 | -1) => {
-    const ms = all();
-    if (!ms.length) {
-      setMsg(q ? t('No se encontró «{q}».', { q }) : '');
-      setIdx(-1);
-      return;
-    }
-    const i = (idx + dir + ms.length) % ms.length;
-    setIdx(i);
-    setMsg(t('{a} de {b}', { a: i + 1, b: ms.length }));
-    show(ms[i]!);
-  };
-  const replaceOne = () => {
-    const ms = all();
-    const m = ms[Math.max(0, idx)];
-    if (!m) return;
-    const v = ctl.views.get(m.box);
-    if (!v) return;
-    v.dispatch(v.state.tr.replaceWith(m.from, m.to, rep ? v.state.schema.text(rep, v.state.doc.resolve(m.from).marks()) : []));
-    setIdx(Math.max(-1, idx - 1));
-    setTimeout(() => next(1), 30);
-  };
-  const replaceAll = () => {
-    let n = 0;
-    for (const b of boxes()) {
-      const v = ctl.views.get(b.id);
-      if (!v) continue;
-      const ms = matchesIn(v.state.doc, b.id, q, matchCase);
-      if (!ms.length) continue;
-      const tr = v.state.tr;
-      for (const m of [...ms].reverse()) tr.replaceWith(m.from, m.to, rep ? v.state.schema.text(rep, v.state.doc.resolve(m.from).marks()) : []);
-      v.dispatch(tr);
-      n += ms.length;
-    }
-    setMsg(n ? t('Se reemplazaron {n} coincidencias.', { n }) : t('No se encontró «{q}».', { q }));
-    setIdx(-1);
+  const host = useMemo(() => notesFindHost(ctl), [ctl]);
+  const close = () => {
+    onClose();
+    refocus(ctl);
   };
   return (
-    <Modal
-      title={t('Buscar en esta página')}
-      onClose={() => {
-        onClose();
-        refocus(ctl);
-      }}
-      actions={closeBtn(() => {
-        onClose();
-        refocus(ctl);
-      })}
-    >
-      <div style={field}>
-        <label htmlFor="nn-find-q">{t('Buscar')}</label>
-        <Input
-          id="nn-find-q"
-          value={q}
-          autoFocus
-          onChange={(_e, d) => {
-            setQ(d.value);
-            setIdx(-1);
-            setMsg('');
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              next(e.shiftKey ? -1 : 1);
-            }
-          }}
-        />
-      </div>
-      <div style={field}>
-        <label htmlFor="nn-find-r">{t('Reemplazar con')}</label>
-        <Input id="nn-find-r" value={rep} onChange={(_e, d) => setRep(d.value)} />
-      </div>
-      <label className="nn-check">
-        <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} /> {t('Distinguir mayúsculas y minúsculas')}
-      </label>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-        <Button onClick={() => next(-1)} disabled={!q}>
-          {t('Anterior')}
-        </Button>
-        <Button appearance="primary" onClick={() => next(1)} disabled={!q}>
-          {t('Siguiente')}
-        </Button>
-        <Button onClick={replaceOne} disabled={!q || idx < 0}>
-          {t('Reemplazar')}
-        </Button>
-        <Button onClick={replaceAll} disabled={!q}>
-          {t('Reemplazar todo')}
-        </Button>
-      </div>
-      <p aria-live="polite" role="status" className="nn-note">
-        {msg}
-      </p>
+    <Modal title={t('Buscar en esta página')} onClose={close} actions={closeBtn(close)}>
+      <FindPanel host={host} replace onClose={close} />
     </Modal>
   );
 }

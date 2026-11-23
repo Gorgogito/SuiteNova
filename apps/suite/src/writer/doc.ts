@@ -77,7 +77,7 @@ import { imageObjectsPlugin } from './image-objects';
 import { ImageOcr, searchImages } from './ocr-images';
 import type { Match } from '@suitenova/find-core';
 import type { FindRequest } from '../find';
-import { findRanges, replaceRange } from './find-text';
+import { findRanges, replaceRange } from '../find/pm-text';
 import { WriterReader, readPlugin } from './read-aloud';
 import { wordArtEditingPlugin } from './wordart-editing';
 import { commentRanges, getUser, protectionPlugin, trackTransaction } from './review';

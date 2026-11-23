@@ -50,3 +50,16 @@ describe('find and replace', () => {
     expect(replaceAll(d, 'zzz', 'X').count).toBe(0);
   });
 });
+
+describe('find with a compiled pattern', () => {
+  it('uses the regular expression, the groups in the replacement and the accent folding', () => {
+    const { d, t } = deckWith([{ text: 'Juan Lopez' }, { text: 'Canción' }]);
+    const re = /(\p{L}+) (\p{L}+)/gu;
+    expect(findAll(d, '', { regex: re })).toHaveLength(1);
+    const one = replaceAll(d, '', '', { regex: re, expand: (m) => `${m.groups[1]}, ${m.groups[0]}` });
+    expect(one.count).toBe(1);
+    expect(docText((one.deck.slides[0]!.shapes.find((s) => s.id === t.id) as ShapeEl).text!.doc)).toBe('Lopez, Juan\nCanción');
+    expect(findAll(d, '', { regex: /cancion/giu })).toHaveLength(0);
+    expect(findAll(d, '', { regex: /cancion/giu, fold: true })).toHaveLength(1);
+  });
+});

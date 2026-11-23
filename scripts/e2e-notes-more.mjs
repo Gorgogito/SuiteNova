@@ -44,7 +44,7 @@ const tab = (name) => page.getByRole('tab', { name: name === 'Tabla' ? /Tabla$/ 
 const btn = (name) => page.getByRole('button', { name, exact: true }).click();
 const dlg = () => page.getByRole('dialog');
 const closeDlg = async () => {
-  await dlg().getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await dlg().getByRole('button', { name: 'Cerrar', exact: true }).first().click();
   await settle();
 };
 const ctl = (fn, arg) => ev(({ fn, arg }) => new Function('ctl', 'arg', `return (${fn})(ctl, arg)`)(window.__novaNotes.ctl, arg), { fn: fn.toString(), arg });
@@ -319,13 +319,12 @@ await check('buscar y reemplazar en la página', async () => {
   await tab('Inicio');
   await btn('Buscar en esta página…');
   await dlg().getByLabel('Buscar', { exact: true }).fill('casa');
-  await dlg().getByRole('button', { name: 'Siguiente', exact: true }).click();
-  assert.match(await dlg().locator('[role=status]').innerText(), /1 de 3/);
+  await page.waitForTimeout(150);
+  assert.match(await dlg().locator('.nv-find-info').first().innerText(), /[0-9] de 3/);
   await dlg().getByLabel('Reemplazar con').fill('piso');
   await dlg().getByRole('button', { name: 'Reemplazar todo', exact: true }).click();
   await settle();
   assert.match(await ctl((c) => c.textOfPage()), /piso y piso y piso/);
-  await dlg().getByLabel('Distinguir mayúsculas y minúsculas').uncheck();
   await closeDlg();
 });
 

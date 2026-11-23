@@ -1,7 +1,7 @@
 import { expandReplacement, findInText, type Compiled, type Match } from '@suitenova/find-core';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { Transaction } from 'prosemirror-state';
-import type { FindFilters } from '../find';
+import type { FindFilters } from './host';
 
 /** The text of the document as find-core reads it: the paragraphs one after the other with «\n» between them, and the map back to positions. */
 export interface DocText {

@@ -497,14 +497,14 @@ await check('size, find & replace, spelling, comments, sections, show setup, cus
   await tab('Inicio');
   await btn('Buscar y reemplazar…');
   await page.getByLabel('Buscar', { exact: true }).fill('MUNDOO');
-  await page.getByRole('button', { name: 'Buscar siguiente', exact: true }).click();
-  assert.match(await page.getByRole('status').last().innerText(), /Coincidencia 1 de 2/);
+  await page.waitForTimeout(150);
+  assert.match(await page.getByRole('status').first().innerText(), /1 de 2/);
   await page.getByLabel('Reemplazar con').fill('mundo');
   await page.getByRole('button', { name: 'Reemplazar', exact: true }).click();
   assert.equal(await titleText(), 'Hola mundo y mundoo');
-  await page.getByRole('button', { name: 'Reemplazar todas', exact: true }).click();
+  await page.getByRole('button', { name: 'Reemplazar todo', exact: true }).click();
   assert.equal(await titleText(), 'Hola mundo y mundo');
-  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).first().click();
   // spelling (own checker): misspell again, fix with the dialog
   await ev(() => { const c = window.__novaSlides.ctl; c.goTo(0); });
   await clickAt(480, 200);

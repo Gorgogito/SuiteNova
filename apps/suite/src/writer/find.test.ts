@@ -1,7 +1,7 @@
 import { compileQuery } from '@suitenova/find-core';
 import { describe, expect, it } from 'vitest';
 import { docFromText } from '@suitenova/writer-core';
-import { findRanges } from './find-text';
+import { findRanges } from '../find/pm-text';
 
 const q = (text: string, o = {}) => {
   const c = compileQuery(text, o);

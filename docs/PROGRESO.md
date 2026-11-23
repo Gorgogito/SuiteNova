@@ -190,3 +190,4 @@ Plan en `docs/diseno-tablas.md`. Decisiones (2026-11-23): `table-core` + interfa
 Plan en `docs/diseno-buscar.md`. Decisiones (2026-11-23): `find-core` + interfaz común; alcance Writer, Calc, Slides, Notes y Base (y buscar en el mensaje de Mail); funciones estándar de Office.
 - [x] **Fase 1 HECHA: `find-core`.** Cuatro modos (normal con `^p ^t ^#…`, comodines de Word, comodines de Excel, regex), mayúsculas, palabra completa, acentos, todo el contenido de la celda, reemplazo con grupos, siguiente/anterior, Ir a. **Word real: 30 casos, 0 diferencias** (`@` y `{n;m}` corregidos). 26 pruebas.
 - Buscar y Reemplazar, fase 2 (hecha, sin commit): panel común `apps/suite/src/find/` + adaptador de Writer, Ir a (Ctrl+G), filtros de formato; comparado con Word real (13 reemplazos iguales). Ver docs/diseno-buscar.md.
+- Buscar y Reemplazar, fase 3 (hecha, sin commit): Notes y Slides con la barra común; PowerPoint real 8/8 en reemplazos simples. Ver docs/diseno-buscar.md.

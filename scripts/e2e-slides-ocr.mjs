@@ -83,12 +83,12 @@ await check('Buscar y reemplazar encuentra el texto de dentro de la imagen, la e
   await page.getByRole('tab', { name: 'Inicio', exact: true }).click();
   await page.getByRole('button', { name: 'Buscar y reemplazar…' }).first().click();
   await page.getByLabel('Buscar', { exact: true }).fill('TOTAL a pagar');
-  await page.getByRole('button', { name: 'Buscar siguiente', exact: true }).click();
-  assert.match(await page.getByRole('status').last().innerText(), /Coincidencia 1 de 1.*Total a pagar/);
+  await page.waitForTimeout(200);
+  assert.match(await page.getByRole('status').first().innerText(), /1 de 1/);
   const sel = await ev(() => window.__novaSlides.ctl.selected.map((e) => e.kind));
   assert.deepEqual(sel, ['pic']);
   await page.getByLabel('Reemplazar con').fill('XX');
-  await page.getByRole('button', { name: 'Reemplazar todas', exact: true }).click();
+  await page.getByRole('button', { name: 'Reemplazar todo', exact: true }).click();
   const [p] = await pics();
   assert.match(p.ocr.text, /Total a pagar/);
   await page.keyboard.press('Escape');
