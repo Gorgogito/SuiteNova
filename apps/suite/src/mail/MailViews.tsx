@@ -14,6 +14,9 @@ import { PicPopover } from '../images/PicPopover';
 import { imageSize } from '../calc/imagePick';
 import { mailPictureHost, tokenOf, uniqueName, type ComposePicture } from './pictures';
 import { PictureTextForm } from './dlg-ocr';
+import { GridPicker } from '../tables';
+import { TableEditor } from './TableEditor';
+import { newTable, tableToken, uniqueTableName, type ComposeTable } from './tables';
 import { dataUriOf } from './ocr-images';
 import { packResult } from '@suitenova/ocr-core';
 
@@ -407,6 +410,23 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
   const pic = pics.find((p) => p.id === selPic);
   const picHost = useMemo(() => mailPictureHost(() => sRef.current.pictures?.find((p) => p.id === selPic), (np) => setS((x) => ({ ...x, pictures: (x.pictures ?? []).map((p) => (p.id === np.id ? np : p)) }))), [selPic]);
   const setPic = (patch: Partial<ComposePicture>) => pic && setS((x) => ({ ...x, pictures: (x.pictures ?? []).map((p) => (p.id === pic.id ? { ...p, ...patch } : p)) }));
+  const [selTable, setSelTable] = useState<string | null>(null);
+  const tbls = s.tables ?? [];
+  const tbl = tbls.find((x) => x.id === selTable);
+  const addTable = (rows: number, cols: number) => {
+    const name = uniqueTableName(sRef.current.tables?.map((x) => x.name) ?? []);
+    const tb = newTable(name, rows, cols);
+    setS((x) => {
+      const at = Math.min(caret.current ?? x.body.length, x.body.length);
+      const body = `${x.body.slice(0, at)}${at > 0 && x.body[at - 1] !== '\n' ? '\n' : ''}${tableToken(name)}\n${x.body.slice(at)}`;
+      return { ...x, body, tables: [...(x.tables ?? []), tb] };
+    });
+    setSelTable(tb.id);
+  };
+  const removeTable = (tb: ComposeTable) => {
+    setS((x) => ({ ...x, body: x.body.split(`\n${tableToken(tb.name)}`).join('').split(tableToken(tb.name)).join(''), tables: (x.tables ?? []).filter((q) => q.id !== tb.id) }));
+    if (selTable === tb.id) setSelTable(null);
+  };
   const sources = useImageSources((f) => addPicture(f));
   const addPicture = async (f: File) => {
     try {
@@ -511,6 +531,7 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
                 <button type="button" className="ml-btn" onClick={() => sources.openIcons()}>
                   {t('Iconos…')}
                 </button>
+                <GridPicker size="small" host={{ insert: addTable }} />
                 {sources.dialog}
                 <input
                   ref={picRef}
@@ -548,6 +569,23 @@ export function ComposeBody({ ctl, c, onExport }: { ctl: MailCtl; c: ComposeStat
                   }}
                 />
               </div>
+              {tbls.length > 0 && (
+                <div className="ml-pics" role="group" aria-label={t('Tablas del mensaje')}>
+                  <div className="ml-compose__att">
+                    {tbls.map((x) => (
+                      <span key={x.id} className={`ml-chip${x.id === selTable ? ' is-on' : ''}`}>
+                        <button type="button" aria-pressed={x.id === selTable} onClick={() => setSelTable(x.id === selTable ? null : x.id)}>
+                          ▦ {x.name}
+                        </button>
+                        <button type="button" aria-label={t('Quitar {name}', { name: x.name })} onClick={() => removeTable(x)}>
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  {tbl && <TableEditor table={tbl} onChange={(nt) => setS((x) => ({ ...x, tables: (x.tables ?? []).map((q) => (q.id === nt.id ? nt : q)) }))} />}
+                </div>
+              )}
               {pics.length > 0 && (
                 <div className="ml-pics" role="group" aria-label={t('Imágenes del mensaje')}>
                   <div className="ml-compose__att">

@@ -183,3 +183,4 @@ Plan en `docs/diseno-tablas.md`. Decisiones (2026-11-23): `table-core` + interfa
 - [ ] Fase 5: Mail.
 - [ ] Fase 6: cierre.
 - [x] **Fase 4 HECHA: disposición y funciones.** Texto alternativo de la tabla (`.docx` real) y **fórmulas en Writer** (`=SUM(ABOVE)`, referencias, formato de número, ES/EN; cuadro «Fórmula…»; F9). **Sin comparar con Word real:** el Word del equipo rechaza hasta `=5` (ver `docs/diseno-tablas.md`). `e2e-tables` con la fórmula.
+- [x] **Fase 5 HECHA: Mail.** Tabla en el mensaje (marca `[Tabla: nombre]`, editor con la galería compartida, celdas con fórmulas como Outlook), HTML con estilos en línea y texto alineado al enviar, borrador que vuelve igual. `e2e-tables` con Mail.

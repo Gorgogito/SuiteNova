@@ -18,7 +18,7 @@ const OPTIONS: [keyof StyleOptions, string][] = [
 ];
 
 /** The gallery of table styles (every family in the six accent colours) with the style options, like Office's Table Design. */
-export function StyleGallery({ host, label = 'Estilos de tabla' }: { host: TableHost; label?: string }) {
+export function StyleGallery({ host, label = 'Estilos de tabla' }: { host: Pick<TableHost, 'useRefresh' | 'info' | 'setStyle' | 'setOption'>; label?: string }) {
   host.useRefresh();
   const [open, setOpen] = useState(false);
   const info = host.info();

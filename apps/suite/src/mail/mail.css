@@ -918,3 +918,9 @@
 .ml-chip.is-on {
   outline: 2px solid var(--nv-accent, #0f6cbd);
 }
+
+.ml-table { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.ml-table__bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ml-table__grid { display: grid; gap: 2px; max-height: 240px; overflow: auto; }
+.ml-table__grid input { min-width: 0; padding: 3px 6px; }
+.ml-table__grid input[data-sel='true'] { outline: 2px solid var(--colorBrandStroke1, #4472c4); }

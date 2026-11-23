@@ -1,4 +1,5 @@
 import { htmlBody, picturesOfDraft, type ComposePicture } from './pictures';
+import { tablesOfDraft, textBody, type ComposeTable } from './tables';
 import { MailImageOcr } from './ocr-images';
 import { MailReader } from './read-aloud';
 import {
@@ -91,6 +92,8 @@ export interface ComposeState {
   attachments: OutgoingAttachment[];
   /** Pictures in the body (each one is a `[Imagen: nombre]` token of the text) and go as inline images. */
   pictures?: ComposePicture[];
+  /** Tables in the body (each one is a `[Tabla: nombre]` token of the text): HTML table and aligned text when sent. */
+  tables?: ComposeTable[];
   inReplyTo?: string;
   references?: string[];
   /** The draft record being edited, replaced when saved again. */
@@ -543,7 +546,7 @@ export class MailCtl {
     if (!rec) return;
     const m = parseMessage(rawOf(rec));
     const fmt = (l: Address[]) => l.map((a) => a.email).join(', ');
-    this.compose = { id: newMailId(), to: fmt(m.to), cc: fmt(m.cc), bcc: (rec.bcc ?? []).join(', '), subject: m.subject, body: m.text ?? '', attachments: m.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, data: a.data })), pictures: picturesOfDraft(m.html, m.inlineParts), draftId: id };
+    this.compose = { id: newMailId(), to: fmt(m.to), cc: fmt(m.cc), bcc: (rec.bcc ?? []).join(', '), subject: m.subject, body: m.text ?? '', attachments: m.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, data: a.data })), pictures: picturesOfDraft(m.html, m.inlineParts), tables: tablesOfDraft(m.html), draftId: id };
     this.touch();
   }
 
@@ -553,7 +556,7 @@ export class MailCtl {
   }
 
   /** Build the RFC 5322 text of the draft being composed. */
-  buildRaw(c: ComposeState, sender?: Address): { raw: string; to: Address[]; cc: Address[]; bcc: Address[] } {
+  buildRaw(c: ComposeState, sender?: Address, keepTokens = false): { raw: string; to: Address[]; cc: Address[]; bcc: Address[] } {
     const split = (s: string): Address[] =>
       s
         .split(/[,;]/)
@@ -564,13 +567,13 @@ export class MailCtl {
           return m ? { name: m[1]!.trim().replace(/^"|"$/g, ''), email: m[2]!.trim() } : { name: '', email: x };
         });
     const to = split(c.to), cc = split(c.cc), bcc = split(c.bcc);
-    const html = htmlBody(c.body, c.pictures ?? []);
-    const draft: Draft = { from: sender ?? (this.data.owner.email ? this.data.owner : { name: '', email: 'yo@nova.local' }), to, cc, bcc, subject: c.subject, text: c.body, ...(html ? { html: html.html } : {}), attachments: [...c.attachments, ...(html?.inline ?? [])], inReplyTo: c.inReplyTo, references: c.references };
+    const html = htmlBody(c.body, c.pictures ?? [], c.tables ?? []);
+    const draft: Draft = { from: sender ?? (this.data.owner.email ? this.data.owner : { name: '', email: 'yo@nova.local' }), to, cc, bcc, subject: c.subject, text: keepTokens ? c.body : textBody(c.body, c.tables ?? []), ...(html ? { html: html.html } : {}), attachments: [...c.attachments, ...(html?.inline ?? [])], inReplyTo: c.inReplyTo, references: c.references };
     return { raw: buildMessage(draft), to, cc, bcc };
   }
 
   saveDraft(c: ComposeState): MailRecord {
-    const { raw, bcc } = this.buildRaw(c);
+    const { raw, bcc } = this.buildRaw(c, undefined, true);
     if (c.draftId) this.data.messages = this.data.messages.filter((m) => m.id !== c.draftId);
     const rec = addRaw(this.data, 'drafts', raw, { read: true, bcc: bcc.map((a) => a.email) });
     c.draftId = rec.id;

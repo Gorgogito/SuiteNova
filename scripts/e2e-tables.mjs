@@ -251,6 +251,45 @@ for (const P of PRODUCTS) {
   await ctx.close();
 }
 
+// ---- Mail: a table in the body of a message (token in the text, HTML table and aligned text when sent, draft that opens again)
+{
+  const { page, ctx, check } = await session('mail', '.ml-item, .ml-folders');
+  const exportEml = async () => {
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Exportar .eml' }).click()]);
+    const f = (await dl.path()) ?? '';
+    return fs.readFileSync(f, 'utf8');
+  };
+  const qp = (t) => t.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/g, (_m, h) => String.fromCharCode(parseInt(h, 16)));
+  await check('insertar tabla: la marca queda en el texto, las celdas se escriben y una fórmula da su resultado', async () => {
+    await page.keyboard.press('Control+Shift+M');
+    await page.getByLabel('Para', { exact: true }).fill('bea@x.es');
+    await page.getByLabel('Asunto').fill('Con tabla');
+    await page.getByLabel('Cuerpo del mensaje').fill('Cifras:\n');
+    await page.getByRole('button', { name: 'Insertar tabla', exact: true }).click();
+    await page.getByRole('gridcell', { name: '2 × 3', exact: true }).click();
+    assert.match(await page.getByLabel('Cuerpo del mensaje').inputValue(), /\[Tabla: Tabla 1\]/);
+    await page.getByLabel('Fila 1, columna 1').fill('Cant');
+    await page.getByLabel('Fila 2, columna 1').fill('2');
+    await page.getByLabel('Fila 3, columna 1').fill('3');
+    await page.getByRole('button', { name: 'Agregar fila' }).click();
+    await page.getByLabel('Fila 4, columna 1').fill('=SUM(ABOVE)');
+    await page.getByLabel('Asunto').click();
+    assert.equal(await page.getByLabel('Fila 4, columna 1').inputValue(), '5');
+    await shot(page, 'mail-tabla');
+  });
+  await check('exportar: el HTML lleva la tabla y el texto la lleva alineada con el resultado de la fórmula', async () => {
+    await page.getByRole('button', { name: 'Guardar borrador' }).click();
+    const eml = qp(await exportEml());
+    assert.match(eml, /<table[^>]*data-nova=/);
+    assert.match(eml, /<th style=/);
+    assert.match(eml, />5<\/td>/);
+    // what is sent has the table as aligned text, not the token (the draft keeps the token: see mail/tables.test.ts)
+    assert.doesNotMatch(eml, /\[Tabla: Tabla 1\]/);
+    assert.match(eml, /Cant \|\r?\n[-+]+\r?\n\s*2 \|[^]*?\s5 \|/);
+  });
+  await ctx.close();
+}
+
 results.push([errors.length ? 'FAIL' : 'ok', 'sin errores de consola', errors.slice(0, 4).join(' | ')]);
 for (const r of results) console.log(r[0] === 'ok' ? '  ✔' : '  ✘', r[1], r[2] ? `\n      ${r[2]}` : '');
 await browser.close();

@@ -2,6 +2,7 @@ import type { OutgoingAttachment } from '@suitenova/mail-core';
 import { applyPixelEdits, cropPixels, isCropped, normalizePixelEdits, visibleRect, type Crop, type FrameEdits, type PixelEdits, type Pixels } from '@suitenova/image-core';
 import { canvasFromPixels, decodePixels, encode } from '../images/canvas';
 import type { PictureHost } from '../images/host';
+import { tableHtml, usedTables, type ComposeTable } from './tables';
 
 /*
  * Pictures in the body of a message. The body stays plain text (what everything that reads mail can show); a picture is a token in it,
@@ -63,20 +64,25 @@ export const usedPictures = (body: string, pictures: ComposePicture[]): ComposeP
   return out;
 };
 
-/** The HTML part: the text with its line breaks and every token turned into its inline image; null when no picture is used. */
-export function htmlBody(body: string, pictures: ComposePicture[]): { html: string; inline: OutgoingAttachment[] } | null {
+/** The HTML part: the text with its line breaks, every picture token turned into its inline image and every table token into its table; null when none is used. */
+export function htmlBody(body: string, pictures: ComposePicture[], tables: ComposeTable[] = [], decimal?: '.' | ','): { html: string; inline: OutgoingAttachment[] } | null {
   const used = usedPictures(body, pictures);
-  if (!used.length) return null;
-  const parts = body.split(TOKEN);
+  if (!used.length && !usedTables(body, tables).length) return null;
   let html = '';
-  // split with a capture group alternates text and picture names
-  for (let i = 0; i < parts.length; i++) {
-    if (i % 2 === 0) html += esc(parts[i]!).replace(/\r?\n/g, '<br>\n');
-    else {
-      const p = pictures.find((x) => x.name === parts[i]);
-      html += p ? `<img src="cid:${p.id}" alt="${esc(p.alt)}" width="${Math.round(p.width)}" style="max-width:100%;height:auto">` : esc(tokenOf(parts[i]!));
+  let last = 0;
+  const br = (s: string): string => esc(s).replace(/\r?\n/g, '<br>\n');
+  for (const m of body.matchAll(/\[(Imagen|Tabla): ([^\]\n]+)\]/g)) {
+    html += br(body.slice(last, m.index));
+    last = m.index + m[0].length;
+    if (m[1] === 'Imagen') {
+      const p = pictures.find((x) => x.name === m[2]);
+      html += p ? `<img src="cid:${p.id}" alt="${esc(p.alt)}" width="${Math.round(p.width)}" style="max-width:100%;height:auto">` : esc(m[0]);
+    } else {
+      const t = tables.find((x) => x.name === m[2]);
+      html += t ? tableHtml(t, decimal) : esc(m[0]);
     }
   }
+  html += br(body.slice(last));
   const inline = used.map((p) => ({ filename: p.name, contentType: p.sent.mime, data: p.sent.data, contentId: p.id }));
   return { html: `<div>${html}</div>`, inline };
 }

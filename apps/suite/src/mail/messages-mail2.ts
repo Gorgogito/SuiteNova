@@ -4,6 +4,7 @@ import { registerMessages } from '@suitenova/core-ui';
 registerMessages('en', {
   'Insertar imagen': 'Insert picture',
   'Imágenes del mensaje': 'Pictures of the message',
+'Tablas del mensaje': 'Tables of the message',  'Tabla {name}': 'Table {name}',  'Fila {r}, columna {c}': 'Row {r}, column {c}',  'Agregar fila': 'Add row',  'Agregar columna': 'Add column',  'Quitar fila': 'Remove row',  'Quitar columna': 'Remove column',  'Una celda que empieza por «=» es una fórmula, por ejemplo =SUM(ABOVE) o =B2*C2. Se envía como tabla en el HTML y como texto alineado.': 'A cell that starts with «=» is a formula, for example =SUM(ABOVE) or =B2*C2. It is sent as a table in the HTML and as aligned text.',
   'Texto alternativo': 'Alt text',
   'Texto alternativo de la imagen': 'Alt text of the picture',
   'Ancho (px)': 'Width (px)',
