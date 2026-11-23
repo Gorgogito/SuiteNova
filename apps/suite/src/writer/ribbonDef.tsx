@@ -945,6 +945,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           { kind: 'custom', id: 'gfxStyles', label: 'Estilos de gráfico', keytip: 'GS', render: () => <PicPopover label="Estilos de gráfico" icon="sparkles" size="small" disabled={!writerGraphicsHost(ui).look()}>{(close) => <GraphicStyleItems host={writerGraphicsHost(ui)} close={close} />}</PicPopover> },
           { kind: 'custom', id: 'gfxFill', label: 'Relleno de gráfico', keytip: 'GF', render: () => <PicPopover label="Relleno de gráfico" icon="palette" size="small" iconOnly disabled={!writerGraphicsHost(ui).look()}>{(close) => <GraphicFillItems host={writerGraphicsHost(ui)} close={close} />}</PicPopover> },
           { kind: 'custom', id: 'gfxOutline', label: 'Contorno de gráfico', keytip: 'GO', render: () => <PicPopover label="Contorno de gráfico" icon="pen" size="small" iconOnly disabled={!writerGraphicsHost(ui).look()}>{(close) => <GraphicOutlineItems host={writerGraphicsHost(ui)} close={close} />}</PicPopover> },
+          { kind: 'button', command: 'writer.image.toShape', size: 'small', iconOnly: true, keytip: 'GC' },
           { kind: 'custom', id: 'gfxEffects', label: 'Efectos de gráfico', keytip: 'GE', render: () => <PicPopover label="Efectos de gráfico" icon="sparkles" size="small" iconOnly>{(close) => <GraphicEffectsItems host={writerGraphicsHost(ui)} close={close} />}</PicPopover> },
         ],
       },

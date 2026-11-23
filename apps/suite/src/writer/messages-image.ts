@@ -22,6 +22,8 @@ registerMessages('en', {
   'Girar a la izquierda': 'Rotate Left',
   'Gira la imagen 90° en sentido contrario.': 'Rotates the picture 90° counterclockwise.',
   'Voltear horizontalmente': 'Flip Horizontal',
+  'Convertir en forma': 'Convert to Shape',
+  'Convierte el icono en una forma que se puede editar: relleno, contorno y tamaño como el de cualquier forma. Ya no es una imagen.': 'Turns the icon into a shape you can edit: fill, outline and size like any other shape. It is no longer a picture.',
   'Voltear verticalmente': 'Flip Vertical',
   'Restablecer imagen': 'Reset Picture',
   'Quita el recorte, el giro, el volteo, el borde y el ajuste de texto (el tamaño se conserva).': 'Removes the crop, rotation, flip, border and text wrapping (the size is kept).',

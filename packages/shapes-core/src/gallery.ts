@@ -1,4 +1,6 @@
+import { customPaths } from './custom';
 import { hasPreset, presetGeometry } from './preset';
+import type { CustPath } from './types';
 
 /*
  * What every product shows when the user opens the shape gallery, and how a shape of any product is drawn. A shape "kind" is the name of a
@@ -135,6 +137,20 @@ export function shapeSvg(kind: string, w: number, h: number, style: ShapeStyle =
     })
     .join('');
   return style.flip ? `<g transform="translate(${w} 0) scale(-1 1)">${paths}</g>` : paths;
+}
+
+/** The drawing (SVG paths, in pixels) of a freeform: custom geometry scaled to a shape of w × h. */
+export function customShapeSvg(cust: CustPath[], w: number, h: number, style: ShapeStyle = {}): string {
+  const fill = style.fill === undefined ? null : style.fill;
+  const stroke = style.stroke === undefined ? null : style.stroke;
+  const sw = style.strokeWidth ?? 1;
+  return customPaths(cust, w, h)
+    .map((p) => {
+      const base = !fill || p.fill === 'none' ? 'none' : fill;
+      const strokeAttr = stroke && sw > 0 && p.stroke !== false ? ` stroke="${esc(stroke)}" stroke-width="${sw}" stroke-linejoin="round"` : '';
+      return `<path d="${esc(p.d)}" fill="${esc(base)}"${strokeAttr}/>`;
+    })
+    .join('');
 }
 
 /** The rectangle where a shape's text goes (in the same pixels as `shapeSvg`). */

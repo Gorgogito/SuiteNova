@@ -1,4 +1,4 @@
-import { adjustHandles, dragAdjust, isLineKind, resolveKind, shapeSvg } from '@suitenova/shapes-core';
+import { adjustHandles, customShapeSvg, dragAdjust, isLineKind, resolveKind, shapeSvg } from '@suitenova/shapes-core';
 import { parseMath, scaleGroupContent, toMathML, toTex } from '@suitenova/writer-core';
 import type { Command } from 'prosemirror-state';
 import { MathEditing } from '../math/core';
@@ -235,7 +235,8 @@ export class ShapeView implements NodeView {
     // the drawing comes from the common shape catalog, in pixels (the view box is the size of the shape)
     this.svg.setAttribute('viewBox', `0 0 ${a.width} ${a.height}`);
     const invisible = resolveKind(a.kind) === 'textbox' && a.strokeWidth === 0 && a.fill === '#ffffff';
-    this.paths.innerHTML = shapeSvg(a.kind, a.width, a.height, { fill: invisible ? null : a.fill, stroke: a.strokeWidth > 0 ? a.stroke : null, strokeWidth: a.strokeWidth, adj: a.adj ?? undefined });
+    const style = { fill: invisible || a.fillNone ? null : a.fill, stroke: a.strokeWidth > 0 ? a.stroke : null, strokeWidth: a.strokeWidth };
+    this.paths.innerHTML = Array.isArray(a.cust) && a.cust.length ? customShapeSvg(a.cust, a.width, a.height, style) : shapeSvg(a.kind, a.width, a.height, { ...style, adj: a.adj ?? undefined });
     this.dom.title = a.alt || '';
     this.updateWordArt();
     this.renderAdjust();

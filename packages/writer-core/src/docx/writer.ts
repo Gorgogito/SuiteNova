@@ -340,13 +340,34 @@ function fieldXml(node: PMNode, marks: readonly Mark[], deleted: boolean): strin
 }
 
 /** The `<wps:wsp>` of a shape. Inside a group (`child`) it also carries its own name and its offset from the group's corner. */
+/** The `a:custGeom` of a freeform: its paths with their commands, as the shape draws them. */
+function custGeomXml(cust: { w: number; h: number; cmds: (string | number)[][]; fill?: string; stroke?: boolean }[]): string {
+  const pt = (x: unknown, y: unknown) => `<a:pt x="${Math.round(Number(x))}" y="${Math.round(Number(y))}"/>`;
+  const paths = cust
+    .map((p) => {
+      const cmds = p.cmds
+        .map((c) => {
+          if (c[0] === 'M') return `<a:moveTo>${pt(c[1], c[2])}</a:moveTo>`;
+          if (c[0] === 'L') return `<a:lnTo>${pt(c[1], c[2])}</a:lnTo>`;
+          if (c[0] === 'C') return `<a:cubicBezTo>${pt(c[1], c[2])}${pt(c[3], c[4])}${pt(c[5], c[6])}</a:cubicBezTo>`;
+          if (c[0] === 'Q') return `<a:quadBezTo>${pt(c[1], c[2])}${pt(c[3], c[4])}</a:quadBezTo>`;
+          if (c[0] === 'A') return `<a:arcTo wR="${Math.round(Number(c[1]))}" hR="${Math.round(Number(c[2]))}" stAng="${Math.round(Number(c[3]) * 60000)}" swAng="${Math.round(Number(c[4]) * 60000)}"/>`;
+          return '<a:close/>';
+        })
+        .join('');
+      return `<a:path w="${Math.round(p.w)}" h="${Math.round(p.h)}"${p.fill && p.fill !== 'norm' ? ` fill="${p.fill}"` : ''}${p.stroke === false ? ' stroke="0"' : ''}>${cmds}</a:path>`;
+    })
+    .join('');
+  return `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst>${paths}</a:pathLst></a:custGeom>`;
+}
+
 function wspXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, child?: { x: number; y: number }): string {
   const a = node.attrs;
   const w = Math.round(a.width * EMU_PER_PX);
   const h = Math.round(a.height * EMU_PER_PX);
   const prst = presetOf(a.kind);
   const isText = resolveKind(a.kind) === 'textbox';
-  const fill = isText && a.fill === '#ffffff' ? '<a:noFill/>' : `<a:solidFill><a:srgbClr val="${hex(a.fill)}"/></a:solidFill>`;
+  const fill = a.fillNone || (isText && a.fill === '#ffffff') ? '<a:noFill/>' : `<a:solidFill><a:srgbClr val="${hex(a.fill)}"/></a:solidFill>`;
   const line = isText && a.stroke === '#000000' && a.strokeWidth === 0 ? '<a:ln><a:noFill/></a:ln>' : `<a:ln w="${Math.round(a.strokeWidth * 9525)}"><a:solidFill><a:srgbClr val="${hex(a.stroke)}"/></a:solidFill></a:ln>`;
   let content = '';
   const wa = a.wordart as { fx: WordArtFx; warp: { prst: string; adj?: Record<string, number> } | null } | null;
@@ -361,7 +382,7 @@ function wspXml(node: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, child?: { 
   const nv = child ? `<wps:cNvPr id="${ctx.docPrId++}" name="${isText ? 'Cuadro de texto' : 'Forma'}" descr="${esc(a.alt ?? '')}"/>` : '';
   return (
     `<wps:wsp>${nv}<wps:cNvSpPr${isText ? ' txBox="1"' : ''}/><wps:spPr><a:xfrm${rot}>${off}<a:ext cx="${w}" cy="${h}"/></a:xfrm>` +
-    `<a:prstGeom prst="${prst}">${avLstXml(a.adj)}</a:prstGeom>${fill}${line}</wps:spPr>${content ? `<wps:txbx><w:txbxContent>${content}</w:txbxContent></wps:txbx>` : ''}<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="t" anchorCtr="0">${wa?.warp ? prstTxWarpXml(wa.warp.prst, wa.warp.adj) : ''}<a:noAutofit/></wps:bodyPr></wps:wsp>`
+    `${Array.isArray(a.cust) && a.cust.length ? custGeomXml(a.cust) : `<a:prstGeom prst="${prst}">${avLstXml(a.adj)}</a:prstGeom>`}${fill}${line}</wps:spPr>${content ? `<wps:txbx><w:txbxContent>${content}</w:txbxContent></wps:txbx>` : ''}<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="t" anchorCtr="0">${wa?.warp ? prstTxWarpXml(wa.warp.prst, wa.warp.adj) : ''}<a:noAutofit/></wps:bodyPr></wps:wsp>`
   );
 }
 

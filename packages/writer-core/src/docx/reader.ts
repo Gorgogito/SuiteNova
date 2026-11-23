@@ -382,6 +382,29 @@ interface FieldState {
   marks: Mark[];
 }
 
+/** The paths of an `a:custGeom` as a shape keeps them (`CustPath[]` of shapes-core), or null when there is none that can be drawn. */
+function readCustPaths(cg: XNode): Record<string, unknown>[] | null {
+  const list = findKid(cg, 'pathLst');
+  if (!list) return null;
+  const paths: Record<string, unknown>[] = [];
+  for (const p of kidsOf(list)) {
+    if (tagOf(p) !== 'path') continue;
+    const cmds: (string | number)[][] = [];
+    for (const c of kidsOf(p)) {
+      const t = tagOf(c);
+      const pts = kidsOf(c).filter((k) => tagOf(k) === 'pt').map((k) => [num(attrOf(k, 'x')) ?? 0, num(attrOf(k, 'y')) ?? 0] as const);
+      if (t === 'moveTo' && pts[0]) cmds.push(['M', ...pts[0]]);
+      else if (t === 'lnTo' && pts[0]) cmds.push(['L', ...pts[0]]);
+      else if (t === 'cubicBezTo' && pts.length >= 3) cmds.push(['C', ...pts[0]!, ...pts[1]!, ...pts[2]!]);
+      else if (t === 'quadBezTo' && pts.length >= 2) cmds.push(['Q', ...pts[0]!, ...pts[1]!]);
+      else if (t === 'arcTo') cmds.push(['A', num(attrOf(c, 'wR')) ?? 0, num(attrOf(c, 'hR')) ?? 0, (num(attrOf(c, 'stAng')) ?? 0) / 60000, (num(attrOf(c, 'swAng')) ?? 0) / 60000]);
+      else if (t === 'close') cmds.push(['Z']);
+    }
+    if (cmds.length) paths.push({ w: num(attrOf(p, 'w')) ?? 0, h: num(attrOf(p, 'h')) ?? 0, cmds, ...(attrOf(p, 'fill') ? { fill: attrOf(p, 'fill') } : {}), ...(attrOf(p, 'stroke') === '0' || attrOf(p, 'stroke') === 'false' ? { stroke: false } : {}) });
+  }
+  return paths.length ? paths : null;
+}
+
 /** The shadow and the glow of an `a:effectLst` as the picture keeps them (points and degrees), or undefined when there are none. */
 function readEffects(list: XNode | undefined): Record<string, unknown> | undefined {
   if (!list) return undefined;
@@ -1036,9 +1059,11 @@ class Converter {
     const spPr = findKid(wsp, 'spPr');
     const geom = findKid(spPr, 'prstGeom');
     const prst = attrOf(geom ?? {}, 'prst') ?? 'rect';
+    const cg = geom ? undefined : spPr && findKid(spPr, 'custGeom');
+    const cust = cg ? readCustPaths(cg) : null;
     const isTxBox = !!attrOf(findKid(wsp, 'cNvSpPr') ?? {}, 'txBox');
     let kind = hasPreset(prst) ? prst : 'rect';
-    if (!hasPreset(prst)) this.warn(`La forma "${prst}" se muestra como un rectángulo.`);
+    if (!hasPreset(prst) && !cust) this.warn(`La forma "${prst}" se muestra como un rectángulo.`);
     if (isTxBox && kind === 'rect') kind = 'textbox';
     const colorOf = (n: XNode | undefined): string | null => {
       const sf = n && findKid(n, 'solidFill');
@@ -1067,7 +1092,7 @@ class Converter {
     const paras: PMNode[] = [];
     if (tx) for (const b of this.blocks(kidsOf(tx))) if (b.type.name === 'paragraph') paras.push(b);
     return nodeTypes.shape!.create(
-      { kind, width: w, height: h, fill, stroke, strokeWidth, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, adj: adjust, wordart: this.wordArtOf(wsp), wrap: at.wrap, x: at.x, y: at.y, alt },
+      { kind, width: w, height: h, fill, fillNone: !!cust && noFill, ...(cust ? { cust } : {}), stroke, strokeWidth, rotation: rot ? Math.round((rot / 60000) * 10) / 10 : 0, adj: adjust, wordart: this.wordArtOf(wsp), wrap: at.wrap, x: at.x, y: at.y, alt },
       paras,
     );
   }

@@ -475,6 +475,12 @@ const nodes: Record<string, NodeSpec> = {
       adj: { default: null },
       /** WordArt: estilo del texto (`fx`, modelo de `wordart-core`) y transformación (`warp`: `prst` y ajustes); null = texto normal. */
       wordart: { default: null },
+      /**
+       * Freeform: the paths of a custom geometry (`a:custGeom`; `CustPath[]` of shapes-core, in the space of each path) instead of the preset
+       * of `kind`. It is what «Convertir en forma» makes of an icon. `fillNone` leaves the inside empty (only the outline shows).
+       */
+      cust: { default: null },
+      fillNone: { default: false },
       /** inline | left | right | front | behind | topBottom */
       wrap: { default: 'inline' },
       /** Offset (px) from the paragraph's top-left for front/behind shapes. */

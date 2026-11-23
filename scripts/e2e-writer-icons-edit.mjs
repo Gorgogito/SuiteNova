@@ -1,11 +1,12 @@
 // End-to-end checks for editing an icon in Nova Writer (Format Graphics): fill, outline, transparency, shadow, glow, styles, rotate, undo, and what
-// goes in the .docx. Needs `pnpm dev` on :1420. Usage: node scripts/e2e-writer-icons-edit.mjs [--shots dir] [--out file.docx]
+// goes in the .docx. Needs `pnpm dev` on :1420. Usage: node scripts/e2e-writer-icons-edit.mjs [--shots dir] [--out file.docx] [--out2 forma.docx]
 import { chromium } from '../apps/suite/node_modules/playwright-core/index.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const URL = process.env.NOVA_URL ?? 'http://localhost:1420/?app=writer';
 const shotsDir = process.argv.includes('--shots') ? process.argv[process.argv.indexOf('--shots') + 1] : null;
+const outFile2 = process.argv.includes('--out2') ? process.argv[process.argv.indexOf('--out2') + 1] : null;
 const outFile = process.argv.includes('--out') ? process.argv[process.argv.indexOf('--out') + 1] : null;
 if (shotsDir) fs.mkdirSync(shotsDir, { recursive: true });
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] });
@@ -178,6 +179,72 @@ await check('con un icono con aspecto propio, al guardar y leer el .docx todo vu
   assert.equal(r.fx.shadow.angle, 90);
   assert.match(r.png, /^data:image\/png/);
   if (outFile) fs.writeFileSync(outFile, Buffer.from(r.b64, 'base64'));
+});
+
+await check('Convertir en forma: el icono pasa a ser una forma libre con su relleno y contorno, en el mismo sitio, y se edita como forma', async () => {
+  await selectIcon();
+  await pop('Relleno de gráfico', pickColor('Verde'));
+  await selectIcon();
+  await pop('Contorno de gráfico', pickColor('Azul oscuro'));
+  const before = await ev(() => { let a = null; window.__novaWriter.ctl.mainView.state.doc.descendants((n) => { if (n.type.name === 'image' && !a) a = { w: n.attrs.width, alt: n.attrs.alt }; }); return a; });
+  await selectIcon();
+  await page.getByRole('button', { name: 'Convertir en forma', exact: true }).click();
+  await page.waitForTimeout(400);
+  const r = await ev(() => {
+    const out = { images: 0, shapes: [] };
+    window.__novaWriter.ctl.mainView.state.doc.descendants((n) => {
+      if (n.type.name === 'image' && n.attrs.alt !== 'foto') out.images++;
+      if (n.type.name === 'shape' && n.attrs.cust) out.shapes.push({ fill: n.attrs.fill, stroke: n.attrs.stroke, sw: n.attrs.strokeWidth, w: n.attrs.width, paths: n.attrs.cust.length, cmds: n.attrs.cust[0].cmds.length, alt: n.attrs.alt, wrap: n.attrs.wrap, none: n.attrs.fillNone });
+    });
+    return out;
+  });
+  assert.equal(r.images, 0, 'ya no es imagen');
+  assert.equal(r.shapes.length, 1);
+  assert.equal(r.shapes[0].fill, '#00b050');
+  assert.equal(r.shapes[0].stroke, '#002060');
+  assert.equal(r.shapes[0].w, before.w);
+  assert.equal(r.shapes[0].alt, before.alt);
+  assert.equal(r.shapes[0].wrap, 'inline');
+  assert.ok(r.shapes[0].cmds > 10);
+  assert.ok(r.shapes[0].sw > 0.5 && r.shapes[0].sw < 8, `contorno ${r.shapes[0].sw}`);
+  // se dibuja: la forma tiene su SVG con los trazos y los colores
+  const svg = await ev(() => { const el = document.querySelector('.ProseMirror .nw-shape svg'); return el ? { paths: el.querySelectorAll('path').length, fill: el.querySelector('path')?.getAttribute('fill'), d: (el.querySelector('path')?.getAttribute('d') ?? '').length } : null; });
+  assert.ok(svg && svg.paths >= 1 && svg.fill === '#00b050' && svg.d > 50, JSON.stringify(svg));
+  await page.waitForSelector('.ProseMirror .nw-shape');
+  // aparece Formato de forma al seleccionarla
+  assert.ok(await page.getByRole('tab', { name: /Formato de forma/ }).isVisible());
+  await shot('forma');
+  // deshacer devuelve el icono
+  await page.locator('.ProseMirror').first().press('Control+z');
+  await page.waitForTimeout(400);
+  assert.equal((await ev(() => { let n = 0; window.__novaWriter.ctl.mainView.state.doc.descendants((x) => { if (x.type.name === 'image' && x.attrs.alt !== 'foto') n++; }); return n; })), 1);
+  // la forma sobrevive al .docx
+  await selectIcon();
+  await page.getByRole('button', { name: 'Convertir en forma', exact: true }).click();
+  await page.waitForTimeout(400);
+  const back = await ev(async () => {
+    const w = window.__novaWriter;
+    const { data } = await w.docx.writeDocx(w.ctl.toWriterDoc());
+    const d = (await w.docx.readDocx(data)).doc;
+    let s = null;
+    d.body.descendants((n) => { if (n.type.name === 'shape' && n.attrs.cust && !s) s = { fill: n.attrs.fill, stroke: n.attrs.stroke, paths: n.attrs.cust.length, w: n.attrs.width }; });
+    let bin = '';
+    for (const b of data) bin += String.fromCharCode(b);
+    return { s, b64: btoa(bin) };
+  });
+  assert.deepEqual({ fill: back.s.fill, stroke: back.s.stroke, w: back.s.w }, { fill: '#00b050', stroke: '#002060', w: before.w });
+  if (outFile2) fs.writeFileSync(outFile2, Buffer.from(back.b64, 'base64'));
+});
+
+await check('Convertir en forma está desactivado para una imagen que no es un icono', async () => {
+  await ev(() => {
+    const v = window.__novaWriter.ctl.mainView;
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    v.dispatch(v.state.tr.insert(v.state.doc.content.size - 1, v.state.schema.nodes.paragraph.create(null, v.state.schema.nodes.image.create({ src: PNG, width: 40, height: 40, alt: 'foto0' }))));
+  });
+  await page.locator('.ProseMirror img[alt="foto0"]').click();
+  await page.getByRole('tab', { name: /Formato de imagen/ }).click();
+  assert.equal(await page.getByRole('button', { name: 'Convertir en forma', exact: true }).isDisabled(), true);
 });
 
 await check('una imagen que no es un icono: sin relleno ni contorno de gráfico, pero sí efectos', async () => {

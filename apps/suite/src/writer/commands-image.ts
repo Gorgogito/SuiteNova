@@ -2,6 +2,7 @@ import type { CommandDef } from '@suitenova/core-ui';
 import { NodeSelection, type EditorState } from 'prosemirror-state';
 import type { WriterUI } from './commands';
 
+import { freeformOfImage, shapeAttrsOfImage } from '../icons/toShape';
 import { wrapPatch } from './image-objects';
 
 export type ImageWrap = 'left' | 'right' | 'top' | 'front' | 'behind' | null;
@@ -34,6 +35,23 @@ export function imageCommands(ui: WriterUI): CommandDef[] {
     { id: 'writer.image.color', label: 'Opciones de color de imagen…', icon: 'palette', description: 'Saturación, temperatura, transparencia y recolorear la imagen.', enabled: ready, run: () => ui.openDialog('pictureColor') },
     { id: 'writer.image.artistic', label: 'Opciones de efectos artísticos…', icon: 'sparkles', description: 'Efecto artístico de la imagen y su intensidad.', enabled: ready, run: () => ui.openDialog('pictureArtistic') },
     { id: 'writer.image.removeBg', label: 'Quitar fondo…', icon: 'eraser', description: 'Quita el fondo de la imagen; puede marcar las áreas que se mantienen o se quitan.', enabled: ready, run: () => ui.openDialog('removeBg') },
+    {
+      id: 'writer.image.toShape',
+      label: 'Convertir en forma',
+      icon: 'shapes',
+      description: 'Convierte el icono en una forma que se puede editar: relleno, contorno y tamaño como el de cualquier forma. Ya no es una imagen.',
+      enabled: () => ready() && !!freeformOfImage(at()),
+      run: () => {
+        const v = c.mainView;
+        const s = sel();
+        const f = s && freeformOfImage(s.attrs);
+        if (!v || !s || !f) return;
+        const shape = v.state.schema.nodes.shape!.create(shapeAttrsOfImage(s.attrs, f), []);
+        const tr = v.state.tr.replaceWith(s.pos, s.pos + 1, shape);
+        v.dispatch(tr.setSelection(NodeSelection.create(tr.doc, s.pos)).scrollIntoView());
+        v.focus();
+      },
+    },
     { id: 'writer.image.rotateRight', label: 'Girar a la derecha', icon: 'arrowRight', description: 'Gira la imagen 90° en el sentido de las agujas del reloj.', enabled: ready, run: () => patchImage(ui, { rotate: (((at().rotate ?? 0) + 90) % 360) }) },
     { id: 'writer.image.rotateLeft', label: 'Girar a la izquierda', icon: 'arrowLeft', description: 'Gira la imagen 90° en sentido contrario.', enabled: ready, run: () => patchImage(ui, { rotate: (((at().rotate ?? 0) + 270) % 360) }) },
     { id: 'writer.image.flipH', label: 'Voltear horizontalmente', icon: 'columns2', enabled: ready, checked: () => !!at().flipH, run: () => patchImage(ui, { flipH: !at().flipH }) },

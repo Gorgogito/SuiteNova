@@ -198,6 +198,32 @@ describe('DOCX: ecuaciones, formas y controles de contenido', () => {
     expect(shapes[1]!.attrs).toMatchObject({ kind: 'star5', fill: '#ffcc00', stroke: '#cc0000', wrap: 'front', x: 30, y: 12, rotation: 15 });
   });
 
+  it('forma libre (a:custGeom): los trazos con líneas, curvas y cierre, el relleno y el contorno sobreviven al .docx, también sin relleno', async () => {
+    const cust = [
+      { w: 24000, h: 24000, cmds: [['M', 2000, 2000], ['L', 22000, 2000], ['C', 22000, 12000, 12000, 22000, 2000, 22000], ['Q', 1000, 12000, 2000, 2000], ['Z']] },
+      { w: 24000, h: 24000, cmds: [['M', 8000, 8000], ['L', 16000, 8000], ['L', 16000, 16000], ['Z']] },
+    ];
+    const full = nodeTypes.shape!.create({ kind: 'rect', cust, width: 48, height: 48, fill: '#00b050', stroke: '#002060', strokeWidth: 2, wrap: 'inline', alt: 'Icono' }, []);
+    const outline = nodeTypes.shape!.create({ kind: 'rect', cust, fillNone: true, width: 48, height: 48, fill: '#ffffff', stroke: '#c00000', strokeWidth: 1.5, wrap: 'inline' }, []);
+    const plain = nodeTypes.shape!.create({ kind: 'star5', width: 40, height: 40, fill: '#ffcc00', stroke: '#cc0000', strokeWidth: 1, wrap: 'inline' }, []);
+    const { blocks, zip } = await rt(wd([p([t('a'), full, outline, plain])]));
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml).toContain('<a:custGeom>');
+    expect(xml).toContain('<a:cubicBezTo><a:pt x="22000" y="12000"/>');
+    expect(xml).toContain('<a:quadBezTo>');
+    expect(xml).toContain('<a:path w="24000" h="24000">');
+    const shapes: PMNode[] = [];
+    blocks[0]!.forEach((c) => c.type.name === 'shape' && shapes.push(c));
+    expect(shapes).toHaveLength(3);
+    expect(shapes[0]!.attrs.cust).toEqual(cust);
+    expect(shapes[0]!.attrs).toMatchObject({ fill: '#00b050', stroke: '#002060', fillNone: false, width: 48, alt: 'Icono' });
+    expect(shapes[1]!.attrs).toMatchObject({ fillNone: true, stroke: '#c00000' });
+    expect(shapes[1]!.attrs.cust).toEqual(cust);
+    // una forma normal no se toca
+    expect(shapes[2]!.attrs.cust).toBeNull();
+    expect(shapes[2]!.attrs.kind).toBe('star5');
+  });
+
   it('grupos de formas (wpg): hijas con su texto, giro, ajuste y grupos anidados sobreviven al .docx', async () => {
     const base = { fill: '#ffffff', stroke: '#000000', strokeWidth: 1, wrap: 'front' };
     const rect = nodeTypes.shape!.create({ ...base, kind: 'roundRect', width: 100, height: 60, x: 0, y: 0, fill: '#bcd4f0', adj: { adj: 30000 } }, []);
