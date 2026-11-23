@@ -170,7 +170,8 @@ await check('tags: many kinds, check box toggles, custom tag, summary', async ()
 await check('table with formulas calculates and updates', async () => {
   const b = await canvasBox();
     await tab('Insertar');
-  await btn('Tabla…');
+  await btn('Insertar tabla');
+  await btn('Insertar tabla…');
   await page.getByLabel('Número de columnas').fill('2');
   await page.getByLabel('Número de filas').fill('4');
   await btn('Aceptar');

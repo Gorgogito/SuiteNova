@@ -3,11 +3,10 @@ import { getLocale, t } from '@suitenova/core-ui';
 import type { Block } from '@suitenova/speech-core';
 import { groupIntoLines, newTextContainer, readableLangs, readableText, strokeBounds, strokesToSvg } from '@suitenova/notes-core';
 import { nodeTypes, writerSchema } from '@suitenova/writer-core';
-import { setCellAttr } from 'prosemirror-tables';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ReviewDialog } from '../spell';
 import { notesHost } from './review-host';
-import { TABLE_STYLES, applyTableStyle, DEFAULT_STYLE_OPTIONS, setTableProps, sortTable, findTable } from '../writer/table-tools';
+import { sortTable, findTable } from '../writer/table-tools';
 import { SYMBOL_GROUPS } from '../writer/symbols';
 import type { NotesCtl } from './ctl';
 import { Modal } from './Dialogs';
@@ -327,65 +326,6 @@ export function NotesTableSortDialog({ ctl, onClose }: { ctl: NotesCtl; onClose:
       </label>
       <p className="nn-note">{t('Si la tabla tiene fila de encabezado, se queda arriba.')}</p>
       {err && <p role="alert">{err}</p>}
-    </Modal>
-  );
-}
-
-const SHADES = ['#ffffff', '#fff2cc', '#e2efd9', '#dce6f4', '#fbe5d5', '#ffd9e6', '#e4dcf1', '#d9d9d9', '#bfbfbf', '#ffe34d', '#7fe38a', '#7fd4ff'];
-
-export function NotesTableLookDialog({ ctl, onClose }: { ctl: NotesCtl; onClose: () => void }) {
-  const v = ctl.view;
-  const tb = v ? findTable(v.state) : null;
-  const [style, setStyle] = useState('grid');
-  const [header, setHeader] = useState(!!tb?.node.attrs.headerRow);
-  const [banded, setBanded] = useState(false);
-  const run = (fn: (s: NonNullable<typeof v>) => void) => v && fn(v);
-  return (
-    <Modal title={t('Aspecto de la tabla')} onClose={onClose} actions={closeBtn(onClose)}>
-      <div style={field}>
-        <label htmlFor="nn-tb-style">{t('Estilo')}</label>
-        <select id="nn-tb-style" className="nv-select" value={style} onChange={(e) => setStyle(e.target.value)}>
-          {TABLE_STYLES.map((s) => (
-            <option key={s.id} value={s.id}>
-              {t(s.name)}
-            </option>
-          ))}
-        </select>
-      </div>
-      <label className="nn-check">
-        <input type="checkbox" checked={header} onChange={(e) => setHeader(e.target.checked)} /> {t('Fila de encabezado')}
-      </label>
-      <label className="nn-check">
-        <input type="checkbox" checked={banded} onChange={(e) => setBanded(e.target.checked)} /> {t('Filas alternas')}
-      </label>
-      <div style={{ marginTop: 8 }}>
-        <Button
-          appearance="primary"
-          onClick={() =>
-            run((view) => {
-              const def = TABLE_STYLES.find((s) => s.id === style)!;
-              setTableProps({ headerRow: header })(view.state, view.dispatch);
-              applyTableStyle(def, { ...DEFAULT_STYLE_OPTIONS, headerRow: header, bandedRows: banded })(view.state, view.dispatch);
-            })
-          }
-        >
-          {t('Aplicar')}
-        </Button>
-      </div>
-      <p style={{ marginTop: 14 }}>{t('Sombreado de las celdas seleccionadas')}</p>
-      <div className="nv-swatches" role="group" aria-label={t('Sombreado')}>
-        {SHADES.map((c) => (
-          <button key={c} type="button" style={{ background: c }} aria-label={c} title={c} onClick={() => run((view) => setCellAttr('background', c)(view.state, view.dispatch))} />
-        ))}
-        <Button size="small" onClick={() => run((view) => setCellAttr('background', null)(view.state, view.dispatch))}>
-          {t('Quitar')}
-        </Button>
-      </div>
-      <div style={{ marginTop: 10 }}>
-        <label className="nn-check">
-          <input type="checkbox" defaultChecked={tb?.node.attrs.borders !== false} onChange={(e) => run((view) => setTableProps({ borders: e.target.checked })(view.state, view.dispatch))} /> {t('Mostrar los bordes')}
-        </label>
-      </div>
     </Modal>
   );
 }

@@ -1,3 +1,4 @@
+import { borderOfXml, optionsOfTblLook, styleOfNovaId } from './tablestyles';
 import JSZip from 'jszip';
 import { Fragment, type Mark, type Node as PMNode } from 'prosemirror-model';
 import { FORMAT_MARKS, PARAGRAPH_STYLES, markTypes, nodeTypes, writerSchema, type Align, type ListFormat, type ParagraphStyleDef } from '../schema';
@@ -1266,6 +1267,8 @@ class Converter {
     const bordersNode = findKid(tblPr, 'tblBorders');
     let borders = resolveChain(sh, styleId).borders;
     if (bordersNode) borders = kidsOf(bordersNode).some((e) => !['nil', 'none'].includes(attrOf(e, 'val') ?? 'nil'));
+    // one of our own table styles: the table keeps the style and its options, and the style draws the lines
+    const nova = styleOfNovaId(styleId);
     const grid = findKids(findKid(t, 'tblGrid'), 'gridCol').map((g) => Math.round((num(attrOf(g, 'w')) ?? 0) / 15));
     // propiedades de la tabla: alineación, color y grosor del borde, márgenes de celda y fila de encabezado
     const tblProps: Record<string, unknown> = {};
@@ -1288,6 +1291,11 @@ class Converter {
     }
     const firstTr = findKids(t, 'tr')[0];
     if (firstTr && findKid(findKid(firstTr, 'trPr'), 'tblHeader')) tblProps.headerRow = true;
+    if (nova) {
+      tblProps.tstyle = nova.id;
+      tblProps.topts = optionsOfTblLook(findKid(tblPr, 'tblLook'));
+      borders = false;
+    }
 
     interface Cell { col: number; span: number; rowspan: number; node: XNode }
     const rows: Cell[][] = [];
@@ -1317,11 +1325,13 @@ class Converter {
       const cells = row.map((c) => {
         const tcPr = findKid(c.node, 'tcPr');
         const shd = attrOf(findKid(tcPr, 'shd') ?? {}, 'fill');
+        const tcb = findKid(tcPr, 'tcBorders');
+        const cellBorders = tcb ? cellBordersOf(tcb) : null;
         const va = attrOf(findKid(tcPr, 'vAlign') ?? {}, 'val');
         const widths = Array.from({ length: c.span }, (_, i) => grid[c.col + i] || 0);
         const content = this.blocks(kidsOf(c.node).filter((k) => tagOf(k) !== 'tcPr'));
         return nodeTypes.table_cell!.create(
-          { colspan: c.span, rowspan: c.rowspan, colwidth: widths.every((w) => w > 0) ? widths : null, background: shd && shd !== 'auto' ? '#' + shd.toLowerCase() : null, vAlign: va === 'center' ? 'middle' : va === 'bottom' ? 'bottom' : va === 'top' ? 'top' : null },
+          { colspan: c.span, rowspan: c.rowspan, colwidth: widths.every((w) => w > 0) ? widths : null, background: shd && shd !== 'auto' ? '#' + shd.toLowerCase() : shd === 'auto' && nova ? 'transparent' : null, borders: cellBorders, vAlign: va === 'center' ? 'middle' : va === 'bottom' ? 'bottom' : va === 'top' ? 'top' : null },
           content.length ? content : [nodeTypes.paragraph!.create()],
         );
       });
@@ -1329,6 +1339,17 @@ class Converter {
     });
     return nodeTypes.table!.create({ borders, ...tblProps }, trNodes.length ? trNodes : [nodeTypes.table_row!.create(null, [nodeTypes.table_cell!.create(null, [nodeTypes.paragraph!.create()])])]);
   }
+}
+
+/** The borders of a cell (`w:tcBorders`) as the cell attribute: `{ t, r, b, l }`, null for a side that is there to say "no line". */
+function cellBordersOf(tcb: XNode): Record<string, unknown> | null {
+  const out: Record<string, unknown> = {};
+  const sides: [string, string[]][] = [['t', ['top']], ['l', ['left', 'start']], ['b', ['bottom']], ['r', ['right', 'end']]];
+  for (const [k, names] of sides) {
+    const n = names.map((nm) => findKid(tcb, nm)).find(Boolean);
+    if (n) out[k] = borderOfXml(n);
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 const blocksOf = (doc: PMNode): PMNode[] => {

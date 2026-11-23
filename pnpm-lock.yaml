@@ -750,6 +750,9 @@ importers:
       '@suitenova/smartart-core':
         specifier: workspace:*
         version: link:../smartart-core
+      '@suitenova/table-core':
+        specifier: workspace:*
+        version: link:../table-core
       '@suitenova/wordart-core':
         specifier: workspace:*
         version: link:../wordart-core

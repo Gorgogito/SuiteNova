@@ -15,6 +15,7 @@
     "@suitenova/math-core": "workspace:*",
     "@suitenova/shapes-core": "workspace:*",
     "@suitenova/smartart-core": "workspace:*",
+    "@suitenova/table-core": "workspace:*",
     "@suitenova/wordart-core": "workspace:*",
     "fast-xml-parser": "^5.2.0",
     "jszip": "^3.10.1",

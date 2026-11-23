@@ -177,7 +177,7 @@ Plan en `docs/diseno-recorte.md`. Decisiones (2026-11-23): `clip-core` compartid
 ## Tablas (subproducto compartido)
 Plan en `docs/diseno-tablas.md`. Decisiones (2026-11-23): `table-core` + interfaz común; alcance Writer, Slides, Notes y Mail (Calc conserva sus tablas de datos); funciones las que Office tiene en todos (sin dibujar tabla ni borrador); fórmulas donde Office las tiene (Writer y Mail).
 - [x] **Fase 1 HECHA: `table-core`.** Cuadrícula con combinadas y bordes (300 operaciones al azar siempre válidas), 32 estilos de Office con opciones y regla de bordes, números, texto↔tabla, ordenar y fórmulas en español e inglés. 61 pruebas. Aún sin productos conectados; la regla de `ABOVE` está pendiente de comparar con Word.
-- [ ] Fase 2: interfaz común y Writer (y Notes).
+- [x] **Fase 2 HECHA: interfaz común, Writer y Notes.** Estilos vivos (la tabla recuerda su estilo y opciones; un plugin la dibuja), `.docx` con estilos de tabla reales de Word, selector de tamaño, galería con opciones, sombreado y bordes con lápiz. **Word real: 96 tablas y 1920 celdas sin ninguna diferencia** en relleno, negrita, color y bordes. `e2e-tables` 17/17.
 - [ ] Fase 3: Slides.
 - [ ] Fase 4: disposición y funciones (márgenes, autoajuste, repetir encabezado, texto alternativo, fórmulas en Writer).
 - [ ] Fase 5: Mail.

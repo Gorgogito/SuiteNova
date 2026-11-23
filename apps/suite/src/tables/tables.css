@@ -1,0 +1,153 @@
+/* Shared table controls: style gallery, shading, borders and the size picker. */
+.nv-tbl-trigger {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+}
+.nv-tbl-trigger__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+}
+.nv-tbl-gallery {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+  max-height: 70vh;
+  overflow: auto;
+}
+.nv-tbl-gallery h4,
+.nv-tbl-pop h4 {
+  margin: 4px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.nv-tbl-gallery__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.nv-tbl-thumb {
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+.nv-tbl-thumb:hover,
+.nv-tbl-thumb[aria-pressed='true'] {
+  border-color: #2b6cb0;
+}
+.nv-tbl-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+  border-top: 1px solid rgba(128, 128, 128, 0.3);
+  padding-top: 4px;
+}
+.nv-tbl-options h4 {
+  grid-column: 1 / -1;
+}
+.nv-tbl-options label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.nv-tbl-pop {
+  display: grid;
+  gap: 4px;
+  min-width: 190px;
+}
+.nv-tbl-theme {
+  display: flex;
+  gap: 3px;
+}
+.nv-tbl-theme__col,
+.nv-tbl-std {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.nv-tbl-std {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.nv-tbl-theme button,
+.nv-tbl-std button {
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  cursor: pointer;
+  padding: 0;
+}
+.nv-tbl-theme button:hover,
+.nv-tbl-std button:hover {
+  outline: 2px solid #2b6cb0;
+}
+.nv-tbl-wide {
+  width: 100%;
+  text-align: left;
+}
+.nv-tbl-custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.nv-tbl-pen {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+}
+.nv-tbl-pen label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.nv-tbl-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nv-tbl-mode:hover {
+  background: rgba(43, 108, 176, 0.15);
+}
+.nv-tbl-size {
+  font-size: 12px;
+  min-height: 18px;
+}
+.nv-tbl-grid {
+  display: grid;
+  gap: 2px;
+  outline-offset: 2px;
+}
+.nv-tbl-grid__row {
+  display: flex;
+  gap: 2px;
+}
+.nv-tbl-grid button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #8a8a8a;
+  background: #fff;
+  cursor: pointer;
+}
+.nv-tbl-grid button[data-on='true'] {
+  background: #bcd7f2;
+  border-color: #2b6cb0;
+}

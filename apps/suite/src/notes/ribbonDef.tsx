@@ -4,6 +4,8 @@ import { markTypes } from '@suitenova/writer-core';
 import { ChevronDown } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { isInTable } from 'prosemirror-tables';
+import { BordersMenu, GridPicker, ShadingMenu, StyleGallery } from '../tables';
+import { notesTableHost } from './tables-host';
 import { helpTab, viewTab } from '../common';
 import { tagDefs } from '@suitenova/notes-core';
 import { FONT_NAMES, FONT_SIZES, STYLES, TAG_SHORTCUTS, type NotesUI } from './commands';
@@ -291,6 +293,7 @@ const L = (command: string, size: 'small' | 'large' = 'large', keytip?: string, 
 
 /** The ribbon of Nova Notes. */
 export function notesTabs(ui: NotesUI): RibbonTab[] {
+  const tableHost = notesTableHost(ui);
   const inTable = !!ui.ctl.view && isInTable(ui.ctl.view.state);
   const home: RibbonTab = {
     id: 'home',
@@ -344,7 +347,7 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
     keytip: 'N',
     groups: [
       { id: 'pages', label: 'Páginas', icon: 'pageNew', items: [L('notes.page.new', 'large', 'PG'), L('notes.section.new', 'large', 'SC'), L('notes.quickNote', 'small', 'QN'), L('notes.space', 'small', 'ES')] },
-      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [L('notes.table', 'large', 'TB')] },
+      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [{ kind: 'custom', id: 'tablePicker', label: 'Tabla', keytip: 'TB', render: () => <GridPicker host={tableHost} onMore={() => ui.openDialog('table')} /> }] },
       { id: 'boxes', label: 'Cuadros', icon: 'document', items: [L('notes.textbox', 'large', 'CT'), L('notes.image', 'large', 'IM'), L('notes.image.clipboard', 'small', 'IP', true), L('notes.image.icons', 'small', 'IC', true), L('notes.file.attach', 'small', 'FA'), L('notes.pdf.print', 'small', 'FQ'), L('notes.screenClip', 'small', 'SK')] },
       { id: 'media', label: 'Audio y vídeo', icon: 'mic', items: [L('notes.audio', 'large', 'AU'), L('notes.video', 'large', 'VI'), L('notes.media.file', 'large', 'MF')] },
       { id: 'symbols', label: 'Símbolos', icon: 'sigma', items: [L('notes.equation', 'large', 'EQ'), L('notes.symbol', 'small', 'SY')] },
@@ -486,7 +489,17 @@ export function notesTabs(ui: NotesUI): RibbonTab[] {
         items: [L('notes.table.rowBefore', 'small', 'RA'), L('notes.table.rowAfter', 'small', 'RB'), L('notes.table.deleteRow', 'small', 'RD'), L('notes.table.colBefore', 'small', 'CL'), L('notes.table.colAfter', 'small', 'CR'), L('notes.table.deleteCol', 'small', 'CD')],
       },
       { id: 'merge', label: 'Combinar', icon: 'mergeCells', items: [L('notes.table.merge', 'large', 'MC'), L('notes.table.split', 'large', 'SP')] },
-      { id: 'tablelook', label: 'Aspecto', icon: 'tableGrid', items: [L('notes.table.look', 'large', 'TL'), L('notes.table.sort', 'large', 'TS')] },
+      {
+        id: 'tablelook',
+        label: 'Aspecto',
+        icon: 'tableGrid',
+        items: [
+          { kind: 'custom', id: 'tableStyles', label: 'Estilos de tabla', keytip: 'TL', render: () => <StyleGallery host={tableHost} /> },
+          { kind: 'custom', id: 'tableShade', label: 'Sombreado', keytip: 'SH', render: () => <ShadingMenu host={tableHost} /> },
+          { kind: 'custom', id: 'tableBorders', label: 'Bordes', keytip: 'BD', render: () => <BordersMenu host={tableHost} /> },
+          L('notes.table.sort', 'large', 'TS'),
+        ],
+      },
       { id: 'tabledel', label: 'Tabla', icon: 'trash', items: [L('notes.table.delete', 'large', 'TD')] },
     ],
   };

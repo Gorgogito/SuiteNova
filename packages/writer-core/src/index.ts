@@ -25,3 +25,4 @@ export * from './formats/odt';
 export * from './formats/doc';
 export * from './review-tools';
 export * from './shape-group';
+export * from './table-style';

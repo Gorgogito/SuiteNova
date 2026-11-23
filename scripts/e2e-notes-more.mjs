@@ -396,7 +396,8 @@ await check('lector inmersivo muestra el texto y permite cambiar su aspecto', as
 await check('tabla: ordenar por una columna y dar aspecto', async () => {
   await ctl((c) => c.addPage());
   await tab('Insertar');
-  await btn('Tabla…');
+  await btn('Insertar tabla');
+  await btn('Insertar tabla…');
   await dlg().getByRole('button', { name: /Insertar|Aceptar/ }).click();
   await settle(300);
   const cells = page.locator('.nn-box--text td');
@@ -415,13 +416,10 @@ await check('tabla: ordenar por una columna y dar aspecto', async () => {
   const first = await cells.nth(0).innerText();
   assert.ok(['a', 'b', 'c', '1', ''].includes(first.trim()), first);
   await tab('Tabla');
-  await btn('Aspecto y sombreado…');
-  await dlg().getByLabel('Estilo').selectOption('blue');
-  await dlg().getByLabel('Fila de encabezado').check();
-  await dlg().getByRole('button', { name: 'Aplicar', exact: true }).click();
+  await btn('Estilos de tabla');
+  await page.getByRole('button', { name: 'Medio – Énfasis 1', exact: true }).click();
   await settle(200);
   await shot('tabla-aspecto');
-  await closeDlg();
   const bg = await page.locator('.nn-box--text table tr').first().locator('th, td').first().evaluate((e) => getComputedStyle(e).backgroundColor);
   assert.notEqual(bg, 'rgba(0, 0, 0, 0)');
 });

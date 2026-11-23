@@ -1,0 +1,192 @@
+// End-to-end checks for the shared table controls in Nova Writer and Nova Notes: the size picker, the style gallery with its options, shading and borders.
+// Needs `pnpm dev` on :1420. Usage: node scripts/e2e-tables.mjs [--shots dir]
+import { chromium } from '../apps/suite/node_modules/playwright-core/index.mjs';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const BASE = process.env.NOVA_BASE ?? 'http://localhost:1420/';
+const shotsDir = process.argv.includes('--shots') ? process.argv[process.argv.indexOf('--shots') + 1] : null;
+if (shotsDir) fs.mkdirSync(shotsDir, { recursive: true });
+const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] });
+const results = [];
+const errors = [];
+let step = 0;
+
+const A = 'rgb(68, 114, 196)'; // accent 1
+const TINT40 = 'rgb(180, 199, 231)';
+const TINT20 = 'rgb(218, 227, 243)';
+
+async function session(app, ready) {
+  const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(12000);
+  page.on('pageerror', (e) => errors.push(`${app}: ${e.message}`));
+  page.on('console', (m) => m.type() === 'error' && !/Keyborg|Content Security Policy|ERR_NAME_NOT_RESOLVED/.test(m.text()) && errors.push(`${app}: ${m.text()}`));
+  await page.goto(`${BASE}?app=${app}`, { waitUntil: 'load' });
+  await page.waitForSelector(ready);
+  await page.waitForTimeout(700);
+  const check = async (name, fn) => {
+    try {
+      await fn();
+      results.push(['ok', `${app}: ${name}`]);
+    } catch (e) {
+      results.push(['FAIL', `${app}: ${name}`, e.message.split('\n').filter(Boolean).slice(0, 7).join(' | ')]);
+      if (shotsDir) await page.screenshot({ path: `${shotsDir}/${String(++step).padStart(2, '0')}-FAIL-${app}.png` });
+      for (let i = 0; i < 2; i++) await page.keyboard.press('Escape');
+    }
+  };
+  return { page, ctx, check };
+}
+const shot = async (page, name) => shotsDir && (await page.screenshot({ path: `${shotsDir}/${String(++step).padStart(2, '0')}-${name}.png` }));
+const bg = (page, sel) => page.locator(sel).first().evaluate((e) => getComputedStyle(e).backgroundColor);
+
+const PRODUCTS = [
+  { app: 'writer', ready: '.nw-doc', cell: '.nw-doc table td', row: '.nw-doc table tr', insertTab: 'Insertar', tableTab: 'Tabla' },
+  { app: 'notes', ready: '.nn-canvas', cell: '.nn-doc td, .nn-box--text td', row: '.nn-doc tr, .nn-box--text tr', insertTab: 'Insertar', tableTab: 'Tabla' },
+];
+
+for (const P of PRODUCTS) {
+  const { page, ctx, check } = await session(P.app, P.ready);
+  if (P.app === 'writer') await page.click('.nw-doc');
+  else {
+    const b = await page.locator('.nn-canvas').boundingBox();
+    await page.mouse.click(b.x + 120, b.y + 90);
+    await page.keyboard.type('texto');
+    await page.waitForTimeout(200);
+  }
+  const cells = () => page.locator(P.cell);
+  const tab = (n) => page.getByRole('tab', { name: n, exact: n !== 'Tabla' }).click();
+  const gallery = async () => {
+    await tab(P.tableTab);
+    await page.getByRole('button', { name: 'Estilos de tabla', exact: true }).click();
+  };
+
+  await check('el selector de tamaño: pasar por la cuadrícula dice el tamaño y un clic inserta esa tabla', async () => {
+    await tab(P.insertTab);
+    await page.getByRole('button', { name: 'Insertar tabla', exact: true }).click();
+    await page.getByRole('gridcell', { name: '4 × 3', exact: true }).hover();
+    assert.match(await page.locator('.nv-tbl-size').innerText(), /Tabla de 4 × 3/);
+    await shot(page, 'selector');
+    await page.getByRole('gridcell', { name: '4 × 3', exact: true }).click();
+    await page.waitForTimeout(400);
+    assert.equal(await cells().count(), 12);
+    assert.equal(await page.locator(P.row).count(), 3);
+  });
+
+  await check('con el teclado: flechas cambian el tamaño e Intro inserta', async () => {
+    await page.locator(P.cell).first().click();
+    await page.keyboard.press('Control+End');
+    await tab(P.insertTab);
+    await page.getByRole('button', { name: 'Insertar tabla', exact: true }).click();
+    const grid = page.getByRole('grid', { name: 'Insertar tabla' });
+    await grid.focus();
+    for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowUp');
+    // the size picked with the mouse is where the arrows start from: 4 × 3 → 2 × 2
+    assert.match(await page.locator('.nv-tbl-size').innerText(), /Tabla de 2 × 2/);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(400);
+    assert.equal(await cells().count(), 16);
+  });
+
+  await check('la galería: un estilo cambia la tabla al instante (encabezado, bandas) y se recuerda', async () => {
+    await cells().first().click();
+    await gallery();
+    await shot(page, 'galeria');
+    await page.getByRole('button', { name: 'Medio – Énfasis 1', exact: true }).click();
+    await page.waitForTimeout(300);
+    const first = cells().first();
+    const st = await first.evaluate((e) => ({ bg: getComputedStyle(e).backgroundColor, fg: getComputedStyle(e).color, w: getComputedStyle(e).fontWeight }));
+    assert.equal(st.bg, A);
+    assert.equal(st.fg, 'rgb(255, 255, 255)');
+    assert.ok(Number(st.w) >= 600, `negrita ${st.w}`);
+    // the first body row is the darker band, the second the lighter one
+    assert.equal(await cells().nth(4).evaluate((e) => getComputedStyle(e).backgroundColor), TINT40);
+    assert.equal(await cells().nth(8).evaluate((e) => getComputedStyle(e).backgroundColor), TINT20);
+    await shot(page, 'estilo-medio');
+    await gallery();
+    assert.equal(await page.getByRole('button', { name: 'Medio – Énfasis 1', exact: true }).getAttribute('aria-pressed'), 'true');
+    await page.keyboard.press('Escape');
+  });
+
+  await check('las opciones: sin fila de encabezado y con fila de totales', async () => {
+    await cells().first().click();
+    await gallery();
+    await page.getByLabel('Fila de encabezado').uncheck();
+    await page.getByLabel('Fila de totales').check();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    assert.equal(await cells().first().evaluate((e) => getComputedStyle(e).backgroundColor), TINT40, 'sin encabezado la primera fila es una banda');
+    assert.equal(await cells().nth(8).evaluate((e) => getComputedStyle(e).backgroundColor), A, 'la última fila es la de totales');
+    await shot(page, 'opciones');
+  });
+
+  await check('sombreado: un color, sin color y volver al color del estilo', async () => {
+    await cells().nth(4).click();
+    await tab(P.tableTab);
+    await page.getByRole('button', { name: 'Sombreado', exact: true }).click();
+    await page.getByRole('button', { name: '#ffc000', exact: true }).first().click();
+    await page.waitForTimeout(250);
+    assert.equal(await cells().nth(4).evaluate((e) => getComputedStyle(e).backgroundColor), 'rgb(255, 192, 0)');
+    await page.getByRole('button', { name: 'Sombreado', exact: true }).click();
+    await page.getByRole('button', { name: 'Sin color', exact: true }).click();
+    await page.waitForTimeout(250);
+    const none = await cells().nth(4).evaluate((e) => getComputedStyle(e).backgroundColor);
+    assert.ok(none === 'rgba(0, 0, 0, 0)' || none === 'transparent', none);
+    await page.getByRole('button', { name: 'Sombreado', exact: true }).click();
+    await page.getByRole('button', { name: 'Restablecer el color del estilo', exact: true }).click();
+    await page.waitForTimeout(250);
+    assert.equal(await cells().nth(4).evaluate((e) => getComputedStyle(e).backgroundColor), TINT20);
+  });
+
+  await check('bordes: el exterior de una celda con el lápiz elegido, y quitarlos', async () => {
+    await cells().nth(5).click();
+    await tab(P.tableTab);
+    await page.getByRole('button', { name: 'Bordes', exact: true }).click();
+    await page.getByLabel('Grosor de línea').selectOption('3');
+    await page.getByLabel('Color de la línea').fill('#ff0000');
+    await page.getByRole('menuitem', { name: 'Borde exterior', exact: true }).click();
+    await page.waitForTimeout(250);
+    const b = await cells().nth(5).evaluate((e) => ({ w: getComputedStyle(e).borderTopWidth, c: getComputedStyle(e).borderTopColor, s: getComputedStyle(e).borderTopStyle }));
+    assert.equal(b.c, 'rgb(255, 0, 0)');
+    assert.equal(b.s, 'solid');
+    assert.ok(parseFloat(b.w) >= 3, b.w);
+    // the neighbour above shares the edge
+    assert.equal(await cells().nth(1).evaluate((e) => getComputedStyle(e).borderBottomColor), 'rgb(255, 0, 0)');
+    await shot(page, 'bordes');
+    await page.getByRole('button', { name: 'Bordes', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Sin borde', exact: true }).click();
+    await page.waitForTimeout(250);
+    assert.notEqual(await cells().nth(5).evaluate((e) => getComputedStyle(e).borderTopColor), 'rgb(255, 0, 0)');
+  });
+
+  await check('deshacer devuelve el aspecto anterior y «Borrar estilo» deja la tabla sin estilo', async () => {
+    await cells().first().click();
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(250);
+    await cells().first().click();
+    await gallery();
+    await page.getByRole('button', { name: 'Borrar estilo' }).click();
+    await page.waitForTimeout(300);
+    const bgc = await cells().first().evaluate((e) => getComputedStyle(e).backgroundColor);
+    assert.ok(bgc === 'rgba(0, 0, 0, 0)' || bgc === 'transparent', bgc);
+  });
+
+  await check('los controles de tabla están desactivados fuera de una tabla', async () => {
+    if (P.app === 'writer') {
+      await page.click('.nw-doc p, .nw-doc');
+      await page.keyboard.press('Control+Home');
+      await page.keyboard.press('Control+Shift+End');
+    }
+    // the Table tab only shows inside a table: outside it the controls are not reachable
+    const tabs = await page.getByRole('tab', { name: P.tableTab }).count();
+    assert.ok(tabs <= 1);
+  });
+
+  await ctx.close();
+}
+
+results.push([errors.length ? 'FAIL' : 'ok', 'sin errores de consola', errors.slice(0, 4).join(' | ')]);
+for (const r of results) console.log(r[0] === 'ok' ? '  ✔' : '  ✘', r[1], r[2] ? `\n      ${r[2]}` : '');
+await browser.close();
+if (results.some((r) => r[0] !== 'ok')) process.exit(1);

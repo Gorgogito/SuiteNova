@@ -18,7 +18,7 @@ import { Canvas, LockedPanel } from './Canvas';
 import { notesCommands, type NotesDialog, type NotesUI } from './commands';
 import { notesCommands2 } from './commands2';
 import { AccessibilityDialog, CountDialog, FindDialog, MergeSectionDialog, MovePageDialog, RecentDialog } from './dlg2';
-import { InkToTextDialog, NotesSpellDialog, NotesTableLookDialog, NotesTableSortDialog, ReadDialog, SymbolDialog } from './dlg3';
+import { InkToTextDialog, NotesSpellDialog, NotesTableSortDialog, ReadDialog, SymbolDialog } from './dlg3';
 import { ClipDialog, captureForClip } from '../clip';
 import { ReplayBar } from './ReplayBar';
 import './messages-notes3';
@@ -866,7 +866,6 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         {dlg === 'symbol' && <SymbolDialog ctl={ctl} onClose={closeDialog} />}
         {dlg === 'inkText' && <InkToTextDialog ctl={ctl} lang={ocrLang} onClose={closeDialog} />}
         {dlg === 'tableSort' && <NotesTableSortDialog ctl={ctl} onClose={closeDialog} />}
-        {dlg === 'tableLook' && <NotesTableLookDialog ctl={ctl} onClose={closeDialog} />}
         {clip && (
           <ClipDialog
             canvas={clip.canvas}

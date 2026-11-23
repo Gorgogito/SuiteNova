@@ -1,7 +1,7 @@
 import { nodeTypes, writerSchema } from '@suitenova/writer-core';
 import { EditorState, TextSelection, type Transaction } from 'prosemirror-state';
 import { describe, expect, it } from 'vitest';
-import { applyTableStyle, columnWidths, compareCells, DEFAULT_STYLE_OPTIONS, distributeColumns, findTable, fitColumns, parseNumber, setTableProps, sortTable, splitLine, TABLE_STYLES, tableToText, textToTable } from './table-tools';
+import { columnWidths, compareCells, distributeColumns, findTable, fitColumns, parseNumber, setTableProps, sortTable, splitLine, tableToText, textToTable } from './table-tools';
 
 const para = (text: string) => nodeTypes.paragraph!.create(null, text ? writerSchema.text(text) : undefined);
 const cell = (text: string, w = 100) => nodeTypes.table_cell!.create({ colwidth: [w] }, para(text));
@@ -35,37 +35,6 @@ describe('propiedades de tabla', () => {
   });
   it('fuera de una tabla no hace nada', () => {
     expect(setTableProps({ borders: false })(stateOf([para('x')], 'text'))).toBe(false);
-  });
-});
-
-describe('estilos de tabla', () => {
-  it('colorea el encabezado, las filas alternas y la fila de totales', () => {
-    const blue = TABLE_STYLES.find((x) => x.id === 'blue')!;
-    const s = run(inCell([table([['H1', 'H2'], ['a', 'b'], ['c', 'd'], ['T', 'T']])]), applyTableStyle(blue, { ...DEFAULT_STYLE_OPTIONS, lastRow: true }));
-    const t = findTable(s)!.node;
-    const bg = (r: number) => t.child(r).child(0).attrs.background;
-    expect(bg(0)).toBe(blue.header!.bg);
-    expect(bg(1)).toBe(blue.band);
-    expect(bg(2)).toBeNull();
-    expect(bg(3)).toBe(blue.total);
-    expect(t.attrs).toMatchObject({ borders: true, borderColor: blue.border, headerRow: true });
-    const marks = (r: number) => t.child(r).child(0).firstChild!.firstChild!.marks.map((m) => m.type.name + (m.attrs.value ?? '')).sort();
-    expect(marks(0)).toEqual(['color#ffffff', 'strong']);
-    expect(marks(1)).toEqual([]);
-  });
-  it('«Sin bordes» quita los bordes y los fondos; cambiar de estilo sustituye al anterior', () => {
-    let s = run(inCell([table([['H', 'H'], ['a', 'b']])]), applyTableStyle(TABLE_STYLES.find((x) => x.id === 'green')!, DEFAULT_STYLE_OPTIONS));
-    s = run(s, applyTableStyle(TABLE_STYLES.find((x) => x.id === 'plain')!, { headerRow: false, bandedRows: false, firstCol: false, lastRow: false }));
-    const t = findTable(s)!.node;
-    expect(t.attrs).toMatchObject({ borders: false, borderColor: null, headerRow: false });
-    expect(t.child(0).child(0).attrs.background).toBeNull();
-    expect(t.child(0).child(0).firstChild!.firstChild!.marks).toHaveLength(0);
-  });
-  it('la primera columna en negrita', () => {
-    const s = run(inCell([table([['a', 'b'], ['c', 'd']])]), applyTableStyle(TABLE_STYLES.find((x) => x.id === 'gray')!, { headerRow: false, bandedRows: false, firstCol: true, lastRow: false }));
-    const t = findTable(s)!.node;
-    expect(t.child(1).child(0).firstChild!.firstChild!.marks.map((m) => m.type.name)).toEqual(['strong']);
-    expect(t.child(1).child(1).firstChild!.firstChild!.marks).toHaveLength(0);
   });
 });
 

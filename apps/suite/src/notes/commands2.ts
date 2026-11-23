@@ -56,7 +56,6 @@ export function notesCommands2(ui: NotesUI): CommandDef[] {
 
   // ---- tabla
   add({ id: 'notes.table.sort', label: 'Ordenar…', icon: 'nnSort', enabled: () => !!c.view && isInTable(c.view.state), run: () => ui.openDialog('tableSort') });
-  add({ id: 'notes.table.look', label: 'Aspecto y sombreado…', icon: 'tableGrid', enabled: () => !!c.view && isInTable(c.view.state), run: () => ui.openDialog('tableLook') });
 
   // ---- dibujo
   add({ id: 'notes.eraser.stroke', label: 'Borrar trazos enteros', icon: 'eraser', checked: () => c.eraserMode === 'stroke', run: () => (c.setEraserMode('stroke'), c.setTool('eraser')) });

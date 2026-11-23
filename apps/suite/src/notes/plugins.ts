@@ -1,7 +1,7 @@
 import { documentFormulas } from '@suitenova/notes-core';
 import { getAutoCorrect, langAtPos, spellPlugin } from '../spell';
 import { autoCorrectPlugin, ruleLineCommand } from '../writer/autocorrect';
-import { nodeTypes } from '@suitenova/writer-core';
+import { nodeTypes, tableStylePlugin } from '@suitenova/writer-core';
 import { baseKeymap } from 'prosemirror-commands';
 import { history } from 'prosemirror-history';
 import { inputRules, wrappingInputRule } from 'prosemirror-inputrules';
@@ -126,6 +126,7 @@ export function textPlugins(ctl: NotesCtl): Plugin[] {
     keymap(baseKeymap),
     columnResizing({ cellMinWidth: 30 }),
     tableEditing(),
+    tableStylePlugin(),
     trailingParagraph(),
     tagClickPlugin(ctl),
     pageLinkPlugin(ctl),

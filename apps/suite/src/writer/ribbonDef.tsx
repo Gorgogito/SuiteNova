@@ -1,4 +1,5 @@
-import { TABLE_STYLES } from './table-tools';
+import { BordersMenu, GridPicker, ShadingMenu, StyleGallery } from '../tables';
+import { writerTableHost } from './tables-host';
 import { COVERS } from './cover';
 import { Popover, PopoverSurface, PopoverTrigger } from '@fluentui/react-components';
 import { Icon, RibbonItemView, t, type RibbonItem, type RibbonTab } from '@suitenova/core-ui';
@@ -6,7 +7,6 @@ import { MARGIN_PRESETS, PAGE_SIZES, markTypes } from '@suitenova/writer-core';
 import { ChevronDown } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { Command } from 'prosemirror-state';
-import { isInTable, setCellAttr } from 'prosemirror-tables';
 import { helpTab, viewTab } from '../common';
 import { ShapeGallery } from '../shapes/ShapeGallery';
 import { WarpGallery, WordArtStyleGallery } from '../wordart/WordArtUi';
@@ -169,37 +169,6 @@ function PageColor({ ui }: { ui: WriterUI }) {
   );
 }
 
-function CellShade({ ui }: { ui: WriterUI }) {
-  const c = useCtl(ui);
-  const [open, setOpen] = useState(false);
-  const disabled = !c.state || !isInTable(c.state);
-  const apply = (col: string | null) => {
-    run(ui, setCellAttr('background', col));
-    setOpen(false);
-  };
-  return (
-    <Popover open={open} onOpenChange={(_e, d) => setOpen(d.open)} positioning="below-start">
-      <PopoverTrigger disableButtonEnhancement>
-        <button type="button" className="nv-btn nv-btn--small" disabled={disabled} title={t('Sombreado')} aria-label={t('Sombreado')}>
-          <Icon name="fillColor" />
-          <ChevronDown size={12} />
-        </button>
-      </PopoverTrigger>
-      <PopoverSurface>
-        <div className="nv-swatches" role="group" aria-label={t('Sombreado')}>
-          {PALETTE.flat().map((col) => (
-            <button key={col} type="button" style={{ background: col }} aria-label={col} title={col} onClick={() => apply(col)} />
-          ))}
-        </div>
-        <div style={{ padding: '4px 8px 8px' }}>
-          <button type="button" className="nv-btn nv-btn--small" onClick={() => apply(null)}>
-            {t('Sin relleno')}
-          </button>
-        </div>
-      </PopoverSurface>
-    </Popover>
-  );
-}
 
 function FontGroup({ ui }: { ui: WriterUI }) {
   return (
@@ -305,6 +274,7 @@ export interface RibbonFlags {
 export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>): RibbonTab[] {
   const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, shape: false, smartart: false, chart: false, math: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
   const inTable = flags.inTable;
+  const tableHost = writerTableHost(ui);
   const home: RibbonTab = {
     id: 'home',
     label: 'tab.home',
@@ -413,7 +383,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
           },
         ],
       },
-      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [{ kind: 'button', command: 'writer.table', size: 'large', keytip: 'T' }, { kind: 'button', command: 'writer.table.fromText', size: 'small', keytip: 'XT' }, { kind: 'button', command: 'writer.insert.smartart', size: 'small', keytip: 'SA' }, { kind: 'button', command: 'writer.insert.chart', size: 'small', keytip: 'GR' }] },
+      { id: 'tables', label: 'Tablas', icon: 'tableGrid', items: [{ kind: 'custom', id: 'tablePicker', label: 'Tabla', keytip: 'T', render: () => <GridPicker host={tableHost} onMore={() => ui.openDialog('tableSize')} /> }, { kind: 'button', command: 'writer.table.fromText', size: 'small', keytip: 'XT' }, { kind: 'button', command: 'writer.insert.smartart', size: 'small', keytip: 'SA' }, { kind: 'button', command: 'writer.insert.chart', size: 'small', keytip: 'GR' }] },
       {
         id: 'illustrations',
         label: 'Ilustraciones',
@@ -1159,8 +1129,8 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         label: 'Celda',
         icon: 'fillColor',
         items: [
-          { kind: 'custom', id: 'shade', label: 'Sombreado', keytip: 'SH', render: () => <CellShade ui={ui} /> },
-          { kind: 'button', command: 'writer.table.borders', size: 'large', keytip: 'BD' },
+          { kind: 'custom', id: 'shade', label: 'Sombreado', keytip: 'SH', render: () => <ShadingMenu host={tableHost} /> },
+          { kind: 'custom', id: 'borders', label: 'Bordes', keytip: 'BD', render: () => <BordersMenu host={tableHost} /> },
           { kind: 'button', command: 'writer.table.valign.top', size: 'small', keytip: 'VT' },
           { kind: 'button', command: 'writer.table.valign.middle', size: 'small', keytip: 'VM' },
           { kind: 'button', command: 'writer.table.valign.bottom', size: 'small', keytip: 'VB' },
@@ -1171,22 +1141,7 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
         label: 'Estilos de tabla',
         icon: 'gridlines',
         items: [
-          {
-            kind: 'dropdown',
-            id: 'tableStylesMenu',
-            label: 'Estilos de tabla',
-            icon: 'gridlines',
-            size: 'large',
-            keytip: 'TS',
-            entries: [
-              ...TABLE_STYLES.map((s) => ({ kind: 'command' as const, command: `writer.table.style.${s.id}` })),
-              { kind: 'separator' as const },
-              { kind: 'command' as const, command: 'writer.table.opt.headerRow' },
-              { kind: 'command' as const, command: 'writer.table.opt.bandedRows' },
-              { kind: 'command' as const, command: 'writer.table.opt.firstCol' },
-              { kind: 'command' as const, command: 'writer.table.opt.lastRow' },
-            ],
-          },
+          { kind: 'custom', id: 'tableStylesMenu', label: 'Estilos de tabla', keytip: 'TS', render: () => <StyleGallery host={tableHost} /> },
           { kind: 'button', command: 'writer.table.props', size: 'large', keytip: 'TP' },
         ],
       },

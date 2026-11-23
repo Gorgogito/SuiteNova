@@ -57,6 +57,7 @@ import {
   type SignatureStatus,
   type Watermark,
   type WriterDoc,
+  tableStylePlugin,
 } from '@suitenova/writer-core';
 import { removeCommentMarks } from './review';
 import { selectionParagraph } from './editing';
@@ -96,7 +97,7 @@ class NovaTableView extends TableView {
     return true;
   }
   private sync(node: PMNode) {
-    this.table.className = `nw-table${node.attrs.borders ? ' nw-borders' : ''}`;
+    this.table.className = `nw-table${node.attrs.borders && !node.attrs.tstyle ? ' nw-borders' : ''}`;
     for (const k of ['margin-left', 'margin-right', '--nw-bc', '--nw-bw', '--nw-px', '--nw-py']) this.table.style.removeProperty(k);
     for (const [k, v] of tableCssVars(node.attrs)) this.table.style.setProperty(k, v);
   }
@@ -480,6 +481,7 @@ export class WriterCtl {
       keymap(baseKeymap),
       columnResizing({ cellMinWidth: 30, View: NovaTableView as never }),
       tableEditing(),
+      tableStylePlugin(),
       sectionFixup(),
       trailingParagraph(),
       findPlugin(),

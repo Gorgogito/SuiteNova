@@ -1,3 +1,5 @@
+import { DEFAULT_OPTIONS, styleById, type Border, type TableStyle } from '@suitenova/table-core';
+import { borderXml, novaStyleId, tableStyleXml, tblLookXml } from './tablestyles';
 import JSZip from 'jszip';
 import { ruleLabel } from '../mailmerge';
 import { Node as PMNode, type Mark } from 'prosemirror-model';
@@ -31,6 +33,8 @@ export class Ctx {
   pictures = new Map<string, { orig: string; edits: unknown }>();
   /** The text read from each picture (OCR), by the name of its media. */
   ocr = new Map<string, unknown>();
+  /** Our table styles that the tables of the document use (they are written as table styles of the styles part). */
+  tableStyles = new Map<string, TableStyle>();
   docPrId = 1;
   /** Partes de SmartArt (`word/diagrams/…`) que van al paquete. */
   diagrams: { path: string; xml: string; content: string }[] = [];
@@ -719,7 +723,10 @@ function tableXml(t: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
   const jc = t.attrs.align === 'center' || t.attrs.align === 'right' ? `<w:jc w:val="${t.attrs.align}"/>` : '';
   const pad = t.attrs.padding as { x?: number; y?: number } | null;
   const mar = pad ? `<w:tblCellMar><w:top w:w="${ptToTwips(pad.y ?? 0)}" w:type="dxa"/><w:left w:w="${ptToTwips(pad.x ?? 5.4)}" w:type="dxa"/><w:bottom w:w="${ptToTwips(pad.y ?? 0)}" w:type="dxa"/><w:right w:w="${ptToTwips(pad.x ?? 5.4)}" w:type="dxa"/></w:tblCellMar>` : '';
-  let out = `<w:tbl><w:tblPr>${t.attrs.borders ? '<w:tblStyle w:val="TableGrid"/>' : ''}<w:tblW w:w="0" w:type="auto"/>${jc}${borders}<w:tblLayout w:type="fixed"/>${mar}<w:tblLook w:val="04A0"/></w:tblPr>`;
+  const nova = t.attrs.tstyle ? styleById(String(t.attrs.tstyle)) : undefined;
+  if (nova) ctx.tableStyles.set(nova.id, nova);
+  const look = nova ? tblLookXml({ ...DEFAULT_OPTIONS, ...(t.attrs.topts ?? {}) }) : '<w:tblLook w:val="04A0"/>';
+  let out = `<w:tbl><w:tblPr>${nova ? `<w:tblStyle w:val="${novaStyleId(nova)}"/>` : t.attrs.borders ? '<w:tblStyle w:val="TableGrid"/>' : ''}<w:tblW w:w="0" w:type="auto"/>${jc}${nova ? '' : borders}<w:tblLayout w:type="fixed"/>${mar}${look}</w:tblPr>`;
   out += `<w:tblGrid>${grid.map((w) => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>`;
   const occ: { left: number; span: number }[] = [];
   let rowIndex = 0;
@@ -741,7 +748,10 @@ function tableXml(t: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
       let pr = `<w:tcW w:w="${sum(grid, col, span)}" w:type="dxa"/>`;
       if (span > 1) pr += `<w:gridSpan w:val="${span}"/>`;
       if (rspan > 1) pr += '<w:vMerge w:val="restart"/>';
-      if (cell.attrs.background) pr += `<w:shd w:val="clear" w:color="auto" w:fill="${hex(cell.attrs.background)}"/>`;
+      const cb = cell.attrs.borders as Record<string, Border | null> | null;
+      if (cb) pr += `<w:tcBorders>${(['t', 'l', 'b', 'r'] as const).map((k, i) => (k in cb ? borderXml(['top', 'left', 'bottom', 'right'][i]!, cb[k]) : '')).join('')}</w:tcBorders>`;
+      if (cell.attrs.background === 'transparent') pr += '<w:shd w:val="clear" w:color="auto" w:fill="auto"/>';
+      else if (cell.attrs.background) pr += `<w:shd w:val="clear" w:color="auto" w:fill="${hex(cell.attrs.background)}"/>`;
       if (cell.attrs.vAlign) pr += `<w:vAlign w:val="${cell.attrs.vAlign === 'middle' ? 'center' : cell.attrs.vAlign}"/>`;
       let content = '';
       cell.forEach((b) => (content += blockXml(b, 0, ctx, part, rels)));
@@ -835,7 +845,7 @@ function numberingXml(ctx: Ctx): string {
   return out + '</w:numbering>';
 }
 
-function stylesXml(doc: WriterDoc): string {
+function stylesXml(doc: WriterDoc, ctx: Ctx): string {
   const d = doc.defaults;
   const font = esc(d.fontFamily);
   let out = `${XML_HEAD}<w:styles ${W_NS}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:eastAsia="${font}" w:cs="${font}"/><w:sz w:val="${Math.round(d.fontSize * 2)}"/><w:szCs w:val="${Math.round(d.fontSize * 2)}"/><w:lang w:val="es-ES" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault>`;
@@ -869,6 +879,7 @@ function stylesXml(doc: WriterDoc): string {
   out += '<w:style w:type="character" w:styleId="CommentReference"><w:name w:val="annotation reference"/><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr></w:style>';
   out += '<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:semiHidden/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>';
   out += '<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/><w:basedOn w:val="TableNormal"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((s) => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="auto"/>`).join('') + '</w:tblBorders></w:tblPr></w:style>';
+  for (const s of ctx.tableStyles.values()) out += tableStyleXml(s);
   return out + '</w:styles>';
 }
 
@@ -1080,7 +1091,7 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
   writePictureOcr(zip, ctx, mainRels, overrides);
 
   zip.file('word/document.xml', `${XML_HEAD}<w:document ${W_NS}>${doc.pageColor ? `<w:background w:color="${hex(doc.pageColor)}"/>` : ''}<w:body>${bodyContent}${finalSect}</w:body></w:document>`);
-  zip.file('word/styles.xml', stylesXml(doc));
+  zip.file('word/styles.xml', stylesXml(doc, ctx));
   zip.file('word/numbering.xml', numberingXml(ctx));
   zip.file('word/settings.xml', settingsXml(doc, ctx));
   zip.file('word/_rels/document.xml.rels', relsXml(mainRels));

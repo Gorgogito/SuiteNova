@@ -805,6 +805,20 @@ const tNodes = tableNodes({
         if (value) attrs.style = `${attrs.style ?? ''};vertical-align:${value}`;
       },
     },
+    /** Borders set on the cell itself: `{ t, r, b, l }`, each a `{ style, width, color }` or null (no border); they win over the style of the table. */
+    borders: {
+      default: null,
+      getFromDOM: (dom) => {
+        try {
+          return JSON.parse((dom as HTMLElement).getAttribute('data-borders') ?? 'null');
+        } catch {
+          return null;
+        }
+      },
+      setDOMAttr: (value, attrs) => {
+        if (value) attrs['data-borders'] = JSON.stringify(value);
+      },
+    },
   },
 });
 // tables carry a flag for visible borders ("Table Grid" in Word)
@@ -819,6 +833,9 @@ const tNodes = tableNodes({
   padding: { default: null },
   /** La primera fila es de encabezado (Word la repite en cada página). */
   headerRow: { default: false },
+  /** The table style (`family-accent` of `@suitenova/table-core`, e.g. `medium-1`) and its options; null: no style (the borders flag decides). */
+  tstyle: { default: null },
+  topts: { default: null },
 };
 
 /** Propiedades CSS de una tabla (alineación, borde y márgenes de celda) como pares [nombre, valor]. */
@@ -837,7 +854,7 @@ export function tableCssVars(attrs: Record<string, unknown>): [string, string][]
 }
 (tNodes.table as NodeSpec).toDOM = (node) => {
   const css = tableCssVars(node.attrs).map(([k, v]) => `${k}:${v}`).join(';');
-  return ['table', { class: `nw-table${node.attrs.borders ? ' nw-borders' : ''}`, ...(css ? { style: css } : {}) }, ['tbody', 0]];
+  return ['table', { class: `nw-table${node.attrs.borders && !node.attrs.tstyle ? ' nw-borders' : ''}`, ...(node.attrs.tstyle ? { 'data-tstyle': String(node.attrs.tstyle) } : {}), ...(css ? { style: css } : {}) }, ['tbody', 0]];
 };
 
 export const writerSchema = new Schema({ nodes: { ...nodes, ...tNodes }, marks });
