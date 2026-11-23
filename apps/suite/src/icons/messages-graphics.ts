@@ -2,6 +2,7 @@ import { registerMessages } from '@suitenova/core-ui';
 
 // English text of the graphics menus (Format Graphics).
 registerMessages('en', {
+  'Gráficos': 'Graphics',
   'Colores': 'Colors',
   'Más colores…': 'More colors…',
   'Sin relleno': 'No fill',

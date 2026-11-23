@@ -2,9 +2,7 @@ import { Button } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
 import { COMPRESS_TARGETS, NO_CROP, cropPixels, isCropped, moveMarks, planCompress, resample } from '@suitenova/image-core';
 import { addSlide, newId, newPicture, newTextBox, docFromText, frameOf, updateElement, type Deck, type PicEl, type SlideElement } from '@suitenova/slides-core';
-import { useEffect, useState } from 'react';
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { useState } from 'react';
 import { canvasFromPixels, decodePixels, encode, hasAlpha } from '../images/canvas';
 import { originalOf, remakePicture } from './pichost';
 import type { SlidesUI } from './commands';
@@ -112,83 +110,6 @@ export function CompressDialog({ ui, onClose }: P) {
         </label>
         <p className="sl-note">{t('Cada imagen se queda con esa resolución al tamaño que tiene en la diapositiva (nunca se agranda). Las imágenes sin transparencia pasan a JPEG. Se puede deshacer.')}</p>
         <p className="sl-note" aria-live="polite">{result}</p>
-      </div>
-    </Modal>
-  );
-}
-
-// ------------------------------------------------------------------------------------------------ icons
-
-/** Icons of the Lucide set, drawn to a picture in the chosen colour. */
-export function IconsDialog({ ui, onClose }: P) {
-  const c = ui.ctl;
-  const [all, setAll] = useState<Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> | null>(null);
-  const [q, setQ] = useState('');
-  const [color, setColor] = useState('#1f4e79');
-  const [picked, setPicked] = useState('');
-  useEffect(() => {
-    void import('lucide-react').then((m) => setAll((m as unknown as { icons: NonNullable<typeof all> }).icons));
-  }, []);
-  const names = all ? Object.keys(all).filter((n) => n.toLowerCase().includes(q.trim().toLowerCase().replace(/\s+/g, ''))).slice(0, 150) : [];
-  const insert = async () => {
-    if (!all || !picked) return;
-    const svg = renderToStaticMarkup(createElement(all[picked]!, { size: 512, color, strokeWidth: 1.75 }));
-    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-    const img = new Image();
-    img.src = url;
-    await img.decode();
-    const cv = document.createElement('canvas');
-    cv.width = cv.height = 512;
-    cv.getContext('2d')!.drawImage(img, 0, 0, 512, 512);
-    URL.revokeObjectURL(url);
-    const data = await encode(cv, 'image/png');
-    const id = newId('a');
-    const s = 96;
-    const el = newPicture(id, (c.deck.size.w - s) / 2, (c.deck.size.h - s) / 2, s, s, picked.replace(/([a-z0-9])([A-Z])/g, '$1 $2'));
-    c.apply('Insertar icono', (d) => ({ ...d, assets: { ...d.assets, [id]: { id, mime: 'image/png', data, name: `${picked}.png` } }, slides: d.slides.map((sl) => (sl.id === c.slide.id ? { ...sl, shapes: [...sl.shapes, el] } : sl)) }), { selection: [el.id] });
-    onClose();
-  };
-  return (
-    <Modal
-      title={t('Iconos')}
-      onClose={onClose}
-      wide
-      actions={
-        <>
-          <Button onClick={onClose}>{t('Cancelar')}</Button>
-          <Button appearance="primary" disabled={!picked} onClick={() => void insert()}>
-            {t('Insertar')}
-          </Button>
-        </>
-      }
-    >
-      <div className="sl-form">
-        <div className="sl-form__row">
-          <label className="sl-field">
-            <span>{t('Buscar (en inglés)')}</span>
-            <input aria-label={t('Buscar icono')} value={q} onChange={(e) => setQ(e.target.value)} placeholder="arrow, user, chart…" />
-          </label>
-          <label className="sl-field">
-            <span>{t('Color')}</span>
-            <input type="color" aria-label={t('Color del icono')} value={color} onChange={(e) => setColor(e.target.value)} />
-          </label>
-        </div>
-        {!all ? (
-          <p className="sl-note">{t('Cargando iconos…')}</p>
-        ) : (
-          <div role="listbox" aria-label={t('Iconos')} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 48px)', gap: 4, maxHeight: 280, overflow: 'auto' }}>
-            {names.map((n) => {
-              const I = all[n]!;
-              return (
-                <button key={n} type="button" role="option" aria-selected={picked === n} aria-label={n} title={n} onClick={() => setPicked(n)} onDoubleClick={() => (setPicked(n), void 0)} style={{ width: 48, height: 48, display: 'grid', placeItems: 'center', background: 'transparent', cursor: 'pointer', border: picked === n ? '2px solid var(--colorBrandStroke1, #c55a11)' : '1px solid rgba(128,128,128,.3)' }}>
-                  <I size={26} color={color} />
-                </button>
-              );
-            })}
-          </div>
-        )}
-        <p className="sl-note" aria-live="polite">{picked ? picked : names.length ? t('Elige un icono.') : t('Ningún icono coincide.')}</p>
-        <p className="sl-note">{t('El icono se inserta como una imagen (PNG) del color elegido; para cambiar el color hay que insertarlo de nuevo.')}</p>
       </div>
     </Modal>
   );

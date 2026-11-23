@@ -332,6 +332,11 @@ export interface PicEl extends Common {
    */
   orig?: string;
   edits?: PixelEdits;
+  /**
+   * An SVG picture (an icon): the asset id of the SVG, while `src` is the PNG of the same picture. PowerPoint keeps it the same way (the PNG is the
+   * picture and the SVG hangs from its blip, `asvg:svgBlip`), so a reader without SVG still shows the PNG.
+   */
+  svg?: string;
 }
 export interface GroupEl extends Common {
   kind: 'group';

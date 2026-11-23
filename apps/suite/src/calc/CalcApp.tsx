@@ -1,4 +1,6 @@
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useCommandState, useCore, useLocale, useThemeMode, useSetting, SETTING_LOCALE, type BackstageEntry, type Locale } from '@suitenova/core-ui';
+import { svgFromUri } from '@suitenova/icon-core';
+import { uriBytes } from '../icons/raster';
 import { useImageSources } from '../images/useSources';
 import { ReadAloudBar } from '../voice/ReadAloudBar';
 import { Workbook, filterCounts, formatRect, parseA1, type Scalar } from '@suitenova/calc-engine';
@@ -174,10 +176,16 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
     return () => window.removeEventListener('nova-calc-equation-edit', open);
   }, [doc]);
 
-  const sources = useImageSources(async (f) => {
-    const img = await readImageFile(f);
-    doc.x.insertImage(img.mime, img.data, img.width, img.height, img.name);
-  });
+  const sources = useImageSources(
+    async (f) => {
+      const img = await readImageFile(f);
+      doc.x.insertImage(img.mime, img.data, img.width, img.height, img.name);
+    },
+    // an icon goes in as an icon: the PNG is the picture and its SVG hangs from it
+    (picks) => {
+      for (const p of picks) doc.x.insertIcon(uriBytes(p.png), new TextEncoder().encode(svgFromUri(p.svg) ?? ''), p.size, p.name);
+    },
+  );
   const ui: CalcUI = useMemo(
     () => ({
       doc,

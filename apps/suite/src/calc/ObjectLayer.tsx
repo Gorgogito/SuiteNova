@@ -488,7 +488,7 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
         return (
           <div key={img.id} className={`calc-picture ${selected ? 'is-selected' : ''}`} style={{ left: p.x, top: p.y, width: p.w, height: p.h, ...css.box }} data-image-id={img.id} onDoubleClick={() => img.smartart && window.dispatchEvent(new CustomEvent('nova-calc-smartart-edit'))} onPointerDown={(e) => imgBox.begin(img.id, { x: img.x, y: img.y, width: img.width, height: img.height }, e, 'move')}>
             <div style={css.clip}>
-              <img src={mediaUrl(doc, img.media)} alt={img.alt ?? img.name ?? ''} draggable={false} style={css.img} />
+              <img src={mediaUrl(doc, img.svg && !img.edits ? img.svg : img.media)} alt={img.alt ?? img.name ?? ''} draggable={false} style={css.img} />
             </div>
             {selected && <Handles onDown={(e, h) => imgBox.begin(img.id, { x: img.x, y: img.y, width: img.width, height: img.height }, e, h, !img.smartart)} />}
           </div>

@@ -602,6 +602,17 @@ export class DocObjects {
     return img.id;
   }
 
+  /** Puts an icon on the sheet at the active cell: the PNG is the picture and the SVG hangs from it (`svg`). */
+  insertIcon(png: Uint8Array, svg: Uint8Array, size: number, name: string): string {
+    if (!this.d.prot.allowed('objects')) return '';
+    this.d.commitIfEditing();
+    const { row, col } = this.d.sel.active;
+    const img: SheetImage = { id: uid('img'), media: this.wb.addMedia('image/png', png), svg: this.wb.addMedia('image/svg+xml', svg), x: colOffsetPx(this.sheet, col), y: rowOffsetPx(this.sheet, row), width: size, height: size, name, alt: name, anchor: 'twoCell' };
+    this.d.run('Insertar icono', () => this.wb.editObjects(this.id, (s) => void s.images.push(img)));
+    this.selectObject('image', img.id);
+    return img.id;
+  }
+
   updateImage(id: string, patch: Partial<Omit<SheetImage, 'id'>>, label = 'Modificar imagen'): void {
     if (!this.d.prot.allowed('objects')) return;
     this.d.run(label, () =>

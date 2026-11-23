@@ -145,15 +145,15 @@ await check('icons: search, pick and insert as a picture', async () => {
   await page.getByRole('tab', { name: 'Insertar', exact: true }).click();
   await page.getByRole('button', { name: 'Iconos…' }).click();
   await settle(900);
-  await page.getByRole('dialog').getByLabel('Buscar icono').fill('heart');
+  await page.getByRole('dialog').getByLabel('Buscar icono').fill('corazon');
   await settle(300);
   await shot('icons-dialog');
-  await page.getByRole('dialog').getByRole('option', { name: 'Heart', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Insertar' }).click();
+  await page.getByRole('dialog').getByRole('listbox', { name: 'Iconos' }).getByRole('option', { name: /^Corazón/ }).first().click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Insertar', exact: true }).click();
   await settle(900);
   const p = await probe();
   assert.equal(p.mime, 'image/png');
-  assert.equal(p.w, 512);
+  assert.equal(p.w, 256);
   assert.ok(p.bytes > 300);
 });
 

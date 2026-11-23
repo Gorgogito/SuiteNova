@@ -379,7 +379,8 @@ function PicView({ el, ctx }: { el: PicEl; ctx: CanvasCtx }) {
   const w = Math.max(0, x.w);
   const h = Math.max(0, x.h);
   const id = `p${safeId(el.id)}`;
-  const url = env.assetUrl(el.src);
+  // an icon shows its SVG (sharp at any size) unless its pixels were edited, then it shows the edited PNG
+  const url = env.assetUrl(el.svg && !el.edits ? el.svg : el.src);
   const g = geometryOf(el.geom ?? { prst: 'rect' }, w, h);
   const look = resolveLook(chain, el, onSlide);
   const stroke = strokeFor(look.ln, id, w, h, env, look.lnClr);

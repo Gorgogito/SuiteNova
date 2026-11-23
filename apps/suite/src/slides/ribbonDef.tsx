@@ -1,4 +1,4 @@
-import { Icon, RibbonItemView, t, type RibbonItem, type RibbonTab } from '@suitenova/core-ui';
+import { Icon, RibbonItemView, t, type RibbonGroup, type RibbonItem, type RibbonTab } from '@suitenova/core-ui';
 import type { ReactNode } from 'react';
 import { helpTab, viewTab } from '../common';
 import type { SlidesUI } from './commands';
@@ -11,6 +11,7 @@ import { isLiveSmartArt } from '@suitenova/slides-core';
 import { ArtisticMenu } from './ribbonParts3';
 import { BgStylesGallery, ColorsGallery, FontsGallery } from './ribbonParts3';
 import { TextEffectsMenu, TextFillPicker, TextOutlinePicker } from './ribbonParts2';
+import { GraphicFillButton, GraphicOutlineButton, GraphicStylesButton, selectedIcons } from './icons-ui';
 import { AspectGallery, CorrectionsMenu, PictureShapeGallery, PictureStylesGallery, RecolorMenu } from './PicRibbon';
 import { TableBordersMenu, TableShadingPicker, TableStyleGallery } from './TableRibbon';
 import { AnimGallery, AnimOptions, AnimTiming, TransitionGallery, TransitionOptions, TransitionTiming } from './animUi';
@@ -447,6 +448,7 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
   };
 
   const isPic = c.selected.length > 0 && c.selected.every((e) => e.kind === 'pic');
+  const isIcon = isPic && selectedIcons(c).length > 0;
   const picFormat: RibbonTab = {
     id: 'picFormat',
     label: 'Formato de imagen',
@@ -480,6 +482,21 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
       },
       { id: 'pSize', label: 'Tamaño', icon: 'crop', items: [L('slides.pic.crop', 'RC'), { kind: 'custom', id: 'picAspect', label: 'Relación de aspecto', keytip: 'RA', render: () => <AspectGallery ui={ui} /> }, S('slides.pic.fill', 'RL'), S('slides.pic.fit', 'AJ'), S('slides.position', 'TP2'), S('slides.altText', 'TX2')] },
       { id: 'pArrange', label: 'Organizar', icon: 'toFront', items: [S('slides.front', 'TF2'), S('slides.back', 'EF3'), S('slides.rotateRight', 'GR3'), S('slides.flipH', 'VH2')] },
+      ...(isIcon
+        ? [
+          {
+            id: 'pGraphics',
+            label: 'Gráficos',
+            icon: 'sparkles',
+            items: [
+              { kind: 'custom', id: 'gfxStyles', label: 'Estilos de gráfico', keytip: 'GS', render: () => <GraphicStylesButton ui={ui} /> },
+              { kind: 'custom', id: 'gfxFill', label: 'Relleno de gráfico', keytip: 'GF', render: () => <GraphicFillButton ui={ui} /> },
+              { kind: 'custom', id: 'gfxOutline', label: 'Contorno de gráfico', keytip: 'GO', render: () => <GraphicOutlineButton ui={ui} /> },
+              { kind: 'button', command: 'slides.pic.toShape', size: 'small', iconOnly: true, keytip: 'GC' },
+            ],
+          } as RibbonGroup,
+          ]
+        : []),
       {
         id: 'pText',
         label: 'Texto',

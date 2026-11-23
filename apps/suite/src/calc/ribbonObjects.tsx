@@ -7,6 +7,7 @@ import { CHART_PRESETS } from '../chart/presets';
 import type { CalcUI } from './commands';
 import { ArtisticItems, AspectItems, PictureStyleItems } from '../images/galleries';
 import { PicPopover } from '../images/PicPopover';
+import { graphicsItems, selectedIcon } from './icons-ui';
 import { calcPictureHost } from './pichost';
 import { TableNameField } from './dlg-table';
 
@@ -498,6 +499,8 @@ export function contextualTabs(ui: CalcUI, f: ContextFlags): RibbonTab[] {
           { kind: 'custom', id: 'picAspect', label: 'Relación de aspecto', keytip: 'RA', render: () => <PicPopover label="Relación de aspecto" icon="crop">{(close) => <AspectItems host={calcPictureHost(ui.doc)} close={close} />}</PicPopover> },
         ],
       },
+      // only for an icon: the group is wide and the ribbon folds the last groups first
+      ...(selectedIcon(ui.doc) ? [{ id: 'picGraphics', label: 'Gráficos', icon: 'sparkles', items: graphicsItems(ui.doc) } as RibbonGroup] : []),
       { id: 'picText', label: 'Texto', icon: 'textbox', items: [{ kind: 'button', command: 'calc.ocr.dialog', size: 'large', keytip: 'KT' }, { kind: 'button', command: 'calc.ocr.copyText', size: 'small', keytip: 'KO' }] },
       { id: 'picActions', label: 'Acciones', icon: 'trash', items: [{ kind: 'button', command: 'calc.picture.delete', size: 'large', keytip: 'EL' }] },
     ],

@@ -12,6 +12,8 @@ export interface GraphicsHost {
   /** The effects of the selected picture (icon or not). */
   fx(): GraphicFx | null;
   setFx(fx: GraphicFx | null, label: string): void;
+  /** The product cannot draw a glow (its pictures only have a shadow): the glow is not offered. */
+  noGlow?: boolean;
   /** Applies a whole style: the look and the effects. */
   setStyle(look: IconLook, fx: GraphicFx | null, label: string): Promise<void>;
 }
@@ -114,6 +116,8 @@ export function GraphicEffectsItems({ host, close }: { host: GraphicsHost; close
           {t(s.name)}
         </button>
       ))}
+      {!host.noGlow && (
+        <>
       <div className="nv-gfx__title">{t('Resplandor')}</div>
       <button type="button" role="menuitemradio" aria-checked={!fx.glow} onClick={() => set({ ...fx, glow: undefined }, t('Resplandor'))}>
         {mark(!fx.glow)}
@@ -130,6 +134,8 @@ export function GraphicEffectsItems({ host, close }: { host: GraphicsHost; close
           <button key={c} type="button" aria-label={c} aria-pressed={fx.glow?.color === c} className="nv-gfx__swatch" style={{ background: c }} onClick={() => set({ ...fx, glow: glowOf(fx.glow?.radius ?? 10, c) }, t('Resplandor'))} />
         ))}
       </div>
+        </>
+      )}
     </div>
   );
 }
@@ -141,7 +147,7 @@ export function GraphicStyleItems({ host, close }: { host: GraphicsHost; close: 
   if (!host.look()) return null;
   return (
     <div role="menu" aria-label={t('Estilos de gráfico')} className="nv-img__styles">
-      {GRAPHIC_STYLES.map((s) => {
+      {GRAPHIC_STYLES.filter((s) => !(host.noGlow && s.fx?.glow)).map((s) => {
         const fill = s.look.fill ?? 'none';
         const stroke = s.look.stroke;
         const sh = s.fx?.shadow;

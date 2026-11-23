@@ -102,8 +102,10 @@ function picAdjust(el: PicEl): string {
 
 function picXml(el: PicEl, w: PartWriter): string {
   const rid = w.image(el.src);
+  const svgRid = el.svg && !el.edits ? w.image(el.svg) : undefined;
+  const svgExt = svgRid ? `<a:extLst><a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}"><asvg:svgBlip xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main" r:embed="${svgRid}"/></a:ext></a:extLst>` : '';
   const sr = el.srcRect ? `<a:srcRect l="${Math.round(el.srcRect.l)}" t="${Math.round(el.srcRect.t)}" r="${Math.round(el.srcRect.r)}" b="${Math.round(el.srcRect.b)}"/>` : '';
-  return `<p:pic><p:nvPicPr>${cNvPr(el, w)}<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr>${phXml(el.ph)}</p:nvPr></p:nvPicPr><p:blipFill><a:blip${rid ? ` r:embed="${rid}"` : ''}>${picAdjust(el)}</a:blip>${sr}<a:stretch><a:fillRect/></a:stretch></p:blipFill>${spPr({ ...el, geom: el.geom ?? { prst: 'rect' } }, w)}</p:pic>`;
+  return `<p:pic><p:nvPicPr>${cNvPr(el, w)}<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr>${phXml(el.ph)}</p:nvPr></p:nvPicPr><p:blipFill><a:blip${rid ? ` r:embed="${rid}"` : ''}>${picAdjust(el)}${svgExt}</a:blip>${sr}<a:stretch><a:fillRect/></a:stretch></p:blipFill>${spPr({ ...el, geom: el.geom ?? { prst: 'rect' } }, w)}</p:pic>`;
 }
 
 const PNG_1x1 = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));

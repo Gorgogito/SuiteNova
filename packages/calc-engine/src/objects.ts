@@ -323,6 +323,11 @@ export interface SheetImage {
    */
   orig?: string;
   edits?: unknown;
+  /**
+   * An SVG picture (an icon): the key in the media store of the SVG, while `media` is the PNG of the same picture. Excel keeps it the same way (the PNG
+   * is the picture and the SVG hangs from its blip, `asvg:svgBlip`), so a reader without SVG still shows the PNG. Ignored when the picture has `edits`.
+   */
+  svg?: string;
   /** Part cut from each side, in thousandths of a percent of the whole picture (as `a:srcRect`). The box above is the part that shows. */
   crop?: { l: number; t: number; r: number; b: number };
   /** Preset geometry the picture is cut to (`roundRect`, `ellipse`); none is a rectangle. */

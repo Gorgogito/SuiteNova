@@ -5,6 +5,7 @@ import { saveBytes } from '../fileio';
 import { canvasBlob, slideToCanvas } from './export/raster';
 import type { SlidesUI } from './commands';
 import { slidesPictureHost } from './pichost';
+import { iconsToShapes, selectedIcons } from './icons-ui';
 
 /** Picture tools that change pixels (remove background, artistic effects, compress), icons, album, screenshot and save as picture. */
 export function pictureCommands2(ui: SlidesUI): CommandDef[] {
@@ -21,6 +22,7 @@ export function pictureCommands2(ui: SlidesUI): CommandDef[] {
     defs.push({ id: `slides.pic.artistic.${fx.id}`, label: fx.name, icon: 'sparkles', description: 'Aplica el efecto sobre la imagen original: se puede cambiar o quitar.', enabled: () => pics().length > 0, run: () => setArtistic(fx.id) });
   defs.push({ id: 'slides.pic.artistic.none', label: 'Quitar el efecto artístico', icon: 'sparkles', enabled: () => pics().some((p) => !!p.edits?.artistic), run: () => setArtistic(null) });
   defs.push({ id: 'slides.pic.compress', label: 'Comprimir imágenes…', icon: 'image', description: 'Reduce el tamaño de las imágenes de la presentación.', run: () => ui.openDialog('compress') });
+  defs.push({ id: 'slides.pic.toShape', label: 'Convertir en forma', icon: 'shapes', description: 'Convierte el icono en una forma que se puede editar: relleno, contorno y tamaño como el de cualquier forma. Ya no es una imagen.', enabled: () => selectedIcons(ui.ctl).length > 0, run: () => iconsToShapes(ui.ctl) });
   defs.push({ id: 'slides.insert.icons', label: 'Iconos…', icon: 'sparkles', description: 'Inserta un icono como imagen.', run: () => ui.openDialog('icons') });
   defs.push({ id: 'slides.insert.album', label: 'Álbum de fotografías…', icon: 'image', description: 'Crea diapositivas con varias imágenes.', run: () => ui.openDialog('album') });
   defs.push({ id: 'slides.insert.screenshot', label: 'Captura de pantalla', icon: 'monitor', description: 'Elige una pantalla o una ventana y la inserta como imagen.', run: () => void ui.captureScreen() });

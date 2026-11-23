@@ -453,7 +453,21 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
         const rid = `rId${drawingRels.length + 1}`;
         drawingRels.push({ id: rid, type: `${NS_REL}/image`, target: `../media/${file}` });
         if (img.orig && img.edits && wb.media.has(img.orig)) pictureOrig.set(file, { orig: img.orig, edits: img.edits });
-        items.push({ kind: 'pic', rId: rid, x: img.x, y: img.y, width: img.width, height: img.height, name: img.name ?? `Imagen ${i + 1}`, alt: img.alt, img });
+        // an SVG icon: its SVG hangs from the PNG (Excel shows the SVG; a reader without SVG shows the PNG)
+        let svgRId: string | undefined;
+        const svgMedia = img.svg && !img.edits ? wb.media.get(img.svg) : undefined;
+        if (svgMedia && svgMedia.mime === 'image/svg+xml') {
+          let svgFile = mediaFile.get(img.svg!);
+          if (!svgFile) {
+            svgFile = `image${++mediaCount}.svg`;
+            mediaFile.set(img.svg!, svgFile);
+            put(`xl/media/${svgFile}`, svgMedia.data);
+            mediaExts.add('svg');
+          }
+          svgRId = `rId${drawingRels.length + 1}`;
+          drawingRels.push({ id: svgRId, type: `${NS_REL}/image`, target: `../media/${svgFile}` });
+        }
+        items.push({ kind: 'pic', rId: rid, ...(svgRId ? { svgRId } : {}), x: img.x, y: img.y, width: img.width, height: img.height, name: img.name ?? `Imagen ${i + 1}`, alt: img.alt, img });
       });
       // the picture of an equation: its media and a relationship of the drawing
       const mathFallback = (s: (typeof sheet.shapes)[number]): string => {
@@ -612,7 +626,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
   );
   put('docProps/app.xml', `${XML_HEAD}<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>SuiteNova Nova Calc</Application></Properties>`);
 
-  const MIME: Record<string, string> = { png: 'image/png', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp' };
+  const MIME: Record<string, string> = { png: 'image/png', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp', svg: 'image/svg+xml' };
   const ct =
     `${XML_HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +

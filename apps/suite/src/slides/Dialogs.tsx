@@ -15,7 +15,8 @@ import { PrintDialog } from './dlg-print';
 import { AutoCorrectDialog, getAutoCorrect, setAutoCorrect } from '../spell';
 import { NarrationDialog } from './dlg-narration';
 import { AccessibilityDialog, CompareDeckDialog, DocPropsDialog, ReuseSlidesDialog, ZoomDialog } from './dlg-review';
-import { AlbumDialog, CompressDialog, IconsDialog } from './dlg-picture2';
+import { AlbumDialog, CompressDialog } from './dlg-picture2';
+import { SlidesIconsDialog } from './icons-ui';
 import { EquationDialog } from './FormDialogs7';
 import { FormatPictureDialog } from '../images/FormatPictureDialog';
 import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
@@ -151,7 +152,7 @@ export function Dialogs({ ui, dialog, onClose }: { ui: SlidesUI; dialog: { kind:
   if (kind === 'print') return <PrintDialog ui={ui} onClose={onClose} />;
   if (kind === 'removeBg') return <RemoveBackgroundDialog host={slidesPictureHost(ui.ctl)} onClose={onClose} />;
   if (kind === 'compress') return <CompressDialog ui={ui} onClose={onClose} />;
-  if (kind === 'icons') return <IconsDialog ui={ui} onClose={onClose} />;
+  if (kind === 'icons') return <SlidesIconsDialog ui={ui} onClose={onClose} />;
   if (kind === 'album') return <AlbumDialog ui={ui} onClose={onClose} />;
   if (kind === 'symbol') return <SymbolDialog ui={ui} onClose={onClose} />;
   if (kind === 'replaceFonts') return <ReplaceFontsDialog ui={ui} onClose={onClose} />;

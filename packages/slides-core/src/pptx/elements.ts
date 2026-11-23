@@ -142,6 +142,9 @@ function readPic(n: XNode, ctx: ElementCtx): PicEl | MediaEl {
     return m;
   }
   const pic: PicEl = { kind: 'pic', ...common, src, ...look };
+  const svgBlip = blip ? findKids(findKid(blip, 'extLst'), 'ext').map((e) => findKid(e, 'svgBlip')).find(Boolean) : undefined;
+  const svgId = svgBlip ? ctx.blip(attrOf(svgBlip, 'embed')) : undefined;
+  if (svgId) pic.svg = svgId;
   const sr = findKid(bf, 'srcRect');
   if (sr) pic.srcRect = { l: numAttr(sr, 'l') ?? 0, t: numAttr(sr, 't') ?? 0, r: numAttr(sr, 'r') ?? 0, b: numAttr(sr, 'b') ?? 0 };
   const ph = readPh(nvPr);

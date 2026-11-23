@@ -39,3 +39,8 @@ export async function pickFile(p: IconPick): Promise<File> {
   const blob = await (await fetch(p.png)).blob();
   return new File([blob], `${p.name}.png`, { type: 'image/png' });
 }
+
+/** The bytes of a base64 data URI. */
+export function uriBytes(uri: string): Uint8Array {
+  return Uint8Array.from(atob(uri.slice(uri.indexOf(',') + 1)), (c) => c.charCodeAt(0));
+}

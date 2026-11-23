@@ -5,7 +5,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { describe, expect, it } from 'vitest';
 import { newDeck, newId } from '../defaults';
 import { docFromText, makeDoc } from '../text';
-import type { Deck, SlideElement } from '../types';
+import type { Deck, PicEl, SlideElement } from '../types';
 import { readPptx } from './read';
 import { writePptx } from './write';
 
@@ -113,6 +113,35 @@ describe('macros of the suite in a .pptx', () => {
     expect(back.macros).toEqual(macros);
     expect((await readPptx((await writePptx(deck)).data)).macros).toEqual([]);
     expect(back.warnings).toEqual(expect.not.arrayContaining([expect.stringContaining('macros')]));
+  });
+});
+
+describe('an SVG icon in a .pptx', () => {
+  const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
+  const svgText = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="#c00000"><path d="M2 2h20v20H2z"/></svg>';
+  it('goes as PowerPoint does it: the PNG is the picture and the SVG hangs from its blip; it comes back as an SVG with its PNG', async () => {
+    const deck = newDeck();
+    const p = newId('a');
+    const s = newId('a');
+    deck.assets[p] = { id: p, mime: 'image/png', data: png, name: 'icono.png' };
+    deck.assets[s] = { id: s, mime: 'image/svg+xml', data: new TextEncoder().encode(svgText), name: 'icono.svg' };
+    deck.slides[0]!.shapes.push({ kind: 'pic', id: newId(), name: 'Icono', descr: 'Estrella', src: p, svg: s, xfrm: { x: 10, y: 10, w: 96, h: 96 } });
+    deck.slides[0]!.shapes.push({ kind: 'pic', id: newId(), name: 'Foto', descr: '', src: p, xfrm: { x: 200, y: 10, w: 50, h: 50 } });
+    const { data } = await writePptx(deck);
+    const zip = await JSZip.loadAsync(data);
+    const xml = await zip.file('ppt/slides/slide1.xml')!.async('string');
+    expect(xml).toMatch(/<a:blip r:embed="rId\d+"><a:extLst><a:ext uri="\{96DAC541-7B7A-43D3-8B79-37D633B846F1\}"><asvg:svgBlip [^>]*r:embed="rId\d+"\/>/);
+    expect((xml.match(/svgBlip/g) ?? []).length).toBe(1);
+    expect(Object.keys(zip.files).filter((f) => /^ppt\/media\/.*\.svg$/.test(f))).toHaveLength(1);
+    expect(await zip.file('[Content_Types].xml')!.async('string')).toContain('Extension="svg" ContentType="image/svg+xml"');
+    const back = await readPptx(data);
+    const pics = back.deck.slides[0]!.shapes.filter((e): e is PicEl => e.kind === 'pic');
+    expect(pics).toHaveLength(2);
+    const icon = pics.find((e) => e.name === 'Icono')!;
+    expect(back.deck.assets[icon.svg!]!.mime).toBe('image/svg+xml');
+    expect(new TextDecoder().decode(back.deck.assets[icon.svg!]!.data)).toBe(svgText);
+    expect(back.deck.assets[icon.src]!.mime).toBe('image/png');
+    expect(pics.find((e) => e.name === 'Foto')!.svg).toBeUndefined();
   });
 });
 

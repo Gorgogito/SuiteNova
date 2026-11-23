@@ -535,7 +535,13 @@ async function loadDrawing(wb: Workbook, sheet: Sheet, drawingRef: XNode, sheetP
           const cNv = a.pic.nvPicPr?.cNvPr;
           const originals = await pictureOriginals(zip, wb);
           const made = originals.get(path!.split('/').pop()!);
-          sheet.images.push({ id: `img-imp-${sheet.id}-${++p}`, media: wb.addMedia(mime, data), name: attr(cNv, 'name'), alt: attr(cNv, 'descr'), ...rect, ...(made ? { orig: made.orig, edits: made.edits } : {}), ...pictureFrame(a) });
+          // an SVG hung from the picture (`asvg:svgBlip`, an icon): the SVG is kept next to the PNG
+          const exts = asArray(a.pic.blipFill?.blip?.extLst?.ext);
+          const svgEmbed = exts.map((e) => attr(e?.svgBlip, 'embed')).find(Boolean);
+          const svgPath = svgEmbed ? drawingRels.get(svgEmbed) : undefined;
+          const svgFile = svgPath && /\.svg$/i.test(svgPath) ? zip.file(svgPath) : null;
+          const svg = svgFile ? wb.addMedia('image/svg+xml', await svgFile.async('uint8array')) : undefined;
+          sheet.images.push({ id: `img-imp-${sheet.id}-${++p}`, media: wb.addMedia(mime, data), ...(svg ? { svg } : {}), name: attr(cNv, 'name'), alt: attr(cNv, 'descr'), ...rect, ...(made ? { orig: made.orig, edits: made.edits } : {}), ...pictureFrame(a) });
         } else skippedPictures++;
       }
       continue;

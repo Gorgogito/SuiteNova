@@ -24,6 +24,8 @@ export interface DrawingItem {
   ex?: boolean;
   /** Relationship id of the chart or image part. */
   rId: string;
+  /** For a picture that is an SVG icon: the relationship id of its SVG, which hangs from the PNG's blip. */
+  svgRId?: string;
   x: number;
   y: number;
   width: number;
@@ -61,7 +63,7 @@ function picBodyXml(c: DrawingItem, id: number): string {
   const sh = im?.shadow;
   const fx = sh ? `<a:effectLst><a:outerShdw blurRad="${Math.round(sh.blur * 12700)}" dist="${Math.round(sh.dist * 12700)}" dir="${Math.round((((sh.angle % 360) + 360) % 360) * 60000)}" algn="ctr" rotWithShape="0"><a:srgbClr val="${hex6(sh.color)}"><a:alpha val="${Math.round(sh.alpha * 100000)}"/></a:srgbClr></a:outerShdw></a:effectLst>` : '';
   return `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"${c.alt ? ` descr="${escapeXml(c.alt)}"` : ''}/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
-    `<xdr:blipFill><a:blip xmlns:r="${NS_R}" r:embed="${c.rId}"/>${crop ? `<a:srcRect l="${Math.round(crop.l)}" t="${Math.round(crop.t)}" r="${Math.round(crop.r)}" b="${Math.round(crop.b)}"/>` : ''}<a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
+    `<xdr:blipFill>${c.svgRId ? `<a:blip xmlns:r="${NS_R}" r:embed="${c.rId}"><a:extLst><a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}"><asvg:svgBlip xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main" r:embed="${c.svgRId}"/></a:ext></a:extLst></a:blip>` : `<a:blip xmlns:r="${NS_R}" r:embed="${c.rId}"/>`}${crop ? `<a:srcRect l="${Math.round(crop.l)}" t="${Math.round(crop.t)}" r="${Math.round(crop.r)}" b="${Math.round(crop.b)}"/>` : ''}<a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
     `<xdr:spPr><a:xfrm${rot}${flips}><a:off x="${Math.round(c.x * EMU)}" y="${Math.round(c.y * EMU)}"/><a:ext cx="${Math.round(c.width * EMU)}" cy="${Math.round(c.height * EMU)}"/></a:xfrm><a:prstGeom prst="${im?.shape || 'rect'}"><a:avLst/></a:prstGeom>${ln}${fx}</xdr:spPr></xdr:pic>`;
 }
 

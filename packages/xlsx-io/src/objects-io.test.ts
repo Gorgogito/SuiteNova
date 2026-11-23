@@ -200,6 +200,30 @@ describe('hyperlinks, comments, pictures', () => {
     const zip = await JSZip.loadAsync(bytes);
     expect(Object.keys(zip.files).filter((n) => n.startsWith('xl/media/'))).toEqual(['xl/media/image1.png']);
   });
+
+  it('un icono SVG se guarda como Excel: el PNG es la imagen y el SVG cuelga de su blip; vuelve como SVG con su PNG, y un PNG normal no lleva SVG', async () => {
+    const { w, id } = book();
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+    const svgText = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#c00000"><path d="M2 2h20v20H2z"/></svg>';
+    const mp = w.addMedia('image/png', png);
+    const ms = w.addMedia('image/svg+xml', new TextEncoder().encode(svgText));
+    w.editObjects(id, (s) => {
+      s.images.push({ id: 'i1', media: mp, svg: ms, x: 40, y: 60, width: 64, height: 64, name: 'Icono', alt: 'Estrella' }, { id: 'i2', media: mp, x: 300, y: 60, width: 100, height: 50 });
+    });
+    const { workbook, bytes } = await roundTrip(w);
+    const zip = await JSZip.loadAsync(bytes);
+    const drawing = await zip.file(Object.keys(zip.files).find((n) => /^xl\/drawings\/drawing\d+\.xml$/.test(n))!)!.async('string');
+    expect(drawing).toMatch(/<a:blip [^>]*r:embed="rId\d+"><a:extLst><a:ext uri="\{96DAC541-7B7A-43D3-8B79-37D633B846F1\}"><asvg:svgBlip [^>]*r:embed="rId\d+"\/>/);
+    expect((drawing.match(/svgBlip/g) ?? []).length).toBe(1);
+    expect(Object.keys(zip.files).filter((n) => /^xl\/media\/.*\.svg$/.test(n))).toHaveLength(1);
+    expect(await zip.file('[Content_Types].xml')!.async('string')).toContain('Extension="svg" ContentType="image/svg+xml"');
+    const imgs = workbook.sheets[0]!.images;
+    expect(imgs).toHaveLength(2);
+    const icon = imgs.find((i) => i.name === 'Icono')!;
+    expect(new TextDecoder().decode(workbook.media.get(icon.svg!)!.data)).toBe(svgText);
+    expect(workbook.media.get(icon.media)!.mime).toBe('image/png');
+    expect(imgs.find((i) => i.id !== icon.id)!.svg).toBeUndefined();
+  });
 });
 
 describe('gráficos de Office 2016', () => {

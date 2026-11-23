@@ -120,12 +120,12 @@ export function FontGroup({ ui }: { ui: SlidesUI }) {
 }
 
 /** A popover holding a grid of choices. */
-export function Gallery({ label, icon, size = 'large', children, wide, iconOnly }: { label: string; icon: string; size?: 'large' | 'small'; iconOnly?: boolean; children: (close: () => void) => ReactNode; wide?: boolean }) {
+export function Gallery({ label, icon, size = 'large', children, wide, iconOnly, disabled }: { label: string; icon: string; size?: 'large' | 'small'; iconOnly?: boolean; disabled?: boolean; children: (close: () => void) => ReactNode; wide?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={(_e, d) => setOpen(d.open)} positioning="below-start">
       <PopoverTrigger disableButtonEnhancement>
-        <button type="button" className={`nv-btn nv-btn--${size}`} aria-haspopup="dialog" aria-label={label} title={label}>
+        <button type="button" className={`nv-btn nv-btn--${size}`} aria-haspopup="dialog" aria-label={label} title={label} disabled={disabled}>
           <Icon name={icon} />
           <span className="nv-btn__label">
             {!iconOnly && label} <ChevronDown size={11} />
