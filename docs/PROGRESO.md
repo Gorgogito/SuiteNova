@@ -170,6 +170,6 @@ Plan en `docs/diseno-recorte.md`. Decisiones (2026-11-23): `clip-core` compartid
 - [x] **Fase 1 HECHA: `clip-core` y recorte en el navegador.** Geometría con 10 pruebas, diálogo compartido (zona con puntero y teclado, copiar, guardar PNG, insertar) que sustituye el de Notes; `e2e-clip` 11/11.
 - [x] **Fase 2 HECHA: anotador.** Lápiz, resaltador, flecha, rectángulo y borrador con seis colores, tres grosores, deshacer y rehacer; las marcas entran en lo que se copia, guarda o inserta. `clip-core` 26 pruebas, `e2e-clip-marks` 12/12.
 - [x] **Fase 3 HECHA: Recorte de pantalla en los seis productos.** `useScreenClip` compartido; Writer, Calc, Slides, Diagram y Mail (y Notes) abren el mismo diálogo desde «Recorte de pantalla…». `e2e-clip-products` 10/10.
-- [ ] Fase 4: nativo (Tauri), captura.
+- [x] **Fase 4 HECHA: captura nativa (Tauri).** `clip_capture` oculta SuiteNova, captura el monitor y la vuelve a mostrar; si falla, selector del navegador. Comprobado con la aplicación real por WebView2 (`e2e-clip-native` 7/7) y `cargo test`. Solo Windows.
 - [ ] Fase 5: nativo, selección sobre la pantalla real.
 - [ ] Fase 6: cierre.

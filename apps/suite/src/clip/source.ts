@@ -1,11 +1,27 @@
 import { t } from '@suitenova/core-ui';
 import './messages';
+import { captureNativeCanvas, hasNativeClip } from './native';
 
 /** Something went wrong taking the capture (the message is for the person). */
 export class ClipError extends Error {}
 
-/** Takes the capture of a screen, window or tab the person chooses (the browser's own picker) and draws it on a canvas. Returns null if the person cancels. */
+/**
+ * Takes the capture to clip. In the desktop app the program hides itself and captures the screen it is on (like Office); anywhere else, or if
+ * that fails, the person picks a screen, window or tab in the browser's own picker. Returns null if the person cancels.
+ */
 export async function captureScreenCanvas(): Promise<HTMLCanvasElement | null> {
+  if (hasNativeClip()) {
+    try {
+      return await captureNativeCanvas();
+    } catch (e) {
+      console.warn('Recorte nativo no disponible, se usa el selector del navegador:', e);
+    }
+  }
+  return captureWithPicker();
+}
+
+/** The capture of a screen, window or tab the person chooses (the browser's own picker) drawn on a canvas. Returns null if the person cancels. */
+export async function captureWithPicker(): Promise<HTMLCanvasElement | null> {
   if (!navigator.mediaDevices?.getDisplayMedia) throw new ClipError(t('Este sistema no permite capturar la pantalla desde el programa.'));
   let stream: MediaStream;
   try {

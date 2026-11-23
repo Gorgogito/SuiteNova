@@ -1,3 +1,4 @@
+mod clip;
 mod fonts;
 mod mail;
 
@@ -59,6 +60,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| open_file_from_args(app))
         .invoke_handler(tauri::generate_handler![
+            clip::clip_monitors,
+            clip::clip_capture,
             fonts::system_fonts,
             fonts::system_font_bytes,
             mail::commands::mail_accounts,

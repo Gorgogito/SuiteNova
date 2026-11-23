@@ -196,6 +196,51 @@ await check('si el sistema no puede capturar avisa con un mensaje claro', async 
   assert.deepEqual(alerts, ['No se pudo capturar la pantalla.']);
 });
 
+await check('en la aplicación de escritorio se pide la captura nativa (ocultando la aplicación) y si falla se usa el selector del navegador', async () => {
+  await ev(() => {
+    window.__calls = [];
+    window.__TAURI_INTERNALS__ = {
+      invoke: async (cmd, args) => {
+        window.__calls.push({ cmd, args });
+        if (cmd !== 'clip_capture') throw new Error('orden desconocida ' + cmd);
+        if (window.__nativeFails) throw new Error('sin permiso');
+        const c = document.createElement('canvas');
+        c.width = 800;
+        c.height = 500;
+        c.getContext('2d').fillRect(0, 0, 800, 500);
+        const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
+        return await blob.arrayBuffer();
+      },
+    };
+  });
+  try {
+    await open();
+    assert.match(await status(), /Toda la captura: 800 × 500 px/);
+    const calls = await ev(() => window.__calls);
+    assert.deepEqual(calls.map((c) => c.cmd), ['clip_capture']);
+    assert.deepEqual(calls[0].args, { monitor: null, hide: true });
+    await dlg().getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await dlg().waitFor({ state: 'detached' });
+    await ev(() => {
+      window.__nativeFails = true;
+      navigator.mediaDevices.getDisplayMedia = async () => {
+        const c = document.createElement('canvas');
+        c.width = 1600;
+        c.height = 900;
+        const g = c.getContext('2d');
+        setInterval(() => g.fillRect(0, 0, 1600, 900), 100);
+        return c.captureStream(5);
+      };
+    });
+    await open();
+    assert.match(await status(), /Toda la captura: 1600 × 900 px/, 'cae al selector del navegador');
+    await dlg().getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await dlg().waitFor({ state: 'detached' });
+  } finally {
+    await ev(() => { delete window.__TAURI_INTERNALS__; });
+  }
+});
+
 await check('sin errores de consola', async () => {
   assert.deepEqual(errors, []);
 });

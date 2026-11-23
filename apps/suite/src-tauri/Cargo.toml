@@ -32,6 +32,9 @@ quick-xml = "0.37"
 
 # contraseñas en el almacén seguro del sistema
 [target.'cfg(windows)'.dependencies]
+# recorte de pantalla nativo (solo Windows por ahora: en los demás sistemas se usa el selector del navegador)
+xcap = "0.9.10"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
 keyring = { version = "3", features = ["windows-native"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3", features = ["apple-native"] }
