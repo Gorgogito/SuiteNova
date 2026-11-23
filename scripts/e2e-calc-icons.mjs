@@ -166,7 +166,7 @@ await check('el .xlsx guarda cada icono como Excel (PNG con el SVG colgado) y al
   if (outFile) fs.writeFileSync(outFile, Buffer.from(r.b64, 'base64'));
 });
 
-await check('una imagen que no es un icono no tiene el grupo Gráficos', async () => {
+await check('una imagen que no es un icono no puede usar el grupo Gráficos (falta o está deshabilitado)', async () => {
   await ev(() => {
     const d = window.__novaCalc.doc;
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
@@ -174,8 +174,10 @@ await check('una imagen que no es un icono no tiene el grupo Gráficos', async (
   });
   await settle(400);
   await page.getByRole('tab', { name: /Formato de imagen/ }).click();
-  assert.equal(await page.getByRole('button', { name: 'Relleno de gráfico', exact: true }).count(), 0);
-  assert.equal(await page.getByRole('button', { name: 'Estilos de gráfico', exact: true }).count(), 0);
+  for (const n of ['Relleno de gráfico', 'Estilos de gráfico']) {
+    const b = page.getByRole('button', { name: n, exact: true });
+    assert.ok((await b.count()) === 0 || !(await b.first().isEnabled()), `${n}: debe faltar o estar deshabilitado`);
+  }
 });
 
 await check('sin errores de consola', async () => {

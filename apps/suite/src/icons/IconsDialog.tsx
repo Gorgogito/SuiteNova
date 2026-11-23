@@ -1,11 +1,23 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle } from '@fluentui/react-components';
 import { getLocale, t } from '@suitenova/core-ui';
 import { loadCatalog, loadPaths, searchIcons, type Catalog, type IconInfo, type IconStyle, type PathsFile } from '@suitenova/icon-core';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import './messages';
 import { makeIconPick, type IconPick } from './raster';
 
 const PAGE = 240;
+
+/** Arrow keys move the focus between the buttons of a list (only one is a tab stop, so Tab does not cross hundreds of them). `cols` is how many sit in a row (1 = a column). */
+function roving(e: KeyboardEvent<HTMLElement>, cols: number) {
+  const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols }[e.key as string];
+  if (step === undefined) return;
+  const items = [...(e.currentTarget.querySelectorAll('[data-rove]') as NodeListOf<HTMLElement>)];
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  if (at < 0) return;
+  const to = items[Math.min(items.length - 1, Math.max(0, at + step))];
+  e.preventDefault();
+  to?.focus();
+}
 
 /** The name of an icon in the language of the interface. */
 export function iconLabel(i: IconInfo): string {
@@ -39,6 +51,9 @@ export function IconsDialog({ onPick, onClose }: { onPick: (picks: IconPick[]) =
   const [shown, setShown] = useState(PAGE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const grid = useRef<HTMLDivElement>(null);
+  const cols = () => (grid.current ? Math.max(1, getComputedStyle(grid.current).gridTemplateColumns.split(' ').length) : 1);
   useEffect(() => {
     let live = true;
     void Promise.all([loadCatalog(), loadPaths()]).then(([cat, paths]) => live && setData({ cat, paths }));
@@ -93,21 +108,21 @@ export function IconsDialog({ onPick, onClose }: { onPick: (picks: IconPick[]) =
               <p>{t('Cargando…')}</p>
             ) : (
               <div style={{ display: 'flex', gap: 12 }}>
-                <ul role="listbox" aria-label={t('Categorías')} style={{ listStyle: 'none', margin: 0, padding: 0, width: 200, maxHeight: 330, overflow: 'auto', flexShrink: 0 }}>
+                <ul role="listbox" aria-label={t('Categorías')} onKeyDown={(e) => roving(e, 1)} style={{ listStyle: 'none', margin: 0, padding: 0, width: 200, maxHeight: 330, overflow: 'auto', flexShrink: 0 }}>
                   {[{ id: null as string | null, name: 'Todos', count: data.cat.icons.length }, ...data.cat.categories].map((c) => (
                     <li key={c.id ?? 'all'} role="option" aria-selected={category === c.id}>
-                      <button type="button" onClick={() => setCategory(c.id)} style={{ width: '100%', textAlign: 'left', padding: '4px 8px', border: 0, borderRadius: 4, cursor: 'pointer', background: category === c.id ? 'rgba(37,99,235,.15)' : 'transparent', color: 'inherit', font: 'inherit' }}>
+                      <button type="button" data-rove tabIndex={category === c.id ? 0 : -1} onClick={() => setCategory(c.id)} style={{ width: '100%', textAlign: 'left', padding: '4px 8px', border: 0, borderRadius: 4, cursor: 'pointer', background: category === c.id ? 'rgba(37,99,235,.15)' : 'transparent', color: 'inherit', font: 'inherit' }}>
                         {t(c.name)} <span style={{ opacity: 0.6 }}>({c.count})</span>
                       </button>
                     </li>
                   ))}
                 </ul>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div role="listbox" aria-multiselectable="true" aria-label={t('Iconos')} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px, 1fr))', gap: 4, maxHeight: 330, overflow: 'auto', alignContent: 'start' }}>
+                  <div ref={grid} role="listbox" aria-multiselectable="true" aria-label={t('Iconos')} onKeyDown={(e) => roving(e, cols())} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px, 1fr))', gap: 4, maxHeight: 330, overflow: 'auto', alignContent: 'start' }}>
                     {found.slice(0, shown).map((i) => {
                       const on = chosen.includes(i.id);
                       return (
-                        <button key={i.id} type="button" role="option" aria-selected={on} aria-label={iconLabel(i)} title={iconLabel(i)} onClick={() => toggle(i.id)} onDoubleClick={() => void insert([i.id])} style={{ display: 'grid', placeItems: 'center', height: 56, border: on ? '2px solid #2563eb' : '1px solid #d0d0d0', borderRadius: 4, background: on ? 'rgba(37,99,235,.12)' : 'transparent', cursor: 'pointer' }}>
+                        <button key={i.id} type="button" role="option" data-rove tabIndex={(focusId && found.slice(0, shown).some((x) => x.id === focusId) ? focusId : found[0]?.id) === i.id ? 0 : -1} onFocus={() => setFocusId(i.id)} aria-selected={on} aria-label={iconLabel(i)} title={iconLabel(i)} onClick={() => toggle(i.id)} onDoubleClick={() => void insert([i.id])} style={{ display: 'grid', placeItems: 'center', height: 56, border: on ? '2px solid #2563eb' : '1px solid #d0d0d0', borderRadius: 4, background: on ? '#dbe7fd' : '#ffffff', cursor: 'pointer' }}>
                           <Glyph info={i} paths={data.paths} style={style} color={color} />
                         </button>
                       );
