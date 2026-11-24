@@ -201,7 +201,7 @@ Plan en `docs/diseno-temas.md`. Decisiones (2026-11-23): `theme-core` + interfaz
 
 - [x] **Fase 1 HECHA: theme-core** (10 pruebas; slides-core 117 y app 458 siguen pasando; catálogo generado de los archivos reales de Office). **Pendiente aparte:** la comparación con Office real por COM (`scripts/office-theme/`), porque Word se cuelga en `Documents.Add()`/`ApplyDocumentTheme`; cómo retomarla, en la bitácora de la fase 1 del diseño.
 - [x] **Fase 2 HECHA: interfaz común y Slides** (`apps/suite/src/themes/` con `ThemeHost`, menús Temas/Colores/Fuentes/Efectos, personalizados, `.thmx`; Slides migrado; efectos de un documento nuevo corregidos a los de Office actual; `e2e-themes-slides.mjs` 15/15, slides-core 120, app 458). **Pendiente aparte:** comparar con PowerPoint real por COM (mismo bloqueo que en la fase 1).
-- [ ] Fase 3: Writer.
+- [x] **Fase 3 HECHA: Writer** (el tema en el nodo `doc`, un paso de deshacer; `word/theme/theme1.xml` entero; `themeColor`/`themeShade`/`themeTint`/`asciiTheme` leídos y escritos; estilos integrados que siguen al tema; pestaña Diseño › Formato del documento; `e2e-themes-writer.mjs` 12/12, writer-core 217). Bordes, tablas y selector de color pasan a la fase 5. **Pendiente aparte:** comparar con Word real.
 - [ ] Fase 4: Calc.
 - [ ] Fase 5: paletas compartidas.
 - [ ] Fase 6: cierre.

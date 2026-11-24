@@ -1,5 +1,6 @@
 import { borderOfXml, optionsOfTblLook, styleOfNovaId } from './tablestyles';
 import JSZip from 'jszip';
+import { readThemeXml, refFromWord, resolveRef, type ColorRef, type DocTheme } from '@suitenova/theme-core';
 import { Fragment, type Mark, type Node as PMNode } from 'prosemirror-model';
 import { FORMAT_MARKS, PARAGRAPH_STYLES, markTypes, nodeTypes, writerSchema, type Align, type ListFormat, type ParagraphStyleDef } from '../schema';
 import { DEFAULT_DOC_DEFAULTS, type DocDefaults } from '../styles';
@@ -26,8 +27,12 @@ interface RP {
   u?: boolean;
   strike?: boolean;
   color?: string;
+  /** The colour as a theme colour (null: a fixed colour that replaces the one of the style it is based on). */
+  colorRef?: ColorRef | null;
   hl?: string;
   font?: string;
+  /** The font is the theme's (null: a fixed font). */
+  fontTheme?: 'major' | 'minor' | null;
   sz?: number;
   vert?: 'superscript' | 'subscript';
   caps?: 'all' | 'small';
@@ -63,6 +68,7 @@ interface PP {
   ilvl?: number;
   tabs?: TabDef[];
   shade?: string;
+  shadeRef?: ColorRef;
   border?: { width: number; color: string; space: number };
   insMark?: Rev;
   delMark?: Rev;
@@ -76,9 +82,14 @@ interface StyleDef {
   rp: RP;
   borders?: boolean;
 }
+/** The theme of the file being read, for the parts read without the fonts (paragraph shading). */
+let readingTheme: DocTheme | undefined;
+
 interface Fonts {
   major?: string;
   minor?: string;
+  /** The theme of the file, to give the colour that a reference to the theme stands for. */
+  theme?: DocTheme;
 }
 
 const HIGHLIGHT: Record<string, string> = {
@@ -136,7 +147,14 @@ function parseRPr(n: XNode | undefined, fonts: Fonts): RP {
       }
       case 'color': {
         const v = attrOf(k, 'val');
-        if (v && v !== 'auto' && /^[0-9a-f]{6}$/i.test(v)) rp.color = '#' + v.toLowerCase();
+        const ref = fonts.theme ? refFromWord(attrOf(k, 'themeColor'), attrOf(k, 'themeTint'), attrOf(k, 'themeShade')) : undefined;
+        if (ref && fonts.theme) {
+          rp.color = resolveRef(fonts.theme, ref);
+          rp.colorRef = ref;
+        } else if (v && v !== 'auto' && /^[0-9a-f]{6}$/i.test(v)) {
+          rp.color = '#' + v.toLowerCase();
+          rp.colorRef = null;
+        }
         break;
       }
       case 'highlight': {
@@ -162,8 +180,13 @@ function parseRPr(n: XNode | undefined, fonts: Fonts): RP {
       case 'rFonts': {
         const theme = attrOf(k, 'asciiTheme') ?? attrOf(k, 'hAnsiTheme');
         const f = attrOf(k, 'ascii') ?? attrOf(k, 'hAnsi');
-        if (theme) rp.font = (theme.startsWith('major') ? fonts.major : fonts.minor) ?? f;
-        else if (f) rp.font = f;
+        if (theme) {
+          rp.font = (theme.startsWith('major') ? fonts.major : fonts.minor) ?? f;
+          rp.fontTheme = theme.startsWith('major') ? 'major' : 'minor';
+        } else if (f) {
+          rp.font = f;
+          rp.fontTheme = null;
+        }
         break;
       }
     }
@@ -235,7 +258,11 @@ function parsePPr(n: XNode | undefined): PP {
       }
       case 'shd': {
         const f = attrOf(k, 'fill');
-        if (f && f !== 'auto' && /^[0-9a-f]{6}$/i.test(f)) pp.shade = '#' + f.toLowerCase();
+        const ref = readingTheme ? refFromWord(attrOf(k, 'themeFill'), attrOf(k, 'themeFillTint'), attrOf(k, 'themeFillShade')) : undefined;
+        if (ref && readingTheme) {
+          pp.shade = resolveRef(readingTheme, ref);
+          pp.shadeRef = ref;
+        } else if (f && f !== 'auto' && /^[0-9a-f]{6}$/i.test(f)) pp.shade = '#' + f.toLowerCase();
         break;
       }
       case 'pBdr': {
@@ -337,12 +364,18 @@ function customStyle(sh: Shared, id: string | undefined): ParagraphStyleDef | nu
   const base = sh.basePP;
   const baseRP = sh.baseRP;
   const def: ParagraphStyleDef = { id: sid, name: s.name };
-  if (rp.font && rp.font !== baseRP.font) def.fontFamily = rp.font;
+  if (rp.font && (rp.font !== baseRP.font || (rp.fontTheme ?? null) !== (baseRP.fontTheme ?? null))) {
+    def.fontFamily = rp.font;
+    if (rp.fontTheme) def.fontTheme = rp.fontTheme;
+  }
   if (rp.sz && rp.sz !== baseRP.sz) def.fontSize = rp.sz;
   if (rp.b && !baseRP.b) def.bold = true;
   if (rp.i && !baseRP.i) def.italic = true;
   if (rp.u && !baseRP.u) def.underline = true;
-  if (rp.color && rp.color !== baseRP.color) def.color = rp.color;
+  if (rp.color && rp.color !== baseRP.color) {
+    def.color = rp.color;
+    if (rp.colorRef) def.colorRef = rp.colorRef;
+  }
   if (pp.before !== undefined && pp.before !== base.before) def.spaceBefore = pp.before;
   if (pp.after !== undefined && pp.after !== base.after) def.spaceAfter = pp.after;
   if (pp.line !== undefined && !pp.lineRule && pp.line !== base.line) def.lineHeight = pp.line;
@@ -586,6 +619,7 @@ class Converter {
     const tabs = direct.tabs ?? (builtin ? undefined : chain.pp.tabs);
     if (tabs) attrs.tabs = tabs;
     if (pp.shade) attrs.shade = pp.shade;
+    if (pp.shadeRef) attrs.shadeRef = pp.shadeRef;
     if (pp.border) attrs.border = pp.border;
     if (direct.insMark) attrs.ins = { id: direct.insMark.id, author: direct.insMark.author, date: direct.insMark.date };
     if (direct.delMark) attrs.del = { id: direct.delMark.id, author: direct.delMark.author, date: direct.delMark.date };
@@ -844,9 +878,9 @@ class Converter {
     if (eff.strike && !base.strike) m.push(markTypes.strike!.create());
     if (eff.dstrike && !base.dstrike) m.push(markTypes.dstrike!.create());
     if (eff.spc && eff.spc !== base.spc) m.push(markTypes.spacing!.create({ value: eff.spc }));
-    if (eff.color && eff.color !== base.color) m.push(markTypes.color!.create({ value: eff.color }));
+    if (eff.color && eff.color !== base.color) m.push(markTypes.color!.create({ value: eff.color, ref: eff.colorRef ?? null }));
     if (eff.hl && eff.hl !== base.hl) m.push(markTypes.highlight!.create({ value: eff.hl }));
-    if (eff.font && eff.font !== base.font) m.push(markTypes.fontFamily!.create({ value: eff.font }));
+    if (eff.font && (eff.font !== base.font || (eff.fontTheme ?? null) !== (base.fontTheme ?? null))) m.push(markTypes.fontFamily!.create({ value: eff.font, theme: eff.fontTheme ?? null }));
     if (eff.sz && eff.sz !== base.sz) m.push(markTypes.fontSize!.create({ value: eff.sz }));
     if (eff.vert) m.push((eff.vert === 'superscript' ? markTypes.superscript : markTypes.subscript)!.create());
     if (eff.caps) m.push(markTypes.caps!.create({ value: eff.caps }));
@@ -1648,7 +1682,17 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
   if (!docXml) throw new Error('El archivo no es un documento de Word válido (falta word/document.xml).');
 
   const theme = await text(zip, 'word/theme/theme1.xml');
+  let docTheme: DocTheme | undefined;
+  if (theme) {
+    try {
+      docTheme = readThemeXml(theme);
+    } catch {
+      warnings.add('No se pudo leer el tema del documento; se usa el tema de Office.');
+    }
+  }
+  readingTheme = docTheme;
   const fonts: Fonts = {
+    theme: docTheme,
     minor: theme ? /<(?:a:)?minorFont>\s*<(?:a:)?latin\s+typeface="([^"]*)"/.exec(theme)?.[1] : undefined,
     major: theme ? /<(?:a:)?majorFont>\s*<(?:a:)?latin\s+typeface="([^"]*)"/.exec(theme)?.[1] : undefined,
   };
@@ -1905,6 +1949,7 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
 
   const defaults: DocDefaults = {
     fontFamily: baseRP.font ?? DEFAULT_DOC_DEFAULTS.fontFamily,
+    ...(baseRP.fontTheme ? { fontTheme: baseRP.fontTheme } : {}),
     fontSize: baseRP.sz ?? 10,
     lineHeight: basePP.line ?? 1,
     spaceAfter: basePP.after ?? 0,
@@ -1953,6 +1998,7 @@ export async function readDocx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
     mailMerge: nova.mailMerge ?? null,
     signature: nova.signature ?? null,
     isTemplate: !!types && /wordprocessingml\.template\.main\+xml/.test(types),
+    ...(docTheme ? { theme: docTheme } : {}),
     title: title || undefined,
     author: author || undefined,
     subject: coreProp('dc:subject'),

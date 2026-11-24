@@ -1,3 +1,4 @@
+import { quantizeTint, type DocTheme } from '@suitenova/theme-core';
 import type { SignatureData, WriterDoc } from '../docx/model';
 import { fromBase64, toBase64 } from './sha512';
 
@@ -40,6 +41,9 @@ export async function fingerprint(publicKey: JsonWebKey): Promise<string> {
   return [...h.slice(0, 10)].map((b) => b.toString(16).padStart(2, '0')).join('').replace(/(.{4})/g, '$1 ').trim().toUpperCase();
 }
 
+/** What of a theme a signature covers: its colours and the names of its fonts. */
+const themeSignature = (t: DocTheme) => ({ colors: Object.fromEntries(Object.entries(t.colors).map(([k, c]) => [k, c.toLowerCase()])), major: t.fonts.major.latin, minor: t.fonts.minor.latin });
+
 /** Stable JSON: keys sorted, and attributes that are only bookkeeping (ids made up at load time) left out. */
 function stable(value: unknown, skip: (key: string) => boolean): unknown {
   if (Array.isArray(value)) return value.map((v) => stable(v, skip));
@@ -47,7 +51,11 @@ function stable(value: unknown, skip: (key: string) => boolean): unknown {
     const out: Record<string, unknown> = {};
     for (const k of Object.keys(value as object).sort()) {
       if (skip(k)) continue;
-      out[k] = stable((value as Record<string, unknown>)[k], skip);
+      const v = (value as Record<string, unknown>)[k];
+      // the theme is what it draws (colours and font names), and a tint is the byte that Word keeps: what a file gives back is the same
+      if (k === 'theme' && v && typeof v === 'object') out[k] = themeSignature(v as DocTheme);
+      else if (k === 'tint' && typeof v === 'number') out[k] = Math.round(quantizeTint(v) * 1000) / 1000;
+      else out[k] = stable(v, skip);
     }
     return out;
   }

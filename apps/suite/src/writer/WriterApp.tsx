@@ -71,7 +71,7 @@ export function buildPrintHtml(ctl: WriterCtl, sheet: HTMLElement): string {
   const heads = [...document.head.querySelectorAll('style, link[rel="stylesheet"]')].map((n) => n.outerHTML).join('\n');
   const w = (first.width / 72).toFixed(4);
   const h = (first.height / 72).toFixed(4);
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${(ctl.fileName ?? 'Documento').replace(/</g, '&lt;')}</title>${heads}<style>${styleCss(ctl.styles, ctl.defaults)}
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${(ctl.fileName ?? 'Documento').replace(/</g, '&lt;')}</title>${heads}<style>${styleCss(ctl.styles, ctl.defaults, ctl.theme)}
 @page{size:${w}in ${h}in;margin:0}
 html,body{margin:0;padding:0;background:#fff!important;height:auto!important;overflow:visible!important}
 .nw-sheet{box-shadow:none!important;margin:0!important}
@@ -291,7 +291,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
         await saveBytes(`${(ctl.fileName ?? 'Documento1').replace(/\.[^.]+$/, '')}.txt`, new TextEncoder().encode(ctl.text()), [{ name: 'Texto', extensions: ['txt'] }]);
       },
       exportHtml: async () => {
-        const html = `<!doctype html><html><head><meta charset="utf-8"><title>${(ctl.fileName ?? 'Documento').replace(/</g, '&lt;')}</title><style>body{max-width:42em;margin:2em auto;padding:0 1em}${styleCss(ctl.styles, ctl.defaults)}.nw-table{border-collapse:collapse}.nw-borders td,.nw-borders th{border:1px solid #000}</style></head><body class="nw-doc">${ctl.html()}</body></html>`;
+        const html = `<!doctype html><html><head><meta charset="utf-8"><title>${(ctl.fileName ?? 'Documento').replace(/</g, '&lt;')}</title><style>body{max-width:42em;margin:2em auto;padding:0 1em}${styleCss(ctl.styles, ctl.defaults, ctl.theme)}.nw-table{border-collapse:collapse}.nw-borders td,.nw-borders th{border:1px solid #000}</style></head><body class="nw-doc">${ctl.html()}</body></html>`;
         await saveBytes(`${(ctl.fileName ?? 'Documento1').replace(/\.[^.]+$/, '')}.html`, new TextEncoder().encode(html), [{ name: 'Página web', extensions: ['html'] }]);
       },
       print: () => {
@@ -445,7 +445,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
       contentFill
     >
       <div className="nw-app">
-        <style>{styleCss(ctl.styles, ctl.defaults)}</style>
+        <style>{styleCss(ctl.styles, ctl.defaults, ctl.theme)}</style>
         {ctl.readAloud.visible && <ReadAloudBar ctrl={ctl.readAloud.voice} onClose={() => ctl.readAloud.stop()} />}
         {find && <FindPanel host={findHost} replace={find.replace} goTo={find.goTo} key={String(find.replace) + String(find.goTo)} className="nw-find-bar" onClose={() => { setFind(null); ctl.clearFind(); ctl.focus(); }} />}
         <div className="nw-body">

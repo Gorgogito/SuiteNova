@@ -1,3 +1,4 @@
+import type { DocTheme } from '@suitenova/theme-core';
 import { Fragment, type Node as PMNode } from 'prosemirror-model';
 import type { DocDefaults, StyleTable } from '../styles';
 import { defaultPage, type PageSetup } from '../page';
@@ -133,6 +134,8 @@ export interface WriterDoc {
   signature: SignatureData | null;
   /** A template (.dotx) rather than a document. */
   isTemplate: boolean;
+  /** The theme of the document (`word/theme/theme1.xml`, kept whole); without it, Office's. */
+  theme?: DocTheme;
 }
 
 export interface ReadResult {

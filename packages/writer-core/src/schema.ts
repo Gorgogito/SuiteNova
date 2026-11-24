@@ -1,3 +1,4 @@
+import type { ColorRef } from '@suitenova/theme-core';
 import { Schema, type DOMOutputSpec, type MarkSpec, type Node as PMNode, type NodeSpec } from 'prosemirror-model';
 import { tableNodes } from 'prosemirror-tables';
 import { drawingSvg, partsShapes, type SmartArtParts } from '@suitenova/smartart-core';
@@ -72,6 +73,10 @@ export interface ParagraphStyleDef {
   /** Tab stops of the style. */
   tabs?: { pos: number; kind: 'left' | 'center' | 'right' | 'decimal' | 'bar'; leader?: string }[];
   underline?: boolean;
+  /** The colour as a theme colour: it follows the theme when it changes (`color` is what it is for the theme of the moment). */
+  colorRef?: ColorRef;
+  /** The font is the theme's `major` (headings) or `minor` (body) one. */
+  fontTheme?: 'major' | 'minor';
 }
 
 export const BODY_FONT = 'Calibri';
@@ -80,17 +85,17 @@ export const HEADING_FONT = 'Calibri Light';
 /** Built-in paragraph styles. Imported DOCX styles are flattened into direct formatting; only these ids are kept. */
 export const PARAGRAPH_STYLES: ParagraphStyleDef[] = [
   { id: 'Normal', name: 'Normal' },
-  { id: 'Title', name: 'Título', fontFamily: HEADING_FONT, fontSize: 28, spaceAfter: 6, lineHeight: 1 },
-  { id: 'Subtitle', name: 'Subtítulo', fontSize: 14, color: '#595959', spaceAfter: 8 },
-  { id: 'Heading1', name: 'Título 1', heading: 1, fontFamily: HEADING_FONT, fontSize: 16, color: '#2f5496', spaceBefore: 12, spaceAfter: 0, next: 'Normal' },
-  { id: 'Heading2', name: 'Título 2', heading: 2, fontFamily: HEADING_FONT, fontSize: 13, color: '#2f5496', spaceBefore: 2, spaceAfter: 0, next: 'Normal' },
-  { id: 'Heading3', name: 'Título 3', heading: 3, fontFamily: HEADING_FONT, fontSize: 12, color: '#1f3763', spaceBefore: 2, spaceAfter: 0, next: 'Normal' },
-  { id: 'Heading4', name: 'Título 4', heading: 4, fontFamily: HEADING_FONT, fontSize: 11, italic: true, color: '#2f5496', spaceBefore: 2, spaceAfter: 0, next: 'Normal' },
-  { id: 'Heading5', name: 'Título 5', heading: 5, fontFamily: HEADING_FONT, fontSize: 11, color: '#2f5496', spaceBefore: 2, spaceAfter: 0, next: 'Normal' },
-  { id: 'Heading6', name: 'Título 6', heading: 6, fontFamily: HEADING_FONT, fontSize: 11, color: '#1f3763', spaceBefore: 2, spaceAfter: 0, next: 'Normal' },
-  { id: 'Quote', name: 'Cita', italic: true, color: '#404040', align: 'center', indentLeft: 43, spaceBefore: 10, spaceAfter: 8 },
-  { id: 'Caption', name: 'Leyenda', fontSize: 9, italic: true, color: '#44546a', spaceAfter: 10 },
-  { id: 'TOCHeading', name: 'Título de TDC', wordName: 'TOC Heading', hidden: true, fontFamily: HEADING_FONT, fontSize: 16, color: '#2f5496', spaceBefore: 12, spaceAfter: 0 },
+  { id: 'Title', name: 'Título', fontFamily: HEADING_FONT, fontTheme: 'major', fontSize: 28, spaceAfter: 6, lineHeight: 1 },
+  { id: 'Subtitle', name: 'Subtítulo', fontSize: 14, color: '#595959', colorRef: { slot: 'tx1', tint: 0.35 }, spaceAfter: 8 },
+  { id: 'Heading1', name: 'Título 1', heading: 1, fontFamily: HEADING_FONT, fontTheme: 'major', fontSize: 16, color: '#2f5496', colorRef: { slot: 'accent1', tint: -0.25 }, spaceBefore: 12, spaceAfter: 0, next: 'Normal' },
+  { id: 'Heading2', name: 'Título 2', heading: 2, fontFamily: HEADING_FONT, fontTheme: 'major', fontSize: 13, color: '#2f5496', colorRef: { slot: 'accent1', tint: -0.25 }, spaceBefore: 2, spaceAfter: 0, next: 'Normal' },
+  { id: 'Heading3', name: 'Título 3', heading: 3, fontFamily: HEADING_FONT, fontTheme: 'major', fontSize: 12, color: '#1f3763', colorRef: { slot: 'accent1', tint: -0.5 }, spaceBefore: 2, spaceAfter: 0, next: 'Normal' },
+  { id: 'Heading4', name: 'Título 4', heading: 4, fontFamily: HEADING_FONT, fontTheme: 'major', fontSize: 11, italic: true, color: '#2f5496', colorRef: { slot: 'accent1', tint: -0.25 }, spaceBefore: 2, spaceAfter: 0, next: 'Normal' },
+  { id: 'Heading5', name: 'Título 5', heading: 5, fontFamily: HEADING_FONT, fontTheme: 'major', fontSize: 11, color: '#2f5496', colorRef: { slot: 'accent1', tint: -0.25 }, spaceBefore: 2, spaceAfter: 0, next: 'Normal' },
+  { id: 'Heading6', name: 'Título 6', heading: 6, fontFamily: HEADING_FONT, fontTheme: 'major', fontSize: 11, color: '#1f3763', colorRef: { slot: 'accent1', tint: -0.5 }, spaceBefore: 2, spaceAfter: 0, next: 'Normal' },
+  { id: 'Quote', name: 'Cita', italic: true, color: '#404040', colorRef: { slot: 'tx1', tint: 0.25 }, align: 'center', indentLeft: 43, spaceBefore: 10, spaceAfter: 8 },
+  { id: 'Caption', name: 'Leyenda', fontSize: 9, italic: true, color: '#44546a', colorRef: { slot: 'tx2' }, spaceAfter: 10 },
+  { id: 'TOCHeading', name: 'Título de TDC', wordName: 'TOC Heading', hidden: true, fontFamily: HEADING_FONT, fontTheme: 'major', fontSize: 16, color: '#2f5496', colorRef: { slot: 'accent1', tint: -0.25 }, spaceBefore: 12, spaceAfter: 0 },
   { id: 'TOC1', name: 'TDC 1', wordName: 'toc 1', hidden: true, spaceAfter: 5, tabs: [{ pos: 451, kind: 'right', leader: 'dot' }] },
   { id: 'TOC2', name: 'TDC 2', wordName: 'toc 2', hidden: true, spaceAfter: 5, indentLeft: 11, tabs: [{ pos: 451, kind: 'right', leader: 'dot' }] },
   { id: 'TOC3', name: 'TDC 3', wordName: 'toc 3', hidden: true, spaceAfter: 5, indentLeft: 22, tabs: [{ pos: 451, kind: 'right', leader: 'dot' }] },
@@ -252,7 +257,8 @@ export function imageDOM(a: Record<string, any>): DOMOutputSpec {
 }
 
 const nodes: Record<string, NodeSpec> = {
-  doc: { content: 'block+' },
+  /** `theme`: the document theme (`DocTheme` of theme-core); it lives here so that changing it is one step of the undo. */
+  doc: { content: 'block+', attrs: { theme: { default: null } } },
   paragraph: {
     group: 'block',
     content: 'inline*',
@@ -286,6 +292,8 @@ const nodes: Record<string, NodeSpec> = {
       del: { default: null },
       /** Paragraph shading (#rrggbb) and a border: a box, or only the line below (`sides: 'bottom'`, with a Word line `style`: single, double, dotted, wave, triple). */
       shade: { default: null },
+      /** The shading as a theme colour (`ColorRef`), when it is one; `shade` keeps the colour it has now. */
+      shadeRef: { default: null },
       border: { default: null },
     },
     parseDOM: [
@@ -760,7 +768,8 @@ const marks: Record<string, MarkSpec> = {
   superscript: { excludes: 'subscript', parseDOM: [{ tag: 'sup' }], toDOM: () => ['sup', 0] },
   subscript: { excludes: 'superscript', parseDOM: [{ tag: 'sub' }], toDOM: () => ['sub', 0] },
   color: {
-    attrs: { value: {} },
+    /** `ref`: the colour as a point of the theme (`ColorRef`), when it is one; `value` keeps the colour it has now. */
+    attrs: { value: {}, ref: { default: null } },
     parseDOM: [{ style: 'color', getAttrs: (v) => ({ value: v as string }) }],
     toDOM: (m) => ['span', { style: `color:${m.attrs.value}` }, 0],
   },
@@ -770,7 +779,8 @@ const marks: Record<string, MarkSpec> = {
     toDOM: (m) => ['span', { style: `background-color:${m.attrs.value}` }, 0],
   },
   fontFamily: {
-    attrs: { value: {} },
+    /** `theme`: `major` or `minor` when the font is the one of the theme's headings or body; `value` keeps the name it has now. */
+    attrs: { value: {}, theme: { default: null } },
     parseDOM: [{ style: 'font-family', getAttrs: (v) => ({ value: String(v).split(',')[0]!.replace(/["']/g, '').trim() }) }],
     toDOM: (m) => ['span', { style: `font-family:'${m.attrs.value}', Carlito, 'Segoe UI', sans-serif` }, 0],
   },

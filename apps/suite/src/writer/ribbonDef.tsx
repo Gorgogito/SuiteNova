@@ -23,6 +23,8 @@ import { writerGraphicsHost } from './graphics-host';
 import { writerPictureHost } from './pichost';
 import { FONT_NAMES, FONT_SIZES, type WriterUI } from './commands';
 import { markAttr, selectionParagraph, setMark, setStyle } from './editing';
+import { ThemeColorsMenu, ThemeEffectsMenu, ThemeFontsMenu, ThemesMenu } from '../themes';
+import { writerThemeHost } from './theme-host';
 
 type Leaf = Exclude<RibbonItem, { kind: 'separator' }>;
 const btn = (command: string, extra: Partial<Extract<Leaf, { kind: 'button' }>> = {}): Leaf => ({ kind: 'button', command, size: 'small', iconOnly: true, ...extra });
@@ -466,6 +468,17 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
     label: 'Diseño',
     keytip: 'D',
     groups: [
+      {
+        id: 'docformat',
+        label: 'Formato del documento',
+        icon: 'palette',
+        items: [
+          { kind: 'custom', id: 'themeGallery', label: 'Temas', keytip: 'TM', render: () => <ThemesMenu host={writerThemeHost(ui)} size="large" /> },
+          { kind: 'custom', id: 'themeColors', label: 'Colores', keytip: 'TC', render: () => <ThemeColorsMenu host={writerThemeHost(ui)} /> },
+          { kind: 'custom', id: 'themeFonts', label: 'Fuentes', keytip: 'TF', render: () => <ThemeFontsMenu host={writerThemeHost(ui)} /> },
+          { kind: 'custom', id: 'themeEffects', label: 'Efectos', keytip: 'TE', render: () => <ThemeEffectsMenu host={writerThemeHost(ui)} /> },
+        ],
+      },
       {
         id: 'pagesetup',
         label: 'Configurar página',

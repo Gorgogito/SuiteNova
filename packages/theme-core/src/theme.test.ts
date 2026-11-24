@@ -97,3 +97,28 @@ describe('schemes as files of their own', () => {
     expect(() => readFontSchemeXml('<x/>')).toThrow();
   });
 });
+
+describe('referencias al tema (colores de Word)', () => {
+  it('resuelve «Énfasis 1, más oscuro 25 %» como el Título 1 de Word', async () => {
+    const { resolveRef, officeTheme, refToWord } = await import('./index');
+    const th = officeTheme();
+    expect(resolveRef(th, { slot: 'accent1', tint: -0.25 })).toBe('#2f5496');
+    // Word shows 1F3763 for the shade 7F; our HSL arithmetic is off by one unit in some channels
+    const dark = resolveRef(th, { slot: 'accent1', tint: -0.5 });
+    for (const [i, v] of [0x1f, 0x37, 0x63].entries()) expect(Math.abs(parseInt(dark.slice(1 + i * 2, 3 + i * 2), 16) - v)).toBeLessThanOrEqual(1);
+    expect(refToWord({ slot: 'accent1', tint: -0.25 })).toEqual({ themeColor: 'accent1', themeShade: 'BF' });
+    expect(refToWord({ slot: 'accent1', tint: 0.8 })).toEqual({ themeColor: 'accent1', themeTint: '33' });
+    expect(refToWord({ slot: 'tx1' })).toEqual({ themeColor: 'text1' });
+  });
+  it('lee los atributos de Word y vuelve a escribirlos igual', async () => {
+    const { refFromWord, refToWord } = await import('./index');
+    for (const [n, t, s] of [['accent2', undefined, 'BF'], ['accent5', '99', undefined], ['text1', 'A6', undefined], ['background1', undefined, 'F2'], ['hyperlink', undefined, undefined]] as const) {
+      const r = refFromWord(n, t, s)!;
+      const w = refToWord(r);
+      expect(w.themeColor).toBe(n);
+      expect(w.themeTint).toBe(t);
+      expect(w.themeShade).toBe(s);
+    }
+    expect(refFromWord('none')).toBeUndefined();
+  });
+});

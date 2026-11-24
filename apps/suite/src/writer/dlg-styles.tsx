@@ -18,7 +18,7 @@ const isBuiltin = (id: string) => PARAGRAPH_STYLES.some((s) => s.id === id);
 function Preview({ def, ui, text }: { def: ParagraphStyleDef; ui: WriterUI; text?: string }) {
   return (
     <div className="nw-doc" style={{ pointerEvents: 'none' }}>
-      <style>{styleCss([def], ui.ctl.defaults)}</style>
+      <style>{styleCss([def], ui.ctl.defaults, ui.ctl.theme)}</style>
       <p className={`nw-p ${styleClass(def.id)}`} style={{ margin: 0 }}>
         {text ?? def.name}
       </p>

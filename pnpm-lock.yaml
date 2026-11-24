@@ -784,6 +784,9 @@ importers:
       '@suitenova/table-core':
         specifier: workspace:*
         version: link:../table-core
+      '@suitenova/theme-core':
+        specifier: workspace:*
+        version: link:../theme-core
       '@suitenova/wordart-core':
         specifier: workspace:*
         version: link:../wordart-core

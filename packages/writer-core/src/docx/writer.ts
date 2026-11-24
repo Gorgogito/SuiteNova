@@ -13,6 +13,7 @@ import { avLstXml, presetOf, resolveKind } from '@suitenova/shapes-core';
 import { prstTxWarpXml, w14Fx, type WordArtFx } from '@suitenova/wordart-core';
 import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, NS_CX, REL_CHARTEX, chartParts, mainChartPath, renameBundle, rewriteRawChart, writeGridWorkbook, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 import { DIAGRAM_URI, PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel, type SmartArtParts } from '@suitenova/smartart-core';
+import { officeTheme, refToWord, resolveRef, writeThemeXml, type ColorRef, type DocTheme } from '@suitenova/theme-core';
 import { REL, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml, toWordDate } from './shared';
 import { commentsExtendedXml, commentsXml, customXmlParts, footnotesXml, settingsXml, watermarkParagraph, type NoteOut } from './writer-parts';
 
@@ -111,6 +112,29 @@ export class RelSink {
   }
 }
 
+// ---------- the theme ----------
+
+/** The theme of the document being written: a colour that points at it is written with the value it has for this theme. */
+let writing: DocTheme = officeTheme();
+
+/** `w:themeColor` and its tint or shade (or the `themeFill` ones for a shading). */
+function themeAttrs(ref: ColorRef | null | undefined, fill = false): string {
+  if (!ref) return '';
+  const w = refToWord(ref);
+  const p = fill ? 'themeFill' : 'themeColor';
+  return ` w:${p}="${w.themeColor}"` + (w.themeTint ? ` w:${fill ? 'themeFillTint' : 'themeTint'}="${w.themeTint}"` : '') + (w.themeShade ? ` w:${fill ? 'themeFillShade' : 'themeShade'}="${w.themeShade}"` : '');
+}
+
+/** The value of a colour: for the theme of the document when it points at it, as it is otherwise. */
+const colorVal = (value: string, ref?: ColorRef | null): string => hex(ref ? resolveRef(writing, ref) : value);
+
+/** `w:rFonts` of a font: when it is the theme's, with the reference too (Word draws the theme's font then). */
+function rFontsXml(name: string, which?: 'major' | 'minor' | null, eastAsia = false): string {
+  const n = esc(which ? writing.fonts[which].latin : name);
+  const th = which ? ` w:asciiTheme="${which}HAnsi" w:hAnsiTheme="${which}HAnsi" w:cstheme="${which}Bidi"${eastAsia ? ` w:eastAsiaTheme="${which}EastAsia"` : ''}` : '';
+  return `<w:rFonts w:ascii="${n}" w:hAnsi="${n}"${eastAsia ? ` w:eastAsia="${n}"` : ''} w:cs="${n}"${th}/>`;
+}
+
 // ---------- runs ----------
 
 const UNDERLINE_TO_FILE: Record<string, string> = { single: 'single', double: 'double', thick: 'thick', dotted: 'dotted', dash: 'dash', dotDash: 'dotDash', wavy: 'wave' };
@@ -128,9 +152,9 @@ function rPr(marks: readonly Mark[], extra = '', tail = ''): string {
       case 'spacing': spacing = `<w:spacing w:val="${Math.round(m.attrs.value * 20)}"/>`; break;
       case 'superscript': va = '<w:vertAlign w:val="superscript"/>'; break;
       case 'subscript': va = '<w:vertAlign w:val="subscript"/>'; break;
-      case 'color': color = `<w:color w:val="${hex(m.attrs.value)}"/>`; break;
+      case 'color': color = `<w:color w:val="${colorVal(m.attrs.value, m.attrs.ref)}"${themeAttrs(m.attrs.ref)}/>`; break;
       case 'highlight': shd = `<w:shd w:val="clear" w:color="auto" w:fill="${hex(m.attrs.value)}"/>`; break;
-      case 'fontFamily': fonts = `<w:rFonts w:ascii="${esc(m.attrs.value)}" w:hAnsi="${esc(m.attrs.value)}" w:cs="${esc(m.attrs.value)}"/>`; break;
+      case 'fontFamily': fonts = rFontsXml(m.attrs.value, m.attrs.theme); break;
       case 'fontSize': sz = `<w:sz w:val="${Math.round(m.attrs.value * 2)}"/><w:szCs w:val="${Math.round(m.attrs.value * 2)}"/>`; break;
       case 'link': style = '<w:rStyle w:val="Hyperlink"/>'; break;
       case 'caps': caps = m.attrs.value === 'small' ? '<w:smallCaps/>' : '<w:caps/>'; break;
@@ -661,7 +685,7 @@ export function paragraphXml(p: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink, 
     const side = (s: string) => `<w:${s} w:val="${val}" w:sz="${Math.round((b.width ?? 0.5) * 8)}" w:space="${Math.round(b.space ?? 1)}" w:color="${hex(b.color ?? '#000000')}"/>`;
     ppr += b.sides === 'bottom' ? `<w:pBdr>${side('bottom')}</w:pBdr>` : `<w:pBdr>${side('top')}${side('left')}${side('bottom')}${side('right')}</w:pBdr>`;
   }
-  if (a.shade) ppr += `<w:shd w:val="clear" w:color="auto" w:fill="${hex(a.shade)}"/>`;
+  if (a.shade) ppr += `<w:shd w:val="clear" w:color="auto" w:fill="${colorVal(a.shade, a.shadeRef)}"${themeAttrs(a.shadeRef, true)}/>`;
   if (Array.isArray(a.tabs) && a.tabs.length) {
     ppr += '<w:tabs>' + (a.tabs as { pos: number; kind: string; leader?: string }[]).map((t) => `<w:tab w:val="${t.kind}"${t.leader && t.leader !== 'none' ? ` w:leader="${t.leader}"` : ''} w:pos="${ptToTwips(t.pos)}"/>`).join('') + '</w:tabs>';
   }
@@ -847,8 +871,8 @@ function numberingXml(ctx: Ctx): string {
 
 function stylesXml(doc: WriterDoc, ctx: Ctx): string {
   const d = doc.defaults;
-  const font = esc(d.fontFamily);
-  let out = `${XML_HEAD}<w:styles ${W_NS}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:eastAsia="${font}" w:cs="${font}"/><w:sz w:val="${Math.round(d.fontSize * 2)}"/><w:szCs w:val="${Math.round(d.fontSize * 2)}"/><w:lang w:val="es-ES" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault>`;
+  const fontEl = rFontsXml(d.fontFamily, d.fontTheme, true);
+  let out = `${XML_HEAD}<w:styles ${W_NS}><w:docDefaults><w:rPrDefault><w:rPr>${fontEl}<w:sz w:val="${Math.round(d.fontSize * 2)}"/><w:szCs w:val="${Math.round(d.fontSize * 2)}"/><w:lang w:val="es-ES" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault>`;
   out += `<w:pPrDefault><w:pPr><w:spacing w:after="${ptToTwips(d.spaceAfter)}" w:line="${Math.round(d.lineHeight * 240)}" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>`;
   for (const s of doc.styles ?? PARAGRAPH_STYLES) {
     const name = s.wordName ?? (s.heading ? `heading ${s.heading}` : s.id === 'Caption' ? 'caption' : s.id === 'Title' ? 'Title' : s.id === 'Normal' ? 'Normal' : s.name);
@@ -864,10 +888,10 @@ function stylesXml(doc: WriterDoc, ctx: Ctx): string {
     if (s.align) ppr += `<w:jc w:val="${s.align}"/>`;
     if (s.heading) ppr += `<w:outlineLvl w:val="${s.heading - 1}"/>`;
     let rp = '';
-    if (s.fontFamily) rp += `<w:rFonts w:ascii="${esc(s.fontFamily)}" w:hAnsi="${esc(s.fontFamily)}"/>`;
+    if (s.fontFamily) rp += s.fontTheme ? rFontsXml(s.fontFamily, s.fontTheme).replace(/ w:cs="[^"]*"/, '') : `<w:rFonts w:ascii="${esc(s.fontFamily)}" w:hAnsi="${esc(s.fontFamily)}"/>`;
     if (s.bold) rp += '<w:b/>';
     if (s.italic) rp += '<w:i/>';
-    if (s.color) rp += `<w:color w:val="${hex(s.color)}"/>`;
+    if (s.color) rp += `<w:color w:val="${colorVal(s.color, s.colorRef)}"${themeAttrs(s.colorRef)}/>`;
     if (s.fontSize) rp += `<w:sz w:val="${Math.round(s.fontSize * 2)}"/><w:szCs w:val="${Math.round(s.fontSize * 2)}"/>`;
     if (s.underline) rp += '<w:u w:val="single"/>';
     out += `<w:style w:type="paragraph" w:styleId="${s.id}"${s.id === 'Normal' ? ' w:default="1"' : ''}><w:name w:val="${esc(name)}"/>${s.id !== 'Normal' ? `<w:basedOn w:val="${s.basedOn ?? 'Normal'}"/>` : ''}${s.next ? `<w:next w:val="${s.next}"/>` : ''}${s.hidden ? '' : '<w:qFormat/>'}${ppr ? `<w:pPr>${ppr}</w:pPr>` : ''}${rp ? `<w:rPr>${rp}</w:rPr>` : ''}</w:style>`;
@@ -981,6 +1005,7 @@ function prepareComments(doc: WriterDoc, ctx: Ctx): void {
 }
 
 export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
+  writing = doc.theme ?? officeTheme();
   const ctx = new Ctx();
   const rels = new RelSink();
   const zip = new JSZip();
@@ -1091,6 +1116,8 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
   writePictureOcr(zip, ctx, mainRels, overrides);
 
   zip.file('word/document.xml', `${XML_HEAD}<w:document ${W_NS}>${doc.pageColor ? `<w:background w:color="${hex(doc.pageColor)}"/>` : ''}<w:body>${bodyContent}${finalSect}</w:body></w:document>`);
+  zip.file('word/theme/theme1.xml', writeThemeXml(writing));
+  mainRels.push('<Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>');
   zip.file('word/styles.xml', stylesXml(doc, ctx));
   zip.file('word/numbering.xml', numberingXml(ctx));
   zip.file('word/settings.xml', settingsXml(doc, ctx));
@@ -1114,6 +1141,7 @@ export async function writeDocx(doc: WriterDoc): Promise<WriteResult> {
   const allOverrides: [string, string][] = [
     ['/word/document.xml', doc.isTemplate ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
     ['/word/styles.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml'],
+    ['/word/theme/theme1.xml', 'application/vnd.openxmlformats-officedocument.theme+xml'],
     ['/word/numbering.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml'],
     ['/word/settings.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml'],
     ['/docProps/core.xml', 'application/vnd.openxmlformats-package.core-properties+xml'],

@@ -61,7 +61,8 @@ import {
 } from '@suitenova/writer-core';
 import { removeCommentMarks } from './review';
 import { selectionParagraph } from './editing';
-import { PARAGRAPH_STYLES, styleById, tableCssVars, type ParagraphStyleDef } from '@suitenova/writer-core';
+import { PARAGRAPH_STYLES, applyThemeTo, rethemeNode, styleById, tableCssVars, type ParagraphStyleDef } from '@suitenova/writer-core';
+import { officeTheme, type DocTheme } from '@suitenova/theme-core';
 import { backspaceCommand, deleteCommand, enterCommand, shiftTabCommand, tabCommand } from './editing';
 import { tabsPlugin } from './tabs';
 import { formsPlugin } from './forms';
@@ -428,7 +429,20 @@ export class WriterCtl {
   }
 
   get styleSheet(): string {
-    return styleCss(this.styles, this.defaults);
+    return styleCss(this.styles, this.defaults, this.theme);
+  }
+
+  /** The theme of the document (it is an attribute of the document node, so that changing it is one step of the undo). */
+  get theme(): DocTheme {
+    const body = this.mainView?.state.doc ?? this.initialDoc;
+    return (body.attrs.theme as DocTheme | null) ?? officeTheme();
+  }
+
+  /** Gives the document another theme (or only its colours, fonts or effects): one step of the undo, which also repaints what points at it. */
+  applyTheme(next: DocTheme): void {
+    const v = this.mainView;
+    if (!v) return;
+    v.dispatch(applyThemeTo(v.state.tr, next));
   }
   get docTitle(): string {
     return (this.fileName ?? 'Documento1') + (this.dirty ? ' •' : '');
@@ -536,6 +550,7 @@ export class WriterCtl {
         const next = prev.apply(tr);
         if (this.recorder && !this.macroRt.running) this.recorder.observe(tr, prev, next);
         v.updateState(next);
+        if (prev.doc.attrs.theme !== next.doc.attrs.theme) this.themeChanged(next.doc.attrs.theme as DocTheme | null);
         if (tr.docChanged && !tr.getMeta('nw-load')) this.dirty = true;
         this.touch();
       },
@@ -636,7 +651,8 @@ export class WriterCtl {
     this.noteCache.clear();
     this.fileName = fileName;
     this.filePath = filePath;
-    this.setBody(ensureSections(doc.body));
+    const sections = ensureSections(doc.body);
+    this.setBody(sections.type.create({ ...sections.attrs, theme: doc.theme ?? officeTheme() }, sections.content, sections.marks));
     this.imageOcr.resetBaseline();
     this.dirty = false;
     this.touch();
@@ -707,6 +723,7 @@ export class WriterCtl {
       protection: this.protection,
       watermark: this.watermark,
       pageColor: this.pageColor,
+      theme: this.theme,
       autoHyphenate: this.autoHyphenate,
       sources: this.sources,
       citeStyle: this.citeStyle,
@@ -866,6 +883,13 @@ export class WriterCtl {
     if (!v) return;
     v.setProps({});
     repaginate(v);
+  }
+
+  /** The headers and footers are not in the history: they take the values of the theme that the document has now. */
+  private themeChanged(theme: DocTheme | null): void {
+    const t = theme ?? officeTheme();
+    this.parts = new Map([...this.parts].map(([id, node]) => [id, rethemeNode(node, t)]));
+    this.refreshEditorAttrs();
   }
 
   setPageColor(color: string | null): void {

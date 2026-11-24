@@ -1,5 +1,6 @@
 export * from './schema';
 export * from './styles';
+export * from './retheme';
 export * from './page';
 export * from './sections';
 export * from './notes';
