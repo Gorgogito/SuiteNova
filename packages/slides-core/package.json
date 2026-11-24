@@ -15,6 +15,7 @@
     "@suitenova/image-core": "workspace:*",
     "@suitenova/shapes-core": "workspace:*",
     "@suitenova/smartart-core": "workspace:*",
+    "@suitenova/theme-core": "workspace:*",
     "@suitenova/writer-core": "workspace:*",
     "cfb": "1.2.2",
     "fast-xml-parser": "^5.2.0",

@@ -10,8 +10,8 @@ describe('themes', () => {
   it('changes colours, fonts and the light/dark variant', () => {
     let d = newDeck();
     const id = currentThemeId(d)!;
-    d = setThemeColors(d, id, COLOR_SCHEMES[3]!.colors);
-    d = setThemeFonts(d, id, FONT_SCHEMES[2]!.fonts);
+    d = setThemeColors(d, id, COLOR_SCHEMES.find((c) => c.id === 'blue')!.colors);
+    d = setThemeFonts(d, id, FONT_SCHEMES.find((c) => c.id === 'arial')!.fonts);
     expect(d.themes.find((t) => t.id === id)!.colors.accent1).toBe('#0f6fc6');
     expect(d.themes.find((t) => t.id === id)!.fonts.minor.latin).toBe('Arial');
     expect(isDark(d)).toBe(false);
@@ -23,7 +23,7 @@ describe('themes', () => {
     let d = newDeck();
     d = addSlide(d, d.layouts[1]!.id, 0).deck;
     let tpl = newDeck();
-    tpl = setThemeColors(tpl, currentThemeId(tpl)!, COLOR_SCHEMES[5]!.colors);
+    tpl = setThemeColors(tpl, currentThemeId(tpl)!, COLOR_SCHEMES.find((c) => c.id === 'green')!.colors);
     const { data } = await writePptx(tpl);
     const loaded = (await readPptx(data)).deck;
     const out = applyTemplate(d, loaded, 'template');
@@ -39,7 +39,7 @@ describe('themes', () => {
   });
 
   it('reads a .thmx (a theme without slides)', async () => {
-    const d = setThemeColors(newDeck(), currentThemeId(newDeck())!, COLOR_SCHEMES[7]!.colors);
+    const d = setThemeColors(newDeck(), currentThemeId(newDeck())!, COLOR_SCHEMES.find((c) => c.id === 'violetII')!.colors);
     const src = await JSZip.loadAsync((await writePptx(d)).data);
     const thmx = new JSZip();
     thmx.file('theme/theme/theme1.xml', await src.file('ppt/theme/theme1.xml')!.async('string'));

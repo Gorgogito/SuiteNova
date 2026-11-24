@@ -1,3 +1,4 @@
+import { COLOR_SCHEMES as SHARED_COLORS, FONT_SCHEMES as SHARED_FONTS } from '@suitenova/theme-core';
 import JSZip from 'jszip';
 import { newDeck } from './defaults';
 import { readPptx } from './pptx/read';
@@ -11,32 +12,10 @@ import type { ColorMap, Deck, FontScheme, Layout, SchemeSlot, Theme } from './ty
  */
 
 type Colors = Theme['colors'];
-const mk = (dk2: string, lt2: string, a: [string, string, string, string, string, string], hl = '#0563c1', fh = '#954f72', dk1 = '#000000', lt1 = '#ffffff'): Colors => ({
-  dk1, lt1, dk2, lt2, accent1: a[0], accent2: a[1], accent3: a[2], accent4: a[3], accent5: a[4], accent6: a[5], hlink: hl, folHlink: fh,
-});
 
-export const COLOR_SCHEMES: { id: string; name: string; colors: Colors }[] = [
-  { id: 'office', name: 'Office', colors: mk('#44546a', '#e7e6e6', ['#4472c4', '#ed7d31', '#a5a5a5', '#ffc000', '#5b9bd5', '#70ad47']) },
-  { id: 'office2007', name: 'Office 2007', colors: mk('#1f497d', '#eeece1', ['#4f81bd', '#c0504d', '#9bbb59', '#8064a2', '#4bacc6', '#f79646'], '#0000ff', '#800080') },
-  { id: 'gray', name: 'Escala de grises', colors: mk('#636363', '#dddddd', ['#dddddd', '#b2b2b2', '#969696', '#808080', '#5f5f5f', '#4d4d4d'], '#6b9f25', '#b26b02') },
-  { id: 'blue', name: 'Azul', colors: mk('#17406d', '#dbeff9', ['#0f6fc6', '#009dd9', '#0bd0d9', '#10cf9b', '#7cca62', '#a5c249'], '#f49100', '#85dfd0') },
-  { id: 'blueWarm', name: 'Azul cálido', colors: mk('#242852', '#acccea', ['#4a66ac', '#629dd1', '#297fd5', '#7f8fa9', '#5aa2ae', '#9d90a0'], '#9454c3', '#3eba2b') },
-  { id: 'green', name: 'Verde', colors: mk('#455f51', '#e3ded1', ['#549e39', '#8ab833', '#c0cf3a', '#029676', '#4ab5c4', '#0989b1'], '#6b9f25', '#ba6906') },
-  { id: 'orange', name: 'Naranja', colors: mk('#637052', '#ccddea', ['#e48312', '#bd582c', '#865640', '#9b8357', '#c2bc80', '#94a088'], '#2998e3', '#8c8c8c') },
-  { id: 'violet', name: 'Violeta', colors: mk('#632e62', '#eaebde', ['#92278f', '#9b57d3', '#755dd9', '#665eb8', '#45a5ed', '#5982db'], '#ff8119', '#baa7b0') },
-  { id: 'red', name: 'Rojo', colors: mk('#505046', '#eeece1', ['#a5300f', '#d55816', '#e19825', '#b19c7d', '#7f5f52', '#b27d49'], '#cc9900', '#96a9a9') },
-  { id: 'dark', name: 'Contraste', colors: mk('#1f2a44', '#d9e2f3', ['#00a8e8', '#ff9f1c', '#2ec4b6', '#e71d36', '#9b5de5', '#fee440'], '#4cc9f0', '#b5a1e5') },
-];
-
-export const FONT_SCHEMES: { id: string; name: string; fonts: FontScheme }[] = [
-  { id: 'office', name: 'Office', fonts: { major: { latin: 'Calibri Light' }, minor: { latin: 'Calibri' } } },
-  { id: 'office2007', name: 'Office 2007', fonts: { major: { latin: 'Calibri' }, minor: { latin: 'Cambria' } } },
-  { id: 'arial', name: 'Arial', fonts: { major: { latin: 'Arial' }, minor: { latin: 'Arial' } } },
-  { id: 'georgia', name: 'Georgia y Verdana', fonts: { major: { latin: 'Georgia' }, minor: { latin: 'Verdana' } } },
-  { id: 'trebuchet', name: 'Trebuchet', fonts: { major: { latin: 'Trebuchet MS' }, minor: { latin: 'Trebuchet MS' } } },
-  { id: 'times', name: 'Times New Roman', fonts: { major: { latin: 'Times New Roman' }, minor: { latin: 'Times New Roman' } } },
-  { id: 'segoe', name: 'Segoe UI', fonts: { major: { latin: 'Segoe UI Semibold' }, minor: { latin: 'Segoe UI' } } },
-];
+/** The colour and font schemes are the shared ones (theme-core), the same that Writer and Calc offer. */
+export const COLOR_SCHEMES: { id: string; name: string; colors: Colors }[] = SHARED_COLORS;
+export const FONT_SCHEMES: { id: string; name: string; fonts: FontScheme }[] = SHARED_FONTS;
 
 const LIGHT_MAP: Pick<ColorMap, 'bg1' | 'tx1' | 'bg2' | 'tx2'> = { bg1: 'lt1', tx1: 'dk1', bg2: 'lt2', tx2: 'dk2' };
 const DARK_MAP: Pick<ColorMap, 'bg1' | 'tx1' | 'bg2' | 'tx2'> = { bg1: 'dk1', tx1: 'lt1', bg2: 'dk2', tx2: 'lt2' };
