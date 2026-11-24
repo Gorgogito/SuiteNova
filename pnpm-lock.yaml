@@ -405,6 +405,9 @@ importers:
       '@suitenova/shapes-core':
         specifier: workspace:*
         version: link:../shapes-core
+      '@suitenova/theme-core':
+        specifier: workspace:*
+        version: link:../theme-core
       '@suitenova/wordart-core':
         specifier: workspace:*
         version: link:../wordart-core
@@ -857,6 +860,9 @@ importers:
       '@suitenova/smartart-core':
         specifier: workspace:*
         version: link:../smartart-core
+      '@suitenova/theme-core':
+        specifier: workspace:*
+        version: link:../theme-core
       '@suitenova/wordart-core':
         specifier: workspace:*
         version: link:../wordart-core

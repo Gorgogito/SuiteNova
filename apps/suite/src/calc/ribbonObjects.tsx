@@ -5,6 +5,8 @@ import { wordArtStyle } from '@suitenova/wordart-core';
 import { COLORS_CATALOG, LAYOUT_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
 import { CHART_PRESETS } from '../chart/presets';
 import type { CalcUI } from './commands';
+import { ThemeColorsMenu, ThemeEffectsMenu, ThemeFontsMenu, ThemesMenu } from '../themes';
+import { calcThemeHost } from './theme-host';
 import { ArtisticItems, AspectItems, PictureStyleItems } from '../images/galleries';
 import { PicPopover } from '../images/PicPopover';
 import { graphicsItems, selectedIcon } from './icons-ui';
@@ -175,12 +177,23 @@ export function reviewTab(): RibbonTab {
   };
 }
 
-export function pageTab(): RibbonTab {
+export function pageTab(ui: CalcUI): RibbonTab {
   return {
     id: 'page',
     label: 'Diseño de página',
     keytip: 'P',
     groups: [
+      {
+        id: 'themes',
+        label: 'Temas',
+        icon: 'palette',
+        items: [
+          { kind: 'custom', id: 'themeGallery', label: 'Temas', keytip: 'ET', render: () => <ThemesMenu host={calcThemeHost(ui)} size="large" /> },
+          { kind: 'custom', id: 'themeColors', label: 'Colores', keytip: 'EC', render: () => <ThemeColorsMenu host={calcThemeHost(ui)} /> },
+          { kind: 'custom', id: 'themeFonts', label: 'Fuentes', keytip: 'EF', render: () => <ThemeFontsMenu host={calcThemeHost(ui)} /> },
+          { kind: 'custom', id: 'themeEffects', label: 'Efectos', keytip: 'EE', render: () => <ThemeEffectsMenu host={calcThemeHost(ui)} /> },
+        ],
+      },
       {
         id: 'setup',
         label: 'Configurar página',

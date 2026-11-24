@@ -300,6 +300,8 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
         const drawing = await zip.file(/^xl\/drawings\/drawing\d+\.xml$/)[0]?.async('string');
         return { charts: back.workbook.sheets[0]!.charts.map((c) => ({ ...c })), shapes: back.workbook.sheets[0]!.shapes, images: back.workbook.sheets[0]!.images.map((i) => ({ ...i })), drawing: drawing ?? '' };
       },
+      /** The reader and writer of .xlsx (for the checks of the tests). */
+      io: () => import('@suitenova/xlsx-io'),
       doc,
     };
   }, [doc]);

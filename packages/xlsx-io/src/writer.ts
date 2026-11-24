@@ -25,6 +25,8 @@ import { buildSuitePart } from './suite-part';
 import { autoFilterXml, cfExtXml, cfRuleXml, dxfXml } from './filter-cf-io';
 import { sheetProtectionXml, workbookProtectionXml } from './protect-io';
 import { escapeXml } from './xml';
+import { themeRefAttrs } from './colors';
+import { writeThemeXml, type ColorRef } from '@suitenova/theme-core';
 
 const NS_MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const NS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -68,8 +70,9 @@ class StyleBuilder {
       (st.strike ? '<strike/>' : '') +
       (st.underline ? '<u/>' : '') +
       `<sz val="${st.fontSize ?? df.size}"/>` +
-      (st.color ? `<color rgb="${hex(st.color)}"/>` : '<color theme="1"/>') +
+      (st.colorRef ? `<color${themeRefAttrs(st.colorRef)}/>` : st.color ? `<color rgb="${hex(st.color)}"/>` : '<color theme="1"/>') +
       `<name val="${escapeXml(st.fontName ?? df.name)}"/><family val="2"/>` +
+      (st.fontTheme ? `<scheme val="${st.fontTheme}"/>` : !st.fontName && this.wb.defaultFontThemed ? '<scheme val="minor"/>' : '') +
       '</font>';
     let i = this.fontIdx.get(xml);
     if (i === undefined) {
@@ -80,9 +83,9 @@ class StyleBuilder {
     return i;
   }
 
-  private fillXml(bg: string | undefined): number {
+  private fillXml(bg: string | undefined, ref?: ColorRef): number {
     if (!bg) return 0;
-    const xml = `<fill><patternFill patternType="solid"><fgColor rgb="${hex(bg)}"/><bgColor indexed="64"/></patternFill></fill>`;
+    const xml = `<fill><patternFill patternType="solid"><fgColor ${ref ? themeRefAttrs(ref).trim() : `rgb="${hex(bg)}"`}/><bgColor indexed="64"/></patternFill></fill>`;
     let i = this.fillIdx.get(xml);
     if (i === undefined) {
       i = this.fills.length;
@@ -93,7 +96,7 @@ class StyleBuilder {
   }
 
   private borderXml(st: Style): number {
-    const side = (tag: string, b: Border | undefined) => (b ? `<${tag} style="${b.style}"><color ${b.color ? `rgb="${hex(b.color)}"` : 'auto="1"'}/></${tag}>` : `<${tag}/>`);
+    const side = (tag: string, b: Border | undefined) => (b ? `<${tag} style="${b.style}"><color ${b.ref ? themeRefAttrs(b.ref).trim() : b.color ? `rgb="${hex(b.color)}"` : 'auto="1"'}/></${tag}>` : `<${tag}/>`);
     const xml = `<border>${side('left', st.left)}${side('right', st.right)}${side('top', st.top)}${side('bottom', st.bottom)}<diagonal/></border>`;
     let i = this.borderIdx.get(xml);
     if (i === undefined) {
@@ -145,7 +148,7 @@ class StyleBuilder {
     if (cached !== undefined) return cached;
     const st = this.wb.styles.get(styleId);
     const font = this.fontXml(st);
-    const fill = this.fillXml(st.bg);
+    const fill = this.fillXml(st.bg, st.bgRef);
     const border = this.borderXml(st);
     const fmt = this.numFmtId(st.numFmt);
     const hasAlign = st.hAlign || st.vAlign || st.wrap || st.indent;
@@ -552,6 +555,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
   });
 
   put('xl/styles.xml', st.styles.toXml());
+  put('xl/theme/theme1.xml', writeThemeXml(wb.theme));
   put('xl/sharedStrings.xml', st.strings.toXml());
   if (st.usesDynamicArrays) put('xl/metadata.xml', METADATA_XML);
 
@@ -577,6 +581,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
   const wbRels = sheetFiles.map((_s, i) => ({ id: `rId${i + 1}`, type: `${NS_REL}/worksheet`, target: `worksheets/sheet${i + 1}.xml` }));
   wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/styles`, target: 'styles.xml' });
   wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/sharedStrings`, target: 'sharedStrings.xml' });
+  wbRels.push({ id: `rId${++relId}`, type: `${NS_REL}/theme`, target: 'theme/theme1.xml' });
   if (people.length) {
     put('xl/persons/person.xml', personsXml(people, personId));
     types.push('<Override PartName="/xl/persons/person.xml" ContentType="application/vnd.ms-excel.person+xml"/>');
@@ -634,6 +639,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
     [...mediaExts].map((e) => `<Default Extension="${e}" ContentType="${MIME[e]}"/>`).join('') +
     '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
     sheetFiles.map((_s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') +
+    '<Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>' +
     '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
     '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>' +
     types.join('') +

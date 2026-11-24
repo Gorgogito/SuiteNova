@@ -1,3 +1,4 @@
+import { officeTheme, themeColor, tintColor, type ColorRef, type DocTheme } from '@suitenova/theme-core';
 import type { SheetProtection, WorkbookProtection } from './protect';
 import { cellKey, keyCol, keyRow, MAX_COLS, MAX_ROWS, normRect, rectContains, type Rect } from './addr';
 import type { Node } from './ast';
@@ -154,6 +155,12 @@ export const gkey = (sheetId: number, row: number, col: number): number => sheet
 const gSheet = (g: number): number => Math.floor(g / SHEET_STRIDE);
 const gLocal = (g: number): number => g % SHEET_STRIDE;
 
+/** The colour a reference stands for in a theme. Excel keeps the tint as it is (it is not rounded to a byte as Word does). */
+export const resolveThemeRef = (theme: DocTheme, ref: ColorRef): string => {
+  const base = themeColor(theme, ref.slot);
+  return ref.tint ? tintColor(base, ref.tint) : base;
+};
+
 export const DEFAULT_COL_WIDTH = 64;
 export const DEFAULT_ROW_HEIGHT = 20;
 
@@ -166,7 +173,8 @@ export interface CellSnap {
 export type Op =
   | { k: 'cell'; sheetId: number; key: number; before: CellSnap | null; after: CellSnap | null }
   | { k: 'struct'; before: SheetsSnapshot; after: SheetsSnapshot }
-  | { k: 'meta'; sheetId: number; before: SheetMeta; after: SheetMeta };
+  | { k: 'meta'; sheetId: number; before: SheetMeta; after: SheetMeta }
+  | { k: 'theme'; before: DocTheme; after: DocTheme };
 
 export interface SheetMeta {
   colWidths: [number, number][];
@@ -223,6 +231,10 @@ export class Workbook implements EvalHost {
   protection?: WorkbookProtection;
   /** Workbook-default font; per-cell fonts are stored only when they differ. */
   defaultFont = { name: 'Calibri', size: 11 };
+  /** The workbook font is the body font of the theme (Excel's «Normal» style), so it changes with the theme's fonts. */
+  defaultFontThemed = true;
+  /** The theme of the workbook (`xl/theme/theme1.xml`): the colours that point at it follow it when it changes. */
+  theme: DocTheme = officeTheme();
   private nextSheetId = 1;
   private byId = new Map<number, Sheet>();
   private listeners = new Set<ChangeListener>();
@@ -557,6 +569,8 @@ export class Workbook implements EvalHost {
         for (const op of ops) {
           if (op.k === 'cell') {
             this.writeCell(op.sheetId, op.key, reverse ? op.before : op.after);
+          } else if (op.k === 'theme') {
+            this.setThemeInner(reverse ? op.before : op.after);
           } else if (op.k === 'struct') {
             this.restoreSnapshot(reverse ? op.before : op.after, reverse ? op.after : op.before);
           } else {
@@ -567,6 +581,21 @@ export class Workbook implements EvalHost {
     } finally {
       this.replaying = false;
     }
+  }
+
+  /** Gives the workbook another theme (or its colours, fonts or effects): one patch, and every colour that points at it is worked out again. */
+  setTheme(next: DocTheme): Patch {
+    return this.transact(() => {
+      const before = this.theme;
+      this.setThemeInner(next);
+      this.record({ k: 'theme', before, after: next });
+    });
+  }
+
+  private setThemeInner(next: DocTheme): void {
+    this.theme = next;
+    this.styles.retheme((ref) => resolveThemeRef(next, ref), (which) => next.fonts[which].latin);
+    if (this.defaultFontThemed) this.defaultFont = { ...this.defaultFont, name: next.fonts.minor.latin };
   }
 
   private record(op: Op): void {

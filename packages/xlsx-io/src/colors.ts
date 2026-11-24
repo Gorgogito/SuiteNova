@@ -73,3 +73,21 @@ export function resolveColor(c: ColorSpec | undefined, theme: string[]): string 
   if (c.tint !== undefined) hex = applyTint(hex, Number(c.tint));
   return `#${hex.toLowerCase()}`;
 }
+
+/** The slots of the theme in the order Excel numbers them (`theme="1"` is dark 1, `theme="0"` is light 1). */
+export const THEME_SLOTS = ['lt1', 'dk1', 'lt2', 'dk2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink'] as const;
+
+/** A colour element that points at the theme as a reference (`undefined` when it is a fixed colour). */
+export function themeRefOf(c: ColorSpec | undefined): { slot: (typeof THEME_SLOTS)[number]; tint?: number } | undefined {
+  if (!c || c.rgb || c.theme === undefined) return undefined;
+  const slot = THEME_SLOTS[Number(c.theme)];
+  if (!slot) return undefined;
+  const tint = Number(c.tint ?? 0);
+  return tint ? { slot, tint } : { slot };
+}
+
+/** The attributes of a colour element for a reference: ` theme="4" tint="-0.249977111117893"`. */
+export function themeRefAttrs(ref: { slot: string; tint?: number }): string {
+  const i = Math.max(0, (THEME_SLOTS as readonly string[]).indexOf(ref.slot === 'tx1' ? 'dk1' : ref.slot === 'bg1' ? 'lt1' : ref.slot === 'tx2' ? 'dk2' : ref.slot === 'bg2' ? 'lt2' : ref.slot));
+  return ` theme="${i}"` + (ref.tint ? ` tint="${Number(ref.tint.toPrecision(15))}"` : '');
+}

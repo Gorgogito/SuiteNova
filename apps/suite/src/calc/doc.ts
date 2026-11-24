@@ -1,3 +1,4 @@
+import type { DocTheme } from '@suitenova/theme-core';
 import { applyOpenPolicy, type SignatureInfo } from '../macros/security';
 import {
   FormulaSyntaxError,
@@ -563,6 +564,12 @@ export class CalcDoc {
     const origin = this.tabOrigin;
     if (origin !== null) this.selectCell(this.sel.active.row + (up ? -1 : 1), origin);
     else this.moveActive(up ? -1 : 1, 0);
+  }
+
+  /** Gives the workbook another theme (or only its colours, fonts or effects): one step of the undo, and the colours that point at it follow. */
+  setTheme(next: DocTheme, label = 'Tema'): void {
+    this.commitIfEditing();
+    this.run(label, () => this.wb.setTheme(next));
   }
 
   // ---------------------------------------------------------------------------------- history

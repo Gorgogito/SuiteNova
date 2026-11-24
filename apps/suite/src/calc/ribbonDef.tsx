@@ -708,5 +708,5 @@ export function calcTabs(ui: CalcUI, context: boolean | Partial<ContextFlags> = 
 
   const help = helpTab({ shortcuts: false });
   help.groups[0]!.items.unshift({ kind: 'button', command: 'calc.shortcuts', size: 'large', keytip: 'K' });
-  return [home, insert, pageTab(), formulas, data, reviewTab(), view, developerTab(), chartTab, ...contextualTabs(ui, flags), help];
+  return [home, insert, pageTab(ui), formulas, data, reviewTab(), view, developerTab(), chartTab, ...contextualTabs(ui, flags), help];
 }

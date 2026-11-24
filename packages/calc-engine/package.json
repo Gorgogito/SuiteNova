@@ -13,6 +13,7 @@
   "dependencies": {
     "@suitenova/chart-core": "workspace:*",
     "@suitenova/shapes-core": "workspace:*",
+    "@suitenova/theme-core": "workspace:*",
     "@suitenova/wordart-core": "workspace:*"
   },
   "devDependencies": {

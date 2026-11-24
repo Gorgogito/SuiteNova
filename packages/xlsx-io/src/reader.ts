@@ -23,7 +23,8 @@ import {
   type SheetImage,
 } from '@suitenova/calc-engine';
 import JSZip from 'jszip';
-import { DEFAULT_THEME, resolveColor, type ColorSpec } from './colors';
+import { readThemeXml, officeTheme } from '@suitenova/theme-core';
+import { DEFAULT_THEME, resolveColor, themeRefOf, type ColorSpec } from './colors';
 import { parseChart, parseChartEx } from '@suitenova/chart-core';
 import { parseGroup, parseMathAnchor, parseShape } from './shapes-io';
 import { anchorToRect } from './charts-io';
@@ -60,6 +61,8 @@ function relPath(base: string, target: string): string {
   return parts.join('/');
 }
 
+const spec = (n: XNode): ColorSpec => ({ rgb: attr(n, 'rgb'), theme: attr(n, 'theme'), indexed: attr(n, 'indexed'), tint: attr(n, 'tint') });
+const refOf = (n: XNode) => (n ? themeRefOf(spec(n)) : undefined);
 const color = (n: XNode, theme: string[]): string | undefined =>
   n ? resolveColor({ rgb: attr(n, 'rgb'), theme: attr(n, 'theme'), indexed: attr(n, 'indexed'), tint: attr(n, 'tint') } satisfies ColorSpec, theme) : undefined;
 
@@ -77,26 +80,36 @@ function loadStyles(wb: Workbook, doc: XNode, theme: string[]): StyleSheet {
   const defFont = fonts[0];
   if (defFont) {
     wb.defaultFont = { name: attr(defFont.name, 'val') ?? 'Calibri', size: Number(attr(defFont.sz, 'val') ?? 11) };
+    wb.defaultFontThemed = attr(defFont.scheme, 'val') === 'minor';
   }
   const fontStyles: Style[] = fonts.map((f: XNode) => {
     const st: Style = {};
     const name = attr(f.name, 'val');
     const sz = attr(f.sz, 'val');
     if (name && name !== wb.defaultFont.name) st.fontName = name;
+    const scheme = attr(f.scheme, 'val');
+    // a font that is the heading font of the theme (or a body font that is not the one of the workbook) follows the theme too
+    if (scheme === 'major' || (scheme === 'minor' && st.fontName)) st.fontTheme = scheme;
     if (sz && Number(sz) !== wb.defaultFont.size) st.fontSize = Number(sz);
     if (toggle(f.b)) st.bold = true;
     if (toggle(f.i)) st.italic = true;
     if (f.u !== undefined && attr(f.u, 'val') !== 'none') st.underline = true;
     if (toggle(f.strike)) st.strike = true;
     const c = color(f.color, theme);
-    if (c && c !== '#000000') st.color = c;
+    const ref = refOf(f.color);
+    // dark 1 without a tint is the text colour of the workbook («automatic»): it is not a colour of the cell
+    if (ref && !(ref.slot === 'dk1' && !ref.tint)) {
+      st.colorRef = ref;
+      if (c) st.color = c;
+    } else if (c && !(ref && ref.slot === 'dk1') && c !== '#000000') st.color = c;
     return st;
   });
 
-  const fills: (string | undefined)[] = asArray(ss.fills?.fill).map((f: XNode) => {
+  const fills: ({ bg: string; ref?: ReturnType<typeof refOf> } | undefined)[] = asArray(ss.fills?.fill).map((f: XNode) => {
     const p = f.patternFill;
     if (!p || attr(p, 'patternType') !== 'solid') return undefined;
-    return color(p.fgColor, theme);
+    const bg = color(p.fgColor, theme);
+    return bg ? { bg, ref: refOf(p.fgColor) } : undefined;
   });
 
   const border = (n: XNode): Border | undefined => {
@@ -106,6 +119,8 @@ function loadStyles(wb: Workbook, doc: XNode, theme: string[]): StyleSheet {
     const b: Border = { style: known.includes(style) ? style : 'thin' };
     const c = color(n.color, theme);
     if (c) b.color = c;
+    const ref = refOf(n.color);
+    if (ref && c) b.ref = ref;
     return b;
   };
   const borders = asArray(ss.borders?.border).map((b: XNode) => ({ top: border(b.top), right: border(b.right), bottom: border(b.bottom), left: border(b.left) }));
@@ -115,8 +130,11 @@ function loadStyles(wb: Workbook, doc: XNode, theme: string[]): StyleSheet {
     const id = Number(attr(xf, 'numFmtId') ?? 0);
     const code = numFmts.get(id) ?? BUILTIN_FORMATS[id];
     if (code && code !== 'General') st.numFmt = code;
-    const bg = fills[Number(attr(xf, 'fillId') ?? 0)];
-    if (bg) st.bg = bg;
+    const fill = fills[Number(attr(xf, 'fillId') ?? 0)];
+    if (fill) {
+      st.bg = fill.bg;
+      if (fill.ref) st.bgRef = fill.ref;
+    }
     const b = borders[Number(attr(xf, 'borderId') ?? 0)];
     if (b?.top) st.top = b.top;
     if (b?.right) st.right = b.right;
@@ -707,6 +725,16 @@ export async function readXlsx(data: Uint8Array | ArrayBuffer): Promise<ReadResu
   if (personPath) for (const p of asArray((await read(personPath))?.personList?.person)) persons.set(attr(p, 'id') ?? '', attr(p, 'displayName') ?? '');
 
   const wb = new Workbook();
+  if (themePath) {
+    const raw = zip.file(themePath);
+    if (raw) {
+      try {
+        wb.theme = readThemeXml(await raw.async('string'));
+      } catch {
+        wb.theme = officeTheme();
+      }
+    }
+  }
   const stylesPath = [...rels.values()].find((p) => p.endsWith('styles.xml')) ?? 'xl/styles.xml';
   const { xfs, dxfs } = loadStyles(wb, await read(stylesPath), theme);
   const ssPath = [...rels.values()].find((p) => p.endsWith('sharedStrings.xml')) ?? 'xl/sharedStrings.xml';
