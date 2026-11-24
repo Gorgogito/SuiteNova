@@ -9,7 +9,9 @@ import { chartFormatRibbon } from '../chart/commands';
 import { LAYOUT_CATALOG, COLORS_CATALOG, STYLE_CATALOG } from '@suitenova/smartart-core';
 import { isLiveSmartArt } from '@suitenova/slides-core';
 import { ArtisticMenu } from './ribbonParts3';
-import { BgStylesGallery, ColorsGallery, FontsGallery } from './ribbonParts3';
+import { BgStylesGallery } from './ribbonParts3';
+import { ThemeColorsMenu, ThemeEffectsMenu, ThemeFontsMenu, ThemesMenu } from '../themes';
+import { slidesThemeHost } from './theme-host';
 import { TextEffectsMenu, TextFillPicker, TextOutlinePicker } from './ribbonParts2';
 import { GraphicFillButton, GraphicOutlineButton, GraphicStylesButton, selectedIcons } from './icons-ui';
 import { AspectGallery, CorrectionsMenu, PictureShapeGallery, PictureStylesGallery, RecolorMenu } from './PicRibbon';
@@ -193,14 +195,15 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
     label: 'Diseño',
     keytip: 'G',
     groups: [
-      { id: 'themes', label: 'Temas', icon: 'palette', items: [L('slides.design.themes', 'TM')] },
+      { id: 'themes', label: 'Temas', icon: 'palette', items: [{ kind: 'custom', id: 'themeGallery', label: 'Temas', keytip: 'TM', render: () => <ThemesMenu host={slidesThemeHost(ui)} size="large" /> }, L('slides.design.themes', 'TP')] },
       {
         id: 'variants',
         label: 'Variantes',
         icon: 'palette',
         items: [
-          { kind: 'custom', id: 'varColors', label: 'Colores', keytip: 'VC', render: () => <ColorsGallery ui={ui} /> },
-          { kind: 'custom', id: 'varFonts', label: 'Fuentes', keytip: 'VF', render: () => <FontsGallery ui={ui} /> },
+          { kind: 'custom', id: 'varColors', label: 'Colores', keytip: 'VC', render: () => <ThemeColorsMenu host={slidesThemeHost(ui)} /> },
+          { kind: 'custom', id: 'varFonts', label: 'Fuentes', keytip: 'VF', render: () => <ThemeFontsMenu host={slidesThemeHost(ui)} /> },
+          { kind: 'custom', id: 'varEffects', label: 'Efectos', keytip: 'VX', render: () => <ThemeEffectsMenu host={slidesThemeHost(ui)} /> },
           { kind: 'custom', id: 'varBg', label: 'Estilos de fondo', keytip: 'VE', render: () => <BgStylesGallery ui={ui} /> },
         ],
       },

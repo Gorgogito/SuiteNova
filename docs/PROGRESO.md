@@ -200,7 +200,7 @@ Plan en `docs/diseno-buscar.md`. Decisiones (2026-11-23): `find-core` + interfaz
 Plan en `docs/diseno-temas.md`. Decisiones (2026-11-23): `theme-core` + interfaz común; alcance Writer, Calc y Slides; funciones estándar de Office (galería, colores, fuentes, efectos, personalizados, `.thmx`, paletas que usan el tema). Plan de 6 fases: 1 theme-core, 2 interfaz común y Slides, 3 Writer, 4 Calc, 5 paletas compartidas, 6 cierre.
 
 - [x] **Fase 1 HECHA: theme-core** (10 pruebas; slides-core 117 y app 458 siguen pasando; catálogo generado de los archivos reales de Office). **Pendiente aparte:** la comparación con Office real por COM (`scripts/office-theme/`), porque Word se cuelga en `Documents.Add()`/`ApplyDocumentTheme`; cómo retomarla, en la bitácora de la fase 1 del diseño.
-- [ ] Fase 2: interfaz común y Slides.
+- [x] **Fase 2 HECHA: interfaz común y Slides** (`apps/suite/src/themes/` con `ThemeHost`, menús Temas/Colores/Fuentes/Efectos, personalizados, `.thmx`; Slides migrado; efectos de un documento nuevo corregidos a los de Office actual; `e2e-themes-slides.mjs` 15/15, slides-core 120, app 458). **Pendiente aparte:** comparar con PowerPoint real por COM (mismo bloqueo que en la fase 1).
 - [ ] Fase 3: Writer.
 - [ ] Fase 4: Calc.
 - [ ] Fase 5: paletas compartidas.

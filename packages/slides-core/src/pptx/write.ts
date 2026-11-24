@@ -68,7 +68,7 @@ class Rels {
 
 // ------------------------------------------------------------------------------------------------ theme
 
-function themeXml(t: Theme, ctx: WriteCtx): string {
+export function themeXml(t: Theme, ctx: WriteCtx): string {
   const slot = (n: string, hex: string) => `<a:${n}><a:srgbClr val="${hex.replace('#', '').toUpperCase()}"/></a:${n}>`;
   const c = t.colors;
   const face = (k: 'major' | 'minor') => `<a:${k}Font><a:latin typeface="${esc(t.fonts[k].latin)}"/><a:ea typeface="${esc(t.fonts[k].ea ?? '')}"/><a:cs typeface="${esc(t.fonts[k].cs ?? '')}"/></a:${k}Font>`;

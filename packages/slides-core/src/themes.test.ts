@@ -48,3 +48,35 @@ describe('themes', () => {
     expect(r.deck.themes[0]!.colors.accent1).toBe('#92278f');
   });
 });
+
+describe('temas compartidos', () => {
+  it('cambia los efectos y reconoce cuál es', async () => {
+    const { EFFECT_SCHEMES } = await import('@suitenova/theme-core');
+    const { setThemeEffects, currentEffectsId } = await import('./themes');
+    const d = newDeck();
+    const id = d.themes[0]!.id;
+    for (const e of EFFECT_SCHEMES) {
+      const d2 = setThemeEffects(d, id, e.fmtXml);
+      expect(currentEffectsId(d2.themes[0])).toBe(e.id);
+    }
+    expect(JSON.stringify(setThemeEffects(d, id, EFFECT_SCHEMES[4]!.fmtXml).themes[0]!.fmt)).not.toBe(JSON.stringify(d.themes[0]!.fmt));
+  });
+  it('exporta un .thmx que se vuelve a leer igual', async () => {
+    const { exportThmx, readTemplateFile, COLOR_SCHEMES, setThemeColors } = await import('./themes');
+    const d = newDeck();
+    const blue = COLOR_SCHEMES.find((s) => s.id === 'blue')!;
+    const d2 = setThemeColors(d, d.themes[0]!.id, blue.colors);
+    const bytes = await exportThmx(d2.themes[0]!);
+    const back = await readTemplateFile(bytes);
+    expect(back.themeOnly).toBe(true);
+    expect(back.deck.themes[0]!.colors.accent1.toLowerCase()).toBe(blue.colors.accent1.toLowerCase());
+    expect(back.deck.themes[0]!.fonts.major.latin).toBe(d2.themes[0]!.fonts.major.latin);
+  });
+});
+
+describe('efectos del documento nuevo', () => {
+  it('un documento nuevo tiene los efectos de Office', async () => {
+    const { currentEffectsId } = await import('./themes');
+    expect(currentEffectsId(newDeck().themes[0])).toBe('office');
+  });
+});

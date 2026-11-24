@@ -24,6 +24,7 @@ export function officeTheme(): Theme {
         {
           t: 'grad',
           lin: { ang: 5400000 / 60000, scaled: false },
+          rotWithShape: true,
           stops: [
             { pos: 0, c: mods(['lumMod', 110000], ['satMod', 105000], ['tint', 67000]) },
             { pos: 50000, c: mods(['lumMod', 105000], ['satMod', 103000], ['tint', 73000]) },
@@ -33,6 +34,7 @@ export function officeTheme(): Theme {
         {
           t: 'grad',
           lin: { ang: 5400000 / 60000, scaled: false },
+          rotWithShape: true,
           stops: [
             { pos: 0, c: mods(['satMod', 103000], ['lumMod', 102000], ['tint', 94000]) },
             { pos: 50000, c: mods(['satMod', 110000], ['lumMod', 100000], ['shade', 100000]) },
@@ -41,11 +43,11 @@ export function officeTheme(): Theme {
         },
       ],
       lns: [
-        { w: 0.5, fill: sol(ph), dash: 'solid', cap: 'flat', join: 'round', cmpd: 'sng' },
-        { w: 1, fill: sol(ph), dash: 'solid', cap: 'flat', join: 'round', cmpd: 'sng' },
-        { w: 1.5, fill: sol(ph), dash: 'solid', cap: 'flat', join: 'round', cmpd: 'sng' },
+        { w: 0.5, fill: sol(ph), dash: 'solid', cap: 'flat', join: 'miter', miterLim: 8, cmpd: 'sng', algn: 'ctr' },
+        { w: 1, fill: sol(ph), dash: 'solid', cap: 'flat', join: 'miter', miterLim: 8, cmpd: 'sng', algn: 'ctr' },
+        { w: 1.5, fill: sol(ph), dash: 'solid', cap: 'flat', join: 'miter', miterLim: 8, cmpd: 'sng', algn: 'ctr' },
       ],
-      effects: [{}, {}, { outer: { blur: 4, dist: 3, dir: 90, c: { rgb: '#000000', mods: [{ t: 'alpha', v: 38000 }] }, algn: 'ctr', rotWithShape: false } }],
+      effects: [{}, {}, { outer: { blur: 4.5, dist: 1.5, dir: 90, c: { rgb: '#000000', mods: [{ t: 'alpha', v: 63000 }] }, algn: 'ctr', rotWithShape: false } }],
       bgFills: [sol(ph), sol(mods(['tint', 95000], ['satMod', 170000])), sol(mods(['shade', 95000], ['satMod', 170000]))],
     },
   };

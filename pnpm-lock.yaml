@@ -244,6 +244,9 @@ importers:
       '@suitenova/table-core':
         specifier: workspace:*
         version: link:../../packages/table-core
+      '@suitenova/theme-core':
+        specifier: workspace:*
+        version: link:../../packages/theme-core
       '@suitenova/thesaurus-core':
         specifier: workspace:*
         version: link:../../packages/thesaurus-core

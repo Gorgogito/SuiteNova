@@ -39,7 +39,7 @@ await check('colour scheme from the ribbon, with undo', async () => {
   await page.getByRole('button', { name: 'Colores', exact: true }).click();
   await settle(350);
   await shot('colors-gallery');
-  await page.getByRole('menuitem', { name: 'Verde' }).click();
+  await page.getByRole('menuitemradio', { name: 'Verde', exact: true }).click();
   await settle();
   assert.equal((await theme()).colors.accent1, '#549e39');
   await ev(() => window.__novaSlides.ctl.undo());
@@ -49,11 +49,11 @@ await check('colour scheme from the ribbon, with undo', async () => {
 await check('font pair from the ribbon', async () => {
   await page.getByRole('button', { name: 'Fuentes', exact: true }).click();
   await settle(350);
-  await page.getByRole('menuitem', { name: /Georgia/ }).click();
+  await page.getByRole('menuitemradio', { name: /Georgia/ }).click();
   await settle();
   const f = (await theme()).fonts;
   assert.equal(f.major.latin, 'Georgia');
-  assert.equal(f.minor.latin, 'Verdana');
+  assert.equal(f.minor.latin, 'Georgia');
 });
 
 await check('background styles: dark one flips text colours, gradient one is a gradient', async () => {
@@ -108,7 +108,7 @@ await check('saved and reopened: colours, fonts and background style survive', a
   await page.getByRole('tab', { name: 'Diseño', exact: true }).click();
   await page.getByRole('button', { name: 'Colores', exact: true }).click();
   await settle(350);
-  await page.getByRole('menuitem', { name: 'Verde' }).click();
+  await page.getByRole('menuitemradio', { name: 'Verde', exact: true }).click();
   await settle();
   await page.getByRole('button', { name: 'Estilos de fondo', exact: true }).click();
   await settle(350);

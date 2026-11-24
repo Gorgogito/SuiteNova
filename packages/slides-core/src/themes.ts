@@ -1,8 +1,9 @@
-import { COLOR_SCHEMES as SHARED_COLORS, FONT_SCHEMES as SHARED_FONTS } from '@suitenova/theme-core';
+import { COLOR_SCHEMES as SHARED_COLORS, EFFECT_SCHEMES as SHARED_EFFECTS, FONT_SCHEMES as SHARED_FONTS, cloneFonts, officeTheme, readThemeXml, writeThemeXml, writeThmx, type DocTheme } from '@suitenova/theme-core';
 import JSZip from 'jszip';
 import { newDeck } from './defaults';
 import { readPptx } from './pptx/read';
 import { readTheme } from './pptx/themexml';
+import { themeXml } from './pptx/write';
 import { resizeSlide } from './ops';
 import type { ColorMap, Deck, FontScheme, Layout, SchemeSlot, Theme } from './types';
 
@@ -92,3 +93,34 @@ export async function readTemplateFile(data: Uint8Array): Promise<{ deck: Deck; 
   const t = readTheme(await f.async('string'), base.id);
   return { deck: { ...deck, themes: [{ ...t, id: base.id }] }, themeOnly: true };
 }
+
+// ------------------------------------------------------------------------------------------------ shared themes (theme-core)
+
+const NO_CTX = { image: () => undefined, link: () => undefined };
+
+/** The theme as the common `DocTheme` (colours, fonts and the raw format scheme), for the shared gallery and for `.thmx` files. */
+export const themeToDoc = (t: Theme): DocTheme => readThemeXml(themeXml(t, NO_CTX));
+
+/** The `.thmx` file of a theme. */
+export const exportThmx = (t: Theme): Promise<Uint8Array> => writeThmx(themeToDoc(t));
+
+/** Slides' own format scheme (fills, lines, effects) of a shared effect scheme. */
+export function fmtFromXml(fmtXml: string, id: string): Theme['fmt'] {
+  return readTheme(writeThemeXml({ ...officeTheme(), fmtXml }), id).fmt;
+}
+
+export const setThemeEffects = (deck: Deck, themeId: string | undefined, fmtXml: string): Deck => mapTheme(deck, themeId, (t) => ({ ...t, fmt: fmtFromXml(fmtXml, t.id) }));
+
+/** JSON with the keys in order, to compare two format schemes whatever the order in which they were built. */
+const canon = (v: unknown): string => JSON.stringify(v, (_k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([p], [q]) => p.localeCompare(q))) : x));
+
+/** Which shared effect scheme the theme has (by what it draws, not by name), or undefined. */
+export function currentEffectsId(t: Theme | undefined): string | undefined {
+  if (!t) return undefined;
+  const mine = canon(t.fmt);
+  return SHARED_EFFECTS.find((e) => canon(fmtFromXml(e.fmtXml, t.id)) === mine)?.id;
+}
+
+/** Applies a whole shared theme (colours, fonts and effects) to the theme of the deck. */
+export const applyDocTheme = (deck: Deck, themeId: string | undefined, doc: DocTheme): Deck =>
+  mapTheme(deck, themeId, (t) => ({ ...t, name: doc.name, colors: { ...doc.colors }, fonts: cloneFonts(doc.fonts), fmt: fmtFromXml(doc.fmtXml, t.id) }));
