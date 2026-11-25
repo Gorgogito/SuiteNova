@@ -35,6 +35,12 @@ await page.goto(URL, { waitUntil: 'load' });
 await page.waitForSelector('.ProseMirror');
 await page.waitForTimeout(600);
 const ev = (fn, arg) => page.evaluate(fn, arg);
+/** Pulsa un botón del grupo «Texto» de la pestaña de imagen; si la cinta lo ha colapsado en un desplegable, lo abre antes. */
+const textBtn = async (name) => {
+  const b = page.getByRole('button', { name, exact: true });
+  if (!(await b.count())) await page.getByRole('button', { name: /^Texto$/ }).click();
+  await b.click();
+};
 const editor = page.locator('.ProseMirror').first();
 
 const makePng = () =>
@@ -98,7 +104,11 @@ await check('reemplazar no toca el texto de la imagen', async () => {
   await page.locator('.nw-find-bar').getByLabel('Buscar', { exact: true }).fill('Factura');
   await page.waitForSelector('.nw-find-img-cur');
   const before = await images();
-  await ev(() => window.__novaWriter.ctl.replaceAll('Factura', 'Nota', {}));
+  const bar = page.locator('.nw-find-bar');
+  await page.keyboard.press('Control+H');
+  await bar.getByLabel('Reemplazar con').fill('Nota');
+  await bar.getByRole('button', { name: 'Reemplazar todo', exact: true }).click();
+  await page.waitForTimeout(300);
   const after = await images();
   assert.equal(after[0].ocr.text, before[0].ocr.text);
   await page.keyboard.press('Escape');
@@ -107,7 +117,7 @@ await check('reemplazar no toca el texto de la imagen', async () => {
 await check('el cuadro «Texto de la imagen» señala dónde está lo buscado y lee solo una zona', async () => {
   await page.locator('.ProseMirror img.nw-image').first().click();
   await page.getByRole('tab', { name: /Formato de imagen/ }).click();
-  await page.getByRole('button', { name: 'Texto de la imagen…' }).click();
+  await textBtn('Texto de la imagen…');
   const dlg = page.getByRole('dialog');
   await dlg.getByLabel('Buscar en el texto de la imagen').fill('total');
   await dlg.locator('rect[data-ocr="found"]').waitFor();
@@ -132,7 +142,8 @@ await check('copiar el texto de la imagen lo deja en el portapapeles', async () 
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.locator('.ProseMirror img.nw-image').first().click();
   await page.getByRole('tab', { name: /Formato de imagen/ }).click();
-  await page.getByRole('button', { name: 'Copiar el texto de la imagen' }).click();
+  await textBtn('Copiar el texto de la imagen');
+  await page.keyboard.press('Escape'); // cierra el desplegable si sigue abierto
   const clip = await ev(() => navigator.clipboard.readText());
   assert.match(clip, /Factura número 4821/);
 });

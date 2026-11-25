@@ -44,6 +44,9 @@ const ok = async () => {
   await page.waitForTimeout(400);
 };
 const tableAttrs = () => ev(() => { let r; window.__novaWriter.ctl.state.doc.descendants((n) => { if (n.type.name === 'table' && !r) r = n.attrs; }); return r; });
+/** Solo las propiedades que trata «Propiedades de la tabla» (la tabla tiene además título, estilo, etc.). */
+const PROPS = ['borders', 'align', 'borderColor', 'borderWidth', 'padding', 'headerRow'];
+const props = (a) => Object.fromEntries(PROPS.filter((k) => k in a).map((k) => [k, a[k]]));
 const grid = () => ev(() => { const out = []; window.__novaWriter.ctl.state.doc.descendants((n) => { if (n.type.name === 'table_row') { const r = []; n.forEach((c) => r.push(c.textContent)); out.push(r); } }); return out; });
 const cellBg = () => ev(() => { const out = []; window.__novaWriter.ctl.state.doc.descendants((n) => { if (n.type.name === 'table_cell' || n.type.name === 'table_header') out.push(n.attrs.background ?? null); }); return out; });
 /** Pulsa un botón del grupo «Datos»; si la cinta lo ha colapsado en un desplegable, lo abre antes. */
@@ -93,28 +96,29 @@ await check('«Propiedades de la tabla»: centrada, borde rojo grueso, márgenes
   await dialog().locator('#tp-py').fill('3');
   await dialog().getByLabel(/primera fila es un encabezado/).check();
   await ok();
-  assert.deepEqual(await tableAttrs(), { borders: true, align: 'center', borderColor: '#cc0000', borderWidth: 2, padding: { x: 9, y: 3 }, headerRow: true });
+  assert.deepEqual(props(await tableAttrs()), { borders: true, align: 'center', borderColor: '#cc0000', borderWidth: 2, padding: { x: 9, y: 3 }, headerRow: true });
   const css = await page.locator('table.nw-table').first().evaluate((el) => ({ ml: el.style.marginLeft, bc: el.style.getPropertyValue('--nw-bc'), bw: el.style.getPropertyValue('--nw-bw') }));
   assert.deepEqual(css, { ml: 'auto', bc: '#cc0000', bw: '2pt' });
   const td = await page.locator('table.nw-table td').first().evaluate((el) => { const s = getComputedStyle(el); return [s.borderTopColor, s.paddingLeft, s.paddingTop]; });
   assert.deepEqual(td, ['rgb(204, 0, 0)', '12px', '4px']); // 9 pt y 3 pt
 });
 
-await check('un estilo de tabla (Azul) colorea encabezado y filas alternas, y «Sin bordes» los quita', async () => {
+await check('un estilo de tabla (Medio – Énfasis 1) pinta encabezado y filas alternas, y «Borrar estilo» los quita', async () => {
+  const bgs = () => page.locator('table.nw-table tr').evaluateAll((rows) => rows.map((r) => getComputedStyle(r.firstElementChild).backgroundColor));
   await tabTable().click();
   await page.getByRole('button', { name: /^Estilos de tabla/ }).click();
-  await page.getByRole('menuitem', { name: /Azul/ }).click();
+  await page.getByRole('button', { name: 'Medio – Énfasis 1', exact: true }).click();
   await page.waitForTimeout(400);
-  await shot('estilo-azul');
-  const bg = await cellBg();
-  assert.equal(bg[0], '#2f5597');
-  assert.equal(bg[3], '#dce6f4'); // primera fila de datos con banda
-  assert.equal(bg[6], null);
-  assert.equal((await tableAttrs()).headerRow, true);
+  await shot('estilo-medio');
+  assert.equal((await tableAttrs()).tstyle, 'medium-1');
+  const bg = await bgs();
+  assert.equal(bg[0], 'rgb(68, 114, 196)'); // encabezado = Énfasis 1 del tema (Office)
+  assert.notEqual(bg[1], bg[2]); // bandas alternas
   await page.getByRole('button', { name: /^Estilos de tabla/ }).click();
-  await page.getByRole('menuitem', { name: /Sin bordes/ }).click();
+  await page.getByRole('button', { name: 'Borrar estilo' }).click();
   await page.waitForTimeout(300);
-  assert.equal((await tableAttrs()).borders, false);
+  assert.equal((await tableAttrs()).tstyle, null);
+  assert.ok((await bgs()).every((c) => c === 'rgba(0, 0, 0, 0)'));
 });
 
 await check('ordenar por una columna numérica (el encabezado se queda arriba) y por texto descendente', async () => {
@@ -195,7 +199,7 @@ await check('las propiedades de la tabla sobreviven a guardar y volver a leer el
     back.doc.body.descendants((n) => { if (n.type.name === 'table' && !attrs) attrs = n.attrs; });
     return attrs;
   });
-  assert.deepEqual(out, { borders: true, align: 'right', borderColor: '#336699', borderWidth: 1.5, padding: { x: 7, y: 2 }, headerRow: true });
+  assert.deepEqual(props(out), { borders: true, align: 'right', borderColor: '#336699', borderWidth: 1.5, padding: { x: 7, y: 2 }, headerRow: true });
 });
 
 await check('sin errores de consola', async () => {

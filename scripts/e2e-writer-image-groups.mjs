@@ -91,6 +91,12 @@ const cmd = async (name) => {
   await page.waitForTimeout(350);
 };
 const selectGroup = () => page.evaluate(() => { const v = window.__novaWriter.ctl.mainView; let p = null; v.state.doc.descendants((n, pos) => { if (n.type.name === 'shape_group' && p === null) p = pos; }); const NS = v.state.selection.constructor; v.dispatch(v.state.tr.setSelection(NS.create(v.state.doc, p))); });
+/** Abre «Ajuste del texto»; si la cinta ha colapsado «Organizar» en un desplegable, lo abre antes. */
+const openWrap = async () => {
+  const wrap = page.getByRole('button', { name: 'Ajuste del texto', exact: true });
+  if (!(await wrap.count())) await page.getByRole('button', { name: /^Organizar/ }).click();
+  await wrap.click();
+};
 const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b}`);
 
 await check('Delante del texto: la imagen en línea pasa a libre sin moverse en pantalla, y se arrastra', async () => {
@@ -99,7 +105,7 @@ await check('Delante del texto: la imagen en línea pasa a libre sin moverse en 
   await page.locator('.ProseMirror img.nw-image').click();
   await page.waitForTimeout(250);
   await page.locator('[role=tab]').filter({ hasText: 'Formato de imagen' }).click();
-  await page.getByRole('button', { name: 'Ajuste del texto', exact: true }).click();
+  await openWrap();
   await page.getByRole('menuitem', { name: 'Delante del texto' }).click();
   await page.waitForTimeout(400);
   const info = (await imgInfo())[0];
@@ -122,7 +128,7 @@ await check('Delante del texto: la imagen en línea pasa a libre sin moverse en 
   near(moved.x - info.x, 50, 3, 'desplazamiento x');
   near(moved.y - info.y, 35, 3, 'desplazamiento y');
   // «En línea» la devuelve al texto
-  await page.getByRole('button', { name: 'Ajuste del texto', exact: true }).click();
+  await openWrap();
   await page.getByRole('menuitem', { name: 'En línea con el texto' }).click();
   await page.waitForTimeout(300);
   assert.equal((await imgInfo())[0].wrap, null);
@@ -245,7 +251,7 @@ await check('editar una hija sin desagrupar: segundo clic la elige sola, el form
   assert.equal(await selInGroup(), true);
   // «Ajuste del texto» no se ofrece dentro de un grupo
   await page.locator('[role=tab]').filter({ hasText: 'Formato de imagen' }).click();
-  await page.getByRole('button', { name: 'Ajuste del texto', exact: true }).click();
+  await openWrap();
   assert.equal(await page.getByRole('menuitem', { name: 'Delante del texto' }).isDisabled(), true);
   await page.keyboard.press('Escape');
   // con otra cosa elegida, un clic en la imagen elige el grupo entero (primer clic)
