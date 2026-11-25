@@ -1,5 +1,6 @@
 import { ICON_COUNTS, defaultIconThresholds, formatValue, isDateFormat, normRect, type CFKind, type CFRule, type IconSetName, type Rect, type Style } from '@suitenova/calc-engine';
 import type { CommandDef } from '@suitenova/core-ui';
+import { paletteOf } from '@suitenova/theme-core';
 import { chartFormatCommands } from '../chart/commands';
 import { readChart, writeChart } from '../chart/clipboard';
 import { readMath, writeMath } from '../math/clipboard';
@@ -415,6 +416,7 @@ export function calcCommands(ui: CalcUI): CommandDef[] {
     ids: { element: 'calc.el', colors: 'calc.chartColors', style: 'calc.chartStyle' },
     get: () => chart() ?? null,
     pointCount: () => (chart() ? pointCount(chart()!) : 0),
+    accents: () => paletteOf(d.wb.theme).accents,
     apply: (next, label) => {
       const c = chart();
       if (c) d.updateChart(c.id, next as unknown as Parameters<typeof d.updateChart>[1], label);

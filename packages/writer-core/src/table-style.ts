@@ -4,15 +4,18 @@ import {
   setBorders as gridSetBorders,
   styleById,
   styleFor,
+  OFFICE_PALETTE,
   type Border,
   type BorderMode,
   type Cell,
   type CellLook,
   type CellProps,
   type Grid,
+  type Palette,
   type StyleOptions,
   type TableStyle,
 } from '@suitenova/table-core';
+import { paletteOf, type DocTheme } from '@suitenova/theme-core';
 import type { Node as PMNode } from 'prosemirror-model';
 import { type Command, type EditorState, Plugin, PluginKey } from 'prosemirror-state';
 import { CellSelection, TableMap } from 'prosemirror-tables';
@@ -30,13 +33,19 @@ export const NO_SHADING = 'transparent';
 export type CellBorders = Partial<Record<'t' | 'r' | 'b' | 'l', Border | null>>;
 
 /** The table style of a table node: its style, or the one its borders flag stands for. */
-export function styleOfTable(table: PMNode): TableStyle {
+/** The colours the table styles use in a document: the accents of its theme (Office's when it has none, as in Notes). */
+export function paletteOfDoc(doc: PMNode): Palette {
+  const th = doc.attrs.theme as DocTheme | null | undefined;
+  return th ? paletteOf(th) : OFFICE_PALETTE;
+}
+
+export function styleOfTable(table: PMNode, palette: Palette = OFFICE_PALETTE): TableStyle {
   const id = table.attrs.tstyle as string | null;
-  const known = id ? styleById(id) : undefined;
+  const known = id ? styleById(id, palette) : undefined;
   if (known) return known;
-  if (!table.attrs.borders) return styleFor('plain');
+  if (!table.attrs.borders) return styleFor('plain', 1, palette);
   // a table with the old "visible borders" flag is the table grid, in the colour and width it was given
-  const grid = styleFor('basic');
+  const grid = styleFor('basic', 1, palette);
   const color = (table.attrs.borderColor as string | null) ?? '#000000';
   const width = (table.attrs.borderWidth as number | null) ?? 0.75;
   const line: Border = { style: 'single', width, color };
@@ -71,9 +80,9 @@ export function isStyledTable(table: PMNode): boolean {
 }
 
 /** The look of every cell of a table, by the offset of the cell in the table. */
-export function tableLooks(table: PMNode): Map<number, CellLook> {
+export function tableLooks(table: PMNode, palette: Palette = OFFICE_PALETTE): Map<number, CellLook> {
   const map = TableMap.get(table);
-  const style = styleOfTable(table);
+  const style = styleOfTable(table, palette);
   const opts = optionsOfTable(table);
   const size = { rows: map.height, cols: map.width };
   const out = new Map<number, CellLook>();
@@ -106,10 +115,11 @@ export function cssOfLook(l: CellLook): string {
 
 function build(doc: PMNode): DecorationSet {
   const decos: Decoration[] = [];
+  const palette = paletteOfDoc(doc);
   doc.descendants((node, pos) => {
     if (node.type.name !== 'table') return true;
     if (!isStyledTable(node)) return true;
-    for (const [off, look] of tableLooks(node)) {
+    for (const [off, look] of tableLooks(node, palette)) {
       const cell = node.nodeAt(off)!;
       const css = cssOfLook(look);
       if (css) decos.push(Decoration.node(pos + 1 + off, pos + 1 + off + cell.nodeSize, { style: css }));

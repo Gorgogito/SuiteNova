@@ -42,3 +42,16 @@ describe('colores y estilos del gráfico', () => {
     expect(CHART_STYLES.length).toBe(8);
   });
 });
+
+describe('los juegos de colores con el tema del documento', () => {
+  const accents = ['#111111', '#222222', '#333333', '#444444', '#555555', '#666666'];
+  it('Colorido 2 usa los énfasis del tema en su orden', () => {
+    expect(paletteColors('colorful2', 3, accents)).toEqual(['#222222', '#444444', '#666666']);
+    expect(paletteColors('mono2', 1, accents)).toEqual(['#222222']);
+  });
+  it('sin tema son los de Office, y el juego aplicado se reconoce con el mismo tema', () => {
+    expect(paletteColors('colorful1', 2)).toEqual(['#4472c4', '#ed7d31']);
+    const c = applyPalette({ type: 'column', series: [{ values: 'A1' }, { values: 'B1' }] } as never, 'colorful3', 2, accents);
+    expect(paletteOf(c, 2, accents)).toBe('colorful3');
+  });
+});

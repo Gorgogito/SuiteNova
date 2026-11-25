@@ -13,7 +13,7 @@ import { avLstXml, presetOf, resolveKind } from '@suitenova/shapes-core';
 import { prstTxWarpXml, w14Fx, type WordArtFx } from '@suitenova/wordart-core';
 import { CT_CHARTEX, CT_CHARTEX_COLORS, CT_CHARTEX_STYLE, NS_CX, REL_CHARTEX, chartParts, mainChartPath, renameBundle, rewriteRawChart, writeGridWorkbook, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 import { DIAGRAM_URI, PART_TYPES, parseDataModel, setDrawingRelId, writeDataModel, type SmartArtParts } from '@suitenova/smartart-core';
-import { officeTheme, refToWord, resolveRef, writeThemeXml, type ColorRef, type DocTheme } from '@suitenova/theme-core';
+import { officeTheme, paletteOf, refToWord, resolveRef, writeThemeXml, type ColorRef, type DocTheme } from '@suitenova/theme-core';
 import { REL, W_NS, XML_HEAD, fieldInstr, hex, hex8, relsXml, toWordDate } from './shared';
 import { commentsExtendedXml, commentsXml, customXmlParts, footnotesXml, settingsXml, watermarkParagraph, type NoteOut } from './writer-parts';
 
@@ -747,7 +747,7 @@ function tableXml(t: PMNode, ctx: Ctx, part: PartCtx, rels: RelSink): string {
   const jc = t.attrs.align === 'center' || t.attrs.align === 'right' ? `<w:jc w:val="${t.attrs.align}"/>` : '';
   const pad = t.attrs.padding as { x?: number; y?: number } | null;
   const mar = pad ? `<w:tblCellMar><w:top w:w="${ptToTwips(pad.y ?? 0)}" w:type="dxa"/><w:left w:w="${ptToTwips(pad.x ?? 5.4)}" w:type="dxa"/><w:bottom w:w="${ptToTwips(pad.y ?? 0)}" w:type="dxa"/><w:right w:w="${ptToTwips(pad.x ?? 5.4)}" w:type="dxa"/></w:tblCellMar>` : '';
-  const nova = t.attrs.tstyle ? styleById(String(t.attrs.tstyle)) : undefined;
+  const nova = t.attrs.tstyle ? styleById(String(t.attrs.tstyle), paletteOf(writing)) : undefined;
   if (nova) ctx.tableStyles.set(nova.id, nova);
   const look = nova ? tblLookXml({ ...DEFAULT_OPTIONS, ...(t.attrs.topts ?? {}) }) : '<w:tblLook w:val="04A0"/>';
   let out = `<w:tbl><w:tblPr>${nova ? `<w:tblStyle w:val="${novaStyleId(nova)}"/>` : t.attrs.borders ? '<w:tblStyle w:val="TableGrid"/>' : ''}<w:tblW w:w="0" w:type="auto"/>${jc}${nova ? '' : borders}<w:tblLayout w:type="fixed"/>${mar}${look}${t.attrs.caption ? `<w:tblCaption w:val="${esc(String(t.attrs.caption))}"/>` : ''}${t.attrs.descr ? `<w:tblDescription w:val="${esc(String(t.attrs.descr))}"/>` : ''}</w:tblPr>`;

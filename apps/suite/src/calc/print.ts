@@ -1,7 +1,7 @@
 import { cssText, pictureCss } from '../images/picture-css';
 import { shapeSvg } from '@suitenova/shapes-core';
 import { mathBoxHtml } from '../slides/render/mathbox';
-import { CFEvaluator, colToName, colAtPx, colOffsetPx, normRect, rowAtPx, rowOffsetPx, shapeLook, tableAt, type FormulaLocale, type PageSetup, type Rect, type Sheet, type Style } from '@suitenova/calc-engine';
+import { CFEvaluator, colToName, colAtPx, colOffsetPx, normRect, rowAtPx, rowOffsetPx, shapeAccent, shapeLook, tableAt, type FormulaLocale, type PageSetup, type Rect, type Sheet, type Style } from '@suitenova/calc-engine';
 import type { CalcDoc } from './doc';
 import { chartSvg } from './chartRender';
 import { sparkSvg, sparklineJobs, tableFillAt, tableTextLook } from './render-objects';
@@ -370,7 +370,7 @@ function pageHtml(o: HtmlOptions, p: PrintPage, total: number): string {
   }
   for (const sh of sheet.shapes) {
     if (!onPage(sh.x, sh.y)) continue;
-    const look = shapeLook(sh);
+    const look = shapeLook(sh, shapeAccent(wb.theme));
     const justify = { top: 'flex-start', middle: 'center', bottom: 'flex-end' }[sh.vAlign ?? (sh.kind === 'textBox' ? 'top' : 'middle')];
     const align = sh.hAlign ?? (sh.kind === 'textBox' ? 'left' : 'center');
     const txt = sh.math

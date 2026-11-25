@@ -9,7 +9,7 @@ export { parseInput, type InputOptions, type ParsedInput } from './input';
 export { FormulaSyntaxError, parseFormula } from './parser';
 export { StyleTable, type Border, type BorderStyle, type HAlign, type Style, type VAlign } from './styles';
 export { CalcError, E, isErr, isLambda, isRefs, type LambdaVal, type RefsVal, type Scalar, type Value } from './values';
-export { DEFAULT_COL_WIDTH, resolveThemeRef, DEFAULT_ROW_HEIGHT, Workbook, type ArrayLikeValue, type CellData, type CellSnap, type Op, type Patch, type Sheet } from './workbook';
+export { DEFAULT_COL_WIDTH, resolveThemeRef, shapeAccent, DEFAULT_ROW_HEIGHT, Workbook, type ArrayLikeValue, type CellData, type CellSnap, type Op, type Patch, type Sheet } from './workbook';
 export { ES_FUNCTIONS, canonicalFormula, canonicalFunctionName, localizeFormula, localizedFunctionName, type FormulaLocale } from './locale';
 export type { PrintOptions } from './formula';
 export { adjustChartRefs, colAtPx, colOffsetPx, rangeText, readRangeValues, renameChartRefs, resolveRangeText, rowAtPx, rowOffsetPx, suggestChart, DEFAULT_3D, SERIES_TYPES, STOCK_SERIES, type Chart3D, type ChartAxis, type ChartDef, type ChartSeries, type ChartType, type SeriesType, type StockKind } from './charts';
@@ -53,6 +53,7 @@ export {
   SHAPE_KINDS,
   SHAPE_FILL,
   SHAPE_LINE,
+  type ShapeAccent,
   newShapeId,
   shapeLook,
   type SheetName,

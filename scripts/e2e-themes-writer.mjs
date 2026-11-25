@@ -200,7 +200,39 @@ await check('a Word file arrives with its theme and its colours that point at it
   assert.notEqual(out.run.value, '#000000');
 });
 
+await check('the font colour menu offers the theme and the text keeps the reference to it', async () => {
+  await page.locator('.nw-doc').first().click();
+  await page.keyboard.press('Control+a');
+  await page.getByRole('tab', { name: 'Inicio', exact: true }).click();
+  await page.getByRole('button', { name: 'Color de fuente (más)', exact: true }).click();
+  await settle(300);
+  assert.equal(await page.getByRole('group', { name: 'Color de fuente' }).getByRole('button', { name: 'Énfasis 4', exact: true }).count(), 1);
+  await shot('writer-picker');
+  await page.getByRole('button', { name: 'Énfasis 4, más oscuro 25 %', exact: true }).click();
+  await settle(300);
+  const mark = () => page.evaluate(() => window.__novaWriter.ctl.mainView.state.doc.firstChild.firstChild.firstChild.marks.find((m) => m.type.name === 'color').attrs);
+  const m1 = await mark();
+  assert.equal(m1.ref.slot, 'accent4');
+  assert.equal(m1.ref.tint, -0.25);
+  await page.getByRole('tab', { name: 'Diseño', exact: true }).click();
+  await open('Colores');
+  await page.getByRole('menuitemradio', { name: 'Rojo', exact: true }).click();
+  await settle(400);
+  const m2 = await mark();
+  assert.equal(m2.ref.slot, 'accent4');
+  assert.notEqual(m2.value, m1.value);
+  // a standard colour is fixed
+  await page.getByRole('tab', { name: 'Inicio', exact: true }).click();
+  await page.getByRole('button', { name: 'Color de fuente (más)', exact: true }).click();
+  await page.getByRole('group', { name: 'Color de fuente' }).getByRole('button', { name: '#ff0000', exact: true }).click();
+  await settle(300);
+  const m3 = await mark();
+  assert.equal(m3.value, '#ff0000');
+  assert.equal(m3.ref, null);
+});
+
 await check('keyboard: Colors opens with Enter and the focus goes into its items', async () => {
+  await page.getByRole('tab', { name: 'Diseño', exact: true }).click();
   await page.getByRole('button', { name: 'Colores', exact: true }).focus();
   await page.keyboard.press('Enter');
   await settle(300);

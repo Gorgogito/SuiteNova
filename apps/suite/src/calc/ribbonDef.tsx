@@ -3,7 +3,9 @@ import { Icon, RibbonItemView, t, type RibbonItem, type RibbonTab } from '@suite
 import { ChevronDown } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { helpTab, viewTab } from '../common';
-import { FONT_NAMES, FONT_SIZES, PALETTE, formatLabel, numberFormats, type CalcUI } from './commands';
+import { ThemeSwatches } from '../themes';
+import type { ColorRef } from '@suitenova/theme-core';
+import { FONT_NAMES, FONT_SIZES, formatLabel, numberFormats, type CalcUI } from './commands';
 import { chartFormatRibbon } from '../chart/commands';
 import { chartEntries, contextualTabs, developerTab, insertGroups, pageTab, reviewTab, type ContextFlags } from './ribbonObjects';
 
@@ -55,17 +57,21 @@ function FontSizeSelect({ ui }: { ui: CalcUI }) {
 function ColorMenu({ ui, kind }: { ui: CalcUI; kind: 'fill' | 'font' }) {
   const d = useDoc(ui);
   const [last, setLast] = useState(kind === 'fill' ? '#ffff00' : '#c00000');
+  const [lastRef, setLastRef] = useState<ColorRef | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const label = kind === 'fill' ? t('Color de relleno') : t('Color de fuente');
-  const apply = (c: string | undefined) => {
-    if (c) setLast(c);
-    d.applyStyle(kind === 'fill' ? { bg: c } : { color: c }, label);
+  const apply = (c: string | undefined, ref?: ColorRef) => {
+    if (c) {
+      setLast(c);
+      setLastRef(ref);
+    }
+    d.applyStyle(kind === 'fill' ? { bg: c, bgRef: ref } : { color: c, colorRef: ref }, label);
     setOpen(false);
     window.dispatchEvent(new Event('nova:focus-grid'));
   };
   return (
     <div className="nv-split">
-      <button type="button" className="nv-btn nv-btn--small nv-colorbtn" title={label} aria-label={label} onClick={() => apply(last)}>
+      <button type="button" className="nv-btn nv-btn--small nv-colorbtn" title={label} aria-label={label} onClick={() => apply(last, lastRef)}>
         <Icon name={kind === 'fill' ? 'fillColor' : 'fontColor'} />
         <span className="nv-colorbar" style={{ background: last }} />
       </button>
@@ -76,20 +82,16 @@ function ColorMenu({ ui, kind }: { ui: CalcUI; kind: 'fill' | 'font' }) {
           </button>
         </PopoverTrigger>
         <PopoverSurface>
-          <div className="nv-swatches" role="group" aria-label={label}>
-            {PALETTE.flat().map((c) => (
-              <button key={c} type="button" style={{ background: c }} aria-label={c} title={c} onClick={() => apply(c)} />
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 8px 8px' }}>
-            <button type="button" className="nv-btn nv-btn--small" onClick={() => apply(undefined)}>
-              {kind === 'fill' ? t('Sin relleno') : t('Automático')}
-            </button>
-            <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
-              {t('Más colores')}
-              <input type="color" value={last} onChange={(e) => apply(e.target.value)} aria-label={t('Más colores')} />
-            </label>
-          </div>
+          <ThemeSwatches
+            theme={d.wb.theme}
+            label={label}
+            onPick={apply}
+            extra={
+              <button type="button" className="nv-btn nv-btn--small" style={{ width: 'auto', height: 'auto', marginTop: 6 }} onClick={() => apply(undefined)}>
+                {kind === 'fill' ? t('Sin relleno') : t('Automático')}
+              </button>
+            }
+          />
         </PopoverSurface>
       </Popover>
     </div>

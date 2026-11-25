@@ -1,4 +1,5 @@
 import type { Border, BorderMode, BorderStyle, StyleOptions } from '@suitenova/table-core';
+import type { DocTheme } from '@suitenova/theme-core';
 import { useSyncExternalStore } from 'react';
 
 /** The shading that means "no colour on purpose" (it takes away the colour of the style; null lets the style decide). */
@@ -10,6 +11,8 @@ export interface TableHost {
   useRefresh(): void;
   /** The style and options of the selected table, or null when the selection is not in a table. */
   info(): { styleId: string | null; options: StyleOptions } | null;
+  /** The theme of the document: the colours of the table styles and of the shading menu (Office's when the product has no theme). */
+  theme?(): DocTheme | undefined;
   /** Gives the table a style (null takes it off). */
   setStyle(id: string | null): void;
   setOption(name: keyof StyleOptions, value: boolean): void;

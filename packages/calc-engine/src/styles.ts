@@ -97,6 +97,8 @@ export class StyleTable {
   /** Derive a style by overlaying `patch` on an existing id. `undefined` values remove properties. */
   derive(baseId: number, patch: Partial<Record<keyof Style, unknown>>): number {
     const next: Record<string, unknown> = { ...this.get(baseId) };
+    // a colour or a font given without its reference is a fixed one: it stops following the theme
+    for (const [k, r] of [['color', 'colorRef'], ['bg', 'bgRef'], ['fontName', 'fontTheme']] as const) if (k in patch && !(r in patch)) delete next[r];
     for (const [k, v] of Object.entries(patch)) {
       if (v === undefined) delete next[k];
       else next[k] = v;

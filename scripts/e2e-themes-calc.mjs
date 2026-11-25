@@ -188,6 +188,59 @@ await check('a workbook opened from a file brings its theme and its colours foll
   assert.equal((await style(1, 0)).bg, '#ff0000');
 });
 
+await check('the colour menu offers the colours of the theme and the cell keeps the reference', async () => {
+  await page.evaluate(() => { const d = window.__novaCalc.doc; d.selectCell(6, 3); });
+  await page.getByRole('tab', { name: 'Inicio', exact: true }).click();
+  await page.getByRole('button', { name: 'Color de relleno (más)', exact: true }).click();
+  await settle(300);
+  assert.equal(await page.getByRole('group', { name: 'Color de relleno' }).getByRole('button', { name: 'Énfasis 2', exact: true }).count(), 1);
+  await shot('calc-picker');
+  await page.getByRole('button', { name: 'Énfasis 2, más claro 80 %', exact: true }).click();
+  await settle(300);
+  const st = await style(6, 3);
+  assert.deepEqual({ slot: st.bgRef.slot, tint: st.bgRef.tint }, { slot: 'accent2', tint: 0.8 });
+  const t = await theme();
+  await page.getByRole('tab', { name: 'Diseño de página', exact: true }).click();
+  await open('Colores');
+  await page.getByRole('menuitemradio', { name: 'Rojo', exact: true }).click();
+  await settle(400);
+  const after = await style(6, 3);
+  assert.notEqual(after.bg, st.bg);
+  assert.deepEqual({ slot: after.bgRef.slot, tint: after.bgRef.tint }, { slot: 'accent2', tint: 0.8 });
+  // a fixed colour drops the reference
+  await page.getByRole('tab', { name: 'Inicio', exact: true }).click();
+  await page.getByRole('button', { name: 'Color de relleno (más)', exact: true }).click();
+  await page.getByRole('group', { name: 'Color de relleno' }).getByRole('button', { name: '#ff0000', exact: true }).click();
+  await settle(300);
+  const fixed = await style(6, 3);
+  assert.equal(fixed.bg, '#ff0000');
+  assert.equal(fixed.bgRef, undefined);
+  await page.getByRole('tab', { name: 'Diseño de página', exact: true }).click();
+});
+
+await check('a new chart takes the colours of the theme and follow it', async () => {
+  await page.evaluate(() => {
+    const d = window.__novaCalc.doc;
+    [['a', 'b'], ['x', '3'], ['y', '5']].forEach((row, i) => row.forEach((t, c) => d.wb.setInput(d.activeSheetId, 20 + i, c, t)));
+    d.selectRange({ r1: 20, c1: 0, r2: 22, c2: 1 });
+    d.insertChart('column');
+  });
+  const colors = () => page.evaluate(async () => {
+    const d = window.__novaCalc.doc;
+    const ch = d.sheet.charts[d.sheet.charts.length - 1];
+    const { chartData } = await import('/src/calc/chartOption.ts');
+    const data = chartData(ch, d.wb, d.activeSheetId, d.locale);
+    return { series: data.series[0].color, accent1: d.wb.theme.colors.accent1 };
+  });
+  const c = await colors();
+  assert.equal(c.series.toLowerCase(), c.accent1.toLowerCase());
+  await open('Colores');
+  await page.getByRole('menuitemradio', { name: 'Verde', exact: true }).click();
+  await settle(400);
+  const c2 = await colors();
+  assert.equal(c2.series.toLowerCase(), '#549e39');
+});
+
 await check('keyboard: the menu opens with Enter and a scheme is chosen without the mouse', async () => {
   await page.getByRole('button', { name: 'Colores', exact: true }).focus();
   await page.keyboard.press('Enter');

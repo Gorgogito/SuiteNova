@@ -150,3 +150,22 @@ describe('Writer: la firma digital y el tema', () => {
     expect(await digestOf(backInApp)).toBe(await digestOf(inApp));
   });
 });
+
+describe('Writer: las tablas y el tema', () => {
+  it('el estilo de tabla se dibuja con los énfasis del tema del documento (y se redibuja al cambiarlo)', async () => {
+    const { EditorState } = await import('prosemirror-state');
+    const { tableStylePlugin, tableLooks, paletteOfDoc } = await import('./table-style');
+    const { paletteOf } = await import('@suitenova/theme-core');
+    const cell = (t: string) => nodeTypes.table_cell!.create({ colwidth: [100] }, p(t));
+    const tbl = nodeTypes.table!.create({ tstyle: 'medium-1', borders: false }, [nodeTypes.table_row!.create(null, [cell('a'), cell('b')]), nodeTypes.table_row!.create(null, [cell('c'), cell('d')])]);
+    const doc = nodeTypes.doc!.create({ theme: officeTheme() }, [nodeTypes.section!.create({ id: 's' }, [tbl])]);
+    const state = EditorState.create({ schema: writerSchema, doc, plugins: [tableStylePlugin()] });
+    const header = (pal: ReturnType<typeof paletteOf>) => [...tableLooks(tbl, pal).values()][0]!.fill;
+    expect(header(paletteOfDoc(doc))).toBe(officeTheme().colors.accent1);
+    const g = green();
+    expect(header(paletteOf(g))).toBe(g.colors.accent1);
+    // changing the theme of the document redraws the table: the decorations are made again
+    const next = state.apply(state.tr.setDocAttribute('theme', g));
+    expect(paletteOfDoc(next.doc).accents[0]).toBe(g.colors.accent1);
+  });
+});

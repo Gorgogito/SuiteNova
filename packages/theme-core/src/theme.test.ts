@@ -122,3 +122,14 @@ describe('referencias al tema (colores de Word)', () => {
     expect(refFromWord('none')).toBeUndefined();
   });
 });
+
+describe('seriesColors', () => {
+  it('los seis énfasis del tema y después los mismos más oscuros o claros', async () => {
+    const { seriesColors, officeTheme } = await import('./index');
+    const t = officeTheme();
+    const c = seriesColors(t, 14);
+    expect(c.slice(0, 6)).toEqual([t.colors.accent1, t.colors.accent2, t.colors.accent3, t.colors.accent4, t.colors.accent5, t.colors.accent6]);
+    expect(c[6]).not.toBe(c[0]);
+    expect(c[12]).not.toBe(c[6]);
+  });
+});

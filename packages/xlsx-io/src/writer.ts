@@ -12,6 +12,7 @@ import {
   type Scalar,
   type Sheet,
   type Style,
+  shapeAccent,
   type Workbook,
 } from '@suitenova/calc-engine';
 import JSZip from 'jszip';
@@ -506,7 +507,7 @@ export async function writeXlsx(wb: Workbook, extras: { customJson?: string } = 
         const y1 = Math.min(...members.map((m) => m.y));
         items.push({ kind: 'group', group: members, rId: '', x: x1, y: y1, width: Math.max(...members.map((m) => m.x + m.width)) - x1, height: Math.max(...members.map((m) => m.y + m.height)) - y1, name: `Grupo ${++groupN}` });
       });
-      put(`xl/drawings/drawing${dn}.xml`, drawingXml(sheet, items));
+      put(`xl/drawings/drawing${dn}.xml`, drawingXml(sheet, items, shapeAccent(wb.theme)));
       put(`xl/drawings/_rels/drawing${dn}.xml.rels`, relsXml(drawingRels));
       types.push(`<Override PartName="/xl/drawings/drawing${dn}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`);
       rels.push({ id: nextId(), type: `${NS_REL}/drawing`, target: `../drawings/drawing${dn}.xml` });

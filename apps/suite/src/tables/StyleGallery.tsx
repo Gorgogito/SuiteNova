@@ -1,6 +1,7 @@
 import { Popover, PopoverSurface, PopoverTrigger } from '@fluentui/react-components';
 import { Icon, t } from '@suitenova/core-ui';
-import { DEFAULT_OPTIONS, STYLE_FAMILIES, styleById, styleCatalog, type StyleOptions } from '@suitenova/table-core';
+import { paletteOf } from '@suitenova/theme-core';
+import { DEFAULT_OPTIONS, OFFICE_PALETTE, STYLE_FAMILIES, styleById, styleCatalog, type StyleOptions } from '@suitenova/table-core';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import type { TableHost } from './host';
@@ -18,12 +19,14 @@ const OPTIONS: [keyof StyleOptions, string][] = [
 ];
 
 /** The gallery of table styles (every family in the six accent colours) with the style options, like Office's Table Design. */
-export function StyleGallery({ host, label = 'Estilos de tabla' }: { host: Pick<TableHost, 'useRefresh' | 'info' | 'setStyle' | 'setOption'>; label?: string }) {
+export function StyleGallery({ host, label = 'Estilos de tabla' }: { host: Pick<TableHost, 'useRefresh' | 'info' | 'setStyle' | 'setOption' | 'theme'>; label?: string }) {
   host.useRefresh();
   const [open, setOpen] = useState(false);
   const info = host.info();
   const options = info?.options ?? DEFAULT_OPTIONS;
-  const current = styleById(info?.styleId ?? undefined);
+  const th = host.theme?.();
+  const palette = th ? paletteOf(th) : OFFICE_PALETTE;
+  const current = styleById(info?.styleId ?? undefined, palette);
   return (
     <Popover open={open} onOpenChange={(_e, d) => setOpen(d.open)} positioning="below-start">
       <PopoverTrigger disableButtonEnhancement>
@@ -36,7 +39,7 @@ export function StyleGallery({ host, label = 'Estilos de tabla' }: { host: Pick<
       </PopoverTrigger>
       <PopoverSurface>
         <div className="nv-tbl-gallery" role="group" aria-label={t(label)}>
-          {styleCatalog().map((fam) => (
+          {styleCatalog(palette).map((fam) => (
             <section key={fam.family} aria-label={t(STYLE_FAMILIES.find((f) => f.id === fam.family)!.name)}>
               <h4>{t(fam.name)}</h4>
               <div className="nv-tbl-gallery__row">

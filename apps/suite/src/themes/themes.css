@@ -29,3 +29,14 @@
 .nv-theme-form input[type=text] { flex: 1; max-width: 240px; }
 .nv-theme-form input[type=color] { width: 56px; height: 26px; padding: 0; }
 .nv-theme-sample { margin: 0; padding: 8px; border: 1px solid var(--colorNeutralStroke2); }
+
+/* The colour menu: the theme in columns, the standard colours, more colours. */
+.nv-theme-colors { display: flex; flex-direction: column; gap: 2px; padding: 4px; }
+.nv-theme-colors h4 { margin: 4px 2px 2px; font-size: 12px; font-weight: 600; color: var(--colorNeutralForeground3); }
+.nv-theme-colors__grid { display: flex; gap: 3px; }
+.nv-theme-colors__col { display: flex; flex-direction: column; gap: 1px; }
+.nv-theme-colors__col button:first-child { margin-bottom: 4px; }
+.nv-theme-colors button { width: 20px; height: 18px; padding: 0; border: 1px solid var(--colorNeutralStroke2); cursor: pointer; }
+.nv-theme-colors button:hover, .nv-theme-colors button:focus-visible { outline: 2px solid var(--colorBrandStroke1); outline-offset: 1px; }
+.nv-theme-colors__std { display: flex; gap: 3px; }
+.nv-theme-colors__more { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; }

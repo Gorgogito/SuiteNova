@@ -1,4 +1,4 @@
-import { colAtPx, colOffsetPx, rowAtPx, rowOffsetPx, type Sheet } from '@suitenova/calc-engine';
+import { colAtPx, colOffsetPx, rowAtPx, rowOffsetPx, type Sheet, type ShapeAccent } from '@suitenova/calc-engine';
 import { DIAGRAM_URI } from '@suitenova/smartart-core';
 import { NS_A, NS_C } from '@suitenova/chart-core';
 import { NS_CX } from '@suitenova/chart-core';
@@ -68,7 +68,7 @@ function picBodyXml(c: DrawingItem, id: number): string {
 }
 
 /** Drawing part with one two-cell anchor per object. */
-export function drawingXml(sheet: Sheet, items: DrawingItem[]): string {
+export function drawingXml(sheet: Sheet, items: DrawingItem[], accent?: ShapeAccent): string {
   const anchors = items
     .map((c, i) => {
       const box = c.kind === 'pic' && c.img?.rotation ? rotatedBounds(c.x, c.y, c.width, c.height, c.img.rotation) : { x: c.x, y: c.y, width: c.width, height: c.height };
@@ -82,9 +82,9 @@ export function drawingXml(sheet: Sheet, items: DrawingItem[]): string {
           ? `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"${c.alt ? ` descr="${escapeXml(c.alt)}"` : ''}/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +
             `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="${DIAGRAM_URI}"><dgm:relIds xmlns:dgm="${DIAGRAM_URI}" r:dm="${c.dgm!.dm}" r:lo="${c.dgm!.lo}" r:qs="${c.dgm!.qs}" r:cs="${c.dgm!.cs}"/></a:graphicData></a:graphic></xdr:graphicFrame>`
           : c.kind === 'group'
-          ? groupBodyXml(c.group!, id, c.name)
+          ? groupBodyXml(c.group!, id, c.name, accent)
           : c.kind === 'shape'
-          ? shapeBodyXml(c.shape!, id, undefined, c.rId || undefined)
+          ? shapeBodyXml(c.shape!, id, undefined, c.rId || undefined, accent)
           : c.kind === 'chart' && c.ex
           ? `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" Requires="cx1">` +
             `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${id}" name="${escapeXml(c.name)}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +

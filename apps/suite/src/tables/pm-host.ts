@@ -1,3 +1,4 @@
+import type { DocTheme } from '@suitenova/theme-core';
 import { setCellBorders, setCellShading, setTableOption, setTableStyle, tableStyleInfo } from '@suitenova/writer-core';
 import type { Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
@@ -21,6 +22,7 @@ export function pmTableHost(opts: { view: () => EditorView | null | undefined; u
       const i = v ? tableStyleInfo(v.state) : null;
       return i ? { styleId: i.styleId, options: i.options } : null;
     },
+    theme: () => (opts.view()?.state.doc.attrs.theme as DocTheme | null | undefined) ?? undefined,
     setStyle: (id) => exec(setTableStyle(id)),
     setOption: (name, value) => exec(setTableOption(name, value)),
     setShading: (color) => exec(setCellShading(color)),

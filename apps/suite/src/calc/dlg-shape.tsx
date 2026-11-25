@@ -1,5 +1,5 @@
 import { Button, Checkbox, Input, Select, Textarea } from '@fluentui/react-components';
-import { SHAPE_FILL, SHAPE_LINE, shapeLook, type SheetShape } from '@suitenova/calc-engine';
+import { SHAPE_FILL, SHAPE_LINE, shapeAccent, shapeLook, type SheetShape } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { isLineKind } from '@suitenova/shapes-core';
 import { useState } from 'react';
@@ -12,7 +12,7 @@ export function ShapeFormatDialog({ ui, onClose }: { ui: CalcUI; onClose: () => 
   const shape = d.sheet.shapes.find((s) => s.id === d.x.selectedShape);
   const [s, setS] = useState<SheetShape | null>(() => (shape ? structuredClone(shape) : null));
   if (!shape || !s) return null;
-  const look = shapeLook(s);
+  const look = shapeLook(s, shapeAccent(d.wb.theme));
   const set = (patch: Partial<SheetShape>) => setS((x) => (x ? { ...x, ...patch } : x));
   const isLine = isLineKind(s.kind);
   return (

@@ -443,12 +443,18 @@ export interface SheetShape {
 export const SHAPE_FILL = '#4472c4';
 export const SHAPE_LINE = '#2f528f';
 
-/** What a shape looks like when nothing is set: filled boxes like Excel's, a bare text box, an accent line. */
-export function shapeLook(s: SheetShape): { fill: string | null; line: { color: string; width: number } | null } {
+/** The fill and the line a shape has when nothing is set: the first accent of the theme and its darker colour (these constants for Office's theme). */
+export interface ShapeAccent {
+  fill: string;
+  line: string;
+}
+
+/** What a shape looks like when nothing is set: filled boxes like Excel's, a bare text box, an accent line. `accent` is the theme's. */
+export function shapeLook(s: SheetShape, accent: ShapeAccent = { fill: SHAPE_FILL, line: SHAPE_LINE }): { fill: string | null; line: { color: string; width: number } | null } {
   const textBox = resolveKind(s.kind) === 'textbox';
   const isLine = isLineKind(s.kind);
-  const fill = s.fill !== undefined ? s.fill : textBox || isLine ? null : SHAPE_FILL;
-  const line = s.line === null ? null : { color: s.line?.color ?? (textBox ? '#7f7f7f' : isLine ? SHAPE_LINE : SHAPE_LINE), width: s.line?.width ?? (isLine ? 2 : 1) };
+  const fill = s.fill !== undefined ? s.fill : textBox || isLine ? null : accent.fill;
+  const line = s.line === null ? null : { color: s.line?.color ?? (textBox ? '#7f7f7f' : accent.line), width: s.line?.width ?? (isLine ? 2 : 1) };
   return { fill, line };
 }
 

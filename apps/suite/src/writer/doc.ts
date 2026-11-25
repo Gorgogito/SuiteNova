@@ -72,7 +72,7 @@ import { issueAt, loadSpeller, onReviewOptions, setSpell, spellPlugin, wordUnder
 import { getLocale, t } from '@suitenova/core-ui';
 import { hookMathCopy, mathClipboardProps } from '../math/clipboard';
 import { ControlView, FieldView, GroupView, MathView, ShapeView, editSelectedMath, type NodeViewHost } from './nodeviews';
-import { ObjectView } from './objectview';
+import { ObjectView, chartThemePlugin } from './objectview';
 import { shapeSelectionPlugin } from './shape-selection';
 import { imageObjectsPlugin } from './image-objects';
 import { ImageOcr, searchImages } from './ocr-images';
@@ -482,6 +482,7 @@ export class WriterCtl {
       columnResizing({ cellMinWidth: 30, View: NovaTableView as never }),
       tableEditing(),
       tableStylePlugin(),
+      chartThemePlugin(),
       sectionFixup(),
       trailingParagraph(),
       findPlugin(),

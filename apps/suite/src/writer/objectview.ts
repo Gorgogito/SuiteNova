@@ -1,7 +1,8 @@
 import { CHART_COLORS, chart3dFor, chartAreaCss, chartData, chartOption, echarts, gridSource, is3D, type ChartGrid, type ChartSpec } from '@suitenova/chart-core';
 import { DOMSerializer, type Node as PMNode } from 'prosemirror-model';
-import { NodeSelection, type Transaction } from 'prosemirror-state';
-import type { EditorView, NodeView } from 'prosemirror-view';
+import { seriesColors, type DocTheme } from '@suitenova/theme-core';
+import { NodeSelection, Plugin, type Transaction } from 'prosemirror-state';
+import { Decoration, DecorationSet, type EditorView, type NodeView } from 'prosemirror-view';
 
 /*
  * Los gráficos y los SmartArt de Writer como objetos: se eligen con un clic, se cambian de tamaño con ocho tiradores y, si flotan
@@ -20,6 +21,24 @@ const HANDLES: [string, string, string][] = [
   ['w', 'left:-5px;top:calc(50% - 4px)', 'ew-resize'],
 ];
 const MIN = 40;
+/** The charts follow the theme of the document: the series without a colour of their own take its accents (this plugin makes the chart views paint again when the theme changes). */
+export function chartThemePlugin(): Plugin {
+  return new Plugin({
+    props: {
+      decorations: (state) => {
+        const th = state.doc.attrs.theme as DocTheme | null;
+        if (!th) return null;
+        const decos: Decoration[] = [];
+        state.doc.descendants((n, pos) => {
+          if (n.type.name === 'chart') decos.push(Decoration.node(pos, pos + n.nodeSize, { 'data-theme': seriesColors(th, 6).join('') }));
+          return true;
+        });
+        return DecorationSet.create(state.doc, decos);
+      },
+    },
+  });
+}
+
 const PALETTE = { text: '#333333', grid: '#dddddd', bg: '#ffffff' };
 
 const keepSelected = (tr: Transaction, pos: number): Transaction => tr.setSelection(NodeSelection.create(tr.doc, pos)).setMeta('nw-no-track', true);
@@ -89,10 +108,12 @@ export class ObjectView implements NodeView {
       this.live.contentEditable = 'false';
       this.dom.insertBefore(this.live, this.dom.firstChild);
     }
-    const key = JSON.stringify([spec, grid, w, h]);
+    const theme = this.view.state.doc.attrs.theme as DocTheme | null;
+    const accents = theme ? seriesColors(theme) : CHART_COLORS;
+    const key = JSON.stringify([spec, grid, w, h, accents]);
     if (key === this.liveKey) return;
     this.liveKey = key;
-    const colored: ChartSpec = { ...spec, series: spec.series.map((s, i) => ({ ...s, color: s.color ?? CHART_COLORS[i % CHART_COLORS.length] })) };
+    const colored: ChartSpec = { ...spec, series: spec.series.map((s, i) => ({ ...s, color: s.color ?? accents[i % accents.length] })) };
     const data = chartData(colored, gridSource(grid), 'es');
     if (is3D(colored)) {
       this.inst?.dispose();

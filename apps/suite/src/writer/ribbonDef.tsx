@@ -23,7 +23,8 @@ import { writerGraphicsHost } from './graphics-host';
 import { writerPictureHost } from './pichost';
 import { FONT_NAMES, FONT_SIZES, type WriterUI } from './commands';
 import { markAttr, selectionParagraph, setMark, setStyle } from './editing';
-import { ThemeColorsMenu, ThemeEffectsMenu, ThemeFontsMenu, ThemesMenu } from '../themes';
+import { ThemeColorsMenu, ThemeEffectsMenu, ThemeFontsMenu, ThemeSwatches, ThemesMenu } from '../themes';
+import type { ColorRef } from '@suitenova/theme-core';
 import { writerThemeHost } from './theme-host';
 
 type Leaf = Exclude<RibbonItem, { kind: 'separator' }>;
@@ -100,14 +101,19 @@ function ColorMenu({ ui, kind }: { ui: WriterUI; kind: 'color' | 'highlight' }) 
   const [open, setOpen] = useState(false);
   const label = kind === 'color' ? t('Color de fuente') : t('Resaltado');
   const mark = markTypes[kind]!;
-  const apply = (col: string | undefined) => {
-    if (col) setLast(col);
-    run(ui, setMark(mark, col ? { value: col } : null));
+  const [lastRef, setLastRef] = useState<ColorRef | undefined>(undefined);
+  const apply = (col: string | undefined, ref?: ColorRef) => {
+    if (col) {
+      setLast(col);
+      setLastRef(ref);
+    }
+    // the colour of the text can point at the theme (and follows it); the highlight is always a fixed colour
+    run(ui, setMark(mark, col ? (kind === 'color' && ref ? { value: col, ref } : { value: col }) : null));
     setOpen(false);
   };
   return (
     <div className="nv-split">
-      <button type="button" className="nv-btn nv-btn--small nv-colorbtn" title={label} aria-label={label} onClick={() => apply(last)}>
+      <button type="button" className="nv-btn nv-btn--small nv-colorbtn" title={label} aria-label={label} onClick={() => apply(last, lastRef)}>
         <Icon name={kind === 'color' ? 'fontColor' : 'highlighter'} />
         <span className="nv-colorbar" style={{ background: last }} />
       </button>
@@ -118,20 +124,35 @@ function ColorMenu({ ui, kind }: { ui: WriterUI; kind: 'color' | 'highlight' }) 
           </button>
         </PopoverTrigger>
         <PopoverSurface>
-          <div className="nv-swatches" role="group" aria-label={label}>
-            {PALETTE.flat().map((col) => (
-              <button key={col} type="button" style={{ background: col }} aria-label={col} title={col} onClick={() => apply(col)} />
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 8px 8px' }}>
-            <button type="button" className="nv-btn nv-btn--small" onClick={() => apply(undefined)}>
-              {kind === 'color' ? t('Automático') : t('Sin color')}
-            </button>
-            <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
-              {t('Más colores')}
-              <input type="color" value={last} onChange={(e) => apply(e.target.value)} aria-label={t('Más colores')} />
-            </label>
-          </div>
+          {kind === 'color' ? (
+            <ThemeSwatches
+              theme={ui.ctl.theme}
+              label={label}
+              onPick={apply}
+              extra={
+                <button type="button" className="nv-btn nv-btn--small" style={{ width: 'auto', height: 'auto', marginTop: 6 }} onClick={() => apply(undefined)}>
+                  {t('Automático')}
+                </button>
+              }
+            />
+          ) : (
+            <>
+              <div className="nv-swatches" role="group" aria-label={label}>
+                {PALETTE.flat().map((col) => (
+                  <button key={col} type="button" style={{ background: col }} aria-label={col} title={col} onClick={() => apply(col)} />
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 8px 8px' }}>
+                <button type="button" className="nv-btn nv-btn--small" onClick={() => apply(undefined)}>
+                  {t('Sin color')}
+                </button>
+                <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
+                  {t('Más colores')}
+                  <input type="color" value={last} onChange={(e) => apply(e.target.value)} aria-label={t('Más colores')} />
+                </label>
+              </div>
+            </>
+          )}
         </PopoverSurface>
       </Popover>
     </div>

@@ -25,6 +25,8 @@ export interface ChartCommandHost {
   pointCount: () => number;
   /** Guarda el gráfico cambiado (`label` es el nombre del paso para deshacer). */
   apply: (next: ChartSpec, label: string) => void;
+  /** Los seis énfasis del tema del documento: «Cambiar colores» se hace con ellos (los de Office si no se dan). */
+  accents?: () => string[] | undefined;
   /** Además de haber un gráfico elegido, el producto debe poder editar (no estar en solo lectura). */
   ready?: () => boolean;
 }
@@ -54,10 +56,10 @@ export function chartFormatCommands(h: ChartCommandHost): CommandDef[] {
       label: p.label,
       icon: 'palette',
       enabled: ok,
-      checked: () => !!h.get() && paletteOf(h.get()!, h.pointCount()) === p.id,
+      checked: () => !!h.get() && paletteOf(h.get()!, h.pointCount(), h.accents?.()) === p.id,
       run: () => {
         const c = h.get();
-        if (c) h.apply(applyPalette(c, p.id, h.pointCount()), 'Cambiar colores');
+        if (c) h.apply(applyPalette(c, p.id, h.pointCount(), h.accents?.()), 'Cambiar colores');
       },
     });
   }

@@ -101,3 +101,15 @@ export function paletteOf(theme: Pick<DocTheme, 'colors'>): { accents: string[];
   const c = theme.colors;
   return { accents: [c.accent1, c.accent2, c.accent3, c.accent4, c.accent5, c.accent6], dark: c.dk1, light: c.lt1, dk2: c.dk2, lt2: c.lt2, hlink: c.hlink, folHlink: c.folHlink };
 }
+
+/** The colours of the series of a chart, as Office gives them: the six accents of the theme, then the same ones darker, and so on. */
+export function seriesColors(theme: { colors: ThemeColors }, n = 12): string[] {
+  const base = ['accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6'] as const;
+  const out: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const c = themeColor(theme, base[i % 6]!);
+    const round = Math.floor(i / 6);
+    out.push(round === 0 ? c : tintColor(c, round % 2 ? -0.4 : 0.4));
+  }
+  return out;
+}

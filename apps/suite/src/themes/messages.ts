@@ -47,3 +47,21 @@ registerMessages('en', {
   'Intenso': 'Intense',
   'Office 2007-2010': 'Office 2007-2010',
 });
+
+registerMessages('en', {
+  'Colores del tema': 'Theme Colors',
+  'Colores estándar': 'Standard Colors',
+  'Más colores': 'More Colors',
+  'más claro': 'Lighter',
+  'más oscuro': 'Darker',
+  'Fondo 1': 'Background 1',
+  'Texto 1': 'Text 1',
+  'Fondo 2': 'Background 2',
+  'Texto 2': 'Text 2',
+  'Énfasis 1': 'Accent 1',
+  'Énfasis 2': 'Accent 2',
+  'Énfasis 3': 'Accent 3',
+  'Énfasis 4': 'Accent 4',
+  'Énfasis 5': 'Accent 5',
+  'Énfasis 6': 'Accent 6',
+});

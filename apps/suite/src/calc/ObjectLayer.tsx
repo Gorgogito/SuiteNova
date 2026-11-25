@@ -1,6 +1,6 @@
 import { adjustHandles, dragAdjust, isLineKind, shapeSvg } from '@suitenova/shapes-core';
 import { pictureCss } from '../images/picture-css';
-import { listChoices, moveShapes, rotateShapes, scaleShapes, shapeLook, shapesBounds, type ShapePatch, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
+import { listChoices, moveShapes, rotateShapes, scaleShapes, shapeAccent, shapeLook, shapesBounds, type ShapeAccent, type ShapePatch, type SheetImage, type SheetShape, type SlicerDef } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { Check, FilterX, ListChecks } from 'lucide-react';
 import { dragWarpAdjust, warpAdjustHandles } from '@suitenova/wordart-core';
@@ -178,8 +178,8 @@ function WordArtDraw({ s, w, h, zoom, onDrawn }: { s: SheetShape; w: number; h: 
   return <svg className="calc-shape__wordart" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-function ShapeView({ s, rect, selected, zoom, editing, onDown, onEdit, onCommit, onAdjust, onWarpAdjust, onRotate, member }: { s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void; onAdjust: (adj: Record<string, number> | undefined) => void; onWarpAdjust: (adj: Record<string, number> | undefined) => void; onRotate: (deg: number) => void; member?: boolean }) {
-  const look = shapeLook(s);
+function ShapeView({ accent, s, rect, selected, zoom, editing, onDown, onEdit, onCommit, onAdjust, onWarpAdjust, onRotate, member }: { accent: ShapeAccent; s: SheetShape; rect: { x: number; y: number; w: number; h: number }; selected: boolean; zoom: number; editing: boolean; onDown: (e: React.PointerEvent, m: Handle | 'move') => void; onEdit: () => void; onCommit: (text: string | null) => void; onAdjust: (adj: Record<string, number> | undefined) => void; onWarpAdjust: (adj: Record<string, number> | undefined) => void; onRotate: (deg: number) => void; member?: boolean }) {
+  const look = shapeLook(s, accent);
   const box = useRef<HTMLDivElement>(null);
   const [adjDraft, setAdjDraft] = useState<Record<string, number> | null>(null);
   const adj = adjDraft ?? s.adj ?? {};
@@ -501,6 +501,7 @@ export function ObjectLayer({ doc, layout, viewport, zoom }: { doc: CalcDoc; lay
         return (
           <ShapeView
             key={s.id}
+            accent={shapeAccent(doc.wb.theme)}
             s={s}
             rect={place(r)}
             zoom={zoom}

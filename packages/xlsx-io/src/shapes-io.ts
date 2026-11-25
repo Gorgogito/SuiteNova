@@ -1,5 +1,5 @@
 /** Formas y cuadros de texto de la hoja (`xdr:sp` y `xdr:cxnSp` del dibujo de SpreadsheetML). */
-import { SHAPE_FILL, SHAPE_LINE, type SheetShape, type ShapeKind } from '@suitenova/calc-engine';
+import { SHAPE_FILL, SHAPE_LINE, type ShapeAccent, type SheetShape, type ShapeKind } from '@suitenova/calc-engine';
 import { OMML_NS, ommlXml, parseMath, parseOmmlXml, toTex } from '@suitenova/math-core';
 import { avLstXml, cleanAdjust, hasPreset, isLineKind, parseGuide, presetOf } from '@suitenova/shapes-core';
 import { dmlTextFx, prstTxWarpXml, type FxColor, type FxFill, type WordArtFx } from '@suitenova/wordart-core';
@@ -49,18 +49,18 @@ function mathBodyXml(s: SheetShape, id: number, xfrm: string, name: string, fall
 }
 
 /** Cuerpo de un ancla de dibujo para una forma; `w` y `h` son el tamaño en píxeles. */
-export function shapeBodyXml(s: SheetShape, id: number, at?: { x: number; y: number }, fallbackRId?: string): string {
+export function shapeBodyXml(s: SheetShape, id: number, at?: { x: number; y: number }, fallbackRId?: string, accent: ShapeAccent = { fill: SHAPE_FILL, line: SHAPE_LINE }): string {
   const name = escapeXml(s.name ?? `Forma ${id - 1}`);
   const xfrm = `<a:xfrm${s.rotation ? ` rot="${Math.round(s.rotation * 60000)}"` : ''}${s.flip ? ' flipH="1"' : ''}><a:off x="${at ? Math.round(at.x * EMU) : 0}" y="${at ? Math.round(at.y * EMU) : 0}"/><a:ext cx="${Math.round(s.width * EMU)}" cy="${Math.round(s.height * EMU)}"/></a:xfrm>`;
   if (s.math) return mathBodyXml(s, id, xfrm, name, fallbackRId);
   const geom = `<a:prstGeom prst="${presetOf(s.kind)}">${avLstXml(s.adj)}</a:prstGeom>`;
   if (isLineKind(s.kind)) {
-    return `<xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="${id}" name="${name}"${s.alt ? ` descr="${escapeXml(s.alt)}"` : ''}/><xdr:cNvCxnSpPr/></xdr:nvCxnSpPr><xdr:spPr>${xfrm}${geom}${lineXml(s.line === undefined ? { color: SHAPE_LINE, width: 2 } : s.line)}</xdr:spPr></xdr:cxnSp>`;
+    return `<xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="${id}" name="${name}"${s.alt ? ` descr="${escapeXml(s.alt)}"` : ''}/><xdr:cNvCxnSpPr/></xdr:nvCxnSpPr><xdr:spPr>${xfrm}${geom}${lineXml(s.line === undefined ? { color: accent.line, width: 2 } : s.line)}</xdr:spPr></xdr:cxnSp>`;
   }
   const hasText = !!s.text || s.kind === 'textBox' || !!s.wordart;
   return (
     `<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="${id}" name="${name}"${s.alt ? ` descr="${escapeXml(s.alt)}"` : ''}/><xdr:cNvSpPr${s.kind === 'textBox' ? ' txBox="1"' : ''}/></xdr:nvSpPr>` +
-    `<xdr:spPr>${xfrm}${geom}${fillXml(s.fill === undefined ? (s.kind === 'textBox' ? null : SHAPE_FILL) : s.fill)}${lineXml(s.line === undefined ? (s.kind === 'textBox' ? { color: '#7f7f7f', width: 1 } : { color: SHAPE_LINE, width: 1 }) : s.line)}</xdr:spPr>` +
+    `<xdr:spPr>${xfrm}${geom}${fillXml(s.fill === undefined ? (s.kind === 'textBox' ? null : accent.fill) : s.fill)}${lineXml(s.line === undefined ? (s.kind === 'textBox' ? { color: '#7f7f7f', width: 1 } : { color: accent.line, width: 1 }) : s.line)}</xdr:spPr>` +
     `${hasText ? textXml(s) : ''}</xdr:sp>`
   );
 }
@@ -69,14 +69,14 @@ export function shapeBodyXml(s: SheetShape, id: number, at?: { x: number; y: num
  * Cuerpo de un ancla para un grupo de formas (`xdr:grpSp`). Los hijos usan las coordenadas absolutas de la hoja (el espacio del grupo es
  * el mismo que el de la hoja), así que no hace falta transformarlos.
  */
-export function groupBodyXml(shapes: SheetShape[], id: number, name: string): string {
+export function groupBodyXml(shapes: SheetShape[], id: number, name: string, accent?: ShapeAccent): string {
   const x1 = Math.min(...shapes.map((s) => s.x));
   const y1 = Math.min(...shapes.map((s) => s.y));
   const x2 = Math.max(...shapes.map((s) => s.x + s.width));
   const y2 = Math.max(...shapes.map((s) => s.y + s.height));
   const off = `<a:off x="${Math.round(x1 * EMU)}" y="${Math.round(y1 * EMU)}"/>`;
   const ext = `<a:ext cx="${Math.round((x2 - x1) * EMU)}" cy="${Math.round((y2 - y1) * EMU)}"/>`;
-  const kids = shapes.map((s, i) => shapeBodyXml(s, 1000 * id + i + 1, { x: s.x, y: s.y })).join('');
+  const kids = shapes.map((s, i) => shapeBodyXml(s, 1000 * id + i + 1, { x: s.x, y: s.y }, undefined, accent)).join('');
   return `<xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id="${id}" name="${escapeXml(name)}"/><xdr:cNvGrpSpPr/></xdr:nvGrpSpPr><xdr:grpSpPr><a:xfrm>${off}${ext}<a:chOff x="${Math.round(x1 * EMU)}" y="${Math.round(y1 * EMU)}"/><a:chExt cx="${Math.round((x2 - x1) * EMU)}" cy="${Math.round((y2 - y1) * EMU)}"/></a:xfrm></xdr:grpSpPr>${kids}</xdr:grpSp>`;
 }
 

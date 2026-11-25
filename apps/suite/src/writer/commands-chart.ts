@@ -1,4 +1,5 @@
 import type { CommandDef } from '@suitenova/core-ui';
+import { paletteOf } from '@suitenova/theme-core';
 import type { Node as PMNode } from 'prosemirror-model';
 import { NodeSelection, type EditorState } from 'prosemirror-state';
 import type { ChartGrid, ChartSpec } from '@suitenova/chart-core';
@@ -31,6 +32,7 @@ export function chartCommands(ui: WriterUI): CommandDef[] {
     ids: { element: 'writer.chart.el', colors: 'writer.chart.colors', style: 'writer.chart.style' },
     get: spec,
     ready: () => !!c.mainView && !c.readOnly,
+    accents: () => paletteOf(c.theme).accents,
     pointCount: () => Math.max(0, ((chartTarget(c.mainState)?.node.attrs.grid as ChartGrid | null)?.length ?? 1) - 1),
     apply: (next) => {
       const t = chartTarget(c.mainState);

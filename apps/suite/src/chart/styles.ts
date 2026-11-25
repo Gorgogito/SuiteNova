@@ -10,24 +10,27 @@ import './messages';
 export interface ColorPalette {
   id: string;
   label: string;
-  /** Los colores en orden; en las monocromáticas, el color base (se generan los tonos). */
+  /** Los colores en orden; en las monocromáticas, el color base (se generan los tonos). Con los de Office: se cambian por los del tema con `accents`. */
   colors: string[];
+  /** Qué énfasis del tema (0-5) es cada color: así la galería sigue al tema del documento. */
+  slots?: number[];
   mono?: boolean;
 }
 
+/** The six accents of Office's theme: what the palettes are made of unless the document gives its own. */
 const OFFICE = ['#4472c4', '#ed7d31', '#a5a5a5', '#ffc000', '#5b9bd5', '#70ad47'];
 
 export const COLOR_PALETTES: ColorPalette[] = [
   { id: 'colorful1', label: 'Colorido 1', colors: OFFICE },
-  { id: 'colorful2', label: 'Colorido 2', colors: ['#ed7d31', '#ffc000', '#70ad47', '#4472c4', '#a5a5a5', '#5b9bd5'] },
-  { id: 'colorful3', label: 'Colorido 3', colors: ['#a5a5a5', '#5b9bd5', '#4472c4', '#ed7d31', '#70ad47', '#ffc000'] },
-  { id: 'colorful4', label: 'Colorido 4', colors: ['#5b9bd5', '#70ad47', '#ffc000', '#ed7d31', '#a5a5a5', '#4472c4'] },
-  { id: 'mono1', label: 'Monocromático azul', colors: ['#4472c4'], mono: true },
-  { id: 'mono2', label: 'Monocromático naranja', colors: ['#ed7d31'], mono: true },
-  { id: 'mono3', label: 'Monocromático gris', colors: ['#7f7f7f'], mono: true },
-  { id: 'mono4', label: 'Monocromático dorado', colors: ['#ffc000'], mono: true },
-  { id: 'mono5', label: 'Monocromático azul claro', colors: ['#5b9bd5'], mono: true },
-  { id: 'mono6', label: 'Monocromático verde', colors: ['#70ad47'], mono: true },
+  { id: 'colorful2', label: 'Colorido 2', colors: ['#ed7d31', '#ffc000', '#70ad47', '#4472c4', '#a5a5a5', '#5b9bd5'], slots: [1, 3, 5, 0, 2, 4] },
+  { id: 'colorful3', label: 'Colorido 3', colors: ['#a5a5a5', '#5b9bd5', '#4472c4', '#ed7d31', '#70ad47', '#ffc000'], slots: [2, 4, 0, 1, 5, 3] },
+  { id: 'colorful4', label: 'Colorido 4', colors: ['#5b9bd5', '#70ad47', '#ffc000', '#ed7d31', '#a5a5a5', '#4472c4'], slots: [4, 5, 3, 1, 2, 0] },
+  { id: 'mono1', label: 'Monocromático azul', colors: ['#4472c4'], mono: true, slots: [0] },
+  { id: 'mono2', label: 'Monocromático naranja', colors: ['#ed7d31'], mono: true, slots: [1] },
+  { id: 'mono3', label: 'Monocromático gris', colors: ['#7f7f7f'], mono: true, slots: [2] },
+  { id: 'mono4', label: 'Monocromático dorado', colors: ['#ffc000'], mono: true, slots: [3] },
+  { id: 'mono5', label: 'Monocromático azul claro', colors: ['#5b9bd5'], mono: true, slots: [4] },
+  { id: 'mono6', label: 'Monocromático verde', colors: ['#70ad47'], mono: true, slots: [5] },
 ];
 
 /** Tonos de un color, del más oscuro al más claro (n ≥ 1). */
@@ -42,30 +45,32 @@ function shades(base: string, n: number): string[] {
 }
 
 /** Los colores de un juego para `n` elementos (series o puntos). */
-export function paletteColors(id: string, n: number): string[] {
+export function paletteColors(id: string, n: number, accents?: string[]): string[] {
   const p = COLOR_PALETTES.find((x) => x.id === id);
   if (!p) return [];
-  if (p.mono) return shades(p.colors[0]!, Math.max(1, n));
-  return Array.from({ length: n }, (_x, i) => p.colors[i % p.colors.length]!);
+  // with the accents of the theme of the document the palette is made of them (the grey one is accent 3, a bit darker, as in Office)
+  const colors = accents && accents.length >= 6 && p.slots ? p.slots.map((s) => accents[s]!) : p.colors;
+  if (p.mono) return shades(colors[0]!, Math.max(1, n));
+  return Array.from({ length: n }, (_x, i) => colors[i % colors.length]!);
 }
 
 /** Qué juego de colores usan las series del gráfico, si es uno de los de la galería. */
-export function paletteOf(c: ChartSpec, pointCount: number): string | null {
+export function paletteOf(c: ChartSpec, pointCount: number, accents?: string[]): string | null {
   const roundOrVary = c.type === 'pie' || c.type === 'doughnut' || (c.varyColors && c.series.length === 1);
   const have = roundOrVary ? Array.from({ length: pointCount }, (_x, i) => c.series[0]?.points?.find((p) => p.idx === i)?.color) : c.series.map((s) => s.color);
   if (!have.length || have.some((x) => !x)) return null;
-  return COLOR_PALETTES.find((p) => paletteColors(p.id, have.length).every((col, i) => col === have[i]))?.id ?? null;
+  return COLOR_PALETTES.find((p) => paletteColors(p.id, have.length, accents).every((col, i) => col === have[i]))?.id ?? null;
 }
 
 /** El gráfico con los colores de un juego: una por serie, o una por punto en circulares y en series únicas con «variar colores». */
-export function applyPalette<T extends ChartSpec>(c: T, id: string, pointCount: number): T {
+export function applyPalette<T extends ChartSpec>(c: T, id: string, pointCount: number, accents?: string[]): T {
   const byPoint = c.type === 'pie' || c.type === 'doughnut' || (c.varyColors && c.series.length === 1);
   if (byPoint) {
-    const cols = paletteColors(id, pointCount);
+    const cols = paletteColors(id, pointCount, accents);
     const series = c.series.map((s, i): ChartSeries => (i === 0 ? { ...s, points: cols.map((color, idx) => ({ ...(s.points?.find((p) => p.idx === idx) ?? {}), idx, color })) } : s));
     return { ...c, series };
   }
-  const cols = paletteColors(id, c.series.length);
+  const cols = paletteColors(id, c.series.length, accents);
   return { ...c, series: c.series.map((s, i) => ({ ...s, color: cols[i]!, marker: s.marker?.color ? { ...s.marker, color: undefined } : s.marker })) };
 }
 

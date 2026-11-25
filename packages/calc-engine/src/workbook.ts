@@ -155,6 +155,12 @@ export const gkey = (sheetId: number, row: number, col: number): number => sheet
 const gSheet = (g: number): number => Math.floor(g / SHEET_STRIDE);
 const gLocal = (g: number): number => g % SHEET_STRIDE;
 
+/** The fill and line of a shape that has none of its own: accent 1 of the theme (Excel's constants for Office's theme) and a darker colour for the line. */
+export function shapeAccent(theme: DocTheme): { fill: string; line: string } {
+  const fill = themeColor(theme, 'accent1');
+  return fill.toLowerCase() === '#4472c4' ? { fill: '#4472c4', line: '#2f528f' } : { fill, line: tintColor(fill, -0.35) };
+}
+
 /** The colour a reference stands for in a theme. Excel keeps the tint as it is (it is not rounded to a byte as Word does). */
 export const resolveThemeRef = (theme: DocTheme, ref: ColorRef): string => {
   const base = themeColor(theme, ref.slot);
