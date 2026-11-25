@@ -210,7 +210,7 @@ await check('the colour menu offers the colours of the theme and the cell keeps 
   // a fixed colour drops the reference
   await page.getByRole('tab', { name: 'Inicio', exact: true }).click();
   await page.getByRole('button', { name: 'Color de relleno (más)', exact: true }).click();
-  await page.getByRole('group', { name: 'Color de relleno' }).getByRole('button', { name: '#ff0000', exact: true }).click();
+  await page.getByRole('group', { name: 'Color de relleno' }).getByRole('button', { name: 'Rojo', exact: true }).click();
   await settle(300);
   const fixed = await style(6, 3);
   assert.equal(fixed.bg, '#ff0000');

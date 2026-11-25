@@ -224,7 +224,7 @@ await check('the font colour menu offers the theme and the text keeps the refere
   // a standard colour is fixed
   await page.getByRole('tab', { name: 'Inicio', exact: true }).click();
   await page.getByRole('button', { name: 'Color de fuente (más)', exact: true }).click();
-  await page.getByRole('group', { name: 'Color de fuente' }).getByRole('button', { name: '#ff0000', exact: true }).click();
+  await page.getByRole('group', { name: 'Color de fuente' }).getByRole('button', { name: 'Rojo', exact: true }).click();
   await settle(300);
   const m3 = await mark();
   assert.equal(m3.value, '#ff0000');

@@ -6,6 +6,8 @@ import './themes.css';
 /** The ten standard colours of Office's colour menu (they do not follow the theme). */
 export const STANDARD_COLORS = ['#c00000', '#ff0000', '#ffc000', '#ffff00', '#92d050', '#00b050', '#00b0f0', '#0070c0', '#002060', '#7030a0'];
 
+const STANDARD_NAMES: Record<string, string> = { '#c00000': 'Rojo oscuro', '#ff0000': 'Rojo', '#ffc000': 'Naranja', '#ffff00': 'Amarillo', '#92d050': 'Verde claro', '#00b050': 'Verde', '#00b0f0': 'Azul claro', '#0070c0': 'Azul', '#002060': 'Azul oscuro', '#7030a0': 'Púrpura' };
+
 const KIND: Record<string, keyof typeof GALLERY_TINTS> = { bg1: 'bg1', tx1: 'tx1', bg2: 'bg2', tx2: 'tx2' };
 
 /** «Accent 1, Lighter 80%»: the name Office gives the colour of the gallery (for the screen reader and the tooltip). */
@@ -43,7 +45,7 @@ export function ThemeSwatches({ theme, label, onPick, extra }: { theme: DocTheme
       <h4>{t('Colores estándar')}</h4>
       <div className="nv-theme-colors__std">
         {STANDARD_COLORS.map((c) => (
-          <button key={c} type="button" style={{ background: c }} aria-label={c} title={c} onClick={() => onPick(c)} />
+          <button key={c} type="button" style={{ background: c }} aria-label={t(STANDARD_NAMES[c] ?? c)} title={t(STANDARD_NAMES[c] ?? c)} onClick={() => onPick(c)} />
         ))}
       </div>
       {extra}
