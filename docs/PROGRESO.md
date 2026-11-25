@@ -204,4 +204,11 @@ Plan en `docs/diseno-temas.md`. Decisiones (2026-11-23): `theme-core` + interfaz
 - [x] **Fase 3 HECHA: Writer** (el tema en el nodo `doc`, un paso de deshacer; `word/theme/theme1.xml` entero; `themeColor`/`themeShade`/`themeTint`/`asciiTheme` leídos y escritos; estilos integrados que siguen al tema; pestaña Diseño › Formato del documento; `e2e-themes-writer.mjs` 12/12, writer-core 217). Bordes, tablas y selector de color pasan a la fase 5. **Pendiente aparte:** comparar con Word real.
 - [x] **Fase 4 HECHA: Calc** (el libro guarda `xl/theme/theme1.xml`; referencias `theme/tint` en relleno, texto y bordes; fuentes del tema; cambiar el tema = un paso de deshacer; pestaña Diseño de página › Temas; `e2e-themes-calc.mjs` 11/11, xlsx-io 97, calc-engine 268). **Pendiente aparte:** comparar con Excel real por COM (mismo bloqueo).
 - [x] **Fase 5 HECHA: paletas compartidas** (selector de color común `ThemeSwatches` en Calc, Writer y sombreado de tablas, con referencia al tema; estilos de tabla de Writer, gráficos de Calc/Writer y «Cambiar colores», y formas de Calc siguen al tema; `e2e-themes-calc` 13/13, `e2e-themes-writer` 13/13). Límites en el diseño (colores leídos de archivos, bordes de celda, formato condicional). **Pendiente aparte:** comparación con Office real.
-- [ ] Fase 6: cierre.
+- [x] **Fase 6 HECHA: cierre. Temas terminado (6 fases).** Rendimiento medido (Calc 100 000 celdas ~0 ms, Writer 5000 párrafos ~0,9 s), colores estándar con nombre, límites en `LIMITACIONES.md`. **Pendiente aparte:** comparación con Word, Excel y PowerPoint reales por COM.
+
+## Tema general del aplicativo (temas de la interfaz, como Office)
+
+Plan en `docs/diseno-tema-aplicativo.md`; medidas de Office real en `docs/office-temas/`. Decisiones (2026-11-25): los cinco temas de Office; una sola barra de título; documentos como Office (página oscura de Writer en Negro, Calc y Slides blancos); contraste alto automático. Plan de 6 fases: 1 modelo y colores, 2 marco, 3 barra de título única, 4 superficies comunes, 5 áreas de trabajo, 6 cierre.
+
+- [x] Medición previa en Word, Excel y PowerPoint (cinco temas) y plan escrito.
+- [ ] Fase 1: modelo y colores (empieza medir en Office lo que falta: el usuario debe cambiar el tema a mano).
