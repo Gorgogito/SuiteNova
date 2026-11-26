@@ -1,4 +1,4 @@
-import type { CommandDef, RibbonTab } from '@suitenova/core-ui';
+import { THEME_PREFERENCES, type CommandDef, type RibbonTab } from '@suitenova/core-ui';
 import './messages';
 
 /** View tab shared by every window: theme, language, zoom and ribbon pinning. All commands are real. */
@@ -21,10 +21,7 @@ export function viewTab(opts: { zoom?: boolean } = { zoom: true }): RibbonTab {
             size: 'large',
             keytip: 'T',
             entries: [
-              { kind: 'command', command: 'theme.system' },
-              { kind: 'command', command: 'theme.light' },
-              { kind: 'command', command: 'theme.dark' },
-              { kind: 'command', command: 'theme.contrast' },
+              ...THEME_PREFERENCES.map((p) => ({ kind: 'command' as const, command: `theme.${p}` })),
             ],
           },
         ],

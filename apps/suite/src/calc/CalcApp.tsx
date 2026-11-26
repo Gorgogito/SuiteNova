@@ -111,7 +111,7 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
   const [localeSetting] = useSetting<Locale>(SETTING_LOCALE, 'es');
   useLocale();
   const mode = useThemeMode();
-  const dark = mode === 'dark';
+  const dark = mode === 'black';
   useSyncExternalStore(doc.subscribe, doc.getVersion);
 
   // the formula language follows the interface language

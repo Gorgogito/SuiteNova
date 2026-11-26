@@ -82,7 +82,7 @@ await page.keyboard.press('Escape');
 await page.emulateMedia({ colorScheme: 'dark' });
 await page.getByRole('tab', { name: 'Vista' }).click();
 await page.click('[data-nv-item="themeMenu"]');
-await page.getByRole('menuitem', { name: 'Tema oscuro' }).click();
+await page.getByRole('menuitem', { name: 'Negro', exact: true }).click();
 await page.getByRole('tab', { name: 'Inicio' }).click();
 await shot('dark');
 

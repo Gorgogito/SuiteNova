@@ -336,9 +336,10 @@ export function slidesTabs(ui: SlidesUI): RibbonTab[] {
       { id: 'showHide', label: 'Mostrar', icon: 'gridlines', items: [S('slides.view.grid', 'VG'), S('slides.view.ruler', 'VR'), S('slides.view.guides', 'VU'), S('slides.view.snap', 'VA'), S('slides.view.notesPane', 'VO')] },
       { id: 'guides', label: 'Guías', icon: 'ruler', items: [S('slides.view.addGuideV', 'GV'), S('slides.view.addGuideH', 'GH'), S('slides.view.clearGuides', 'GQ')] },
       { id: 'zoomG', label: 'Zoom', icon: 'zoomIn', items: [S('slides.view.fit', 'ZF')] },
+      // the application theme menu, shared with the other products
+      ...view.groups.filter((g) => g.id === 'theme'),
     ],
   };
-  void view;
 
   const format: RibbonTab = {
     id: 'shapeFormat',

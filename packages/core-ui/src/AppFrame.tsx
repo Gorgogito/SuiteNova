@@ -15,14 +15,14 @@ import { assignKeytips, KEYTIPS_OFF, typeKeytip, type KeytipState, type KeytipTa
 import './messages';
 import { allItems, itemKey, type RibbonTab } from './ribbon-model';
 import { settings, useSetting } from './settings';
-import { fluentTheme, MODULE_ACCENTS, resolveTheme, type ThemeMode, type ThemePreference } from './theme';
+import { fluentTheme, normalizeThemePreference, resolveTheme, type ThemeMode } from './theme';
 import './core-ui.css';
 
 export function useThemeMode(): ThemeMode {
-  const [pref] = useSetting<ThemePreference>(SETTING_THEME, 'system');
+  const [saved] = useSetting<string>(SETTING_THEME, 'system');
   const dark = useMedia('(prefers-color-scheme: dark)');
   const contrast = useMedia('(forced-colors: active)');
-  return resolveTheme(pref, dark, contrast);
+  return resolveTheme(normalizeThemePreference(saved), dark, contrast);
 }
 
 export interface AppFrameProps {
@@ -66,13 +66,10 @@ function clickItem(itemId: string): void {
 export function AppFrame(props: AppFrameProps) {
   const { appId, appName, registry, tabs, qat = [], docTitle, backstage = [], zoom, statusLeft, statusRight, contentFill, children } = props;
   useLocale();
-  const [themePref] = useSetting<ThemePreference>(SETTING_THEME, 'system');
   const [localeSetting] = useSetting<Locale>(SETTING_LOCALE, 'es');
   const [collapsed] = useSetting(SETTING_RIBBON_COLLAPSED, false);
-  const systemDark = useMedia('(prefers-color-scheme: dark)');
-  const systemContrast = useMedia('(forced-colors: active)');
-  const mode = resolveTheme(themePref, systemDark, systemContrast);
-  const accent = MODULE_ACCENTS[appId] ?? MODULE_ACCENTS.hub!;
+  const mode = useThemeMode();
+  const theme = useMemo(() => fluentTheme(mode, appId), [mode, appId]);
 
   const visibleTabs = useMemo(() => tabs.filter((tab) => !tab.contextual || tab.contextual.visible), [tabs]);
   const [activeId, setActiveId] = useState(visibleTabs[0]?.id ?? '');
@@ -217,7 +214,7 @@ export function AppFrame(props: AppFrameProps) {
   const showBody = !collapsed || popped;
 
   return (
-    <FluentProvider theme={fluentTheme(mode, accent)} data-theme={mode} data-app={appId} style={{ ['--nv-accent' as string]: accent }}>
+    <FluentProvider theme={theme} data-theme={mode} data-app={appId}>
       <CoreProvider value={{ registry, keytips, tipFor }}>
         <div className="nv-root">
         <div className="nv-frame" ref={frameRef}>

@@ -57,8 +57,8 @@
 .hub__card[data-app='writer'] { --card-accent: #2b6cb0; }
 .hub__card[data-app='calc'] { --card-accent: #2f855a; }
 .hub__card[data-app='slides'] { --card-accent: #c05621; }
-.hub__card[data-app='base'] { --card-accent: #97266d; }
-.hub__card[data-app='notes'] { --card-accent: #6b46c1; }
+.hub__card[data-app='base'] { --card-accent: #a4373a; }
+.hub__card[data-app='notes'] { --card-accent: #7719aa; }
 .hub__card[data-app='mail'] { --card-accent: #0f7fa8; }
 .hub__card[data-app='diagram'] { --card-accent: #4c51bf; }
 .hub__card[data-app='plan'] { --card-accent: #2c7a7b; }

@@ -60,7 +60,7 @@ describe('threads', () => {
     l = editMessage(l, 'k2', 'Otra cosa');
     expect(l[1]!.messages[0]!.edited).toBeUndefined();
     // the text of a comment just created (empty) is not an edit
-    l = editMessage(addThread([], { anchor: 1, author: ana, text: '', id: 'n' }).list, 'n', 'Primero', D(1));
+    l = editMessage(addThread([], { anchor: { at: 1 }, author: ana, text: '', id: 'n' }).list, 'n', 'Primero', D(1));
     expect(l[0]!.messages[0]).toMatchObject({ text: 'Primero' });
     expect(l[0]!.messages[0]!.edited).toBeUndefined();
     // and the date of an edit goes there and back through a flat list

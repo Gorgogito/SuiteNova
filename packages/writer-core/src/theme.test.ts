@@ -160,7 +160,7 @@ describe('Writer: las tablas y el tema', () => {
     const tbl = nodeTypes.table!.create({ tstyle: 'medium-1', borders: false }, [nodeTypes.table_row!.create(null, [cell('a'), cell('b')]), nodeTypes.table_row!.create(null, [cell('c'), cell('d')])]);
     const doc = nodeTypes.doc!.create({ theme: officeTheme() }, [nodeTypes.section!.create({ id: 's' }, [tbl])]);
     const state = EditorState.create({ schema: writerSchema, doc, plugins: [tableStylePlugin()] });
-    const header = (pal: ReturnType<typeof paletteOf>) => [...tableLooks(tbl, pal).values()][0]!.fill;
+    const header = (pal: Parameters<typeof tableLooks>[1]) => [...tableLooks(tbl, pal).values()][0]!.fill;
     expect(header(paletteOfDoc(doc))).toBe(officeTheme().colors.accent1);
     const g = green();
     expect(header(paletteOf(g))).toBe(g.colors.accent1);

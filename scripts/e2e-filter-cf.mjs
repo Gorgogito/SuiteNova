@@ -224,7 +224,7 @@ await check('dark theme keeps filter buttons and data bars legible', async () =>
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.getByRole('tab', { name: 'Vista' }).click();
   await page.click('[data-nv-item="themeMenu"]');
-  await page.getByRole('menuitem', { name: 'Tema oscuro' }).click();
+  await page.getByRole('menuitem', { name: 'Negro', exact: true }).click();
   await page.getByRole('tab', { name: 'Datos' }).click();
   await click(1, 3);
   await page.click('[data-nv-item="calc.filter"]');

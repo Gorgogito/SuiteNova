@@ -1,4 +1,4 @@
-import { t, useCommandState, useCore, type BackstageEntry, type CommandRegistry } from '@suitenova/core-ui';
+import { t, THEME_PREFERENCES, useCommandState, useCore, useThemeMode, type BackstageEntry, type CommandRegistry } from '@suitenova/core-ui';
 import { closeThisWindow } from './platform';
 import './messages';
 
@@ -14,13 +14,15 @@ function RadioCommand({ id }: { id: string }) {
 }
 
 function OptionsPage() {
+  const mode = useThemeMode();
   return (
     <div className="page">
       <h1>{t('backstage.options')}</h1>
       <h2>{t('options.theme')}</h2>
-      {['theme.system', 'theme.light', 'theme.dark', 'theme.contrast'].map((id) => (
-        <RadioCommand key={id} id={id} />
+      {THEME_PREFERENCES.map((p) => (
+        <RadioCommand key={p} id={`theme.${p}`} />
       ))}
+      {mode === 'contrast' && <p role="note">{t('theme.contrastActive')}</p>}
       <h2>{t('options.language')}</h2>
       {['lang.es', 'lang.en'].map((id) => (
         <RadioCommand key={id} id={id} />

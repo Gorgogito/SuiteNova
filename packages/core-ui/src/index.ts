@@ -19,5 +19,5 @@ export {
 } from './ribbon-model';
 export { SettingsStore, settings, useSetting, type KeyValueBackend } from './settings';
 export { clampZoom, StatusBar, ZoomControl, type ZoomState } from './StatusBar';
-export { brandRamp, fluentTheme, MODULE_ACCENTS, resolveTheme, type ThemeMode, type ThemePreference } from './theme';
+export { brandRamp, fluentTheme, MODULE_ACCENTS, normalizeThemePreference, resolveTheme, THEME_PREFERENCES, zoneColors, type ThemeMode, type ThemePreference, type ZoneColors } from './theme';
 export { RibbonItemView } from './Ribbon';
