@@ -1,4 +1,4 @@
-import type { CommandDef } from '@suitenova/core-ui';
+import { settings, type CommandDef } from '@suitenova/core-ui';
 import { defaultNotesOptions, nodeTypes, type Watermark } from '@suitenova/writer-core';
 import type { Command } from 'prosemirror-state';
 import type { WriterUI } from './commands';
@@ -15,6 +15,9 @@ export const WATERMARK_PRESETS: { id: string; text: string }[] = [
 ];
 
 export const defaultWatermark = (text: string): Watermark => ({ text, image: null, font: 'Calibri', color: '#c0c0c0', size: 0, semitransparent: true, layout: 'diagonal', scale: 100 });
+
+/** View > Switch modes: keeps the page white in the Black theme. */
+export const SETTING_LIGHT_PAGE = 'writer.lightPage';
 
 /** Section, column, watermark, header/footer and view commands. */
 export function layoutCommands(ui: WriterUI): CommandDef[] {
@@ -145,6 +148,7 @@ export function layoutCommands(ui: WriterUI): CommandDef[] {
   for (const [id, mode, label, icon] of views) add({ id, label, icon, checked: () => c.viewMode === mode, run: () => c.setViewMode(mode) });
   add({ id: 'writer.view.ruler', label: 'Regla', icon: 'ruler', checked: () => c.showRuler, run: () => { c.showRuler = !c.showRuler; c.touch(); } });
   add({ id: 'writer.view.nav', label: 'Panel de navegación', icon: 'panelLeft', checked: () => c.showNav, run: () => { c.showNav = !c.showNav; c.touch(); } });
+  add({ id: 'writer.view.pageMode', label: 'Cambiar modos', icon: 'sun', description: 'Con el tema Negro, cambia entre la página oscura y la página blanca. No modifica el documento.', checked: () => settings.get(SETTING_LIGHT_PAGE, false), run: () => settings.set(SETTING_LIGHT_PAGE, !settings.get(SETTING_LIGHT_PAGE, false)) });
 
   // ---- outline view
   const outline = () => c.viewMode === 'outline';

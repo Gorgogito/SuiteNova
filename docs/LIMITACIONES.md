@@ -669,9 +669,16 @@ Plan y bitácora en `docs/diseno-recorte.md`. Insertar › «Recorte de pantalla
 - **Colores medidos en Word 2024 LTSC** (Windows 11). Sin efecto Mica: colores sólidos. Outlook no se midió.
 - **Diagram y Plan** conservan color propio (Visio y Project mostraron el azul de Word y el verde de Excel); Mail también.
 - **Pestañas contextuales:** no se midieron en Office; SuiteNova mantiene la franja con el nombre del grupo.
-- **Todavía no se parece a Office** (fase 5 del plan `diseno-tema-aplicativo.md`): las reglas de Writer y Slides siguen
-  claras; Calc oscurece la cuadrícula en Negro y Writer no oscurece la página; la selección de texto no usa el color de
-  Office.
+- **Página oscura de Writer (Negro):** es solo la forma de mostrarla (Vista › Cambiar modos vuelve a blanca). El color
+  exacto de Word se midió para el texto negro; los demás colores se aclaran con una fórmula propia, sin comparar con Word.
+  Los bordes de párrafo y las líneas de color negro escritos en el documento no se aclaran; los gráficos y SmartArt se
+  dibujan sobre blanco; un documento con color de página no se oscurece. El nombre «Cambiar modos» no se ha comprobado en
+  Word.
+- **Calc:** la hoja es siempre blanca. El encabezado seleccionado en Negro usa un gris propio (en la captura de Excel no
+  se distinguía bien).
+- **Mail, Base, Plan, Notes y Forms en Gris oscuro:** sus zonas de trabajo quedan blancas, como las hojas y páginas de
+  Office; no hay medida de Outlook, Access, Project ni OneNote.
+- **Selección de texto:** el color de Office se aplica en las páginas de Writer y en la diapositiva.
 - **Cuadros de diálogo:** todos siguen el tema, como los avisos de Office. Los cuadros clásicos de Office (Fuente,
   Párrafo…) son claros también en Gris oscuro y Negro; SuiteNova no hace esa distinción.
 - **Archivo › Cuenta** solo ofrece el tema: SuiteNova no tiene cuentas.

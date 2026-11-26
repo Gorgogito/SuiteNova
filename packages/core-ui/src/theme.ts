@@ -164,6 +164,9 @@ export interface ZoneColors {
   /** Border of the boxes and lists of the ribbon. */
   'nv-field-border': string;
   'nv-menu-border': string;
+  /** Rulers: the part over the text of the page (the margins show the canvas) and its marks. */
+  'nv-ruler-bg': string;
+  'nv-ruler-fg': string;
   'nv-dialog-title': string;
   /** Side bar of the File view: background, text, the line of the entry under the mouse and of the chosen one. */
   'nv-bs-nav-bg': string;
@@ -190,6 +193,8 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
     'nv-pressed-border': '#616161',
     'nv-field-border': '#8a8a8a',
     'nv-menu-border': '#616161',
+    'nv-ruler-bg': '#ffffff',
+    'nv-ruler-fg': '#616161',
     'nv-dialog-title': readableOn(accent, '#ffffff'),
     'nv-bs-nav-bg': '#ebebeb',
     'nv-bs-nav-fg': '#242424',
@@ -240,6 +245,8 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
         'nv-pressed-border': '#7a7a7a',
         'nv-field-border': '#666666',
         'nv-menu-border': '#666666',
+        'nv-ruler-bg': '#6b6b6b',
+        'nv-ruler-fg': '#f0f0f0',
         'nv-dialog-title': readableOn(tabLine(appId, accent, 'darkgray'), '#525252'),
         'nv-bs-nav-bg': '#343535',
         'nv-bs-nav-fg': '#ffffff',
@@ -268,6 +275,8 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
         'nv-pressed-border': '#adadad',
         'nv-field-border': '#757575',
         'nv-menu-border': '#adadad',
+        'nv-ruler-bg': '#292929',
+        'nv-ruler-fg': '#ffffff',
         'nv-dialog-title': readableOn(tabLine(appId, accent, 'black'), '#292929'),
         'nv-bs-nav-bg': '#181818',
         'nv-bs-nav-fg': '#ffffff',
@@ -296,6 +305,8 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
         'nv-pressed-border': '#ffff00',
         'nv-field-border': '#ffffff',
         'nv-menu-border': '#ffffff',
+        'nv-ruler-bg': '#000000',
+        'nv-ruler-fg': '#ffffff',
         'nv-dialog-title': '#ffffff',
         'nv-bs-nav-bg': '#000000',
         'nv-bs-nav-fg': '#ffffff',
@@ -341,7 +352,22 @@ export function fluentTheme(mode: ThemeMode, appId: string): Theme & ZoneColors 
   const zones = zoneColors(appId, mode);
   if (mode === 'contrast') return { ...teamsHighContrastTheme, ...zones };
   const ramp = brandRamp(zones['nv-accent']);
-  if (mode === 'black') return { ...createDarkTheme(ramp), ...zones };
+  if (mode === 'black') {
+    const dark = createDarkTheme(ramp);
+    // the main button and the links as Office draws them in Black: the light accent, with black text on it
+    const light = zones['nv-tab-line'];
+    const link = readableOn(light, dark.colorNeutralBackground1);
+    return {
+      ...dark,
+      colorBrandBackground: light,
+      colorBrandBackgroundHover: mix(light, '#ffffff', 0.12),
+      colorBrandBackgroundPressed: mix(light, '#000000', 0.12),
+      colorNeutralForegroundOnBrand: '#000000',
+      colorBrandForeground1: link,
+      colorBrandForegroundLink: link,
+      ...zones,
+    };
+  }
   const base = createLightTheme(ramp);
   return mode === 'darkgray' ? { ...base, ...DARK_GRAY, colorBrandForeground1: ramp[50], ...zones } : { ...base, ...zones };
 }

@@ -628,7 +628,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
       }
       contentFill
     >
-      <div className="nn-app">
+      <div className="nn-app nv-work">
         <style>{STYLE_CSS + tagCss(ctl.nb.tagDefs)}</style>
         {!ctl.fullPage && (
         <div className="nn-top">

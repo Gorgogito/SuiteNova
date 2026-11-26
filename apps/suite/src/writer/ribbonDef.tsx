@@ -289,13 +289,15 @@ export interface RibbonFlags {
   outline: boolean;
   image: boolean;
   shape: boolean;
+  /** The Black theme is on: View offers to switch the page between dark and white, as Word does. */
+  darkTheme: boolean;
   smartart: boolean;
   chart: boolean;
   math: boolean;
 }
 
 export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>): RibbonTab[] {
-  const flags: RibbonFlags = { inTable: false, hf: false, outline: false, image: false, shape: false, smartart: false, chart: false, math: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
+  const flags: RibbonFlags = { darkTheme: false, inTable: false, hf: false, outline: false, image: false, shape: false, smartart: false, chart: false, math: false, ...(typeof flagsIn === 'boolean' ? { inTable: flagsIn } : flagsIn) };
   const inTable = flags.inTable;
   const tableHost = writerTableHost(ui);
   const home: RibbonTab = {
@@ -654,6 +656,9 @@ export function writerTabs(ui: WriterUI, flagsIn: boolean | Partial<RibbonFlags>
       { kind: 'button', command: 'writer.zoomFit', size: 'large', keytip: 'A' },
     ],
   });
+  if (flags.darkTheme) {
+    view.groups.splice(2, 0, { id: 'darkmode', label: 'Modo oscuro', icon: 'moon', items: [{ kind: 'button', command: 'writer.view.pageMode', size: 'large', keytip: 'CM' }] });
+  }
 
   const refs: RibbonTab = {
     id: 'references',

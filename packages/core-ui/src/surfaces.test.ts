@@ -3,10 +3,12 @@ import { surfaceAccent, surfaceCss, surfaceTheme, SURFACES } from './surfaces';
 import { contrastRatio, MODULE_ACCENTS, zoneColors, type ThemeMode } from './theme';
 
 const MODES: ThemeMode[] = ['colorful', 'darkgray', 'black', 'white'];
+/** The surfaces that have colours of their own in every theme. */
+const ALWAYS = ['panel', 'dialog', 'backstage'] as const;
 
 describe('paneles, cuadros y vista Archivo', () => {
   it('usan los fondos medidos en Word', () => {
-    const background = (mode: ThemeMode) => SURFACES.map((s) => surfaceTheme(s, 'writer', mode)!.colorNeutralBackground1);
+    const background = (mode: ThemeMode) => ALWAYS.map((s) => surfaceTheme(s, 'writer', mode)!.colorNeutralBackground1);
     // pane, dialog, File view
     expect(background('colorful')).toEqual(['#f0f0f0', '#ffffff', '#f5f5f5']);
     expect(background('white')).toEqual(['#f0f0f0', '#ffffff', '#f5f5f5']);
@@ -32,7 +34,8 @@ describe('paneles, cuadros y vista Archivo', () => {
         const z = zoneColors(app, mode);
         const where = (s: string) => `${app} ${mode} ${s}`;
         for (const surface of SURFACES) {
-          const th = surfaceTheme(surface, app, mode)!;
+          const th = surfaceTheme(surface, app, mode);
+          if (!th) continue; // the work areas keep the colours of the window outside Dark Gray
           const bg = th.colorNeutralBackground1;
           for (const fg of ['colorNeutralForeground1', 'colorNeutralForeground3', 'colorBrandForeground1'] as const) {
             expect(contrastRatio(bg, th[fg]), where(`${surface} ${fg}`)).toBeGreaterThanOrEqual(4.5);
@@ -45,6 +48,13 @@ describe('paneles, cuadros y vista Archivo', () => {
         expect(contrastRatio(z['nv-bs-nav-bg'], z['nv-bs-mark']), where('apartado elegido')).toBeGreaterThanOrEqual(4.5);
       }
     }
+  });
+
+  it('las zonas de trabajo solo cambian en Gris oscuro, donde quedan blancas como las páginas y hojas de Office', () => {
+    expect(MODES.filter((m) => surfaceTheme('work', 'mail', m))).toEqual(['darkgray']);
+    expect(surfaceTheme('work', 'mail', 'darkgray')).toMatchObject({ colorNeutralBackground1: '#ffffff', colorNeutralForeground1: '#242424' });
+    expect(surfaceCss('mail', 'darkgray')).toMatch(/\.nv-work\{[^}]*color-scheme:light;/);
+    expect(surfaceCss('mail', 'black')).not.toContain('.nv-work');
   });
 
   it('una hoja de estilos por ventana; con el contraste alto de Windows no cambia nada', () => {

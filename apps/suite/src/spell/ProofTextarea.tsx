@@ -189,7 +189,7 @@ export function ProofTextarea({ value, lang, proof = true, autoFix = true, produ
   };
 
   return (
-    <div className="nv-pt" style={{ position: 'relative', display: 'block' }}>
+    <div className="nv-pt nv-box" style={{ position: 'relative', display: 'block' }}>
       <div ref={mirror} className="nv-pt__mirror" aria-hidden="true">
         {segments.map((s, n) =>
           s.issue ? (

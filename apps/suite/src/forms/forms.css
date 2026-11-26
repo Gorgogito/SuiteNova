@@ -183,7 +183,8 @@
 }
 .fm-btn--sec {
   background: var(--colorNeutralBackground1);
-  color: var(--fm-color, #0f6cbd);
+  /* the colour of the form, pulled towards the text of the theme so it reads on light and dark cards */
+  color: color-mix(in srgb, var(--fm-color, #0f6cbd) 55%, var(--colorNeutralForeground1));
 }
 .fm-btn:disabled {
   opacity: 0.45;

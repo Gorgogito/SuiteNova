@@ -371,7 +371,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
       }
       contentFill
     >
-      <div className="ml-app">
+      <div className="ml-app nv-work">
         <nav className="ml-rail nv-panel" aria-label={t('Secciones')}>
           {NAV.map((n) => (
             <button key={n.id} type="button" className={ctl.section === n.id ? 'is-current' : ''} aria-current={ctl.section === n.id} onClick={() => ctl.go(n.id)} title={t(n.label)}>

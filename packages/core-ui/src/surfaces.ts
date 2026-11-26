@@ -6,9 +6,9 @@ import { brandRamp, mix, readableOn, zoneColors, type ThemeMode } from './theme'
  * Black the panes are darker than the ribbon. Each one is a Fluent theme whose variables are set again on that container,
  * so everything inside follows. Colours measured on Word: docs/office-temas/MEDIDAS.md.
  */
-export type Surface = 'panel' | 'dialog' | 'backstage';
+export type Surface = 'panel' | 'dialog' | 'backstage' | 'work';
 
-export const SURFACES: readonly Surface[] = ['panel', 'dialog', 'backstage'];
+export const SURFACES: readonly Surface[] = ['panel', 'dialog', 'backstage', 'work'];
 
 /** Where each surface is in the page. Panes carry the class; dialogs and the File view are ours or Fluent's. */
 const SELECTORS: Record<Surface, string> = {
@@ -16,6 +16,8 @@ const SELECTORS: Record<Surface, string> = {
   dialog: '.fui-DialogSurface',
   // the start window shares them, as the start screen of Office does
   backstage: ':is(.nv-backstage__content, .nv-startpage)',
+  // where the person works on content (lists, grids, cards): white in Dark Gray, as the pages and sheets of Office
+  work: '.nv-work',
 };
 
 type Shade = 'light' | 'darkgray' | 'black';
@@ -36,6 +38,7 @@ const BACKGROUNDS: Record<Surface, Partial<Record<Shade, [string, string, string
     darkgray: ['#525252', '#636363', '#404040', '#666666', '#474747'],
     black: ['#141414', '#292929', '#0a0a0a', '#333333', '#1f1f1f'],
   },
+  work: {},
 };
 
 /** Boxes and lists, where they are not the ones Fluent would draw. */
@@ -43,6 +46,7 @@ const FIELDS: Record<Surface, Partial<Record<Shade, [string, string]>>> = {
   panel: { light: ['#ffffff', '#242424'], darkgray: ['#d4d4d4', '#242424'], black: ['#363636', '#ffffff'] },
   dialog: { darkgray: ['#bdbdbd', '#242424'] },
   backstage: { darkgray: ['#bdbdbd', '#242424'] },
+  work: {},
 };
 
 /** Colour of the main button and of the links of a surface: the accent, darker in light and light in the dark themes. */
@@ -51,14 +55,16 @@ export function surfaceAccent(appId: string, mode: ThemeMode): string {
   return shadeOf(mode) === 'light' ? mix(zones['nv-accent'], '#000000', 0.1) : zones['nv-tab-line'];
 }
 
-/** The theme of a surface, or null when Windows high contrast decides. */
+/** The theme of a surface; null when it keeps the colours of the window (and always with Windows high contrast). */
 export function surfaceTheme(surface: Surface, appId: string, mode: ThemeMode): Theme | null {
   if (mode === 'contrast') return null;
-  const shade = shadeOf(mode);
+  // only Dark Gray, with its grey ribbon colours, needs another set for the work areas
+  if (surface === 'work' && mode !== 'darkgray') return null;
+  const shade = surface === 'work' ? 'light' : shadeOf(mode);
   const dark = shade !== 'light';
   const ramp = brandRamp(zoneColors(appId, mode)['nv-accent']);
   const base = dark ? createDarkTheme(ramp) : createLightTheme(ramp);
-  const accent = surfaceAccent(appId, mode);
+  const accent = surfaceAccent(appId, shade === 'light' ? 'white' : mode);
   const away = (amount: number) => mix(accent, dark ? '#ffffff' : '#000000', amount);
   const theme: Theme = {
     ...base,
@@ -134,6 +140,8 @@ const BOXES = [
   '.fui-Combobox',
   '.fui-Dropdown',
   '.fui-SpinButton',
+  // a box of our own around a transparent field (the proofed text area)
+  '.nv-box',
 ].join(',');
 
 /** The style sheet that gives every surface its colours. */
@@ -144,7 +152,7 @@ export function surfaceCss(appId: string, mode: ThemeMode): string {
     const theme = surfaceTheme(surface, appId, mode);
     if (!theme) continue;
     const where = SELECTORS[surface];
-    rules.push(`${where}{${variables(theme)}color-scheme:${shade === 'light' ? 'light' : 'dark'};}`);
+    rules.push(`${where}{${variables(theme)}color-scheme:${shade === 'light' || surface === 'work' ? 'light' : 'dark'};}`);
     const field = FIELDS[surface][shade];
     if (field) {
       const [background, text] = field;
@@ -163,7 +171,7 @@ export function surfaceCss(appId: string, mode: ThemeMode): string {
   }
   // the other buttons of a dialog keep the colour of the ribbon in Dark Gray, and a visible border in Black
   if (mode === 'darkgray') {
-    rules.push(`.fui-DialogActions .fui-Button{${variables({ colorNeutralBackground1: '#bdbdbd', colorNeutralBackground1Hover: '#d1d1d1', colorNeutralBackground1Pressed: '#a8a8a8', colorNeutralForeground1: '#242424', colorNeutralForeground1Hover: '#242424', colorNeutralForeground1Pressed: '#242424', colorNeutralStroke1: '#666666', colorNeutralStroke1Hover: '#4d4d4d' })}}`);
+    rules.push(`.fui-DialogActions .fui-Button{${variables({ colorNeutralBackground1: '#bdbdbd', colorNeutralBackground1Hover: '#d1d1d1', colorNeutralBackground1Pressed: '#a8a8a8', colorNeutralForeground1: '#242424', colorNeutralForeground1Hover: '#242424', colorNeutralForeground1Pressed: '#242424', colorNeutralStroke1: '#666666', colorNeutralStroke1Hover: '#4d4d4d', colorNeutralBackgroundDisabled: '#858585', colorNeutralForegroundDisabled: '#e0e0e0', colorNeutralStrokeDisabled: '#858585' })}}`);
   }
   if (mode === 'black') {
     rules.push(`.fui-DialogActions .fui-Button{${variables({ colorNeutralStroke1: '#757575' })}}`);

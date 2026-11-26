@@ -625,6 +625,8 @@
 
 /* ---- rulers, guides, format painter */
 .sl-ruler { z-index: 3; user-select: none; touch-action: none; }
+/* selected text on the slide, which stays white in every theme */
+.sl-surface ::selection { background: #c7c7c7; }
 .sl-guidetip { position: absolute; background: #222; color: #fff; border-radius: 3px; pointer-events: none; z-index: 8; white-space: nowrap; }
 .sl-stagearea.painter-on .sl-surface { cursor: copy; }
 

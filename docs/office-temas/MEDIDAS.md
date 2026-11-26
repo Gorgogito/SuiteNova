@@ -140,6 +140,22 @@ Leídas de `word-0.png`, `word-3.png`, `word-4.png` y `word-5.png` (ventana a 10
 |---|---|---|---|---|
 | Color | #8A8A8A | #D6D6D6 | #808080 | #757575 |
 
+## Zonas de trabajo: medidas por píxel (fase 5, 2026-11-26)
+
+| Word | Multicolor y Blanco | Gris oscuro | Negro |
+|---|---|---|---|
+| Página / texto negro | #FFFFFF / #000000 | #FFFFFF / #000000 | #262626 / #F6F6F6 |
+| Borde de la página | #C6C6C6 | #8C8C8C | #8C8C8C |
+| Regla sobre el texto / marcas | #FFFFFF / #616161 | #6B6B6B / #F0F0F0 | #292929 / #FFFFFF |
+| Márgenes de la regla | el lienzo | el lienzo | el lienzo |
+
+| Excel | Multicolor y Blanco | Gris oscuro | Negro |
+|---|---|---|---|
+| Hoja / cuadrícula | #FFFFFF / #E0E0E0 | #FFFFFF / #E0E0E0 | #FFFFFF / #E0E0E0 |
+| Encabezados / líneas | #F0F0F0 / #D2D2D2 | #525252 / #ADADAD (elegido #646464) | #0A0A0A / #333333 |
+| Barra de fórmulas / borde | #FFFFFF / #D1D1D1 | #4D4D4D / #8A8A8A | #292929 / #666666 |
+| Pestaña de hoja elegida | blanca, texto oscuro | blanca, texto oscuro | blanca, texto oscuro |
+
 ## Otras observaciones
 
 - Multicolor y Blanco se distinguen casi solo por la barra de título (en color o clara).

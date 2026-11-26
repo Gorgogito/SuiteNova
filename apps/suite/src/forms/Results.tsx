@@ -31,7 +31,7 @@ function Card({ s, n }: { s: QSummary; n: number }) {
   const q = s.question;
   const typeName = QTYPES.find((x) => x.id === q.type)?.name ?? '';
   return (
-    <section className="fm-card" aria-label={`${t('Resultados de la pregunta')} ${n}`} data-summary={q.id}>
+    <section className="fm-card nv-work" aria-label={`${t('Resultados de la pregunta')} ${n}`} data-summary={q.id}>
       <div className="fm-qtitle">
         {n}. {q.title || t('(sin título)')}
       </div>
@@ -152,7 +152,7 @@ function Individual({ ctl, form, responses }: { ctl: FormsCtl; form: Form; respo
           {t('Eliminar esta respuesta')}
         </button>
       </div>
-      <section className="fm-card" aria-label={t('Respuesta individual')}>
+      <section className="fm-card nv-work" aria-label={t('Respuesta individual')}>
         <p className="fm-muted">
           {fmtDate(r.at)}
           {form.quiz ? ` · ${t('Puntuación')}: ${s.earned} / ${s.total}` : ''}

@@ -600,6 +600,10 @@ body:has(.fui-DialogSurface) .nv-wincontrols {
 }
 
 /* ---- panes, dialogs and menus ---- */
+:where(.nv-work) {
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+}
 :where(.nv-startpage) {
   min-height: 100%;
   background: var(--colorNeutralBackground1);

@@ -1,8 +1,8 @@
 // Shared by the theme checks: the contrast of every visible text (and of what is written in boxes and lists) inside some
 // containers, against the background it really has. Disabled controls are exempt, as in WCAG.
-export const lowContrast = (page, scopes, minimum = 4.5) =>
+export const lowContrast = (page, scopes, minimum = 4.5, skip = null) =>
   page.evaluate(
-    ([selectors, min]) => {
+    ([selectors, min, skipped]) => {
       const parse = (c) => {
         const n = (c.match(/-?[\d.]+(e-?\d+)?/g) ?? []).map(Number);
         const scale = c.startsWith('color(') ? 255 : 1;
@@ -35,7 +35,7 @@ export const lowContrast = (page, scopes, minimum = 4.5) =>
       };
       const bad = [];
       const measure = (el, text, scope) => {
-        if (el.closest(':disabled, [aria-disabled="true"], option, optgroup, svg, [aria-hidden="true"]')) return;
+        if (el.closest(':disabled, [aria-disabled="true"], option, optgroup, svg, [aria-hidden="true"]') || (skipped && el.closest(skipped))) return;
         const r = el.getBoundingClientRect();
         const s = getComputedStyle(el);
         if (r.width < 2 || r.height < 2 || s.visibility !== 'visible') return;
@@ -62,11 +62,12 @@ export const lowContrast = (page, scopes, minimum = 4.5) =>
           for (const field of root.querySelectorAll('input, textarea, select')) {
             if (/^(checkbox|radio|range|color|file|hidden)$/.test(field.type)) continue;
             const text = (field.tagName === 'SELECT' ? field.selectedOptions[0]?.textContent : field.value)?.trim();
-            if (text) measure(field, text, scope);
+            // an empty box counts too: what is typed in it will have this colour on this background
+            measure(field, text || '(campo vacío)', scope);
           }
         }
       }
       return [...new Set(bad)];
     },
-    [scopes, minimum],
+    [scopes, minimum, skip],
   );

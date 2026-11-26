@@ -169,7 +169,7 @@ export function Runner({ form, onSubmit, onAgain }: { form: Form; onSubmit: ((a:
   if (done) {
     const s = score(form, done);
     return (
-      <div className="fm-card fm-done" role="status">
+      <div className="fm-card fm-done nv-work" role="status">
         <h2>{onSubmit ? t('Respuesta guardada') : t('Así se vería al terminar')}</h2>
         <p>{form.thanks}</p>
         {form.quiz && form.showScore && (
@@ -187,7 +187,7 @@ export function Runner({ form, onSubmit, onAgain }: { form: Form; onSubmit: ((a:
 
   return (
     <form className="fm-run" noValidate onSubmit={submit} aria-label={form.title}>
-      <div className="fm-card fm-head" style={{ borderTopColor: form.color }}>
+      <div className="fm-card fm-head nv-work" style={{ borderTopColor: form.color }}>
         <h1>{form.title}</h1>
         {form.description && <p className="fm-desc">{form.description}</p>}
       </div>
@@ -195,14 +195,14 @@ export function Runner({ form, onSubmit, onAgain }: { form: Form; onSubmit: ((a:
         if (!isVisible(form, q, answers)) return null;
         if (q.type === 'title')
           return (
-            <div key={q.id} className="fm-card">
+            <div key={q.id} className="fm-card nv-work">
               <h2>{q.title}</h2>
               {q.description && <p className="fm-desc">{q.description}</p>}
               <QImage q={q} />
             </div>
           );
         return (
-          <div key={q.id} id={`fm-q-${q.id}`} className="fm-card">
+          <div key={q.id} id={`fm-q-${q.id}`} className="fm-card nv-work">
             <div className="fm-qtitle">
               {i + 1}. {q.title}
               {q.required && <span className="fm-req" aria-label={t('obligatoria')}> *</span>}
@@ -218,7 +218,7 @@ export function Runner({ form, onSubmit, onAgain }: { form: Form; onSubmit: ((a:
           </div>
         );
       })}
-      <div className="fm-card">
+      <div className="fm-card nv-work">
         <button type="submit" className="fm-btn" style={{ background: form.color, borderColor: form.color }}>
           {onSubmit ? t('Enviar') : t('Enviar (prueba)')}
         </button>

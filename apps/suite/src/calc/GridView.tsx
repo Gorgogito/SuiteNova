@@ -10,12 +10,14 @@ import { CellEditor } from './CellEditor';
 import { ChartLayer } from './ChartLayer';
 import { NoteLayer, ObjectLayer, ValidationHint } from './ObjectLayer';
 import { activeListValidation, dropdownButtonRect } from './render-objects';
-import { DARK, LIGHT, buildLayout, colX, drawGrid, filterButtonRect, hitTest, rowY, screenX, screenY, type Layout, type Viewport } from './render';
+import { buildLayout, colX, drawGrid, filterButtonRect, hitTest, rowY, screenX, screenY, type Layout, type Palette, type Viewport } from './render';
 
 export interface GridViewProps {
   doc: CalcDoc;
   zoom: number;
   dark: boolean;
+  /** Colours of the headers and the sheet for the theme of the window. */
+  palette: Palette;
   onZoomChange: (z: number) => void;
   onContextMenu: (x: number, y: number, target: 'cell' | 'col' | 'row') => void;
   /** The drop-down of an autofilter column was clicked; x/y are client coordinates below the button. */
@@ -57,7 +59,7 @@ export function canPointAt(text: string, caret: number): boolean {
   return /[=+\-*/^&(,;<>:]$/.test(before);
 }
 
-export function GridView({ doc, zoom, dark, onZoomChange, onContextMenu, onFilterButton, onListButton, onFollowLink, children, onFrame }: GridViewProps) {
+export function GridView({ doc, zoom, dark, palette, onZoomChange, onContextMenu, onFilterButton, onListButton, onFollowLink, children, onFrame }: GridViewProps) {
   useSyncExternalStore(doc.subscribe, doc.getVersion);
   const { registry } = useCore();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -152,7 +154,7 @@ export function GridView({ doc, zoom, dark, onZoomChange, onContextMenu, onFilte
     }
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    drawGrid({ doc, ctx, layout, viewport, palette: dark ? DARK : LIGHT, dpr, marquee, fillPreview, refHighlights });
+    drawGrid({ doc, ctx, layout, viewport, palette, dpr, marquee, fillPreview, refHighlights });
     onFrame?.(layout, viewport);
   });
 

@@ -1,3 +1,4 @@
+import type { ThemeMode } from '@suitenova/core-ui';
 import { CFEvaluator, MAX_COLS, MAX_ROWS, colToName, hasActiveFilter, normRect, rectContains, type CFResult, type Rect, type Style } from '@suitenova/calc-engine';
 import { t } from '@suitenova/core-ui';
 import { Axis } from './axis';
@@ -31,11 +32,11 @@ export interface Palette {
 
 export const LIGHT: Palette = {
   bg: '#ffffff',
-  grid: '#d4d4d4',
+  grid: '#e0e0e0',
   text: '#000000',
-  headerBg: '#f3f3f3',
+  headerBg: '#f0f0f0',
   headerText: '#444444',
-  headerBorder: '#c8c8c8',
+  headerBorder: '#d2d2d2',
   accent: '#2f855a',
   accentFill: 'rgba(47,133,90,0.13)',
   selectedHeaderBg: '#d3ebdc',
@@ -54,6 +55,17 @@ export const DARK: Palette = {
   selectedHeaderBg: '#2d4a3b',
   selectedHeaderText: '#bff0d6',
 };
+
+/**
+ * As in Excel (measured, docs/office-temas/MEDIDAS.md) the sheet stays white in every theme and only the headers follow
+ * it. With Windows high contrast the whole grid is dark.
+ */
+export function calcPalette(mode: ThemeMode): Palette {
+  if (mode === 'contrast') return DARK;
+  if (mode === 'darkgray') return { ...LIGHT, headerBg: '#525252', headerText: '#ffffff', headerBorder: '#adadad', selectedHeaderBg: '#646464', selectedHeaderText: '#ffffff' };
+  if (mode === 'black') return { ...LIGHT, headerBg: '#0a0a0a', headerText: '#dadada', headerBorder: '#333333', selectedHeaderBg: '#333333', selectedHeaderText: '#ffffff' };
+  return LIGHT;
+}
 
 export const HEADER_H = 22;
 export const FONT_STACK = "Calibri, Carlito, 'Segoe UI', Arial, sans-serif";

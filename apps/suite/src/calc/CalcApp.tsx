@@ -19,6 +19,7 @@ import { DialogHost } from './dialogs';
 import { CalcDoc } from './doc';
 import { FilterMenu } from './FilterMenu';
 import { FormulaBar } from './FormulaBar';
+import { calcPalette } from './render';
 import { GridView } from './GridView';
 import './icons';
 import './messages';
@@ -112,7 +113,9 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
   const [localeSetting] = useSetting<Locale>(SETTING_LOCALE, 'es');
   useLocale();
   const mode = useThemeMode();
-  const dark = mode === 'black';
+  // the sheet, its editor and its charts are dark only with Windows high contrast
+  const dark = mode === 'contrast';
+  const palette = useMemo(() => calcPalette(mode), [mode]);
   useSyncExternalStore(doc.subscribe, doc.getVersion);
 
   // the formula language follows the interface language
@@ -393,6 +396,7 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
               doc={doc}
               zoom={zoom / 100}
               dark={dark}
+              palette={palette}
               onZoomChange={(z) => setZoom(clampZoom(z))}
               onContextMenu={(x, y, target) => setMenu({ x, y, target })}
               onFilterButton={(col, x, y) => setFilterMenu({ col, x, y })}

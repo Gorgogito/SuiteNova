@@ -88,6 +88,17 @@
   outline-offset: -1px;
 }
 
+/* Excel's formula bar in Dark Gray is dark under the light ribbon */
+[data-theme='darkgray'] .calc-fbar {
+  --colorNeutralBackground1: #4d4d4d;
+  --colorNeutralBackground1Hover: #636363;
+  --colorNeutralForeground1: #ffffff;
+  --colorNeutralForeground2: #ffffff;
+  --colorNeutralStroke1: #8a8a8a;
+  --colorNeutralStroke2: #6b6b6b;
+  --colorBrandForeground1: #a0d8b9;
+}
+
 /* ---- grid ---- */
 .calc-grid {
   position: relative;
@@ -95,6 +106,13 @@
   min-height: 0;
   overflow: hidden;
   outline: none;
+  background: var(--colorNeutralBackground1);
+}
+/* the sheet is white in every theme, as in Excel */
+.calc-grid {
+  background: #fff;
+}
+[data-theme='contrast'] .calc-grid {
   background: var(--colorNeutralBackground1);
 }
 .calc-grid__canvas {
@@ -160,12 +178,14 @@
 }
 
 /* ---- sheet tabs ---- */
+/* the sheet tabs sit on the colour of the canvas; the chosen one is joined to the white sheet */
 .calc-tabs {
   display: flex;
   align-items: center;
   height: 28px;
-  border-top: 1px solid var(--colorNeutralStroke2);
-  background: var(--colorNeutralBackground2);
+  border-top: 1px solid var(--nv-separator);
+  background: var(--nv-canvas-bg);
+  color: var(--nv-canvas-fg);
 }
 .calc-tabs__list {
   display: flex;
@@ -183,17 +203,17 @@
   border: 0;
   border-right: 1px solid var(--colorNeutralStroke2);
   background: transparent;
-  color: var(--colorNeutralForeground2);
+  color: inherit;
   font: inherit;
   white-space: nowrap;
   cursor: pointer;
 }
 .calc-tab:hover {
-  background: var(--colorNeutralBackground2Hover);
+  background: color-mix(in srgb, currentColor 12%, transparent);
 }
 .calc-tab.is-active {
-  background: var(--colorNeutralBackground1);
-  color: var(--colorBrandForeground1);
+  background: #fff;
+  color: #242424;
   font-weight: 600;
   box-shadow: inset 0 -3px 0 var(--tab-color, var(--nv-accent));
 }
@@ -229,7 +249,12 @@
 }
 
 /* ---- context / popup menus ---- */
+[data-theme='contrast'] .calc-tab.is-active {
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+}
 .calc-menu {
+  color: var(--colorNeutralForeground1);
   position: fixed;
   z-index: 1000;
   min-width: 220px;

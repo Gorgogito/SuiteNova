@@ -388,11 +388,11 @@
 .nw-hruler {
   position: relative;
   height: 22px;
-  background: #fff;
-  border-bottom: 1px solid #c8c8c8;
+  background: var(--nv-ruler-bg);
+  border-bottom: 1px solid var(--nv-separator);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   user-select: none;
-  color: #444;
+  color: var(--nv-ruler-fg);
   font: 9px 'Segoe UI', sans-serif;
   overflow: visible;
 }
@@ -400,7 +400,8 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background: #cfd6de;
+  /* as in Office: outside the text area the ruler shows the canvas */
+  background: var(--nv-canvas-bg);
 }
 .nw-hruler-handle {
   position: absolute;
@@ -417,14 +418,14 @@
   position: absolute;
   top: 6px;
   height: 10px;
-  background: #aeb8c4;
+  background: color-mix(in srgb, var(--nv-ruler-fg) 45%, var(--nv-ruler-bg));
 }
 .nw-tick {
   position: absolute;
   bottom: 4px;
   width: 1px;
   height: 4px;
-  background: #777;
+  background: var(--nv-ruler-fg);
 }
 .nw-tick.is-mid {
   height: 6px;
@@ -445,7 +446,7 @@
   height: 8px;
   padding: 0;
   border: 0;
-  background: #444;
+  background: color-mix(in srgb, var(--nv-ruler-fg) 80%, var(--nv-ruler-bg));
   cursor: ew-resize;
   z-index: 3;
 }
@@ -471,7 +472,7 @@
   border: 0;
   background: transparent;
   font: 700 12px/11px 'Segoe UI', sans-serif;
-  color: #222;
+  color: var(--nv-ruler-fg);
   cursor: ew-resize;
   z-index: 3;
 }
@@ -482,18 +483,19 @@
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid #c8c8c8;
-  background: #fff;
+  border: 1px solid var(--nv-separator);
+  background: var(--nv-ruler-bg);
+  color: var(--nv-ruler-fg);
   font: 700 12px 'Segoe UI', sans-serif;
   cursor: pointer;
 }
 .nw-vruler {
   position: absolute;
   width: 20px;
-  background: #fff;
-  border-right: 1px solid #c8c8c8;
+  background: var(--nv-ruler-bg);
+  border-right: 1px solid var(--nv-separator);
   user-select: none;
-  color: #444;
+  color: var(--nv-ruler-fg);
   font: 9px 'Segoe UI', sans-serif;
   z-index: 4;
 }
@@ -513,7 +515,7 @@
   right: 0;
   height: 1px;
   width: 4px;
-  background: #777;
+  background: var(--nv-ruler-fg);
 }
 .nw-vtick.is-major {
   width: 8px;
@@ -1171,4 +1173,72 @@
 .nw-chg-fmt {
   background: #e6edfa;
   color: #1f4e9a;
+}
+
+/*
+ * ---- dark page (Black theme, as Word; View > Switch modes goes back to white) ----
+ * Only how it is shown: the document, printing and export keep their colours. The text is painted lighter with
+ * -webkit-text-fill-color computed from its own colour, so `color` itself does not change.
+ */
+.nw-doc ::selection,
+.nw-hf ::selection {
+  background: #c7c7c7;
+}
+.nw-app[data-dark-page] .nw-page {
+  background: #262626;
+  box-shadow: 0 0 0 1px #8c8c8c;
+}
+.nw-app[data-dark-page] :is(.nw-view-web, .nw-view-draft, .nw-view-outline).nw-sheet {
+  background: #262626;
+  box-shadow: 0 0 0 1px #8c8c8c;
+}
+.nw-app[data-dark-page] .nw-doc {
+  caret-color: #fff;
+}
+.nw-app[data-dark-page] .nw-doc ::selection,
+.nw-app[data-dark-page] .nw-hf ::selection {
+  background: #545454;
+}
+/* black becomes nearly white (#f6f6f6 on Word) and colours get lighter without losing their hue */
+.nw-app[data-dark-page] .nw-sheet,
+.nw-app[data-dark-page] .nw-sheet *,
+.nw-app[data-dark-page] .nw-sheet *::after,
+.nw-app[data-dark-page] .nw-sheet *::before {
+  -webkit-text-fill-color: oklch(from currentColor max(l, calc(0.97 - c * 1.2)) c h);
+}
+.nw-app[data-dark-page] .nw-doc li::marker {
+  color: #f6f6f6;
+}
+.nw-app[data-dark-page] .nw-doc .nw-math:not([style*='color']) {
+  color: #f6f6f6;
+}
+/* default lines of tables, footnotes and fields, readable on the dark page */
+.nw-app[data-dark-page] .nw-doc table.nw-borders {
+  --nw-bc: #bfbfbf;
+}
+.nw-app[data-dark-page] .nw-doc table.nw-table:not(.nw-borders) td {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.nw-app[data-dark-page] .nw-fn-area::before {
+  border-top-color: #bfbfbf;
+}
+.nw-app[data-dark-page] .nw-doc .nw-field {
+  background: #4d4d4d;
+}
+.nw-app[data-dark-page] .nw-zone.is-editing {
+  background: #262626;
+}
+.nw-app[data-dark-page] .nw-doc .nw-comment {
+  background: rgba(255, 213, 79, 0.25);
+}
+/* charts and SmartArt are drawn for white paper */
+.nw-app[data-dark-page] .nw-doc :is(.nw-chart, .nw-smartart) {
+  background: #fff;
+}
+/* where something light is painted behind the text (highlight, shading, a cell, an object, a mark) it keeps its colour */
+.nw-app[data-dark-page] .nw-doc :is([style*='background'], .nw-shape, .nw-chart, .nw-smartart, .nw-find, .nw-find-cur, .nw-reading),
+.nw-app[data-dark-page] .nw-doc :is([style*='background'], .nw-shape, .nw-chart, .nw-smartart, .nw-find, .nw-find-cur, .nw-reading) *,
+.nw-app[data-dark-page] .nw-sheet :is(.nw-hf-tag),
+.nw-app[data-dark-page] .nw-sheet :is(.nw-hf-tag) * {
+  -webkit-text-fill-color: currentColor;
 }

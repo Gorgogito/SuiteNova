@@ -373,7 +373,7 @@ await check('printing: the PDF has exactly as many pages as the screen', async (
   await p2.close();
 });
 
-await check('zoom keeps the layout and the dark theme keeps white paper', async () => {
+await check('zoom keeps the layout; with Windows in dark mode (theme Black) the page is dark, as in Word', async () => {
   await page.keyboard.down('Control');
   await page.mouse.move(640, 500);
   await page.mouse.wheel(0, -300);
@@ -383,9 +383,11 @@ await check('zoom keeps the layout and the dark theme keeps white paper', async 
   await page.emulateMedia({ colorScheme: 'dark' });
   await settle();
   const bg = await page.locator('.nw-page').first().evaluate((el) => getComputedStyle(el).backgroundColor);
-  assert.equal(bg, 'rgb(255, 255, 255)');
+  assert.equal(bg, 'rgb(38, 38, 38)');
   await shot('dark');
   await page.emulateMedia({ colorScheme: 'light' });
+  await settle();
+  assert.equal(await page.locator('.nw-page').first().evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(255, 255, 255)');
 });
 
 await check('no console errors or unexpected dialogs', async () => {

@@ -531,7 +531,7 @@ export function BaseApp({ module }: { module: ModuleInfo }) {
       }
       contentFill
     >
-      <div className="bs-app">
+      <div className="bs-app nv-work">
         <NavPane run={(id) => registry.run(id)} ctl={ctl} selected={selected} setSelected={setSelected} renaming={renaming} setRenaming={setRenaming} />
         <div className="bs-main">
           <div className="bs-tabs" role="tablist" aria-label={t('Objetos abiertos')}>

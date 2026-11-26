@@ -164,7 +164,7 @@
 .nn-date {
   margin: 4px 0 16px;
   font-size: 12px;
-  color: #666;
+  color: var(--colorNeutralForeground3);
 }
 .nn-editor .nn-doc {
   min-height: 320px;

@@ -1075,6 +1075,11 @@ function DrawPreview({ draw, tool, zoom }: { draw: Box; tool: { kind: string; pr
 export { findElement, presetDefaults, shapeLayout };
 
 /** Rulers along the top and left of the slide, in centimetres; dragging from one makes a guide. */
+// the rulers follow the theme of the window
+const RULER_BACK = { fill: 'var(--nv-ruler-bg)' };
+const RULER_LINE = { stroke: 'var(--nv-ruler-fg)' };
+const RULER_TEXT = { fill: 'var(--nv-ruler-fg)' };
+
 function Rulers({ w, h, zoom, onStart }: { w: number; h: number; zoom: number; onStart: (o: 'h' | 'v') => (e: React.PointerEvent) => void }) {
   const cmPx = 28.3465 * zoom;
   const label = [1, 2, 5, 10].find((l) => l * cmPx >= 34) ?? 10;
@@ -1088,19 +1093,19 @@ function Rulers({ w, h, zoom, onStart }: { w: number; h: number; zoom: number; o
       if (!major && cmPx < 24) continue;
       const big = major && cm % label === 0;
       const size = big ? 10 : major ? 6 : 4;
-      out.push(vertical ? <line key={i} x1={18 - size} x2={18} y1={pos} y2={pos} stroke="#666" strokeWidth={1} /> : <line key={i} y1={18 - size} y2={18} x1={pos} x2={pos} stroke="#666" strokeWidth={1} />);
-      if (big) out.push(vertical ? <text key={`t${i}`} x={2} y={pos + 11} fontSize={9} fill="#444">{cm}</text> : <text key={`t${i}`} x={pos + 2} y={9} fontSize={9} fill="#444">{cm}</text>);
+      out.push(vertical ? <line key={i} x1={18 - size} x2={18} y1={pos} y2={pos} style={RULER_LINE} strokeWidth={1} /> : <line key={i} y1={18 - size} y2={18} x1={pos} x2={pos} style={RULER_LINE} strokeWidth={1} />);
+      if (big) out.push(vertical ? <text key={`t${i}`} x={2} y={pos + 11} fontSize={9} style={RULER_TEXT}>{cm}</text> : <text key={`t${i}`} x={pos + 2} y={9} fontSize={9} style={RULER_TEXT}>{cm}</text>);
     }
     return out;
   };
   return (
     <>
       <svg className="sl-ruler sl-ruler--h" data-testid="ruler-h" width={w * zoom} height={18} style={{ position: 'absolute', left: 0, top: -18, cursor: 'row-resize' }} onPointerDown={onStart('h')}>
-        <rect width="100%" height="18" fill="#f3f3f3" />
+        <rect width="100%" height="18" style={RULER_BACK} />
         {ticks(w, false)}
       </svg>
       <svg className="sl-ruler sl-ruler--v" data-testid="ruler-v" width={18} height={h * zoom} style={{ position: 'absolute', left: -18, top: 0, cursor: 'col-resize' }} onPointerDown={onStart('v')}>
-        <rect width="18" height="100%" fill="#f3f3f3" />
+        <rect width="18" height="100%" style={RULER_BACK} />
         {ticks(h, true)}
       </svg>
     </>

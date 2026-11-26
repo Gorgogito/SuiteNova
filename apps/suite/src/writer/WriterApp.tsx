@@ -1,4 +1,4 @@
-import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
+import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, useSetting, useThemeMode, type BackstageEntry } from '@suitenova/core-ui';
 import type { IconPick } from '../icons/raster';
 import { useImageSources } from '../images/useSources';
 import { readDoc, readOdt, readRtf, writeOdt, writeRtf, WrongPasswordError, decryptPackage, encryptPackage, isEncryptedPackage, nodeTypes, ptToPx, readDocx, styleCss, writeDocx } from '@suitenova/writer-core';
@@ -43,6 +43,7 @@ import { NavPane } from './NavPane';
 import { ReviewPane } from './ReviewPane';
 import { NotePopup } from './NotePopup';
 import { HRuler, TabKindButton, VRuler } from './Ruler';
+import { SETTING_LIGHT_PAGE } from './commands-layout';
 import { writerTabs } from './ribbonDef';
 import { RecordingStatus } from '../macros/RecordDialogs';
 import './writer.css';
@@ -382,7 +383,9 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
   const smartOn = !!smartArtTarget(ctl.mainState);
   const chartOn = !!chartTarget(ctl.mainState);
   const mathOn = !!mathTarget(ctl.mainState);
-  const tabs = useMemo(() => writerTabs(ui, { inTable, hf: hfEditing, outline: outlineOn, image: imageOn, shape: shapeOn, smartart: smartOn, chart: chartOn, math: mathOn }), [ui, inTable, hfEditing, outlineOn, imageOn, shapeOn, smartOn, chartOn, mathOn]);
+  const darkTheme = useThemeMode() === 'black';
+  const [lightPage] = useSetting(SETTING_LIGHT_PAGE, false);
+  const tabs = useMemo(() => writerTabs(ui, { darkTheme, inTable, hf: hfEditing, outline: outlineOn, image: imageOn, shape: shapeOn, smartart: smartOn, chart: chartOn, math: mathOn }), [ui, darkTheme, inTable, hfEditing, outlineOn, imageOn, shapeOn, smartOn, chartOn, mathOn]);
   const backstage: BackstageEntry[] = useMemo(() => {
     const pages = backstageEntries(module.name).filter((e) => e.kind === 'page');
     return [
@@ -426,7 +429,8 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
       statusLeft={<Status ctl={ctl} />}
       contentFill
     >
-      <div className="nw-app">
+      {/* the page itself turns dark in Black, unless View > Switch modes says otherwise or the document colours its page */}
+      <div className="nw-app" data-dark-page={darkTheme && !lightPage && !ctl.pageColor ? '' : undefined}>
         <style>{styleCss(ctl.styles, ctl.defaults, ctl.theme)}</style>
         {ctl.readAloud.visible && <ReadAloudBar ctrl={ctl.readAloud.voice} onClose={() => ctl.readAloud.stop()} />}
         {find && <FindPanel host={findHost} replace={find.replace} goTo={find.goTo} key={String(find.replace) + String(find.goTo)} className="nw-find-bar" onClose={() => { setFind(null); ctl.clearFind(); ctl.focus(); }} />}

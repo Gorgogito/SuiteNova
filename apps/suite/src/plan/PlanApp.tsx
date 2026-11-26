@@ -384,7 +384,7 @@ export function PlanApp({ module }: { module: ModuleInfo }) {
       }
       contentFill
     >
-      <div className="pl-app">
+      <div className="pl-app nv-work">
         {!ctl.contentEnabled && ctl.macros.length > 0 && (
           <div className="pl-secbar" role="alert">
             <span>

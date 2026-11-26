@@ -173,3 +173,17 @@ funciona (Office lo reescribe), así que se cambió a mano. El tema de Office qu
 - **Pruebas:** `surfaces.test.ts` (4); `e2e-app-surfaces.mjs` (nueva): colores en los cuatro aspectos, Cuenta, inicio,
   superficies de trabajo de Writer y un recorrido por cuadros, paneles, menús y Archivo de las nueve aplicaciones que mide
   el contraste en los cuatro temas.
+
+### Fase 5 (hecha, 2026-11-26): áreas de trabajo
+- **Writer:** en Negro la página es oscura (#262626) y el texto se pinta más claro a partir de su propio color
+  (`-webkit-text-fill-color`), sin cambiar el documento, la impresión ni la exportación. **Vista › Cambiar modos** (solo
+  en Negro) vuelve a la página blanca y se recuerda. Reglas con los colores medidos.
+- **Calc:** hoja blanca en todos los temas (oscura solo con el contraste alto de Windows); encabezados, barra de fórmulas
+  y pestañas de hoja según el tema.
+- **Slides:** reglas según el tema; la diapositiva sigue blanca.
+- **Resto:** superficie «zona de trabajo» (`nv-work`): blanca en Gris oscuro en Mail, Base, Plan, Notes y las tarjetas de
+  Forms. Corregidos la fecha de Notes, los botones secundarios de Forms y, en Negro, los botones principales y enlaces
+  (texto negro sobre el acento claro, como en Office).
+- **Fallo de la fase 4, corregido:** en Gris oscuro, lo escrito en el cuerpo de un correo quedaba oscuro sobre oscuro. La
+  prueba de contraste mide ahora también los campos vacíos.
+- **Pruebas:** `palette.test.ts` (2) y `e2e-app-work.mjs` (nueva, 8).

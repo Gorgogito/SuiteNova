@@ -256,7 +256,7 @@ export function Designer({ ctl }: { ctl: FormsCtl }) {
   const head = ctl.selected === FORM_HEAD;
   return (
     <div className="fm-design" aria-label={t('Preguntas del formulario')}>
-      <section className={`fm-card fm-head${head ? ' is-sel' : ''}`} style={{ borderTopColor: f.color }} onClick={() => ctl.select(FORM_HEAD)} aria-label={t('Título y descripción del formulario')}>
+      <section className={`nv-work fm-card fm-head${head ? ' is-sel' : ''}`} style={{ borderTopColor: f.color }} onClick={() => ctl.select(FORM_HEAD)} aria-label={t('Título y descripción del formulario')}>
         {head ? (
           <div className="fm-editor">
             <label className="fm-field">
@@ -283,7 +283,7 @@ export function Designer({ ctl }: { ctl: FormsCtl }) {
       {f.questions.map((q, i) => {
         const sel = ctl.selected === q.id;
         return (
-          <section key={q.id} className={`fm-card${sel ? ' is-sel' : ''}`} data-q={q.id} onClick={() => !sel && ctl.select(q.id)} aria-label={`${t('Pregunta')} ${i + 1}`}>
+          <section key={q.id} className={`nv-work fm-card${sel ? ' is-sel' : ''}`} data-q={q.id} onClick={() => !sel && ctl.select(q.id)} aria-label={`${t('Pregunta')} ${i + 1}`}>
             {sel ? (
               <Editor ctl={ctl} q={q} />
             ) : (
