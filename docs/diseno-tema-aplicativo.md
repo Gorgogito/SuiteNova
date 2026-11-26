@@ -137,3 +137,23 @@ funciona (Office lo reescribe), así que se cambió a mano. El tema de Office qu
   tarjeta); reglas, paneles, avisos y vista Archivo se tratan en las fases 4 y 5.
 - **Servidor de desarrollo:** al abrir muchas ventanas seguidas, alguna se queda cargando módulos sin respuesta (también
   antes de que se ejecute código de la aplicación). La prueba nueva lo reintenta y lo avisa.
+
+### Fase 3 (hecha, 2026-11-26): barra de título única
+- **Ventanas** sin la barra de título de Windows (inicio, módulos y archivos abiertos desde fuera). La vista de moderador
+  y la selección del recorte quedan como estaban.
+- **Botones** de 47 x 48 px con los glifos de Windows: minimizar, maximizar o restaurar y cerrar (rojo #E81123 bajo el
+  ratón). `core-ui` solo pide una `WindowHost`; la de escritorio está en `apps/suite/src/desktop.ts`. En el navegador no
+  hay botones.
+- **Arrastre y doble clic** con la zona de arrastre de Tauri (toda la barra salvo el buscador y los botones). La vista
+  Archivo empieza bajo la barra y, con un cuadro abierto, los botones siguen funcionando.
+- **Sin ventana en blanco:** las ventanas se crean ocultas y la página las muestra, ya dibujada y con el color del tema;
+  si la página fallara, Rust las muestra a los 3 s.
+- **Fallo previo corregido (grave):** el complemento de diálogos de Tauri cambiaba `window.confirm` por una función
+  asíncrona, así que en la aplicación compilada **toda confirmación se daba por aceptada** (cerrar descartando cambios,
+  borrar una hoja o una página, el Sí/No de `MsgBox`). Un complemento propio, registrado antes, conserva la función de
+  WebView2.
+- **Fallo previo corregido:** siete aplicaciones no preguntaban al cerrar si el archivo ya tenía ruta, aunque el guardado
+  automático estuviera pendiente o hubiera fallado; y Archivo › Cerrar preguntaba dos veces. Ahora hay una sola guarda
+  (`close-guard.ts`) para las nueve.
+- **Pruebas:** `e2e-window.mjs` (nueva, 9, navegador con una ventana simulada); `e2e-window-native.mjs` (nueva, 15, sobre
+  el `.exe` compilado y con un perfil de WebView2 temporal); `e2e-clip-native.mjs` 10/10 sobre la misma compilación.

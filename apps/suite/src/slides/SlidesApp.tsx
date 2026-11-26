@@ -7,6 +7,7 @@ import { pickAndRead, readPath, saveBytes } from '../fileio';
 import { addRecent } from '../recents';
 import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
+import { useCloseGuard } from '../close-guard';
 import { closeThisWindow, isTauri, openModuleWindow, openWindowQuery } from '../platform';
 import { slidesCommands, type SlidesDialog, type SlidesUI } from './commands';
 import { SlidesCtl } from './ctl';
@@ -231,10 +232,8 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
         mediaRef.current.kind = kind;
         mediaRef.current.el?.click();
       },
-      close: () => {
-        if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) return;
-        void closeThisWindow();
-      },
+      // the close guard asks about unsaved changes, here and from the title bar
+      close: () => void closeThisWindow(),
       canvasCtx,
       runProps: () => currentRunProps(ctl, canvasCtx()),
       paraProps: () => currentParaProps(ctl, canvasCtx()),
@@ -370,24 +369,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
     };
   }, [ctl, loadFile]);
 
-  useEffect(() => {
-    const before = (e: BeforeUnloadEvent) => {
-      if (ctl.dirty) e.preventDefault();
-    };
-    window.addEventListener('beforeunload', before);
-    let unlisten: (() => void) | undefined;
-    if (isTauri()) {
-      void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-        unlisten = await getCurrentWindow().onCloseRequested((e) => {
-          if (ctl.dirty && !ctl.filePath && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) e.preventDefault();
-        });
-      });
-    }
-    return () => {
-      window.removeEventListener('beforeunload', before);
-      unlisten?.();
-    };
-  }, [ctl]);
+  useCloseGuard(() => ctl.dirty);
 
   const tabs = useMemo(() => slidesTabs(ui), [ui, ctl.selection.join(','), ctl.slide.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const backstage: BackstageEntry[] = useMemo(() => {

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { pickAndRead, readPath, saveBytes } from '../fileio';
 import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
+import { useCloseGuard } from '../close-guard';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { addRecent } from '../recents';
 import { formsCommands, type FormsDialog, type FormsUI } from './commands';
@@ -132,10 +133,8 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
           window.alert(t('No se pudo importar "{name}": {error}', { name: f.name, error: (e as Error).message }));
         }
       },
-      close: () => {
-        if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) return;
-        void closeThisWindow();
-      },
+      // the close guard asks about unsaved changes, here and from the title bar
+      close: () => void closeThisWindow(),
     }),
     [ctl, loadFile, saveNow, module.name],
   );
@@ -161,24 +160,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
     (window as unknown as { __novaForms: unknown }).__novaForms = { ctl, load: (text: string, name: string) => loadFile({ name, path: null, data: new TextEncoder().encode(text) }) };
   }, [ctl, loadFile]);
 
-  useEffect(() => {
-    const before = (e: BeforeUnloadEvent) => {
-      if (ctl.dirty) e.preventDefault();
-    };
-    window.addEventListener('beforeunload', before);
-    let unlisten: (() => void) | undefined;
-    if (isTauri()) {
-      void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-        unlisten = await getCurrentWindow().onCloseRequested((e) => {
-          if (ctl.dirty && !ctl.filePath && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) e.preventDefault();
-        });
-      });
-    }
-    return () => {
-      window.removeEventListener('beforeunload', before);
-      unlisten?.();
-    };
-  }, [ctl]);
+  useCloseGuard(() => ctl.dirty);
 
   const tabs = useMemo(() => formsTabs(ui), [ui]);
   const backstage: BackstageEntry[] = useMemo(() => {

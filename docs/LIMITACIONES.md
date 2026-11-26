@@ -669,7 +669,15 @@ Plan y bitácora en `docs/diseno-recorte.md`. Insertar › «Recorte de pantalla
 - **Colores medidos en Word 2024 LTSC** (Windows 11). Sin efecto Mica: colores sólidos. Outlook no se midió.
 - **Diagram y Plan** conservan color propio (Visio y Project mostraron el azul de Word y el verde de Excel); Mail también.
 - **Pestañas contextuales:** no se midieron en Office; SuiteNova mantiene la franja con el nombre del grupo.
-- **Todavía no se parece a Office** (fases 3 a 5 del plan `diseno-tema-aplicativo.md`): sigue la barra de título nativa de
-  Windows encima de la propia; en Gris oscuro los paneles, avisos y vista Archivo no son oscuros; las reglas de Writer y
-  Slides siguen claras; Calc oscurece la cuadrícula en Negro y Writer no oscurece la página.
-- **Sin probar en la aplicación de escritorio compilada:** las pruebas del tema se hicieron en el navegador.
+- **Todavía no se parece a Office** (fases 4 y 5 del plan `diseno-tema-aplicativo.md`): en Gris oscuro los paneles,
+  avisos y vista Archivo no son oscuros; las reglas de Writer y Slides siguen claras; Calc oscurece la cuadrícula en Negro
+  y Writer no oscurece la página.
+- **Barra de título propia:** no aparece el menú de diseños de Windows 11 al pasar el ratón por maximizar (los atajos
+  Windows + flechas son de Windows y no se han probado) ni el menú del sistema con el botón derecho. Con un cuadro abierto
+  se puede minimizar, maximizar y cerrar, pero no arrastrar la ventana.
+- **Sin probar:** arrastrar la ventana con el ratón real y acoplarla a los bordes (se comprobó el doble clic y que los
+  bordes responden como bordes de tamaño); varios monitores y escalas distintas de 100 %; que no se vea un destello al
+  abrir (las ventanas se crean ocultas, pero no se ha grabado la apertura); macOS y Linux.
+- **Confirmaciones en el escritorio:** son los cuadros propios de WebView2, no los de Windows con el nombre de la
+  aplicación; su aspecto no se ha revisado. Los instaladores anteriores a este cambio tienen el fallo de las
+  confirmaciones dadas por aceptadas.

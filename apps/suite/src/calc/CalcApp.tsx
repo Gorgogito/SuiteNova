@@ -11,6 +11,7 @@ import { pickAndRead, readPath, saveBytes } from '../fileio';
 import { addRecent } from '../recents';
 import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
+import { useCloseGuard } from '../close-guard';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { calcCommands, type CalcUI, type DialogKind } from './commands';
 import { parseCsv, toCsv } from './csv';
@@ -225,10 +226,8 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
         const bytes = new TextEncoder().encode('﻿' + text);
         await saveBytes(`${doc.sheet.name}.csv`, bytes, CSV_FILTERS);
       },
-      close: () => {
-        if (doc.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) return;
-        void closeThisWindow();
-      },
+      // the close guard asks about unsaved changes, here and from the title bar
+      close: () => void closeThisWindow(),
       openUrl: (url) => {
         window.open(url, '_blank', 'noopener,noreferrer');
       },
@@ -314,24 +313,7 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
   }, []);
 
   // warn about unsaved changes when the window is closed
-  useEffect(() => {
-    const before = (e: BeforeUnloadEvent) => {
-      if (doc.dirty) e.preventDefault();
-    };
-    window.addEventListener('beforeunload', before);
-    let unlisten: (() => void) | undefined;
-    if (isTauri()) {
-      void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-        unlisten = await getCurrentWindow().onCloseRequested((e) => {
-          if (doc.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) e.preventDefault();
-        });
-      });
-    }
-    return () => {
-      window.removeEventListener('beforeunload', before);
-      unlisten?.();
-    };
-  }, [doc]);
+  useCloseGuard(() => doc.dirty);
 
   // close menus on outside click
   useEffect(() => {

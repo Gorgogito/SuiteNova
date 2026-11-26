@@ -16,6 +16,8 @@ import './messages';
 import { allItems, itemKey, type RibbonTab } from './ribbon-model';
 import { settings, useSetting } from './settings';
 import { fluentTheme, normalizeThemePreference, resolveTheme, type ThemeMode } from './theme';
+import { useWindowHost } from './window-host';
+import { WindowControls } from './WindowControls';
 import './core-ui.css';
 
 export function useThemeMode(): ThemeMode {
@@ -70,6 +72,12 @@ export function AppFrame(props: AppFrameProps) {
   const [collapsed] = useSetting(SETTING_RIBBON_COLLAPSED, false);
   const mode = useThemeMode();
   const theme = useMemo(() => fluentTheme(mode, appId), [mode, appId]);
+  // without a title bar of its own the window leaves its buttons, dragging and background to the frame
+  const windowHost = useWindowHost();
+  const frameColor = theme['nv-tabs-bg'];
+  useEffect(() => {
+    windowHost?.setBackground?.(frameColor);
+  }, [windowHost, frameColor]);
 
   const visibleTabs = useMemo(() => tabs.filter((tab) => !tab.contextual || tab.contextual.visible), [tabs]);
   const [activeId, setActiveId] = useState(visibleTabs[0]?.id ?? '');
@@ -217,8 +225,9 @@ export function AppFrame(props: AppFrameProps) {
     <FluentProvider theme={theme} data-theme={mode} data-app={appId}>
       <CoreProvider value={{ registry, keytips, tipFor }}>
         <div className="nv-root">
-        <div className="nv-frame" ref={frameRef}>
-          <header className="nv-titlebar">
+        <div className={`nv-frame${windowHost ? ' has-window-controls' : ''}`} ref={frameRef}>
+          {/* «deep»: dragging anywhere in the bar moves the window; buttons and boxes keep their own clicks */}
+          <header className="nv-titlebar" data-tauri-drag-region={windowHost ? 'deep' : undefined}>
             <div className="nv-titlebar__start">
               <div className="nv-qat" role="toolbar" aria-label={t('qat.label')}>
                 {qat.map((id) => (
@@ -228,6 +237,7 @@ export function AppFrame(props: AppFrameProps) {
               <div className="nv-title">{docTitle ? `${docTitle} – ${appName}` : appName}</div>
             </div>
             <TellMe />
+            {windowHost && <WindowControls host={windowHost} />}
           </header>
           <div className="nv-ribbon">
             <div className={`nv-ribbon__tabs ${visibleTabs.some((v) => v.contextual) ? 'has-ctx' : ''}`}>

@@ -18,7 +18,7 @@ export function TellMe() {
   };
 
   return (
-    <div className="nv-tellme">
+    <div className="nv-tellme" data-tauri-drag-region="false">
       <Icon name="search" size={14} />
       <input
         id="nv-tellme"

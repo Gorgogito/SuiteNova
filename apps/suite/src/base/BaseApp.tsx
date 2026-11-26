@@ -9,6 +9,7 @@ import { pickAndRead, readPath, saveBytes } from '../fileio';
 import { addRecent } from '../recents';
 import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
+import { useCloseGuard } from '../close-guard';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { baseCommands, type BaseDialog, type BaseUI } from './commands';
 import { BaseCtl, type ObjKind } from './ctl';
@@ -430,10 +431,8 @@ export function BaseApp({ module }: { module: ModuleInfo }) {
           setTimeout(() => frame.remove(), 60_000);
         }, 300);
       },
-      close: () => {
-        if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) return;
-        void closeThisWindow();
-      },
+      // the close guard asks about unsaved changes, here and from the title bar
+      close: () => void closeThisWindow(),
     }),
     [ctl, loadFile, saveNow, module.name],
   );
@@ -468,24 +467,7 @@ export function BaseApp({ module }: { module: ModuleInfo }) {
     };
   }, [ctl, loadFile]);
 
-  useEffect(() => {
-    const before = (e: BeforeUnloadEvent) => {
-      if (ctl.dirty) e.preventDefault();
-    };
-    window.addEventListener('beforeunload', before);
-    let unlisten: (() => void) | undefined;
-    if (isTauri()) {
-      void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-        unlisten = await getCurrentWindow().onCloseRequested((e) => {
-          if (ctl.dirty && !ctl.filePath && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) e.preventDefault();
-        });
-      });
-    }
-    return () => {
-      window.removeEventListener('beforeunload', before);
-      unlisten?.();
-    };
-  }, [ctl]);
+  useCloseGuard(() => ctl.dirty);
 
   const tabs = useMemo(() => baseTabs(), []);
   const backstage: BackstageEntry[] = useMemo(() => {

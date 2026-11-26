@@ -9,6 +9,7 @@ import { StickyDialog } from '../mail/StickyDialog';
 import { FindForm, ImageTextForm } from './dlg-ocr';
 import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
+import { useCloseGuard } from '../close-guard';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { addRecent } from '../recents';
 import { RecordMacroDialog, RecordingStatus } from '../macros/RecordDialogs';
@@ -402,10 +403,8 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         const p = ctl.basePage;
         ctl.setZoom(Math.min((el.clientWidth - 40) / p.width, (el.clientHeight - 40) / p.height) * 100);
       },
-      close: () => {
-        if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) return;
-        void closeThisWindow();
-      },
+      // the close guard asks about unsaved changes, here and from the title bar
+      close: () => void closeThisWindow(),
     }),
     [ctl, loadFile, saveNow, module.name],
   );
@@ -435,24 +434,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
     (window as unknown as { __novaDiagram: unknown }).__novaDiagram = { ctl, load: (text: string, name: string) => loadFile({ name, path: null, data: new TextEncoder().encode(text) }) };
   }, [ctl, loadFile]);
 
-  useEffect(() => {
-    const before = (e: BeforeUnloadEvent) => {
-      if (ctl.dirty) e.preventDefault();
-    };
-    window.addEventListener('beforeunload', before);
-    let unlisten: (() => void) | undefined;
-    if (isTauri()) {
-      void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-        unlisten = await getCurrentWindow().onCloseRequested((e) => {
-          if (ctl.dirty && !ctl.filePath && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) e.preventDefault();
-        });
-      });
-    }
-    return () => {
-      window.removeEventListener('beforeunload', before);
-      unlisten?.();
-    };
-  }, [ctl]);
+  useCloseGuard(() => ctl.dirty);
 
   // Ctrl+click on a shape with a link follows it
   useEffect(() => {

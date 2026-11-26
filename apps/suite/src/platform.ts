@@ -19,7 +19,8 @@ export async function openModuleWindow(moduleId: string, title: string, openPath
   if (isTauri()) {
     const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
     const label = `${moduleId}-${Date.now().toString(36)}-${counter++}`;
-    const win = new WebviewWindow(label, { url, title, ...fitToScreen(1280, 800), center: true, minWidth: 640, minHeight: 420 });
+    // no title bar of Windows (the frame has its own) and hidden until the page is drawn
+    const win = new WebviewWindow(label, { url, title, ...fitToScreen(1280, 800), center: true, minWidth: 640, minHeight: 420, decorations: false, visible: false });
     await new Promise<void>((resolve, reject) => {
       void win.once('tauri://created', () => resolve());
       void win.once('tauri://error', (e) => reject(new Error(String(e.payload))));

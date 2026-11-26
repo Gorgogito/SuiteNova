@@ -2,6 +2,8 @@ import { createRoot } from 'react-dom/client';
 import { ClipOverlay } from './clip/ClipOverlay';
 import { Hub } from './hub/Hub';
 import './messages';
+import { useEffect } from 'react';
+import { prepareWindow, showWindow } from './desktop';
 import { findModule } from './modules';
 import { Playground } from './playground/Playground';
 import { CalcApp } from './calc/CalcApp';
@@ -33,4 +35,25 @@ function Root() {
   return module ? <ModuleShell module={module} /> : <Hub />;
 }
 
-createRoot(document.getElementById('root')!).render(<Root />);
+/** Shows the window once the frame has been drawn (the screen clip shows its own windows). */
+function ShowWhenDrawn() {
+  useEffect(() => {
+    void showWindow().catch((e) => console.error('ventana:', e));
+  }, []);
+  return null;
+}
+
+const app = new URLSearchParams(location.search).get('app');
+const render = () =>
+  createRoot(document.getElementById('root')!).render(
+    <>
+      <Root />
+      {app !== 'clip-overlay' && <ShowWhenDrawn />}
+    </>,
+  );
+
+if (app === 'clip-overlay') render();
+else
+  void prepareWindow(findModule(app)?.id ?? 'hub')
+    .catch((e) => console.error('ventana:', e))
+    .finally(render);

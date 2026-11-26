@@ -2,7 +2,7 @@ mod clip;
 mod fonts;
 mod mail;
 
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{webview::PageLoadEvent, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// Qué módulo abre cada tipo de archivo (para «Abrir con» y el doble clic en los tipos propios).
 fn module_for(path: &str) -> Option<&'static str> {
@@ -45,6 +45,9 @@ fn open_file_from_args(app: &tauri::App) -> Result<(), Box<dyn std::error::Error
         .title(title)
         .inner_size(1280.0, 800.0)
         .min_inner_size(720.0, 480.0)
+        // como las demás ventanas: sin barra de título de Windows y oculta hasta que la página esté dibujada
+        .decorations(false)
+        .visible(false)
         .build()?;
     // el Hub no hace falta si se llegó con un archivo
     if let Some(main) = app.get_webview_window("main") {
@@ -53,13 +56,38 @@ fn open_file_from_args(app: &tauri::App) -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
+/// El complemento de diálogos cambia `window.confirm` por una función asíncrona, con la que un `if (!window.confirm(…))`
+/// da la pregunta por aceptada (cerrar descartando cambios, borrar). Este guion corre antes y conserva la de WebView2.
+const NATIVE_CONFIRM: &str = "(function () {
+  const native = window.confirm.bind(window);
+  Object.defineProperty(window, 'confirm', { configurable: false, enumerable: true, get: () => native, set: () => {} });
+})();";
+
+/// Las ventanas se crean ocultas y las muestra la página al dibujarse. Si la página fallara, se muestran solas.
+const SHOW_ANYWAY: std::time::Duration = std::time::Duration::from_secs(3);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(clip::ClipState::default())
+        // antes que el de diálogos: el orden de los complementos es el de sus guiones
+        .plugin(tauri::plugin::Builder::<tauri::Wry>::new("nova-confirm").js_init_script(NATIVE_CONFIRM).build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| open_file_from_args(app))
+        .on_page_load(|webview, payload| {
+            // las ventanas de selección del recorte las muestra el propio recorte
+            if payload.event() != PageLoadEvent::Finished || webview.label().starts_with("clip-overlay") {
+                return;
+            }
+            let window = webview.window();
+            std::thread::spawn(move || {
+                std::thread::sleep(SHOW_ANYWAY);
+                if let Ok(false) = window.is_visible() {
+                    let _ = window.show();
+                }
+            });
+        })
         .invoke_handler(tauri::generate_handler![
             clip::clip_monitors,
             clip::clip_capture,

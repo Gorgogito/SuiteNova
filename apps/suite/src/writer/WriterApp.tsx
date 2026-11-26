@@ -9,6 +9,7 @@ import { pickAndRead, readPath, saveBytes } from '../fileio';
 import { addRecent } from '../recents';
 import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
+import { useCloseGuard } from '../close-guard';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { writerCommands, type WriterDialog, type WriterUI } from './commands';
 import { DialogHost } from './dialogs';
@@ -315,10 +316,8 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
       pictureFromClipboard: () => void sources.fromClipboard(),
       pictureFromScreen: () => void sources.fromScreen(),
       pictureIcons: () => sources.openIcons(),
-      close: () => {
-        if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) return;
-        void closeThisWindow();
-      },
+      // the close guard asks about unsaved changes, here and from the title bar
+      close: () => void closeThisWindow(),
     }),
     [ctl, loadFile, module.name],
   );
@@ -360,24 +359,7 @@ export function WriterApp({ module }: { module: ModuleInfo }) {
     };
   }, [ctl, loadFile]);
 
-  useEffect(() => {
-    const before = (e: BeforeUnloadEvent) => {
-      if (ctl.dirty) e.preventDefault();
-    };
-    window.addEventListener('beforeunload', before);
-    let unlisten: (() => void) | undefined;
-    if (isTauri()) {
-      void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-        unlisten = await getCurrentWindow().onCloseRequested((e) => {
-          if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) e.preventDefault();
-        });
-      });
-    }
-    return () => {
-      window.removeEventListener('beforeunload', before);
-      unlisten?.();
-    };
-  }, [ctl]);
+  useCloseGuard(() => ctl.dirty);
 
   // Ctrl+wheel zoom
   useEffect(() => {

@@ -13,6 +13,7 @@ import { pickAndRead, readPath, saveBytes } from '../fileio';
 import { addRecent } from '../recents';
 import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
+import { useCloseGuard } from '../close-guard';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { Canvas, LockedPanel } from './Canvas';
 import { notesCommands, type NotesDialog, type NotesUI } from './commands';
@@ -529,10 +530,8 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         searchRef.current?.focus();
         searchRef.current?.select();
       },
-      close: () => {
-        if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) return;
-        void closeThisWindow();
-      },
+      // the close guard asks about unsaved changes, here and from the title bar
+      close: () => void closeThisWindow(),
     }),
     [ctl, loadFile, saveNow, module.name, openDialog, toggleRecording, runOcr],
   );
@@ -567,24 +566,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
     };
   }, [ctl, loadFile]);
 
-  useEffect(() => {
-    const before = (e: BeforeUnloadEvent) => {
-      if (ctl.dirty) e.preventDefault();
-    };
-    window.addEventListener('beforeunload', before);
-    let unlisten: (() => void) | undefined;
-    if (isTauri()) {
-      void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
-        unlisten = await getCurrentWindow().onCloseRequested((e) => {
-          if (ctl.dirty && !ctl.filePath && !window.confirm(t('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))) e.preventDefault();
-        });
-      });
-    }
-    return () => {
-      window.removeEventListener('beforeunload', before);
-      unlisten?.();
-    };
-  }, [ctl]);
+  useCloseGuard(() => ctl.dirty);
 
   const inTable = !!ctl.view && isInTable(ctl.view.state);
   const tabs = useMemo(() => notesTabs(ui), [ui, inTable]); // eslint-disable-line react-hooks/exhaustive-deps

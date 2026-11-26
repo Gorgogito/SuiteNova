@@ -31,7 +31,7 @@ body,
 /* ---- title bar: quick access and name, search in the middle, room on the right for the window buttons ---- */
 .nv-titlebar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 368px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(180px, min(368px, 40vw)) minmax(0, 1fr);
   align-items: center;
   column-gap: 12px;
   height: 48px;
@@ -74,6 +74,51 @@ body,
 .nv-qat__btn:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* ---- window buttons (windows without a title bar of their own) ---- */
+.has-window-controls .nv-titlebar {
+  grid-template-columns: minmax(0, 1fr) minmax(180px, min(368px, 40vw)) minmax(141px, 1fr);
+  /* no side padding: the buttons reach the corner and the search box stays centred in the window */
+  padding: 0;
+}
+.has-window-controls .nv-titlebar__start {
+  padding-left: 8px;
+}
+.nv-wincontrols {
+  display: flex;
+  align-self: stretch;
+  justify-self: end;
+}
+.nv-wincontrol {
+  display: grid;
+  place-items: center;
+  width: 47px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+}
+.nv-wincontrol:hover {
+  background: var(--nv-titlebar-hover);
+}
+.nv-wincontrol:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -3px;
+}
+.nv-wincontrol--close:hover {
+  background: #e81123;
+  color: #fff;
+}
+.nv-wincontrol--close:active {
+  background: #c50f1f;
+  color: #fff;
+}
+/* a dialog covers the window; its buttons stay usable, as the ones of the system title bar did */
+body:has(.fui-DialogSurface) .nv-wincontrols {
+  position: relative;
+  z-index: 1000001;
 }
 
 /* ---- tell me ---- */
@@ -476,6 +521,10 @@ body,
   grid-template-rows: minmax(0, 1fr);
   background: var(--colorNeutralBackground1);
 }
+/* the File view leaves the title bar of the window in sight */
+.has-window-controls .nv-backstage {
+  top: 48px;
+}
 .nv-backstage__nav {
   display: flex;
   flex-direction: column;
@@ -528,6 +577,11 @@ body,
 }
 
 @media (forced-colors: active) {
+  .nv-wincontrol:hover {
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
   .nv-tab.is-active::after {
     border-bottom-color: Highlight;
   }
