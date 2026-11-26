@@ -159,7 +159,7 @@
   outline: none;
 }
 .nn-title:focus {
-  border-bottom-color: #7719aa;
+  border-bottom-color: var(--nv-tab-line);
 }
 .nn-date {
   margin: 4px 0 16px;
@@ -889,4 +889,11 @@
 .nn-chip.is-on {
   background: var(--colorBrandBackground2, #e6dff0);
   border-color: var(--colorBrandStroke1, #7719aa);
+}
+
+/* a section tab has the colour the person chose: a ring in two tones reads on any of them */
+.nn-sec:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 4px #000;
 }

@@ -28,6 +28,11 @@ export function useThemeMode(): ThemeMode {
   return resolveTheme(normalizeThemePreference(saved), dark, contrast);
 }
 
+/** Whether Windows asks for dark colours; with a contrast theme, whether that theme is a dark one. */
+export function useSystemDark(): boolean {
+  return useMedia('(prefers-color-scheme: dark)');
+}
+
 export interface AppFrameProps {
   appId: string;
   appName: string;
@@ -75,7 +80,9 @@ export function AppFrame(props: AppFrameProps) {
   const theme = useMemo(() => fluentTheme(mode, appId), [mode, appId]);
   // without a title bar of its own the window leaves its buttons, dragging and background to the frame
   const windowHost = useWindowHost();
-  const frameColor = theme['nv-tabs-bg'];
+  // behind the page: a real colour, also with a light contrast theme
+  const systemDark = useSystemDark();
+  const frameColor = mode === 'contrast' && !systemDark ? '#ffffff' : theme['nv-tabs-bg'];
   useEffect(() => {
     windowHost?.setBackground?.(frameColor);
   }, [windowHost, frameColor]);

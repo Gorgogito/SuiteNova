@@ -187,3 +187,20 @@ funciona (Office lo reescribe), así que se cambió a mano. El tema de Office qu
 - **Fallo de la fase 4, corregido:** en Gris oscuro, lo escrito en el cuerpo de un correo quedaba oscuro sobre oscuro. La
   prueba de contraste mide ahora también los campos vacíos.
 - **Pruebas:** `palette.test.ts` (2) y `e2e-app-work.mjs` (nueva, 8).
+
+### Fase 6 (hecha, 2026-11-26): cierre
+- **Comparación con Office** lado a lado (capturas en `docs/office-temas/comparacion/`): marco, cinta, lienzo, página,
+  hoja y diapositiva coinciden en los cuatro aspectos dentro del margen del efecto Mica. **Corregido:** en Slides el panel
+  de miniaturas y las notas van sobre el color del lienzo, como en PowerPoint (antes eran paneles: notas blancas o grises).
+- **Contraste alto de Windows**, corregido lo encontrado con un tema oscuro y otro claro: la página de Writer no se
+  distinguía; se perdían el resaltado, las coincidencias de búsqueda, las celdas elegidas al insertar una tabla, las
+  selecciones marcadas solo con fondo y las muestras de color; la hoja de Calc y los dibujos de Plan salían negros con un
+  tema claro; las diapositivas se pintaban con cajas detrás del texto.
+- **Foco del teclado:** un anillo común para los controles sin uno propio (el del navegador se recortaba en varios
+  sitios) y corregidos los que no llegaban a 3:1 (buscador, listas de fuente, barra de fórmulas, inicio, miniaturas,
+  marcas de la regla, pestañas de sección y notas).
+- **«Sistema», varias ventanas y tiempos:** comprobados; el cambio llega a las demás ventanas, también a un cuadro
+  abierto, y tarda menos de 0,1 s.
+- **Versión 0.0.14** e instaladores nuevos (los anteriores daban por aceptada toda confirmación).
+- **Pruebas:** `e2e-app-close.mjs` (nueva, 13), una más en `e2e-app-work.mjs` (9) y en `e2e-window-native.mjs` (17), y
+  unitarias de la paleta de Calc, del color de la ventana y del tema de contraste.

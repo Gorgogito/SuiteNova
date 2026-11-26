@@ -163,6 +163,8 @@ export function surfaceCss(appId: string, mode: ThemeMode): string {
         colorNeutralForeground2: text,
         colorNeutralForeground3: light ? '#383838' : '#d6d6d6',
         colorNeutralForeground4: light ? '#424242' : '#c2c2c2',
+        // the focus ring is drawn inside the box
+        colorStrokeFocus2: light ? '#000000' : '#ffffff',
         ...(light ? { colorNeutralStroke1: '#666666', colorNeutralStrokeAccessible: '#424242', colorSubtleBackgroundHover: '#c2c2c2' } : {}),
       };
       // :is carries more weight than a style sheet that lets its boxes inherit the (light) text of the pane

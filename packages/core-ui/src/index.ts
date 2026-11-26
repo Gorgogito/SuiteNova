@@ -1,4 +1,4 @@
-export { AppFrame, useThemeMode, type AppFrameProps } from './AppFrame';
+export { AppFrame, useSystemDark, useThemeMode, type AppFrameProps } from './AppFrame';
 export { Backstage, type BackstageEntry, type BackstageProps } from './Backstage';
 export { CommandRegistry, formatShortcut, matchesShortcut, normalizeText, parseShortcut, type CommandDef } from './commands';
 export { useCommandState, useCore } from './context';

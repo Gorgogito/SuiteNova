@@ -84,7 +84,8 @@
 }
 .calc-fbar__input:focus,
 .calc-fbar__name:focus {
-  outline: 2px solid var(--nv-accent);
+  /* the accent as it is drawn on the tabs of each theme: it reads on the dark formula bars too */
+  outline: 2px solid var(--nv-tab-line);
   outline-offset: -1px;
 }
 
@@ -452,4 +453,13 @@
   border-color: var(--nv-accent);
   background: var(--nv-accent);
   color: #fff;
+}
+
+/* the keyboard focus ring on the bars that sit on grey in Dark Gray */
+.calc-fbar,
+.calc-tabs {
+  --colorStrokeFocus2: var(--nv-canvas-fg);
+}
+.calc-tab.is-active {
+  --colorStrokeFocus2: #000;
 }

@@ -28,6 +28,8 @@ export interface Palette {
   accentFill: string;
   selectedHeaderBg: string;
   selectedHeaderText: string;
+  /** Windows high contrast: cells without a fill are written in the system's text colour. */
+  forced?: boolean;
 }
 
 export const LIGHT: Palette = {
@@ -56,12 +58,41 @@ export const DARK: Palette = {
   selectedHeaderText: '#bff0d6',
 };
 
+/** Colours of the contrast theme chosen in Windows, as `rgb()` strings. */
+export interface SystemColors {
+  canvas: string;
+  text: string;
+  highlight: string;
+  highlightText: string;
+}
+
+/** Reads them from the page: the canvas of the grid is painted by us, so Windows does not recolour it. */
+export function readSystemColors(): SystemColors | null {
+  if (typeof document === 'undefined') return null;
+  const probe = document.createElement('span');
+  probe.style.cssText = 'forced-color-adjust:none;position:absolute;visibility:hidden';
+  document.body.appendChild(probe);
+  const read = (name: string) => {
+    probe.style.color = name;
+    return getComputedStyle(probe).color;
+  };
+  const colors = { canvas: read('Canvas'), text: read('CanvasText'), highlight: read('Highlight'), highlightText: read('HighlightText') };
+  probe.remove();
+  return colors;
+}
+
+const faded = (rgb: string, alpha: number) => `rgba(${(rgb.match(/\d+(\.\d+)?/g) ?? ['128', '128', '128']).slice(0, 3).join(',')},${alpha})`;
+
 /**
  * As in Excel (measured, docs/office-temas/MEDIDAS.md) the sheet stays white in every theme and only the headers follow
- * it. With Windows high contrast the whole grid is dark.
+ * it. With Windows high contrast the whole grid takes the colours of the contrast theme, dark or light.
  */
-export function calcPalette(mode: ThemeMode): Palette {
-  if (mode === 'contrast') return DARK;
+export function calcPalette(mode: ThemeMode, system: SystemColors | null = null): Palette {
+  if (mode === 'contrast') {
+    if (!system) return { ...DARK, forced: true };
+    const { canvas, text, highlight, highlightText } = system;
+    return { forced: true, bg: canvas, text, grid: faded(text, 0.45), headerBg: canvas, headerText: text, headerBorder: text, accent: highlight, accentFill: faded(highlight, 0.25), selectedHeaderBg: highlight, selectedHeaderText: highlightText };
+  }
   if (mode === 'darkgray') return { ...LIGHT, headerBg: '#525252', headerText: '#ffffff', headerBorder: '#adadad', selectedHeaderBg: '#646464', selectedHeaderText: '#ffffff' };
   if (mode === 'black') return { ...LIGHT, headerBg: '#0a0a0a', headerText: '#dadada', headerBorder: '#333333', selectedHeaderBg: '#333333', selectedHeaderText: '#ffffff' };
   return LIGHT;
@@ -657,7 +688,7 @@ function drawPane(o: DrawOptions, g: PaneGeometry, mergeOf: Map<number, Rect>, m
   function drawBorders(style: Style, x: number, y: number, w: number, h: number): void {
     const line = (b: Style['top'], x1: number, y1: number, x2: number, y2: number) => {
       if (!b) return;
-      ctx.strokeStyle = b.color ?? p.text;
+      ctx.strokeStyle = (p.forced ? undefined : b.color) ?? p.text;
       ctx.lineWidth = Math.max(1, (BORDER_WIDTH[b.style] ?? 1) * Math.min(z, 1.5));
       ctx.setLineDash(b.style === 'dashed' ? [4, 2] : b.style === 'dotted' ? [1, 2] : []);
       ctx.beginPath();
@@ -683,7 +714,8 @@ function drawPane(o: DrawOptions, g: PaneGeometry, mergeOf: Map<number, Rect>, m
 
   function drawText(text: string, value: unknown, style: Style, x: number, y: number, w: number, h: number, color: string | undefined, row: number, c1: number, c2: number): void {
     ctx.font = fontOf(style, z);
-    ctx.fillStyle = color ?? style.color ?? p.text;
+    // in high contrast a filled cell reads as on the white sheet; the rest takes the system's text colour
+    ctx.fillStyle = !p.forced ? (color ?? style.color ?? p.text) : style.bg ? (color ?? style.color ?? '#000000') : p.text;
     const isNum = typeof value === 'number';
     const align = style.hAlign && style.hAlign !== 'general' ? style.hAlign : isNum ? 'right' : typeof value === 'boolean' || (typeof value === 'object' && value !== null) ? 'center' : 'left';
     const pad = 3 * z + (style.indent ?? 0) * 9 * z;

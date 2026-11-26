@@ -305,8 +305,8 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
         'nv-pressed-border': '#ffff00',
         'nv-field-border': '#ffffff',
         'nv-menu-border': '#ffffff',
-        'nv-ruler-bg': '#000000',
-        'nv-ruler-fg': '#ffffff',
+        'nv-ruler-bg': 'Canvas',
+        'nv-ruler-fg': 'CanvasText',
         'nv-dialog-title': '#ffffff',
         'nv-bs-nav-bg': '#000000',
         'nv-bs-nav-fg': '#ffffff',
@@ -347,10 +347,25 @@ const DARK_GRAY: Partial<Theme> = {
   colorNeutralStrokeAccessible: '#4d4d4d',
 };
 
+/**
+ * With Windows high contrast the page is recoloured by the system, but drawings (SVG) keep what their variables say. The
+ * contrast theme of Fluent is always black, so those variables name the system colours instead: right in a light contrast
+ * theme too.
+ */
+function systemColours(): Partial<Theme> {
+  const all = (names: (keyof Theme)[], value: string) => Object.fromEntries(names.map((n) => [n, value])) as Partial<Theme>;
+  return {
+    ...all(['colorNeutralBackground1', 'colorNeutralBackground2', 'colorNeutralBackground3', 'colorNeutralBackground4', 'colorBrandBackground2'], 'Canvas'),
+    ...all(['colorNeutralForeground1', 'colorNeutralForeground2', 'colorNeutralForeground3', 'colorNeutralForeground4', 'colorBrandForeground1'], 'CanvasText'),
+    ...all(['colorNeutralStroke1', 'colorNeutralStroke2', 'colorNeutralStroke3'], 'CanvasText'),
+    ...all(['colorBrandBackground', 'colorBrandStroke1'], 'Highlight'),
+  };
+}
+
 /** The Fluent theme of a window plus our zone colours, so menus and dialogs (mounted outside the frame) get them too. */
 export function fluentTheme(mode: ThemeMode, appId: string): Theme & ZoneColors {
   const zones = zoneColors(appId, mode);
-  if (mode === 'contrast') return { ...teamsHighContrastTheme, ...zones };
+  if (mode === 'contrast') return { ...teamsHighContrastTheme, ...systemColours(), ...zones };
   const ramp = brandRamp(zones['nv-accent']);
   if (mode === 'black') {
     const dark = createDarkTheme(ramp);

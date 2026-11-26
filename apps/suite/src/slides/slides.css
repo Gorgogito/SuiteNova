@@ -12,7 +12,16 @@
   flex: none;
   overflow-y: auto;
   border-right: 1px solid var(--colorNeutralStroke2);
-  background: var(--colorNeutralBackground2);
+}
+/* as in PowerPoint, the thumbnails and the notes sit on the same colour as the slide's canvas, apart from it by a line */
+.sl-panel,
+.sl-notes:not(.sl-notes--page) {
+  --colorNeutralForeground1: var(--nv-canvas-fg);
+  --colorNeutralForeground2: var(--nv-canvas-fg);
+  --colorNeutralForeground3: var(--nv-canvas-fg);
+  --colorStrokeFocus2: var(--nv-canvas-fg);
+  background: var(--nv-canvas-bg);
+  color: var(--nv-canvas-fg);
 }
 .sl-main {
   flex: 1;
@@ -57,7 +66,7 @@
   opacity: 0.45;
 }
 .sl-thumb:focus-visible {
-  outline: 2px solid var(--nv-accent, #c05621);
+  outline: 2px solid var(--colorStrokeFocus2);
 }
 .sl-mini {
   position: relative;
@@ -206,7 +215,10 @@
   flex: none;
   height: 90px;
   border-top: 1px solid var(--colorNeutralStroke2);
-  background: var(--colorNeutralBackground1);
+}
+.sl-notes:not(.sl-notes--page) textarea::placeholder {
+  color: var(--nv-canvas-fg);
+  opacity: 0.85;
 }
 .sl-notes textarea {
   width: 100%;
@@ -666,4 +678,14 @@
   padding: 2px 10px;
   font: inherit;
   cursor: pointer;
+}
+
+/* Windows high contrast: a slide is document content and keeps its own colours, with a line where it ends */
+@media (forced-colors: active) {
+  .sl-slide {
+    forced-color-adjust: none;
+  }
+  .sl-stagearea .sl-slide {
+    outline: 1px solid CanvasText;
+  }
 }

@@ -9,7 +9,7 @@ export function NotesPane({ ctl, page }: { ctl: SlidesCtl; page?: boolean }) {
   const slide = ctl.slide;
   const text = slide.notes ? docText(slide.notes.doc) : '';
   return (
-    <div className={page ? 'sl-notes sl-notes--page' : 'sl-notes nv-panel'}>
+    <div className={page ? 'sl-notes sl-notes--page' : 'sl-notes'}>
       <textarea
         aria-label={t('Notas del orador')}
         placeholder={t('Haga clic para agregar notas')}

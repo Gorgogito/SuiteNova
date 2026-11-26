@@ -151,3 +151,11 @@
   background: #bcd7f2;
   border-color: #2b6cb0;
 }
+
+@media (forced-colors: active) {
+  .nv-tbl-grid button[data-on='true'] {
+    forced-color-adjust: none;
+    background: Highlight;
+    border-color: Highlight;
+  }
+}

@@ -163,3 +163,8 @@ Leídas de `word-0.png`, `word-3.png`, `word-4.png` y `word-5.png` (ventana a 10
 - «Utilizar la configuración del sistema» no es un tema propio: con Windows en oscuro se ve como Negro y con Windows en
   claro como Blanco.
 - Sin medir: Outlook y las interacciones en Excel, PowerPoint y las demás aplicaciones.
+
+## Comparación con SuiteNova (fase 6, 2026-11-26)
+
+En `comparacion/`: Office a la izquierda y SuiteNova 0.0.14 a la derecha en los cuatro temas, la ventana entera
+(`ventana-*.png`) y la esquina superior izquierda ampliada (`marco-*.png`).

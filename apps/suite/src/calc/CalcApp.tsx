@@ -1,4 +1,4 @@
-import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useCommandState, useCore, useLocale, useThemeMode, useSetting, SETTING_LOCALE, type BackstageEntry, type Locale } from '@suitenova/core-ui';
+import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useCommandState, useCore, useLocale, useThemeMode, useSystemDark, useSetting, SETTING_LOCALE, type BackstageEntry, type Locale } from '@suitenova/core-ui';
 import { svgFromUri } from '@suitenova/icon-core';
 import { uriBytes } from '../icons/raster';
 import { useImageSources } from '../images/useSources';
@@ -19,7 +19,7 @@ import { DialogHost } from './dialogs';
 import { CalcDoc } from './doc';
 import { FilterMenu } from './FilterMenu';
 import { FormulaBar } from './FormulaBar';
-import { calcPalette } from './render';
+import { calcPalette, readSystemColors } from './render';
 import { GridView } from './GridView';
 import './icons';
 import './messages';
@@ -113,9 +113,11 @@ export function CalcApp({ module }: { module: ModuleInfo }) {
   const [localeSetting] = useSetting<Locale>(SETTING_LOCALE, 'es');
   useLocale();
   const mode = useThemeMode();
-  // the sheet, its editor and its charts are dark only with Windows high contrast
-  const dark = mode === 'contrast';
-  const palette = useMemo(() => calcPalette(mode), [mode]);
+  const systemDark = useSystemDark();
+  // the sheet, its editor and its charts are dark only with a dark contrast theme of Windows
+  const dark = mode === 'contrast' && systemDark;
+  // a change between a dark and a light contrast theme reads the system colours again
+  const palette = useMemo(() => calcPalette(mode, mode === 'contrast' ? readSystemColors() : null), [mode, systemDark]);
   useSyncExternalStore(doc.subscribe, doc.getVersion);
 
   // the formula language follows the interface language

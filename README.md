@@ -6,7 +6,7 @@ Suite ofimática libre (MPL-2.0), sin suscripciones. Referencia funcional y visu
 
 | Módulo | Estado |
 |---|---|
-| Núcleo de UI (`packages/core-ui`) | Cinta, pestañas contextuales, colapso de grupos, KeyTips (Alt), "Buscar comandos" (Alt+Q), Backstage, barra de estado con zoom, temas claro/oscuro/alto contraste, i18n es/en |
+| Núcleo de UI (`packages/core-ui`) | Cinta, pestañas contextuales, colapso de grupos, KeyTips (Alt), "Buscar comandos" (Alt+Q), Backstage, barra de estado con zoom, los temas de Office (Multicolor, Gris oscuro, Negro, Blanco y el del sistema; contraste alto de Windows automático), barra de título propia, i18n es/en |
 | Motor de cálculo (`packages/calc-engine`) | Análisis de fórmulas, recálculo incremental con grafo de dependencias, 205 nombres de función, matrices dinámicas con derrame, formatos de número/fecha, localización es/en, deshacer, gráficos como modelo |
 | XLSX (`packages/xlsx-io`) | Lectura y escritura de libros `.xlsx` (valores, fórmulas, estilos, hojas, combinaciones, paneles inmovilizados, nombres, matrices dinámicas, gráficos, autofiltro, formato condicional) |
 | **Nova Calc** (`apps/suite/src/calc`) | Rejilla en canvas, edición con barra de fórmulas, autocompletado de funciones, apuntar celdas con el ratón, copiar/cortar/pegar, autorrelleno, ordenar, **autofiltro**, **formato condicional** (valores, texto, duplicados, top/bottom, promedio, fórmula, escalas de color, barras de datos, iconos), quitar duplicados, buscar/reemplazar, nombres, hojas, gráficos, importación y exportación CSV |
@@ -39,7 +39,7 @@ Node 20+, pnpm 12, Rust estable, WebView2 y Visual Studio Build Tools (Windows).
 pnpm install
 pnpm dev            # solo frontend en http://localhost:1420  (?app=calc, writer, slides, base, notes, mail, plan, diagram, forms)
 pnpm tauri dev      # aplicación de escritorio (usa el puerto 1420; cierra antes `pnpm dev`)
-pnpm test           # pruebas unitarias (927); cd apps/suite/src-tauri && cargo test: 21 más de Rust
+pnpm test           # pruebas unitarias (2431); cd apps/suite/src-tauri && cargo test: 54 más de Rust (3 se omiten)
 pnpm typecheck
 pnpm tauri build    # instaladores NSIS/MSI
 node scripts/e2e-calc.mjs --shots dir        # pruebas de extremo a extremo en Edge (necesita `pnpm dev`)
@@ -57,6 +57,12 @@ node scripts/e2e-plan.mjs --shots dir        # ídem para Nova Plan (42 comproba
 node scripts/e2e-diagram.mjs --shots dir     # ídem para Nova Diagram (27 comprobaciones)
 node scripts/e2e-forms.mjs --shots dir       # ídem para Nova Forms (21 comprobaciones)
 node scripts/e2e-mail-remote.mjs --shots dir # ídem para las cuentas de Nova Mail (OAuth, carpetas, cambios en el servidor, sincronización automática, archivos de Outlook) con un servidor simulado (17 comprobaciones; con NOVA_OUTLOOK_SAMPLES=carpeta también prueba .msg y .pst)
+node scripts/e2e-app-theme.mjs --shots dir   # temas del aplicativo: elección, migración y menú (18 comprobaciones)
+node scripts/e2e-app-frame.mjs --shots dir   # marco de la ventana en cada tema (22)
+node scripts/e2e-app-surfaces.mjs --shots dir # paneles, cuadros, menús y vista Archivo, con el contraste de su texto (unos 15 min)
+node scripts/e2e-app-work.mjs --shots dir    # áreas de trabajo de cada producto (9)
+node scripts/e2e-app-close.mjs --shots dir   # contraste alto, «Sistema», varias ventanas, foco del teclado y tiempos (13)
+node scripts/e2e-window.mjs                  # barra de título propia (9); sobre el .exe compilado: e2e-window-native.mjs (17)
 node scripts/tour-calc.mjs dir          # capturas para revisión visual
 ```
 
@@ -89,8 +95,8 @@ Los instaladores se generan con `pnpm --filter @suitenova/suite tauri build` (un
 
 | Archivo | Para qué |
 |---|---|
-| `SuiteNova_0.0.8_x64-setup.exe` | Instalador normal (NSIS). Instala **solo para tu usuario**, sin permisos de administrador, y crea acceso directo y desinstalador. |
-| `SuiteNova_0.0.8_x64_es-ES.msi` / `..._en-US.msi` | Paquete MSI (por ejemplo para despliegues). |
+| `SuiteNova_0.0.14_x64-setup.exe` | Instalador normal (NSIS). Instala **solo para tu usuario**, sin permisos de administrador, y crea acceso directo y desinstalador. |
+| `SuiteNova_0.0.14_x64_es-ES.msi` / `..._en-US.msi` | Paquete MSI (por ejemplo para despliegues). |
 
 - **Aviso de Windows SmartScreen:** los instaladores **no están firmados** (no hay certificado de firma de código), así que
   Windows mostrará «Windows protegió su PC»: *Más información → Ejecutar de todas formas*. Los hashes de `instaladores/SHA256.txt`

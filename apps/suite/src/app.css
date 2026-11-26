@@ -39,7 +39,7 @@
   box-shadow: var(--shadow4);
 }
 .hub__card:focus-visible {
-  outline: 2px solid var(--nv-accent);
+  outline: 2px solid var(--colorStrokeFocus2);
   outline-offset: 2px;
 }
 .hub__card strong {

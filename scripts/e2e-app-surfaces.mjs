@@ -110,7 +110,7 @@ for (const theme of THEMES) {
   });
 
   await check(`${theme}: los paneles laterales`, async () => {
-    for (const [app, selector] of [['slides', '.sl-panel'], ['diagram', '.dg-panel'], ['base', '.bs-nav-pane'], ['mail', '.ml-folders']]) {
+    for (const [app, selector] of [['diagram', '.dg-panel'], ['base', '.bs-nav-pane'], ['mail', '.ml-folders']]) {
       await open(app, theme);
       assert.equal(await style(selector, 'backgroundColor'), rgb(want.pane), app);
       await shot(`panel-${app}-${theme}`);

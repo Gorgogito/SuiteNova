@@ -1242,3 +1242,42 @@
 .nw-app[data-dark-page] .nw-sheet :is(.nw-hf-tag) * {
   -webkit-text-fill-color: currentColor;
 }
+
+/* Windows high contrast: no shadows or backgrounds of our own */
+@media (forced-colors: active) {
+  .nw-page {
+    outline: 1px solid CanvasText;
+  }
+  .nw-doc .nw-find {
+    forced-color-adjust: none;
+    background: Mark;
+    color: MarkText;
+  }
+  .nw-doc .nw-find-cur {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+  .nw-doc .nw-comment {
+    text-decoration: underline dotted;
+  }
+  .nw-doc .nw-comment-active {
+    outline: 2px solid Highlight;
+  }
+  .nw-doc table.nw-table .selectedCell::after {
+    forced-color-adjust: none;
+    background: Highlight;
+    opacity: 0.35;
+  }
+}
+
+.nw-tabkind {
+  --colorStrokeFocus2: var(--nv-ruler-fg);
+}
+
+/* a marker of the ruler is cut to its shape, which would cut the focus ring off: with the focus it is a square */
+.nw-mk:focus-visible {
+  clip-path: none;
+  outline: 2px solid var(--nv-ruler-fg);
+  outline-offset: 1px;
+}

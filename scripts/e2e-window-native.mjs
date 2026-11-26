@@ -269,6 +269,22 @@ foreach ($p in @(${probes.map(([, x, y]) => `@(${x},${y})`).join(',')})) {
     assert.equal(await colour(hub, '.nv-startpage'), 'rgb(20, 20, 20)');
   });
 
+  await check('cambiar el tema en una ventana lo cambia en las demás, con el fondo de su ventana', async () => {
+    const theme = (p) => p.evaluate(() => document.querySelector('[data-app]').dataset.theme);
+    const behind = (p) => p.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
+    // chosen in Calc, as a person would: File › Account
+    await page.locator('.nv-tab--file').click();
+    await page.getByRole('button', { name: 'Cuenta', exact: true }).click();
+    const choice = page.getByRole('combobox', { name: 'Tema de SuiteNova' });
+    for (const [value, hubColour, ownColour] of [['darkgray', 'rgb(82, 82, 82)', 'rgb(82, 82, 82)'], ['colorful', 'rgb(230, 230, 230)', 'rgb(230, 230, 230)'], ['black', 'rgb(26, 26, 26)', 'rgb(26, 26, 26)']]) {
+      await choice.selectOption(value);
+      await until(async () => (await theme(hub)) === value, `la ventana de inicio no cambió a ${value}`);
+      await until(async () => (await behind(hub)) === hubColour, `el fondo de la ventana de inicio no es el de ${value}`);
+      assert.equal(await behind(page), ownColour);
+    }
+    await page.keyboard.press('Escape');
+  });
+
   await check('borrar una hoja pregunta y «Cancelar» la conserva', async () => {
     await page.getByRole('button', { name: 'Hoja nueva', exact: true }).click();
     const tabs = page.locator('.calc-tab');

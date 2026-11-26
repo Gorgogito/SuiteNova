@@ -305,3 +305,11 @@
 .dg-cmark text { fill: #3a2c00; font-weight: 700; pointer-events: none; }
 .dg-cmark.is-sel circle { stroke: #1b6ec2; stroke-width: 2.5; }
 .dg-cmark.is-done circle { fill: #cfd8c9; stroke: #6b7d63; }
+
+/* Windows high contrast: the drawing is document content and keeps its own colours */
+@media (forced-colors: active) {
+  .dg-svg {
+    forced-color-adjust: none;
+    outline: 1px solid CanvasText;
+  }
+}

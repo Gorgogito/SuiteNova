@@ -250,6 +250,19 @@ await check('Calc: la hoja es blanca en todos los temas y encabezados, barra de 
   assert.equal(await css('.calc-editor', 'backgroundColor'), 'rgb(255, 255, 255)');
 });
 
+await check('Slides: las miniaturas y las notas van sobre el color del lienzo, como en PowerPoint', async () => {
+  await open('slides');
+  await page.locator('.sl-notes textarea').fill('Una nota del orador.');
+  for (const theme of THEMES) {
+    await setTheme(theme);
+    const canvas = rgb(RULER[theme][2]);
+    assert.equal(await css('.sl-panel', 'backgroundColor'), canvas, `miniaturas ${theme}`);
+    assert.equal(await css('.sl-notes', 'backgroundColor'), canvas, `notas ${theme}`);
+    assert.deepEqual(await lowContrast(page, ['.sl-panel', '.sl-notes']), [], theme);
+    await shot(`slides-notas-${theme}`);
+  }
+});
+
 // ------------------------------------------------------------------ the other applications
 await check('las zonas de trabajo de Mail, Base, Plan, Notes y Forms quedan blancas en Gris oscuro', async () => {
   for (const [app, selector] of [['mail', '.ml-app'], ['base', '.bs-app'], ['plan', '.pl-app'], ['notes', '.nn-pagehead'], ['forms', '.fm-card']]) {

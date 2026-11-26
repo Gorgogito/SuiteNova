@@ -92,6 +92,11 @@ describe('temas del aplicativo', () => {
     expect(readableOn('#7b2d8e', '#1a1a1a')).not.toBe('#7b2d8e');
   });
 
+  it('en contraste alto los dibujos toman los colores del sistema, también con un tema de contraste claro', () => {
+    const theme = fluentTheme('contrast', 'plan');
+    expect(theme).toMatchObject({ colorNeutralBackground1: 'Canvas', colorNeutralBackground3: 'Canvas', colorNeutralForeground1: 'CanvasText', colorNeutralStroke2: 'CanvasText', colorBrandBackground: 'Highlight', 'nv-ruler-bg': 'Canvas', 'nv-ruler-fg': 'CanvasText' });
+  });
+
   it('los comandos marcan el tema guardado, también uno antiguo', () => {
     const registry = new CommandRegistry();
     registry.registerAll(coreCommands);

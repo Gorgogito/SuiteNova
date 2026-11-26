@@ -1,7 +1,7 @@
 # Progreso de trabajo (para retomar tras un corte)
 
 Este archivo se actualiza en cada avance. Léelo primero al retomar.
-Última actualización: 2026-11-15.
+Última actualización: 2026-11-26.
 
 ## Subproducto en curso: Formas (`shapes-core` + galería común)
 
@@ -216,3 +216,4 @@ Plan en `docs/diseno-tema-aplicativo.md`; medidas de Office real en `docs/office
 - [x] Fase 3: barra de título única (2026-11-26). Ventanas sin barra de Windows con sus tres botones, arrastre y doble clic, sin ventana en blanco al abrir. Corregido un fallo grave: en el escritorio toda confirmación se daba por aceptada. `e2e-window.mjs` 9/9, `e2e-window-native.mjs` 15/15 y `e2e-clip-native.mjs` 10/10. **Instaladores sin reconstruir.** Siguiente: fase 4, superficies comunes.
 - [x] Fase 4: superficies comunes (2026-11-26). Paneles, cuadros, menús, vista Archivo e inicio con los colores de Office; Archivo › Cuenta; corregidos los dos fallos que seguían a Windows; `e2e-app-surfaces.mjs`. Siguiente: fase 5, áreas de trabajo.
 - [x] Fase 5: áreas de trabajo (2026-11-26). Página oscura de Writer en Negro con «Cambiar modos», hoja de Calc siempre blanca, reglas, barra de fórmulas y pestañas, zonas de trabajo del resto; `e2e-app-work.mjs`. Siguiente: fase 6, cierre.
+- [x] Fase 6: cierre (2026-11-26). Comparación con Office, contraste alto, foco del teclado, «Sistema», varias ventanas y tiempos; `e2e-app-close.mjs`; versión 0.0.14. **Tema del aplicativo completo.** Siguiente: el usuario da el próximo producto.

@@ -1,4 +1,4 @@
-import { t, useThemeMode } from '@suitenova/core-ui';
+import { t, useSystemDark, useThemeMode } from '@suitenova/core-ui';
 import type { ChartSpec } from '@suitenova/plan-core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, MarkLineComponent, TitleComponent, TooltipComponent } from 'echarts/components';
@@ -61,7 +61,8 @@ export function Chart({ spec, height = 280, extra }: { spec: ChartSpec; height?:
   const inst = useRef<echarts.ECharts | null>(null);
   // the theme of the window, not the one of Windows; Dark Gray draws its work area light
   const mode = useThemeMode();
-  const dark = mode === 'black' || mode === 'contrast';
+  const systemDark = useSystemDark();
+  const dark = mode === 'black' || (mode === 'contrast' && systemDark);
   const option = useMemo(() => chartOption(spec, extra, dark), [spec, extra, dark]);
   useEffect(() => {
     const el = host.current;

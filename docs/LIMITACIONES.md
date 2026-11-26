@@ -685,6 +685,21 @@ Plan y bitácora en `docs/diseno-recorte.md`. Insertar › «Recorte de pantalla
 - **Contraste revisado** abriendo lo que se alcanza desde la cinta sin seleccionar nada, más comentarios, búsqueda,
   ortografía, tablas, ecuación y voz en Writer. Los cuadros que necesitan una imagen, un gráfico u otro objeto
   seleccionado no se han recorrido. Las muestras de estilos (WordArt, estilos de Writer) enseñan sus colores propios.
+- **Contraste alto de Windows** (probado con la emulación de Edge, con un tema oscuro y otro claro; **no con los temas de
+  contraste reales de Windows**): se aplica solo y gana a cualquier elección. Las diapositivas y los diagramas conservan
+  sus colores, como las imágenes. La hoja de Calc toma los colores del sistema y no dibuja el color de letra ni de borde
+  elegido en las celdas sin relleno. El resaltado de Writer y Notes se ve siempre en amarillo, sea cual sea su color, y
+  el sombreado de párrafos y celdas no se ve. Los gráficos de Calc y Plan usan su juego claro u oscuro, no los colores
+  del sistema. Al cambiar entre dos temas de contraste igual de claros u oscuros con la ventana abierta, la hoja de Calc
+  puede conservar los colores anteriores hasta cambiar de ventana o reabrirla.
+- **Foco del teclado:** medido (3:1) en los controles a la vista de cada ventana en los cuatro temas, no en los de
+  cuadros, paneles y menús. La hoja, la diapositiva, el lienzo de Diagram y la lista de correo muestran dónde está el foco
+  con su selección, sin marco alrededor.
+- **Tiempo al cambiar de tema:** entre 15 y 90 ms en las ventanas vacías y unos 80 ms con un documento de 3000 párrafos,
+  medido en un i7-10700 con Edge sin interfaz, hasta el siguiente fotograma; en la aplicación compilada no se midió.
+- **Comparación con Office:** con las capturas de Word, Excel y PowerPoint de `docs/office-temas` (Office 2024 LTSC, 100 %
+  de escala, ventana maximizada en un monitor). La disposición de los botones de la cinta, la regla de Writer (en Word
+  ocupa todo el ancho) y los iconos son propios.
 - **Barra de título propia:** no aparece el menú de diseños de Windows 11 al pasar el ratón por maximizar (los atajos
   Windows + flechas son de Windows y no se han probado) ni el menú del sistema con el botón derecho. Con un cuadro abierto
   se puede minimizar, maximizar y cerrar, pero no arrastrar la ventana.

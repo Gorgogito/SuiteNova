@@ -14,6 +14,8 @@ declare global {
 
 /** Colour of the frame in the theme the window is going to show. */
 export function bootColor(appId: string, saved: unknown, dark: boolean, contrast: boolean): string {
+  // a light contrast theme of Windows paints the page white
+  if (contrast && !dark) return '#ffffff';
   return fluentTheme(resolveTheme(normalizeThemePreference(saved), dark, contrast), appId)['nv-tabs-bg'];
 }
 

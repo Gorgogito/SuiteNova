@@ -139,6 +139,8 @@ body:has(.fui-DialogSurface) .nv-wincontrols {
 .nv-tellme:focus-within {
   background: var(--colorNeutralBackground1);
   color: var(--colorNeutralForeground1);
+  outline: 2px solid var(--nv-titlebar-fg);
+  outline-offset: 1px;
 }
 .nv-tellme input {
   flex: 1;
@@ -599,6 +601,27 @@ body:has(.fui-DialogSurface) .nv-wincontrols {
   color: var(--colorNeutralForeground1);
 }
 
+/* ---- keyboard focus ----
+   One ring for the controls that have none of their own. The browser's is cut off where a container clips it, and then
+   only its dark half is left. Without weight (:where), so a style sheet of a module still says otherwise. */
+:where(.nv-root, .fui-DialogSurface) :where(button, select, textarea, a[href], [role='button'], [role='tab'], input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'])):where(:focus-visible) {
+  outline: 2px solid var(--colorStrokeFocus2);
+  outline-offset: -2px;
+}
+/* the zones with colours of their own */
+.nv-titlebar {
+  --colorStrokeFocus2: var(--nv-titlebar-fg);
+}
+.nv-titlebar .nv-tellme {
+  --colorStrokeFocus2: var(--nv-search-fg);
+}
+.nv-ribbon__tabs {
+  --colorStrokeFocus2: var(--nv-tabs-fg);
+}
+.nv-status {
+  --colorStrokeFocus2: var(--nv-status-fg);
+}
+
 /* ---- panes, dialogs and menus ---- */
 :where(.nv-work) {
   background: var(--colorNeutralBackground1);
@@ -645,6 +668,21 @@ body:has(.fui-DialogSurface) .nv-wincontrols {
     color: ButtonText;
     border-bottom: 1px solid ButtonText;
   }
+  /* colour samples have to show their colour */
+  :is(button, i, span)[style*='background']:empty {
+    forced-color-adjust: none;
+  }
+  /* what is chosen or on is often told with a background colour alone, which is not drawn here */
+  :is(.is-selected, .is-sel, .is-current, .is-active, .is-on, [aria-selected='true'], button[aria-pressed='true'], button[aria-checked='true']):not(.nv-tab, .nv-btn, .nv-backstage__item) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  /* highlighted text keeps a mark, with the pair of colours the system has for it */
+  [contenteditable] span[style*='background'] {
+    forced-color-adjust: none;
+    background-color: Mark !important;
+    color: MarkText !important;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -684,7 +722,7 @@ body:has(.fui-DialogSurface) .nv-wincontrols {
   font-size: 12px;
 }
 .nv-select:focus-visible {
-  outline: 2px solid var(--nv-accent);
+  outline: 2px solid var(--colorStrokeFocus2);
   outline-offset: 0;
 }
 .nv-sep {
