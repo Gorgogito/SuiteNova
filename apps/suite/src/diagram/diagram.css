@@ -5,7 +5,7 @@
   display: flex;
   flex: 1;
   min-height: 0;
-  background: var(--colorNeutralBackground3);
+  background: var(--nv-canvas-bg);
 }
 .dg-main {
   flex: 1;
@@ -95,7 +95,7 @@
   min-height: 0;
   overflow: auto;
   outline: none;
-  background: var(--colorNeutralBackground4);
+  background: var(--nv-canvas-bg);
   -webkit-user-select: none;
   user-select: none;
 }

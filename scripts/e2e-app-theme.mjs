@@ -53,8 +53,8 @@ const zones = () =>
       mode: document.querySelector('[data-app]').dataset.theme,
       title: of('.nv-titlebar'),
       tabs: [of('.nv-ribbon__tabs')[0], of('.nv-tab:not(.is-active):not(.nv-tab--file)')[1]],
-      line: getComputedStyle(document.querySelector('.nv-tab.is-active')).borderBottomColor,
-      ribbon: of('.nv-ribbon')[0],
+      line: getComputedStyle(document.querySelector('.nv-tab.is-active'), '::after').borderBottomColor,
+      ribbon: of('.nv-ribbon__pinned')[0],
       status: of('.nv-status'),
     };
   });

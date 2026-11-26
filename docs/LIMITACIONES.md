@@ -663,3 +663,13 @@ Plan y bitácora en `docs/diseno-recorte.md`. Insertar › «Recorte de pantalla
 - **Calc:** elegir un color fijo (también desde macros) quita la referencia al tema de esa celda.
 - **Rendimiento:** cambiar el tema de un libro con 100 000 celdas es instantáneo; en un documento de Writer de 5000 párrafos con color de tema tarda unos 0,9 s.
 - **Sin comparar con Office real:** las pruebas contra Word, Excel y PowerPoint por COM quedaron pendientes (Word se cuelga por COM). Los valores del catálogo sí vienen de los archivos de Office; el comportamiento de ida y vuelta está probado solo con los lectores propios.
+
+## Tema del aplicativo (temas de la interfaz)
+
+- **Colores medidos en Word 2024 LTSC** (Windows 11). Sin efecto Mica: colores sólidos. Outlook no se midió.
+- **Diagram y Plan** conservan color propio (Visio y Project mostraron el azul de Word y el verde de Excel); Mail también.
+- **Pestañas contextuales:** no se midieron en Office; SuiteNova mantiene la franja con el nombre del grupo.
+- **Todavía no se parece a Office** (fases 3 a 5 del plan `diseno-tema-aplicativo.md`): sigue la barra de título nativa de
+  Windows encima de la propia; en Gris oscuro los paneles, avisos y vista Archivo no son oscuros; las reglas de Writer y
+  Slides siguen claras; Calc oscurece la cuadrícula en Negro y Writer no oscurece la página.
+- **Sin probar en la aplicación de escritorio compilada:** las pruebas del tema se hicieron en el navegador.

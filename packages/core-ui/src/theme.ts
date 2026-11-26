@@ -71,6 +71,29 @@ function hslToHex(h: number, s: number, l: number): string {
   return rgbToHex([r, g, b].map((v) => (v + m) * 255));
 }
 
+/** WCAG 2 contrast ratio of two `#rrggbb` colours. */
+export function contrastRatio(a: string, b: string): number {
+  const luminance = (hex: string) => {
+    const [r, g, bl] = hexToRgb(hex).map((v) => {
+      const c = v / 255;
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    }) as [number, number, number];
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/** `color` lightened or darkened just enough to be read as text on `background` (used by contextual tabs). */
+export function readableOn(color: string, background: string, ratio = 4.5): string {
+  const toward = contrastRatio(background, '#ffffff') > contrastRatio(background, '#000000') ? '#ffffff' : '#000000';
+  for (let step = 0; step < 20; step++) {
+    const candidate = mix(color, toward, step / 20);
+    if (contrastRatio(candidate, background) >= ratio) return candidate;
+  }
+  return toward;
+}
+
 /** Build the 16-step Fluent brand ramp (10..160) from a single accent colour, which lands on step 80. */
 export function brandRamp(accent: string): BrandVariants {
   const [h, s, accentL] = hexToHsl(accent);
@@ -124,16 +147,27 @@ export interface ZoneColors {
   'nv-accent': string;
   'nv-titlebar-bg': string;
   'nv-titlebar-fg': string;
+  /** A title bar button under the mouse. */
+  'nv-titlebar-hover': string;
   'nv-search-bg': string;
   'nv-search-fg': string;
+  'nv-search-border': string;
   'nv-tabs-bg': string;
   'nv-tabs-fg': string;
   'nv-tab-line': string;
+  /** Underline of a tab under the mouse. */
+  'nv-tab-hover': string;
   'nv-separator': string;
+  /** A ribbon button that is on (bold, alignment…). */
+  'nv-pressed-bg': string;
+  'nv-pressed-border': string;
+  /** Border of the boxes and lists of the ribbon. */
+  'nv-field-border': string;
   'nv-status-bg': string;
   'nv-status-fg': string;
-  /** Area around a page or a slide. */
+  /** Area around a page or a slide, and text written straight on it. */
   'nv-canvas-bg': string;
+  'nv-canvas-fg': string;
 }
 
 export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
@@ -143,10 +177,15 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
     'nv-tabs-bg': '#e6e6e6',
     'nv-tabs-fg': '#242424',
     'nv-tab-line': tabLine(appId, accent, 'light'),
+    'nv-tab-hover': '#d1d1d1',
     'nv-separator': '#d1d1d1',
+    'nv-pressed-bg': '#ebebeb',
+    'nv-pressed-border': '#616161',
+    'nv-field-border': '#8a8a8a',
     'nv-status-bg': '#f5f5f5',
     'nv-status-fg': '#242424',
     'nv-canvas-bg': '#ececec',
+    'nv-canvas-fg': '#242424',
   };
   switch (mode) {
     case 'colorful':
@@ -154,55 +193,87 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
         ...light,
         'nv-titlebar-bg': accent,
         'nv-titlebar-fg': '#ffffff',
+        // a tenth darker than the accent: gives the colour measured on Word
+        'nv-titlebar-hover': mix(accent, '#000000', 0.1),
         'nv-search-bg': MEASURED_SEARCH[appId] ?? mix(accent, '#ffffff', 0.8),
         'nv-search-fg': mix(accent, '#000000', 0.25),
+        'nv-search-border': '#8a8a8a',
       };
     case 'white':
-      return { ...light, 'nv-titlebar-bg': '#e6e6e6', 'nv-titlebar-fg': '#242424', 'nv-search-bg': '#fafafa', 'nv-search-fg': '#616161' };
+      return {
+        ...light,
+        'nv-titlebar-bg': '#e6e6e6',
+        'nv-titlebar-fg': '#242424',
+        'nv-titlebar-hover': '#fdfdfd',
+        'nv-search-bg': '#fafafa',
+        'nv-search-fg': '#616161',
+        'nv-search-border': '#d6d6d6',
+      };
     case 'darkgray':
       return {
         'nv-accent': accent,
         'nv-titlebar-bg': '#525252',
         'nv-titlebar-fg': '#ffffff',
+        'nv-titlebar-hover': '#646464',
         'nv-search-bg': '#bdbdbd',
         'nv-search-fg': '#424242',
+        'nv-search-border': '#808080',
         'nv-tabs-bg': '#525252',
         'nv-tabs-fg': '#ffffff',
         'nv-tab-line': tabLine(appId, accent, 'darkgray'),
+        'nv-tab-hover': '#6b6b6b',
         'nv-separator': '#858585',
+        'nv-pressed-bg': '#cccccc',
+        'nv-pressed-border': '#7a7a7a',
+        'nv-field-border': '#666666',
         'nv-status-bg': '#525252',
         'nv-status-fg': '#ffffff',
         'nv-canvas-bg': '#555555',
+        'nv-canvas-fg': '#ffffff',
       };
     case 'black':
       return {
         'nv-accent': accent,
         'nv-titlebar-bg': '#1a1a1a',
         'nv-titlebar-fg': '#ffffff',
+        'nv-titlebar-hover': '#303030',
         'nv-search-bg': '#1f1f1f',
         'nv-search-fg': '#adadad',
+        'nv-search-border': '#757575',
         'nv-tabs-bg': '#1a1a1a',
         'nv-tabs-fg': '#ffffff',
         'nv-tab-line': tabLine(appId, accent, 'black'),
+        'nv-tab-hover': '#666666',
         'nv-separator': '#666666',
+        'nv-pressed-bg': '#383838',
+        'nv-pressed-border': '#adadad',
+        'nv-field-border': '#757575',
         'nv-status-bg': '#141414',
         'nv-status-fg': '#ffffff',
         'nv-canvas-bg': '#1c1c1c',
+        'nv-canvas-fg': '#ffffff',
       };
     case 'contrast':
       return {
         'nv-accent': accent,
         'nv-titlebar-bg': '#000000',
         'nv-titlebar-fg': '#ffffff',
+        'nv-titlebar-hover': '#333333',
         'nv-search-bg': '#000000',
         'nv-search-fg': '#ffffff',
+        'nv-search-border': '#ffffff',
         'nv-tabs-bg': '#000000',
         'nv-tabs-fg': '#ffffff',
         'nv-tab-line': '#ffff00',
+        'nv-tab-hover': '#ffffff',
         'nv-separator': '#ffffff',
+        'nv-pressed-bg': '#000000',
+        'nv-pressed-border': '#ffff00',
+        'nv-field-border': '#ffffff',
         'nv-status-bg': '#000000',
         'nv-status-fg': '#ffffff',
         'nv-canvas-bg': '#000000',
+        'nv-canvas-fg': '#ffffff',
       };
   }
 }

@@ -4,7 +4,7 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  background: var(--colorNeutralBackground3);
+  background: var(--nv-canvas-bg);
 }
 .fm-scroll {
   flex: 1;
@@ -14,9 +14,12 @@
   max-width: 760px;
   margin: 0 auto;
   padding: 16px 16px 48px;
+  /* what is written between the cards sits on the canvas */
+  color: var(--nv-canvas-fg);
 }
 .fm-card {
   background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
   border: 1px solid var(--colorNeutralStroke2);
   border-radius: 8px;
   padding: 14px 18px;
@@ -52,7 +55,6 @@
 }
 .fm-empty {
   text-align: center;
-  color: var(--colorNeutralForeground3);
   padding: 24px 12px;
 }
 .fm-summary {
@@ -180,7 +182,7 @@
   margin-right: 8px;
 }
 .fm-btn--sec {
-  background: transparent;
+  background: var(--colorNeutralBackground1);
   color: var(--fm-color, #0f6cbd);
 }
 .fm-btn:disabled {

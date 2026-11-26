@@ -28,33 +28,40 @@ body,
   color: var(--colorNeutralForeground1);
 }
 
-/* ---- title bar ---- */
+/* ---- title bar: quick access and name, search in the middle, room on the right for the window buttons ---- */
 .nv-titlebar {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) auto minmax(180px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 368px) minmax(0, 1fr);
   align-items: center;
-  height: 34px;
+  column-gap: 12px;
+  height: 48px;
   padding: 0 8px;
   background: var(--nv-titlebar-bg);
   color: var(--nv-titlebar-fg);
 }
+.nv-titlebar__start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
 .nv-title {
+  min-width: 0;
   font-size: 12px;
-  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 40vw;
 }
 .nv-qat {
   display: flex;
+  flex: none;
   gap: 2px;
 }
 .nv-qat__btn {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -62,7 +69,7 @@ body,
   cursor: pointer;
 }
 .nv-qat__btn:hover:not(:disabled) {
-  background: color-mix(in srgb, currentColor 18%, transparent);
+  background: var(--nv-titlebar-hover);
 }
 .nv-qat__btn:disabled {
   opacity: 0.45;
@@ -74,12 +81,12 @@ body,
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  justify-self: end;
+  gap: 8px;
+  box-sizing: border-box;
   width: 100%;
-  max-width: 280px;
-  height: 24px;
-  padding: 0 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--nv-search-border);
   border-radius: 4px;
   background: var(--nv-search-bg);
   color: var(--nv-search-fg);
@@ -104,10 +111,11 @@ body,
 }
 .nv-tellme__list {
   position: absolute;
-  top: 28px;
-  right: 0;
+  top: 34px;
+  left: -1px;
+  right: -1px;
   z-index: 50;
-  width: 320px;
+  min-width: 320px;
   margin: 0;
   padding: 4px;
   list-style: none;
@@ -141,18 +149,21 @@ body,
   color: var(--colorNeutralForeground3);
 }
 
-/* ---- ribbon ---- */
+/* ---- ribbon: tabs on the frame colour and the commands on a rounded card, as measured on Office ---- */
 .nv-ribbon {
   position: relative;
   z-index: 10;
-  background: var(--colorNeutralBackground1);
-  border-bottom: 1px solid var(--colorNeutralStroke2);
+  background: var(--nv-tabs-bg);
+}
+/* the strip of frame colour under the card */
+.nv-ribbon:has(> .nv-ribbon__pinned) {
+  padding-bottom: 5px;
 }
 .nv-ribbon__tabs {
   display: flex;
   align-items: flex-end;
-  height: 30px;
-  padding: 0 4px;
+  height: 31px;
+  padding: 0 8px;
   background: var(--nv-tabs-bg);
 }
 .nv-tabstrip {
@@ -164,31 +175,34 @@ body,
 }
 .nv-tab {
   position: relative;
-  height: 28px;
-  padding: 0 12px;
+  height: 31px;
+  padding: 0 10px;
   border: 0;
-  border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--nv-tabs-fg);
   font: inherit;
   cursor: pointer;
 }
-.nv-tab:hover {
-  background: color-mix(in srgb, currentColor 14%, transparent);
+/* the underline is a border, so it stays visible with Windows high contrast; it only exists when it is drawn */
+.nv-tab:hover::after,
+.nv-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 3px;
+  border-bottom: 2px solid var(--nv-tab-hover);
+  border-radius: 1px;
+}
+.nv-tab.is-active::after {
+  border-bottom-color: var(--nv-tab-line);
 }
 .nv-tab.is-active {
-  border-bottom-color: var(--nv-tab-line);
   font-weight: 600;
 }
-.nv-tab--file {
-  margin-right: 4px;
-  background: var(--nv-accent);
-  color: #fff;
-  font-weight: 600;
-}
-.nv-tab--file:hover {
-  background: var(--nv-accent);
-  filter: brightness(1.12);
+.nv-tab:focus-visible {
+  outline: 2px solid var(--nv-tabs-fg);
+  outline-offset: -3px;
 }
 .nv-tab--contextual {
   border-top: 3px solid var(--nv-ctx);
@@ -218,22 +232,34 @@ body,
 .nv-ribbon__pin:hover {
   background: color-mix(in srgb, currentColor 14%, transparent);
 }
+.nv-ribbon__pinned,
+.nv-ribbon__popup {
+  border-radius: 8px;
+  background: var(--colorNeutralBackground1);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.22);
+}
+.nv-ribbon__pinned {
+  margin: 0 8px;
+}
 .nv-ribbon__popup {
   position: absolute;
   top: 100%;
-  left: 0;
-  right: 0;
-  background: var(--colorNeutralBackground1);
-  border-bottom: 1px solid var(--colorNeutralStroke2);
+  left: 8px;
+  right: 8px;
   box-shadow: var(--shadow16);
 }
 .nv-ribbon__body {
   display: flex;
   align-items: stretch;
-  height: 96px;
-  padding: 4px 6px 2px;
+  height: 100px;
+  padding: 4px 0 3px;
   overflow: hidden;
   box-sizing: border-box;
+}
+/* boxes and lists inside the ribbon, also in a collapsed group */
+.nv-ribbon :is(select, input[type='text'], input[type='number'], input:not([type])),
+.nv-group-popover :is(select, input[type='text'], input[type='number'], input:not([type])) {
+  border-color: var(--nv-field-border);
 }
 
 /* ---- groups ---- */
@@ -297,22 +323,25 @@ body,
 }
 .nv-btn:hover:not(:disabled) {
   background: var(--colorNeutralBackground1Hover);
-  border-color: var(--colorNeutralStroke2);
 }
 .nv-btn:active:not(:disabled) {
   background: var(--colorNeutralBackground1Pressed);
 }
 .nv-btn:focus-visible {
-  outline: 2px solid var(--nv-accent);
-  outline-offset: 1px;
+  outline: 2px solid var(--colorStrokeFocus2);
+  outline-offset: -1px;
 }
 .nv-btn:disabled {
-  opacity: 0.4;
+  color: var(--colorNeutralForegroundDisabled);
   cursor: default;
 }
-.nv-btn[aria-pressed='true'] {
-  background: var(--colorBrandBackground2);
-  border-color: var(--colorBrandStroke1);
+.nv-btn:disabled .nv-colorbar {
+  opacity: 0.35;
+}
+.nv-btn[aria-pressed='true'],
+.nv-btn[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--nv-pressed-bg);
+  border-color: var(--nv-pressed-border);
 }
 .nv-btn--large {
   flex-direction: column;
@@ -430,7 +459,7 @@ body,
 }
 .nv-zoom input[type='range'] {
   width: 110px;
-  accent-color: var(--nv-accent);
+  accent-color: color-mix(in srgb, var(--nv-status-fg) 70%, var(--nv-status-bg));
 }
 .nv-zoom__value {
   width: 44px;
@@ -499,8 +528,13 @@ body,
 }
 
 @media (forced-colors: active) {
+  .nv-tab.is-active::after {
+    border-bottom-color: Highlight;
+  }
+  .nv-btn[aria-pressed='true'] {
+    border-color: Highlight;
+  }
   .nv-titlebar,
-  .nv-tab--file,
   .nv-backstage__nav {
     background: ButtonFace;
     color: ButtonText;

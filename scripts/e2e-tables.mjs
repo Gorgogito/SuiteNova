@@ -125,7 +125,7 @@ for (const P of PRODUCTS) {
     await cells().nth(4).click();
     await tab(P.tableTab);
     await page.getByRole('button', { name: 'Sombreado', exact: true }).click();
-    await page.getByRole('button', { name: '#ffc000', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Naranja', exact: true }).first().click();
     await page.waitForTimeout(250);
     assert.equal(await cells().nth(4).evaluate((e) => getComputedStyle(e).backgroundColor), 'rgb(255, 192, 0)');
     await page.getByRole('button', { name: 'Sombreado', exact: true }).click();

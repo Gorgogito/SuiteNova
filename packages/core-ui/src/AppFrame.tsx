@@ -219,12 +219,14 @@ export function AppFrame(props: AppFrameProps) {
         <div className="nv-root">
         <div className="nv-frame" ref={frameRef}>
           <header className="nv-titlebar">
-            <div className="nv-qat" role="toolbar" aria-label={t('qat.label')}>
-              {qat.map((id) => (
-                <QatButton key={id} id={id} registry={registry} />
-              ))}
+            <div className="nv-titlebar__start">
+              <div className="nv-qat" role="toolbar" aria-label={t('qat.label')}>
+                {qat.map((id) => (
+                  <QatButton key={id} id={id} registry={registry} />
+                ))}
+              </div>
+              <div className="nv-title">{docTitle ? `${docTitle} – ${appName}` : appName}</div>
             </div>
-            <div className="nv-title">{docTitle ? `${docTitle} – ${appName}` : appName}</div>
             <TellMe />
           </header>
           <div className="nv-ribbon">
@@ -232,6 +234,7 @@ export function AppFrame(props: AppFrameProps) {
               <RibbonTabStrip
                 tabs={visibleTabs}
                 activeId={activeTab?.id ?? ''}
+                background={theme['nv-tabs-bg']}
                 onSelect={openTab}
                 onFile={() => setBackstageOpen(true)}
                 onDoubleClick={() => registry.run('view.toggleRibbon')}

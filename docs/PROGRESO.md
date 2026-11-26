@@ -212,3 +212,4 @@ Plan en `docs/diseno-tema-aplicativo.md`; medidas de Office real en `docs/office
 
 - [x] Medición previa en Word, Excel y PowerPoint (cinco temas) y plan escrito.
 - [x] Fase 1: modelo y colores (2026-11-25). Cinco temas, migración, colores por zona y por aplicación, menú y Opciones; medidos en Word menús, avisos, paneles, Archivo, estados y «Sistema» en claro (igual a Blanco). core-ui 31, suite 460 (6 omitidas), `e2e-app-theme.mjs` 18/18 y e2e de productos sin fallos. Sin medir: Outlook. Pendiente para las fases 2 y 4: aplicar los colores nuevos de pestañas, botones de la barra de título, paneles, avisos y vista Archivo.
+- [x] Fase 2: marco (2026-11-26). Barra de título de 48 px con buscador centrado, pestañas, cinta en tarjeta, estados de los botones, pestañas contextuales legibles, barra de estado y lienzo; `e2e-app-frame.mjs`. Detalle en la bitácora del diseño. Siguiente: fase 3, barra de título única.

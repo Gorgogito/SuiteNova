@@ -1,10 +1,13 @@
 import { useCore } from './context';
 import { t } from './i18n';
 import type { RibbonTab } from './ribbon-model';
+import { readableOn } from './theme';
 
 interface Props {
   tabs: RibbonTab[];
   activeId: string;
+  /** Background of the strip, so the colour of a contextual tab can be read on it. */
+  background: string;
   onSelect: (id: string) => void;
   onFile: () => void;
   onDoubleClick: () => void;
@@ -17,7 +20,7 @@ function Tip({ id }: { id: string }) {
 }
 
 /** File button + ribbon tabs, with arrow-key navigation (roving tabindex) and contextual tab headers. */
-export function RibbonTabStrip({ tabs, activeId, onSelect, onFile, onDoubleClick }: Props) {
+export function RibbonTabStrip({ tabs, activeId, background, onSelect, onFile, onDoubleClick }: Props) {
   const move = (e: React.KeyboardEvent, index: number) => {
     let next = index;
     if (e.key === 'ArrowRight') next = (index + 1) % tabs.length;
@@ -48,7 +51,7 @@ export function RibbonTabStrip({ tabs, activeId, onSelect, onFile, onDoubleClick
           aria-selected={tab.id === activeId}
           tabIndex={tab.id === activeId ? 0 : -1}
           className={`nv-tab ${tab.id === activeId ? 'is-active' : ''} ${tab.contextual ? 'nv-tab--contextual' : ''}`}
-          style={tab.contextual ? { ['--nv-ctx' as string]: tab.contextual.color } : undefined}
+          style={tab.contextual ? { ['--nv-ctx' as string]: readableOn(tab.contextual.color, background) } : undefined}
           onClick={() => onSelect(tab.id)}
           onDoubleClick={onDoubleClick}
           onKeyDown={(e) => move(e, i)}

@@ -6,7 +6,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: var(--colorNeutralBackground3);
+  background: var(--nv-canvas-bg);
 }
 .nw-scroll {
   flex: 1;

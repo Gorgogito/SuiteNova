@@ -2,22 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { CommandRegistry } from './commands';
 import { coreCommands, SETTING_THEME } from './core-commands';
 import { settings } from './settings';
-import { fluentTheme, MODULE_ACCENTS, normalizeThemePreference, resolveTheme, THEME_PREFERENCES, zoneColors, type ThemeMode } from './theme';
+import { contrastRatio, fluentTheme, MODULE_ACCENTS, normalizeThemePreference, readableOn, resolveTheme, THEME_PREFERENCES, zoneColors, type ThemeMode } from './theme';
 
 const MODES: ThemeMode[] = ['colorful', 'darkgray', 'black', 'white', 'contrast'];
-
-/** WCAG 2 contrast ratio of two `#rrggbb` colours. */
-function contrast(a: string, b: string): number {
-  const lum = (hex: string) => {
-    const [r, g, bl] = [1, 3, 5].map((i) => {
-      const v = parseInt(hex.slice(i, i + 2), 16) / 255;
-      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-    }) as [number, number, number];
-    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
-  };
-  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x) as [number, number];
-  return (hi + 0.05) / (lo + 0.05);
-}
 
 describe('temas del aplicativo', () => {
   it('ofrece los cinco temas de Office en su orden', () => {
@@ -71,15 +58,38 @@ describe('temas del aplicativo', () => {
     for (const app of Object.keys(MODULE_ACCENTS)) {
       for (const mode of MODES) {
         const z = zoneColors(app, mode);
-        for (const zone of ['titlebar', 'search', 'tabs', 'status'] as const) {
-          expect(contrast(z[`nv-${zone}-bg`], z[`nv-${zone}-fg`]), `${app} ${mode} ${zone}`).toBeGreaterThanOrEqual(4.5);
+        for (const zone of ['titlebar', 'search', 'tabs', 'status', 'canvas'] as const) {
+          expect(contrastRatio(z[`nv-${zone}-bg`], z[`nv-${zone}-fg`]), `${app} ${mode} ${zone}`).toBeGreaterThanOrEqual(4.5);
         }
+        // quick access buttons keep their icon visible under the mouse
+        expect(contrastRatio(z['nv-titlebar-hover'], z['nv-titlebar-fg']), `${app} ${mode} botón de la barra de título`).toBeGreaterThanOrEqual(3);
         // the underline of the active tab has to stand out from the tab strip
-        expect(contrast(z['nv-tabs-bg'], z['nv-tab-line']), `${app} ${mode} subrayado`).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(z['nv-tabs-bg'], z['nv-tab-line']), `${app} ${mode} subrayado`).toBeGreaterThanOrEqual(3);
         const f = fluentTheme(mode, app);
-        if (mode !== 'contrast') expect(contrast(f.colorNeutralBackground1, f.colorNeutralForeground1), `${app} ${mode} cinta`).toBeGreaterThanOrEqual(4.5);
+        if (mode !== 'contrast') expect(contrastRatio(f.colorNeutralBackground1, f.colorNeutralForeground1), `${app} ${mode} cinta`).toBeGreaterThanOrEqual(4.5);
       }
     }
+  });
+
+  it('usa en el marco los estados medidos en Office', () => {
+    expect(zoneColors('writer', 'colorful')['nv-titlebar-hover']).toBe('#1651aa');
+    expect(zoneColors('writer', 'white')).toMatchObject({ 'nv-titlebar-hover': '#fdfdfd', 'nv-search-border': '#d6d6d6', 'nv-tab-hover': '#d1d1d1', 'nv-pressed-bg': '#ebebeb', 'nv-pressed-border': '#616161', 'nv-field-border': '#8a8a8a' });
+    expect(zoneColors('writer', 'darkgray')).toMatchObject({ 'nv-search-border': '#808080', 'nv-tab-hover': '#6b6b6b', 'nv-pressed-bg': '#cccccc', 'nv-pressed-border': '#7a7a7a', 'nv-field-border': '#666666', 'nv-canvas-bg': '#555555' });
+    expect(zoneColors('writer', 'black')).toMatchObject({ 'nv-search-border': '#757575', 'nv-tab-hover': '#666666', 'nv-pressed-bg': '#383838', 'nv-pressed-border': '#adadad', 'nv-field-border': '#757575', 'nv-canvas-bg': '#1c1c1c' });
+    // disabled ribbon text comes from the Fluent theme
+    expect(['colorful', 'darkgray', 'black'].map((m) => fluentTheme(m as ThemeMode, 'writer').colorNeutralForegroundDisabled)).toEqual(['#bdbdbd', '#858585', '#5c5c5c']);
+  });
+
+  it('el color de una pestaña contextual se lee sobre las pestañas de cualquier tema', () => {
+    // the colours the products give to their contextual tabs
+    const used = ['#c05621', '#2b7a4b', '#7a4e9b', '#0e7490', '#0e7c86', '#b45309', '#0f766e', '#be123c', '#7719aa', '#c55a11', '#7b2d8e', '#0f7b6c', '#2e7d32', '#7b3f00', '#2f7d6d', '#b5651d', '#8e44ad', '#7a5195', '#2b6cb0'];
+    for (const mode of MODES) {
+      const bg = zoneColors('writer', mode)['nv-tabs-bg'];
+      for (const color of used) expect(contrastRatio(readableOn(color, bg), bg), `${color} ${mode}`).toBeGreaterThanOrEqual(4.5);
+    }
+    // a colour that already reads is not touched
+    expect(readableOn('#7b2d8e', '#e6e6e6')).toBe('#7b2d8e');
+    expect(readableOn('#7b2d8e', '#1a1a1a')).not.toBe('#7b2d8e');
   });
 
   it('los comandos marcan el tema guardado, también uno antiguo', () => {

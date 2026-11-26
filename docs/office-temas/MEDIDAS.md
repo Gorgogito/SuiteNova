@@ -123,6 +123,23 @@ barra de título clara incluida).
 | Project | #107C41 | con el mismo aviso; igual que Excel |
 | Outlook | sin medir | no quedó en primer plano porque mostró un cuadro propio |
 
+## Marco: medidas por píxel (fase 2, 2026-11-26)
+
+Leídas de `word-0.png`, `word-3.png`, `word-4.png` y `word-5.png` (ventana a 100 % de escala).
+
+| Elemento | Medida |
+|---|---|
+| Barra de título | 48 px |
+| Buscador | 368 x 32 px, centrado en la ventana, con borde de 1 px |
+| Pestañas | 31 px de alto |
+| Subrayado de la pestaña activa | 2 px, del ancho del texto, a 3 px del borde inferior |
+| Cinta | tarjeta de 100 px con 8 px de margen a los lados, esquinas redondeadas y sombra de unos 4 px |
+| Bajo la tarjeta | unos 5 px del color del marco |
+
+| Borde del buscador | Multicolor | Blanco | Gris oscuro | Negro |
+|---|---|---|---|---|
+| Color | #8A8A8A | #D6D6D6 | #808080 | #757575 |
+
 ## Otras observaciones
 
 - Multicolor y Blanco se distinguen casi solo por la barra de título (en color o clara).

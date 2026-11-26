@@ -117,3 +117,23 @@ funciona (Office lo reescribe), así que se cambió a mano. El tema de Office qu
   Gris oscuro y Windows en oscuro, como estaban.
 - **Para las fases 2 y 4:** pestaña al pasar el ratón solo con subrayado gris; botones de la barra de título; paneles, avisos
   y vista Archivo oscuros en Gris oscuro; paneles casi negros en Negro.
+
+### Fase 2 (hecha, 2026-11-26): marco
+- **Barra de título** de 48 px: acceso rápido y nombre a la izquierda, buscador centrado de 368 x 32 px con su borde, y
+  hueco a la derecha para los botones de ventana (fase 3). Los botones usan el color medido al pasar el ratón.
+- **Pestañas** de 31 px: «Archivo» es texto normal; la activa lleva un subrayado de 2 px del ancho del texto y la que está
+  bajo el ratón uno gris, sin cambiar de fondo.
+- **Cinta** como tarjeta redondeada de 100 px con 8 px de margen, también al abrirse estando plegada. Botones sin borde al
+  pasar el ratón, pulsados en gris con borde, texto desactivado y borde de los cuadros con los colores medidos.
+- **Pestañas contextuales:** su color se aclara u oscurece lo justo para leerse en cada tema (`readableOn`).
+- **Barra de estado:** el control de zoom es gris en lugar del color de la aplicación.
+- **Lienzo** en Writer, Slides (también clasificador y página de notas), Diagram y Forms. En Forms se corrigió el texto
+  escrito entre las tarjetas, que en Gris oscuro quedaba ilegible.
+- **Pruebas:** core-ui 33; `e2e-app-frame.mjs` (nueva, 22 comprobaciones: tamaños, estados y colores en los cuatro
+  aspectos y contraste del texto en las nueve aplicaciones y el inicio); `e2e-app-theme.mjs` adaptada.
+- **Sin medir en Office:** las pestañas contextuales (SuiteNova conserva su franja con el nombre del grupo) y el control de
+  zoom. El color bajo el ratón de la barra de título en Negro es un gris neutro cercano al medido (~#312D31, teñido por Mica).
+- **Diferencias que quedan:** el botón de plegar la cinta sigue en la fila de pestañas (en Office está dentro de la
+  tarjeta); reglas, paneles, avisos y vista Archivo se tratan en las fases 4 y 5.
+- **Servidor de desarrollo:** al abrir muchas ventanas seguidas, alguna se queda cargando módulos sin respuesta (también
+  antes de que se ejecute código de la aplicación). La prueba nueva lo reintenta y lo avisa.
