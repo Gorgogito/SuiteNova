@@ -114,7 +114,7 @@ export function IconsDialog({ onPick, onClose }: { onPick: (picks: IconPick[]) =
                   {[{ id: null as string | null, name: 'Todos', count: data.cat.icons.length }, ...data.cat.categories].map((c) => (
                     <li key={c.id ?? 'all'} role="option" aria-selected={category === c.id}>
                       <button type="button" data-rove tabIndex={category === c.id ? 0 : -1} onClick={() => setCategory(c.id)} style={{ width: '100%', textAlign: 'left', padding: '4px 8px', border: 0, borderRadius: 4, cursor: 'pointer', background: category === c.id ? 'rgba(37,99,235,.15)' : 'transparent', color: 'inherit', font: 'inherit' }}>
-                        {t(c.name)} <span style={{ opacity: 0.6 }}>({c.count})</span>
+                        {t(c.name)} <span style={{ color: 'var(--colorNeutralForeground3)' }}>({c.count})</span>
                       </button>
                     </li>
                   ))}
@@ -142,7 +142,7 @@ export function IconsDialog({ onPick, onClose }: { onPick: (picks: IconPick[]) =
             {error && <p role="alert" style={{ color: '#b91c1c' }}>{error}</p>}
           </DialogContent>
           <DialogActions>
-            <span aria-live="polite" style={{ marginRight: 'auto', opacity: 0.7 }}>
+            <span aria-live="polite" style={{ marginRight: 'auto', color: 'var(--colorNeutralForeground3)' }}>
               {chosen.length ? t('{n} seleccionados', { n: chosen.length }) : data ? t('{n} iconos', { n: found.length }) : ''}
             </span>
             <Button onClick={onClose}>{t('Cancelar')}</Button>

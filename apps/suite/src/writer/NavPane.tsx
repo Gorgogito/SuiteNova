@@ -38,7 +38,7 @@ export function NavPane({ ctl, onClose }: { ctl: WriterCtl; onClose: () => void 
   };
   const shown = items.filter((h) => !filter || h.text.toLowerCase().includes(filter.toLowerCase()));
   return (
-    <aside className="nw-nav" aria-label={t('Panel de navegación')}>
+    <aside className="nw-nav nv-panel" aria-label={t('Panel de navegación')}>
       <header>
         <strong>{t('Navegación')}</strong>
         <button type="button" className="nv-btn nv-btn--small" onClick={onClose} aria-label={t('Cerrar')} title={t('Cerrar')}>

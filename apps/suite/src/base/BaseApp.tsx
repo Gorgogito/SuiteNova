@@ -123,7 +123,7 @@ function NavPane({ ctl, selected, setSelected, renaming, setRenaming, run }: { r
     setRenaming(false);
   };
   return (
-    <nav className="bs-nav-pane" aria-label={t('Todos los objetos')}>
+    <nav className="bs-nav-pane nv-panel" aria-label={t('Todos los objetos')}>
       <input type="search" aria-label={t('Buscar objetos')} placeholder={t('Buscar…')} value={ctl.navFilter} onChange={(e) => { ctl.navFilter = e.target.value; ctl.touch(); }} />
       <select aria-label={t('Ver los objetos por')} value={ctl.navView} onChange={(e) => ((ctl.navView = e.target.value === 'groups' ? 'groups' : 'type'), ctl.touch())}>
         <option value="type">{t('Tipo de objeto')}</option>

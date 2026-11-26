@@ -17,7 +17,8 @@ const isBuiltin = (id: string) => PARAGRAPH_STYLES.some((s) => s.id === id);
 /** Muestra de un estilo con su propio aspecto. */
 function Preview({ def, ui, text }: { def: ParagraphStyleDef; ui: WriterUI; text?: string }) {
   return (
-    <div className="nw-doc" style={{ pointerEvents: 'none' }}>
+    // on white paper in every theme: it shows how the text looks in the document
+    <div className="nw-doc" style={{ pointerEvents: 'none', flex: 1, minWidth: 0, background: '#fff', color: '#000', borderRadius: 3, padding: '1px 6px' }}>
       <style>{styleCss([def], ui.ctl.defaults, ui.ctl.theme)}</style>
       <p className={`nw-p ${styleClass(def.id)}`} style={{ margin: 0 }}>
         {text ?? def.name}

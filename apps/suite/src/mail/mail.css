@@ -34,7 +34,7 @@
 }
 .ml-rail button.is-current {
   background: var(--colorNeutralBackground1);
-  color: var(--nv-accent, #0f6cbd);
+  color: var(--colorBrandForeground1);
   box-shadow: inset 3px 0 0 var(--nv-accent, #0f6cbd);
   font-weight: 600;
 }
@@ -464,7 +464,7 @@
   text-transform: capitalize;
 }
 .ml-week__day.is-today {
-  color: var(--nv-accent, #0f6cbd);
+  color: var(--colorBrandForeground1);
   font-weight: 700;
 }
 .ml-week__allday {
@@ -513,7 +513,7 @@
   margin: 1px 0;
   padding: 1px 5px;
   border: 0;
-  border-left: 3px solid var(--nv-accent, #0f6cbd);
+  border-left: 3px solid var(--colorBrandForeground1);
   border-radius: 3px;
   background: color-mix(in srgb, var(--nv-accent, #0f6cbd) 18%, var(--colorNeutralBackground1));
   color: var(--colorNeutralForeground1);
@@ -578,7 +578,7 @@
   background: none;
   font: inherit;
   font-size: 11px;
-  color: var(--nv-accent, #0f6cbd);
+  color: var(--colorBrandForeground1);
   cursor: pointer;
 }
 

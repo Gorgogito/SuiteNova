@@ -195,7 +195,7 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
         </span>
       </div>
       <div className="bs-rdbody">
-        <aside className="bs-fields-pane" aria-label={t('Campos del origen')}>
+        <aside className="bs-fields-pane nv-panel" aria-label={t('Campos del origen')}>
           <h3>{t('Campos del origen')}</h3>
           <p className="bs-hint">{t('Pulse un campo para agregarlo a la sección elegida.')}</p>
           <ul>
@@ -281,7 +281,7 @@ export function ReportDesigner({ ctl, tab, def, fields, onClose }: { ctl: BaseCt
             })}
           </div>
         </div>
-        <aside className="bs-props" aria-label={t('Propiedades')}>
+        <aside className="bs-props nv-panel" aria-label={t('Propiedades')}>
           <h3>{t('Propiedades')}</h3>
           {!control && (
             <fieldset className="bs-relcfg">

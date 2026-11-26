@@ -119,7 +119,7 @@ export function ThesaurusPane({ host, onClose, initialWord, dialog }: { host: Th
   );
 
   return (
-    <aside className={dialog ? 'nv-th nv-th--dialog' : 'nv-ed nv-th'} aria-label={t('Sinónimos')}>
+    <aside className={dialog ? 'nv-th nv-th--dialog' : 'nv-ed nv-th nv-panel'} aria-label={t('Sinónimos')}>
       {!dialog && (
         <header>
           <strong>{t('Sinónimos')}</strong>

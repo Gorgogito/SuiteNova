@@ -43,7 +43,7 @@
 .nv-cm-link {
   border: 0;
   background: none;
-  color: var(--nv-accent, #2b6cb0);
+  color: var(--colorBrandForeground1);
   cursor: pointer;
   padding: 0;
   font: inherit;

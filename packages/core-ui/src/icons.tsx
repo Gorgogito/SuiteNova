@@ -36,6 +36,7 @@ import {
   Table2,
   Underline,
   Undo2,
+  UserRound,
   Workflow,
   X,
   ZoomIn,
@@ -48,6 +49,7 @@ const icons = new Map<string, IconComponent>(
   Object.entries({
     bold: Bold,
     close: X,
+    account: UserRound,
     contrast: Contrast,
     copy: Copy,
     cut: Scissors,

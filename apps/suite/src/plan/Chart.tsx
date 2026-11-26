@@ -1,4 +1,4 @@
-import { t } from '@suitenova/core-ui';
+import { t, useThemeMode } from '@suitenova/core-ui';
 import type { ChartSpec } from '@suitenova/plan-core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, MarkLineComponent, TitleComponent, TooltipComponent } from 'echarts/components';
@@ -7,8 +7,6 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { useEffect, useMemo, useRef } from 'react';
 
 echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, MarkLineComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
-
-const dark = () => typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
 
 /** Turn a chart description of plan-core into an ECharts option. Series colours may be overridden per point. */
 export interface ChartExtra {
@@ -19,9 +17,9 @@ export interface ChartExtra {
   line?: { name: string; data: number[]; color: string };
 }
 
-export function chartOption(spec: ChartSpec, extra?: ChartExtra): echarts.EChartsCoreOption {
-  const text = dark() ? '#e0e0e0' : '#333333';
-  const grid = dark() ? '#444444' : '#dddddd';
+export function chartOption(spec: ChartSpec, extra?: ChartExtra, dark = false): echarts.EChartsCoreOption {
+  const text = dark ? '#e0e0e0' : '#242424';
+  const grid = dark ? '#444444' : '#cccccc';
   const base = { animation: false, textStyle: { color: text }, title: { text: t(spec.title), left: 'center', textStyle: { color: text, fontSize: 13 } }, tooltip: { trigger: spec.kind === 'pie' ? 'item' : 'axis' } };
   if (spec.kind === 'pie') {
     return {
@@ -61,7 +59,10 @@ export function chartOption(spec: ChartSpec, extra?: ChartExtra): echarts.EChart
 export function Chart({ spec, height = 280, extra }: { spec: ChartSpec; height?: number; extra?: ChartExtra }) {
   const host = useRef<HTMLDivElement>(null);
   const inst = useRef<echarts.ECharts | null>(null);
-  const option = useMemo(() => chartOption(spec, extra), [spec, extra]);
+  // the theme of the window, not the one of Windows; Dark Gray draws its work area light
+  const mode = useThemeMode();
+  const dark = mode === 'black' || mode === 'contrast';
+  const option = useMemo(() => chartOption(spec, extra, dark), [spec, extra, dark]);
   useEffect(() => {
     const el = host.current;
     if (!el) return;

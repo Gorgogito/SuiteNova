@@ -1,4 +1,5 @@
-import { t, THEME_PREFERENCES, useCommandState, useCore, useThemeMode, type BackstageEntry, type CommandRegistry } from '@suitenova/core-ui';
+import { Field, Select } from '@fluentui/react-components';
+import { normalizeThemePreference, SETTING_THEME, t, THEME_PREFERENCES, useCommandState, useCore, useSetting, useThemeMode, type BackstageEntry, type CommandRegistry } from '@suitenova/core-ui';
 import { closeThisWindow } from './platform';
 import './messages';
 
@@ -31,6 +32,29 @@ function OptionsPage() {
   );
 }
 
+/** Where Office keeps its theme: File › Account. SuiteNova has no accounts, so the page says so. */
+function AccountPage() {
+  const mode = useThemeMode();
+  const { registry } = useCore();
+  const [saved] = useSetting<string>(SETTING_THEME, 'system');
+  return (
+    <div className="page">
+      <h1>{t('backstage.account')}</h1>
+      <p>{t('account.none')}</p>
+      <Field label={t('account.theme')} className="opt-theme">
+        <Select value={normalizeThemePreference(saved)} onChange={(_, d) => registry.run(`theme.${d.value}`)}>
+          {THEME_PREFERENCES.map((p) => (
+            <option key={p} value={p}>
+              {t(`cmd.theme.${p}`)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {mode === 'contrast' && <p role="note">{t('theme.contrastActive')}</p>}
+    </div>
+  );
+}
+
 function InfoPage({ title }: { title: string }) {
   return (
     <div className="page">
@@ -48,6 +72,7 @@ export function fileCommands(registry: CommandRegistry): void {
 export function backstageEntries(title: string): BackstageEntry[] {
   return [
     { kind: 'page', id: 'info', label: 'backstage.info', icon: 'info', render: () => <InfoPage title={title} /> },
+    { kind: 'page', id: 'account', label: 'backstage.account', icon: 'account', render: () => <AccountPage /> },
     { kind: 'page', id: 'options', label: 'backstage.options', icon: 'settings', render: () => <OptionsPage /> },
     { kind: 'separator' },
     { kind: 'command', command: 'file.close' },

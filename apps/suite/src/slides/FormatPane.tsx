@@ -24,7 +24,7 @@ export function FormatPane({ ui }: { ui: SlidesUI }) {
   const el = c.selected[0];
   if (!env || !el) {
     return (
-      <aside className="sl-pane" aria-label={t('Formato de forma')}>
+      <aside className="sl-pane nv-panel" aria-label={t('Formato de forma')}>
         <h2>{t('Formato de forma')}</h2>
         <p className="sl-note">{t('Selecciona una forma, una imagen o un cuadro de texto para darle formato.')}</p>
       </aside>
@@ -43,7 +43,7 @@ export function FormatPane({ ui }: { ui: SlidesUI }) {
   const fxShown: Effects = (el as { effects?: Effects }).effects ?? look.effects;
   void withPh;
   return (
-    <aside className="sl-pane" aria-label={t('Formato de forma')}>
+    <aside className="sl-pane nv-panel" aria-label={t('Formato de forma')}>
       <h2>{t('Formato de forma')}</h2>
       <div role="tablist" className="sl-ptabs">
         {([['fill', 'Relleno y línea'], ['effects', 'Efectos'], ['size', 'Tamaño y propiedades'], ['text', 'Opciones de texto']] as [Tab, string][]).map(([k, l]) => (

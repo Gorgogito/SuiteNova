@@ -1,3 +1,4 @@
+import { settings } from '@suitenova/core-ui';
 import { createRoot } from 'react-dom/client';
 import { ClipOverlay } from './clip/ClipOverlay';
 import { Hub } from './hub/Hub';
@@ -42,6 +43,9 @@ function ShowWhenDrawn() {
   }, []);
   return null;
 }
+
+// for the browser tests, which change settings without reloading
+if (import.meta.env.DEV) (window as { __novaSettings?: typeof settings }).__novaSettings = settings;
 
 const app = new URLSearchParams(location.search).get('app');
 const render = () =>

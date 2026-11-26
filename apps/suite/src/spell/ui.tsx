@@ -376,7 +376,7 @@ export function EditorPane({ host, onClose, onOptions }: { host: ReviewHost; onC
   const shown = issues.filter((i) => SECTIONS.find((s) => s.id === section)!.kinds.includes(i.kind));
   const off = host.lang === 'off';
   return (
-    <aside className="nv-ed" aria-label={t('Editor')}>
+    <aside className="nv-ed nv-panel" aria-label={t('Editor')}>
       <header>
         <strong>{t('Editor')}</strong>
         <span style={{ flex: 1 }} />

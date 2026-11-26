@@ -14,7 +14,7 @@ const fmtDate = (iso: string) => {
 export function ReviewPane({ ctl }: { ctl: WriterCtl }) {
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
   return (
-    <aside className="nw-review" aria-label={t('Revisión')}>
+    <aside className="nw-review nv-panel" aria-label={t('Revisión')}>
       <header>
         <div className="nw-review-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={ctl.reviewTab === 'comments'} onClick={() => { ctl.reviewTab = 'comments'; ctl.touch(); }}>

@@ -165,7 +165,7 @@ export function OutlineView({ ui }: { ui: SlidesUI }) {
           );
         })}
       </div>
-      <div className="sl-outline__side">
+      <div className="sl-outline__side nv-panel">
         <Mini deck={deck} slide={cur} index={ctl.index} urls={ctl.urls} width={360} />
         <NotesPane ctl={ctl} />
       </div>

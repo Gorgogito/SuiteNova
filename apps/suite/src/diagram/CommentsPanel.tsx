@@ -55,7 +55,7 @@ export function CommentsPanel({ ctl }: { ctl: DiagramCtl }) {
     },
   };
   return (
-    <aside className="dg-side dg-comments" aria-label={t('Comentarios')}>
+    <aside className="dg-side dg-comments nv-panel" aria-label={t('Comentarios')}>
       <div className="dg-side__head">
         <b>{t('Comentarios')}</b>
         <button type="button" className="nv-btn nv-btn--small" aria-label={t('Cerrar')} onClick={() => ctl.togglePane('comments')}>

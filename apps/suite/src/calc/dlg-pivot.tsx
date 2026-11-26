@@ -438,7 +438,7 @@ export function PivotPane({ ui, onDialog }: { ui: CalcUI; onDialog: (kind: 'pivo
   };
 
   return (
-    <aside className="calc-pane" aria-label={t('Campos de tabla dinámica')}>
+    <aside className="calc-pane nv-panel" aria-label={t('Campos de tabla dinámica')}>
       <header>
         <strong>{t('Campos de tabla dinámica')}</strong>
         <button type="button" className="calc-pane__x" aria-label={t('Cerrar')} onClick={() => { d.x.pivotPane = null; d.touch(); }}>

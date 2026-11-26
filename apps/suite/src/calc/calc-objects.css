@@ -35,23 +35,17 @@
   color: inherit;
   cursor: pointer;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .calc-secbar {
-    background: #4a3c00;
-    color: #ffe9a0;
-    border-color: #7a6200;
-  }
-  :root:not([data-theme='light']) .calc-secbar button {
-    background: #2b2200;
-    border-color: #a08400;
-  }
-}
-:root[data-theme='dark'] .calc-secbar {
+/* the theme of the window decides, not the one of Windows */
+[data-theme='black'] .calc-secbar,
+[data-theme='darkgray'] .calc-secbar,
+[data-theme='contrast'] .calc-secbar {
   background: #4a3c00;
   color: #ffe9a0;
   border-color: #7a6200;
 }
-:root[data-theme='dark'] .calc-secbar button {
+[data-theme='black'] .calc-secbar button,
+[data-theme='darkgray'] .calc-secbar button,
+[data-theme='contrast'] .calc-secbar button {
   background: #2b2200;
   border-color: #a08400;
 }

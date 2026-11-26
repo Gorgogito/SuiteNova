@@ -22,3 +22,4 @@ export { clampZoom, StatusBar, ZoomControl, type ZoomState } from './StatusBar';
 export { brandRamp, contrastRatio, fluentTheme, MODULE_ACCENTS, readableOn, normalizeThemePreference, resolveTheme, THEME_PREFERENCES, zoneColors, type ThemeMode, type ThemePreference, type ZoneColors } from './theme';
 export { RibbonItemView } from './Ribbon';
 export { setWindowHost, useWindowHost, type WindowHost } from './window-host';
+export { SURFACES, surfaceAccent, surfaceCss, surfaceTheme, type Surface } from './surfaces';

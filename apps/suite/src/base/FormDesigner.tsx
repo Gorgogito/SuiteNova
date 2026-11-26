@@ -275,7 +275,7 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
         </label>
       </div>
       <div className="bs-fdbody">
-        <aside className="bs-fields-pane" aria-label={t('Campos de la tabla')}>
+        <aside className="bs-fields-pane nv-panel" aria-label={t('Campos de la tabla')}>
           <h3>{t('Campos de la tabla')}</h3>
           <p className="bs-hint">{t('Pulse un campo para agregarlo con su etiqueta.')}</p>
           <ul>
@@ -293,7 +293,7 @@ export function FormDesigner({ ctl, tab, def, onClose }: { ctl: BaseCtl; tab: Ta
             <DesignCanvas ariaLabel={t('Superficie del formulario')} width={layout.width} height={layout.height} items={items} selected={sel} onSelect={setSel} onChange={(id, box) => commit(updateControl(layout, id, box))} onDelete={remove} render={preview} />
           </div>
         </div>
-        <aside className="bs-props" aria-label={t('Propiedades')}>
+        <aside className="bs-props nv-panel" aria-label={t('Propiedades')}>
           <h3>{t('Propiedades')}</h3>
           {!control && (
             <fieldset className="bs-relcfg">

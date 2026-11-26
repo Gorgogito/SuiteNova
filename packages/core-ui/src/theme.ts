@@ -42,7 +42,7 @@ function rgbToHex(rgb: number[]): string {
 }
 
 /** `amount` of `other` mixed into `hex` (0 keeps `hex`, 1 gives `other`). */
-function mix(hex: string, other: string, amount: number): string {
+export function mix(hex: string, other: string, amount: number): string {
   const a = hexToRgb(hex);
   const b = hexToRgb(other);
   return rgbToHex(a.map((v, i) => v + (b[i]! - v) * amount));
@@ -163,6 +163,13 @@ export interface ZoneColors {
   'nv-pressed-border': string;
   /** Border of the boxes and lists of the ribbon. */
   'nv-field-border': string;
+  'nv-menu-border': string;
+  'nv-dialog-title': string;
+  /** Side bar of the File view: background, text, the line of the entry under the mouse and of the chosen one. */
+  'nv-bs-nav-bg': string;
+  'nv-bs-nav-fg': string;
+  'nv-bs-nav-line': string;
+  'nv-bs-mark': string;
   'nv-status-bg': string;
   'nv-status-fg': string;
   /** Area around a page or a slide, and text written straight on it. */
@@ -182,6 +189,12 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
     'nv-pressed-bg': '#ebebeb',
     'nv-pressed-border': '#616161',
     'nv-field-border': '#8a8a8a',
+    'nv-menu-border': '#616161',
+    'nv-dialog-title': readableOn(accent, '#ffffff'),
+    'nv-bs-nav-bg': '#ebebeb',
+    'nv-bs-nav-fg': '#242424',
+    'nv-bs-nav-line': '#d1d1d1',
+    'nv-bs-mark': readableOn(mix(accent, '#000000', 0.1), '#ebebeb'),
     'nv-status-bg': '#f5f5f5',
     'nv-status-fg': '#242424',
     'nv-canvas-bg': '#ececec',
@@ -226,6 +239,12 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
         'nv-pressed-bg': '#cccccc',
         'nv-pressed-border': '#7a7a7a',
         'nv-field-border': '#666666',
+        'nv-menu-border': '#666666',
+        'nv-dialog-title': readableOn(tabLine(appId, accent, 'darkgray'), '#525252'),
+        'nv-bs-nav-bg': '#343535',
+        'nv-bs-nav-fg': '#ffffff',
+        'nv-bs-nav-line': '#6b6b6b',
+        'nv-bs-mark': readableOn(tabLine(appId, accent, 'darkgray'), '#343535'),
         'nv-status-bg': '#525252',
         'nv-status-fg': '#ffffff',
         'nv-canvas-bg': '#555555',
@@ -248,6 +267,12 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
         'nv-pressed-bg': '#383838',
         'nv-pressed-border': '#adadad',
         'nv-field-border': '#757575',
+        'nv-menu-border': '#adadad',
+        'nv-dialog-title': readableOn(tabLine(appId, accent, 'black'), '#292929'),
+        'nv-bs-nav-bg': '#181818',
+        'nv-bs-nav-fg': '#ffffff',
+        'nv-bs-nav-line': '#666666',
+        'nv-bs-mark': readableOn(tabLine(appId, accent, 'black'), '#181818'),
         'nv-status-bg': '#141414',
         'nv-status-fg': '#ffffff',
         'nv-canvas-bg': '#1c1c1c',
@@ -270,6 +295,12 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
         'nv-pressed-bg': '#000000',
         'nv-pressed-border': '#ffff00',
         'nv-field-border': '#ffffff',
+        'nv-menu-border': '#ffffff',
+        'nv-dialog-title': '#ffffff',
+        'nv-bs-nav-bg': '#000000',
+        'nv-bs-nav-fg': '#ffffff',
+        'nv-bs-nav-line': '#ffffff',
+        'nv-bs-mark': '#ffff00',
         'nv-status-bg': '#000000',
         'nv-status-fg': '#ffffff',
         'nv-canvas-bg': '#000000',
@@ -280,8 +311,8 @@ export function zoneColors(appId: string, mode: ThemeMode): ZoneColors {
 
 /**
  * Dark Gray keeps a light ribbon and light menus under a dark frame, so it starts from the light theme with darker
- * neutrals. Ribbon and menu surface, hover, texts, separators and selected buttons are measured. Office shows panels,
- * dialogs and the File view dark in this theme (MEDIDAS.md); that is not applied here yet.
+ * neutrals. Ribbon and menu surface, hover, texts, separators and selected buttons are measured. Panes, dialogs and the
+ * File view are dark in this theme: surfaces.ts.
  */
 const DARK_GRAY: Partial<Theme> = {
   colorNeutralBackground1: '#bdbdbd',

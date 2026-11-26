@@ -52,7 +52,7 @@ export function CommentsPanel({ ui }: { ui: CalcUI }) {
     },
   };
   return (
-    <aside className="calc-comments" aria-label={t('Comentarios')}>
+    <aside className="calc-comments nv-panel" aria-label={t('Comentarios')}>
       <header>
         <b>{t('Comentarios')}</b>
         <button type="button" aria-label={t('Cerrar el panel')} onClick={() => ((x.commentsPane = false), d.touch())}>

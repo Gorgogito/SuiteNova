@@ -331,7 +331,7 @@
   border-bottom: 2px solid transparent;
 }
 .sl-ptabs button.is-on {
-  border-bottom-color: var(--nv-accent, #c05621);
+  border-bottom-color: var(--colorBrandForeground1);
   color: var(--colorNeutralForeground1);
 }
 .sl-prow {
@@ -576,7 +576,7 @@
 .sl-olrow input { flex: 1; min-width: 0; border: 0; border-bottom: 1px solid transparent; background: transparent; color: var(--colorNeutralForeground1); font: inherit; padding: 3px 4px; outline: none; }
 .sl-olrow input:focus { border-bottom-color: var(--nv-accent, #c05621); }
 .sl-olrow--title input { font-size: 17px; font-weight: 600; }
-.sl-olrow.is-current .sl-olnum { color: var(--nv-accent, #c05621); font-weight: 700; }
+.sl-olrow.is-current .sl-olnum { color: var(--colorBrandForeground1); font-weight: 700; }
 .sl-olnum { width: 20px; text-align: right; font-size: 12px; color: var(--colorNeutralForeground3); }
 .sl-olicon { line-height: 0; }
 .sl-olbullet { width: 12px; text-align: center; color: var(--colorNeutralForeground3); }

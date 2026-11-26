@@ -1,6 +1,6 @@
 import { FluentProvider } from '@fluentui/react-components';
 import { PanelTopClose, PanelTopOpen } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Backstage, type BackstageEntry } from './Backstage';
 import { RibbonTabStrip } from './TabStrip';
 import { RibbonBody } from './Ribbon';
@@ -15,6 +15,7 @@ import { assignKeytips, KEYTIPS_OFF, typeKeytip, type KeytipState, type KeytipTa
 import './messages';
 import { allItems, itemKey, type RibbonTab } from './ribbon-model';
 import { settings, useSetting } from './settings';
+import { surfaceCss } from './surfaces';
 import { fluentTheme, normalizeThemePreference, resolveTheme, type ThemeMode } from './theme';
 import { useWindowHost } from './window-host';
 import { WindowControls } from './WindowControls';
@@ -78,6 +79,14 @@ export function AppFrame(props: AppFrameProps) {
   useEffect(() => {
     windowHost?.setBackground?.(frameColor);
   }, [windowHost, frameColor]);
+  // panes, dialogs and the File view: one style sheet for the window, because dialogs are mounted outside the frame
+  useLayoutEffect(() => {
+    const style = document.createElement('style');
+    style.dataset.nv = 'surfaces';
+    style.textContent = surfaceCss(appId, mode);
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, [appId, mode]);
 
   const visibleTabs = useMemo(() => tabs.filter((tab) => !tab.contextual || tab.contextual.visible), [tabs]);
   const [activeId, setActiveId] = useState(visibleTabs[0]?.id ?? '');

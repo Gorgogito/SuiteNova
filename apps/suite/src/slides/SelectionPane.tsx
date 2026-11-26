@@ -25,7 +25,7 @@ export function SelectionPane({ ui }: { ui: SlidesUI }) {
   };
   const move = (id: string, how: 'forward' | 'backward') => c.apply(how === 'forward' ? 'Traer adelante' : 'Enviar atrás', (d) => reorderElements(d, c.slide.id, [id], how));
   return (
-    <aside className="sl-pane" aria-label={t('Panel de selección')}>
+    <aside className="sl-pane nv-panel" aria-label={t('Panel de selección')}>
       <h2>{t('Panel de selección')}</h2>
       <div className="sl-selbar">
         <Button size="small" disabled={!shapes.length || hiddenCount === shapes.length} onClick={() => c.patch(shapes.map((e) => e.id), 'Ocultar objeto', (e) => ({ ...e, hidden: true }) as SlideElement)}>

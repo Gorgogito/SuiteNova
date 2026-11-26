@@ -54,7 +54,7 @@ export function NovaArtDialog({ ui, onClose }: P) {
         <div className="sl-artgrid" role="radiogroup" aria-label={t('Estilos de NovaArt')}>
           {NOVAART_STYLES.map((s) => (
             <button key={s.id} type="button" role="radio" aria-checked={style === s.id} aria-label={t(s.name)} title={t(s.name)} className={style === s.id ? 'is-on' : ''} onClick={() => setStyle(s.id)}>
-              <span style={ctx ? runStyle({ sz: 30, b: true, fx: s.fx }, ctx.env, 1) : undefined}>Abc</span>
+              <span aria-hidden="true" style={ctx ? runStyle({ sz: 30, b: true, fx: s.fx }, ctx.env, 1) : undefined}>Abc</span>
             </button>
           ))}
         </div>

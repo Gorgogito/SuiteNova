@@ -27,11 +27,11 @@
 }
 .wa-grid button:hover,
 .wa-none:hover {
-  border-color: var(--nv-accent, #2b6cb0);
+  border-color: var(--colorBrandForeground1);
   background: rgba(43, 108, 176, 0.08);
 }
 .wa-grid button[aria-pressed='true'] {
-  border-color: var(--nv-accent, #2b6cb0);
+  border-color: var(--colorBrandForeground1);
 }
 .wa-none {
   display: block;

@@ -255,6 +255,20 @@ foreach ($p in @(${probes.map(([, x, y]) => `@(${x},${y})`).join(',')})) {
     if (shotsDir) await page.screenshot({ path: `${shotsDir}/nativa-calc-negro.png` });
   });
 
+  // the surface colours come from a style sheet added at run time: the content security policy of the app must allow it
+  await check('la vista Archivo y la ventana de inicio llevan los colores del tema también en la aplicación compilada', async () => {
+    await page.locator('.nv-tab--file').click();
+    const colour = (p, selector) => p.locator(selector).first().evaluate((e) => getComputedStyle(e).backgroundColor);
+    await page.locator('.nv-backstage__content').waitFor();
+    assert.equal(await colour(page, '.nv-backstage__content'), 'rgb(20, 20, 20)');
+    assert.equal(await colour(page, '.nv-backstage__nav'), 'rgb(24, 24, 24)');
+    if (shotsDir) await page.screenshot({ path: `${shotsDir}/nativa-archivo-negro.png` });
+    await page.keyboard.press('Escape');
+    await hub.reload({ waitUntil: 'load' });
+    await hub.locator('.nv-startpage').waitFor();
+    assert.equal(await colour(hub, '.nv-startpage'), 'rgb(20, 20, 20)');
+  });
+
   await check('borrar una hoja pregunta y «Cancelar» la conserva', async () => {
     await page.getByRole('button', { name: 'Hoja nueva', exact: true }).click();
     const tabs = page.locator('.calc-tab');

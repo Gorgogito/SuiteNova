@@ -429,7 +429,7 @@ function SlidesEditor({ module }: { module: ModuleInfo }) {
           </div>
         )}
         {(view === 'normal' || view === 'master') && (
-          <div className="sl-panel">
+          <div className="sl-panel nv-panel">
             {view === 'master' ? <MasterPanel ctl={ctl} /> : <Thumbs ctl={ctl} />}
           </div>
         )}

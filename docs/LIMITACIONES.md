@@ -669,9 +669,15 @@ Plan y bitácora en `docs/diseno-recorte.md`. Insertar › «Recorte de pantalla
 - **Colores medidos en Word 2024 LTSC** (Windows 11). Sin efecto Mica: colores sólidos. Outlook no se midió.
 - **Diagram y Plan** conservan color propio (Visio y Project mostraron el azul de Word y el verde de Excel); Mail también.
 - **Pestañas contextuales:** no se midieron en Office; SuiteNova mantiene la franja con el nombre del grupo.
-- **Todavía no se parece a Office** (fases 4 y 5 del plan `diseno-tema-aplicativo.md`): en Gris oscuro los paneles,
-  avisos y vista Archivo no son oscuros; las reglas de Writer y Slides siguen claras; Calc oscurece la cuadrícula en Negro
-  y Writer no oscurece la página.
+- **Todavía no se parece a Office** (fase 5 del plan `diseno-tema-aplicativo.md`): las reglas de Writer y Slides siguen
+  claras; Calc oscurece la cuadrícula en Negro y Writer no oscurece la página; la selección de texto no usa el color de
+  Office.
+- **Cuadros de diálogo:** todos siguen el tema, como los avisos de Office. Los cuadros clásicos de Office (Fuente,
+  Párrafo…) son claros también en Gris oscuro y Negro; SuiteNova no hace esa distinción.
+- **Archivo › Cuenta** solo ofrece el tema: SuiteNova no tiene cuentas.
+- **Contraste revisado** abriendo lo que se alcanza desde la cinta sin seleccionar nada, más comentarios, búsqueda,
+  ortografía, tablas, ecuación y voz en Writer. Los cuadros que necesitan una imagen, un gráfico u otro objeto
+  seleccionado no se han recorrido. Las muestras de estilos (WordArt, estilos de Writer) enseñan sus colores propios.
 - **Barra de título propia:** no aparece el menú de diseños de Windows 11 al pasar el ratón por maximizar (los atajos
   Windows + flechas son de Windows y no se han probado) ni el menú del sistema con el botón derecho. Con un cuadro abierto
   se puede minimizar, maximizar y cerrar, pero no arrastrar la ventana.

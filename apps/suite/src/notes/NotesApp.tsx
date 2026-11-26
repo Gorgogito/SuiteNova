@@ -747,7 +747,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
           {ctl.showThesaurus && <ThesaurusPane host={notesThesaurusHost(ctl)} onClose={() => ((ctl.showThesaurus = false), ctl.touch())} />}
           {ctl.showEditor && <EditorPane host={notesHost(ctl)} onClose={() => ((ctl.showEditor = false), ctl.touch())} onOptions={() => setDialog({ kind: 'reviewOptions' })} />}
           {!ctl.fullPage && (
-          <nav className="nn-pages" aria-label={t('Páginas')}>
+          <nav className="nn-pages nv-panel" aria-label={t('Páginas')}>
             <button type="button" className="nn-newpage" onClick={() => ctl.addPage()}>
               + {t('Página nueva')}
             </button>

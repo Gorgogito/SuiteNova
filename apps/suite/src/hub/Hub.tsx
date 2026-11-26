@@ -49,39 +49,42 @@ export function Hub() {
 
   return (
     <AppFrame appId="hub" appName={t('app.hub')} registry={registry} tabs={tabs} backstage={backstageEntries(t('app.hub'))}>
-      <div className="hub">
-        <h1>{t('hub.title')}</h1>
-        <h2>{t('hub.apps')}</h2>
-        <div className="hub__grid">
-          {MODULES.map((m) => (
-            <button key={m.id} type="button" className="hub__card" data-app={m.id} onClick={() => registry.run(`open.${m.id}`)}>
-              <Icon name={m.icon} size={32} />
-              <strong>{m.name}</strong>
-              <span>{t(m.purpose)}</span>
-              <em>{m.available ? t('hub.available') : t('hub.phase', { phase: m.phase })}</em>
-            </button>
-          ))}
+      {/* like the start screen of Office, in the colours of the File view */}
+      <div className="nv-startpage">
+        <div className="hub">
+          <h1>{t('hub.title')}</h1>
+          <h2>{t('hub.apps')}</h2>
+          <div className="hub__grid">
+            {MODULES.map((m) => (
+              <button key={m.id} type="button" className="hub__card" data-app={m.id} onClick={() => registry.run(`open.${m.id}`)}>
+                <Icon name={m.icon} size={32} />
+                <strong>{m.name}</strong>
+                <span>{t(m.purpose)}</span>
+                <em>{m.available ? t('hub.available') : t('hub.phase', { phase: m.phase })}</em>
+              </button>
+            ))}
+          </div>
+          <h2>{t('hub.recent')}</h2>
+          {recents.length === 0 ? (
+            <p className="hub__empty">{t('hub.recent.empty')}</p>
+          ) : (
+            <>
+              <ul className="hub__recents">
+                {recents.map((r) => (
+                  <li key={r.path}>
+                    <button type="button" title={r.path} aria-label={t('hub.recent.open', { name: r.name })} onClick={() => void openModuleWindow(r.app, r.name, r.path)}>
+                      <strong>{r.name}</strong>
+                      <span>{r.path}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button type="button" className="hub__clear" onClick={() => clearRecents()}>
+                {t('hub.recent.clear')}
+              </button>
+            </>
+          )}
         </div>
-        <h2>{t('hub.recent')}</h2>
-        {recents.length === 0 ? (
-          <p className="hub__empty">{t('hub.recent.empty')}</p>
-        ) : (
-          <>
-            <ul className="hub__recents">
-              {recents.map((r) => (
-                <li key={r.path}>
-                  <button type="button" title={r.path} aria-label={t('hub.recent.open', { name: r.name })} onClick={() => void openModuleWindow(r.app, r.name, r.path)}>
-                    <strong>{r.name}</strong>
-                    <span>{r.path}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <button type="button" className="hub__clear" onClick={() => clearRecents()}>
-              {t('hub.recent.clear')}
-            </button>
-          </>
-        )}
       </div>
     </AppFrame>
   );

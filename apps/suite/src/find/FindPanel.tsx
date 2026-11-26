@@ -143,7 +143,7 @@ export function FindPanel({ host, replace: withReplace = false, goTo: withGoTo =
   const showGo = withGoTo && canGo;
 
   return (
-    <div className={`nv-find-bar${className ? ` ${className}` : ''}`} role="search" aria-label={t('Buscar y reemplazar')}>
+    <div className={`nv-find-bar nv-panel${className ? ` ${className}` : ''}`} role="search" aria-label={t('Buscar y reemplazar')}>
       <div className="nv-find-row">
         <input
           ref={findRef}

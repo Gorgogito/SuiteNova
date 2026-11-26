@@ -16,9 +16,9 @@ function Thumb({ st }: { st: Stencil }) {
     <svg width={56} height={38} viewBox={`${-(56 - w) / 2} ${-(38 - h) / 2} 56 38`} aria-hidden="true">
       <g>
         {r.paths.map((p, i) => (
-          <path key={i} d={p.d} fill={p.fill} stroke={p.stroke === 'none' ? (st.id === 'text' ? '#8a8a8a' : 'none') : p.stroke} strokeWidth={p.strokeWidth} strokeDasharray={st.id === 'text' ? '2 2' : p.dasharray} />
+          <path key={i} d={p.d} fill={p.fill} stroke={p.stroke === 'none' ? (st.id === 'text' ? 'currentColor' : 'none') : p.stroke} strokeWidth={p.strokeWidth} strokeDasharray={st.id === 'text' ? '2 2' : p.dasharray} />
         ))}
-        {st.id === 'text' && <text x={w / 2} y={h / 2 + 4} textAnchor="middle" fontSize="12" fill="#444">Aa</text>}
+        {st.id === 'text' && <text x={w / 2} y={h / 2 + 4} textAnchor="middle" fontSize="12" fill="currentColor">Aa</text>}
       </g>
     </svg>
   );
@@ -34,7 +34,7 @@ export function StencilPanel({ ctl, onImage }: { ctl: DiagramCtl; onImage?: () =
     [needle],
   );
   return (
-    <aside className="dg-panel" aria-label={t('Formas')}>
+    <aside className="dg-panel nv-panel" aria-label={t('Formas')}>
       <input type="search" className="dg-search" aria-label={t('Buscar formas')} placeholder={t('Buscar formas')} value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="dg-groups">
         {groups.length === 0 && <p className="dg-none">{t('Ninguna forma coincide.')}</p>}

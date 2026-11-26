@@ -157,3 +157,19 @@ funciona (Office lo reescribe), así que se cambió a mano. El tema de Office qu
   (`close-guard.ts`) para las nueve.
 - **Pruebas:** `e2e-window.mjs` (nueva, 9, navegador con una ventana simulada); `e2e-window-native.mjs` (nueva, 15, sobre
   el `.exe` compilado y con un perfil de WebView2 temporal); `e2e-clip-native.mjs` 10/10 sobre la misma compilación.
+
+### Fase 4 (hecha, 2026-11-26): superficies comunes
+- **Superficies (`core-ui/surfaces.ts`):** paneles, cuadros y vista Archivo tienen colores propios (los medidos). Cada una
+  es un tema de Fluent cuyas variables se vuelven a poner en su contenedor, así que sus hojas de estilo las siguen sin
+  cambios. Los paneles llevan la clase `nv-panel`. En Gris oscuro son oscuros bajo una cinta clara, con cajas claras.
+- **Vista Archivo** como en Office: barra lateral neutra, línea gris bajo el ratón y de color en la página elegida.
+  La ventana de inicio usa sus mismos colores.
+- **Archivo › Cuenta** nueva, con el selector de tema (SuiteNova no tiene cuentas y la página lo dice).
+- **Cuadros y menús:** título y botón principal con el color medido; borde y separadores de los menús.
+- **Fallos que seguían a Windows**, corregidos: el aviso de seguridad de Calc y los gráficos de Plan.
+- **Contraste:** corregido lo encontrado (cajas que heredaban texto claro, textos con el color de acento sobre paneles
+  oscuros, muestras de estilos de Writer, contadores atenuados, la muestra «Cuadro de texto» de Diagram).
+- **Decisión tomada sin preguntar:** todos los cuadros siguen el tema. En Office los cuadros clásicos son claros siempre.
+- **Pruebas:** `surfaces.test.ts` (4); `e2e-app-surfaces.mjs` (nueva): colores en los cuatro aspectos, Cuenta, inicio,
+  superficies de trabajo de Writer y un recorrido por cuadros, paneles, menús y Archivo de las nueve aplicaciones que mide
+  el contraste en los cuatro temas.

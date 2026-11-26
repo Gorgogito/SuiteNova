@@ -308,7 +308,7 @@ function QuickReport({ ctl, tab }: { ctl: BaseCtl; tab: Tab }) {
 
   return (
     <div className="bs-report">
-      <aside className="bs-reportcfg" aria-label={t('Opciones del informe')}>
+      <aside className="bs-reportcfg nv-panel" aria-label={t('Opciones del informe')}>
         <label>
           {t('Título')}
           <input aria-label={t('Título del informe')} value={def.title} onChange={(e) => set({ title: e.target.value })} />

@@ -20,7 +20,7 @@ export function DataPane({ ctl }: { ctl: DiagramCtl }) {
     setName('');
   };
   return (
-    <aside className="dg-side" aria-label={t('Datos de forma')} data-testid="data-pane">
+    <aside className="dg-side nv-panel" aria-label={t('Datos de forma')} data-testid="data-pane">
       <div className="dg-side__head">
         <strong>{t('Datos de forma')}</strong>
         <button type="button" className="dg-x" aria-label={t('Cerrar el panel')} onClick={() => ctl.togglePane('data')}>×</button>
@@ -120,7 +120,7 @@ export function LayersPane({ ctl }: { ctl: DiagramCtl }) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const count = (id: string) => page.shapes.filter((s) => (s.layer && layers.some((l) => l.id === s.layer) ? s.layer : layers[0]!.id) === id).length + page.connectors.filter((c) => (c.layer && layers.some((l) => l.id === c.layer) ? c.layer : layers[0]!.id) === id).length;
   return (
-    <aside className="dg-side" aria-label={t('Capas')} data-testid="layers-pane">
+    <aside className="dg-side nv-panel" aria-label={t('Capas')} data-testid="layers-pane">
       <div className="dg-side__head">
         <strong>{t('Capas')}</strong>
         <button type="button" className="dg-x" aria-label={t('Cerrar el panel')} onClick={() => ctl.togglePane('layers')}>×</button>

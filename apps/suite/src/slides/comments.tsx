@@ -80,7 +80,7 @@ export function CommentsPane({ ui }: { ui: SlidesUI }) {
   };
 
   return (
-    <aside className="sl-pane sl-comments" aria-label={t('Comentarios')}>
+    <aside className="sl-pane sl-comments nv-panel" aria-label={t('Comentarios')}>
       <header>
         <b>{t('Comentarios')}</b>
         <button type="button" aria-label={t('Cerrar el panel')} onClick={() => ((c.pane = 'none'), c.touch())}>×</button>

@@ -530,13 +530,13 @@ body:has(.fui-DialogSurface) .nv-wincontrols {
   flex-direction: column;
   padding: 8px 0;
   overflow-y: auto;
-  background: var(--nv-accent);
-  color: #fff;
+  background: var(--nv-bs-nav-bg);
+  color: var(--nv-bs-nav-fg);
 }
 .nv-backstage__nav hr {
   width: 85%;
   border: 0;
-  border-top: 1px solid rgb(255 255 255 / 0.3);
+  border-top: 1px solid var(--nv-separator);
 }
 .nv-backstage__back {
   align-self: flex-start;
@@ -549,6 +549,8 @@ body:has(.fui-DialogSurface) .nv-wincontrols {
   cursor: pointer;
 }
 .nv-backstage__item {
+  position: relative;
+  flex: none;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -561,9 +563,28 @@ body:has(.fui-DialogSurface) .nv-wincontrols {
   text-align: left;
   cursor: pointer;
 }
-.nv-backstage__item:hover:not(:disabled),
+/* as in Office: a line at the side, grey under the mouse and coloured for the chosen page */
+.nv-backstage__item:hover:not(:disabled)::before,
+.nv-backstage__item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 7px;
+  bottom: 7px;
+  border-left: 3px solid var(--nv-bs-nav-line);
+  border-radius: 2px;
+}
+.nv-backstage__item.is-active::before {
+  border-left-color: var(--nv-bs-mark);
+}
 .nv-backstage__item.is-active {
-  background: rgb(255 255 255 / 0.18);
+  color: var(--nv-bs-mark);
+  font-weight: 600;
+}
+.nv-backstage__item:focus-visible,
+.nv-backstage__back:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
 }
 .nv-backstage__item:disabled {
   opacity: 0.5;
@@ -574,6 +595,29 @@ body:has(.fui-DialogSurface) .nv-wincontrols {
   padding: 24px 40px;
   overflow: auto;
   user-select: text;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+}
+
+/* ---- panes, dialogs and menus ---- */
+:where(.nv-startpage) {
+  min-height: 100%;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+}
+/* a pane takes the colours of its surface (surfaces.ts); :where lets its own style sheet say otherwise */
+:where(.nv-panel) {
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+}
+.fui-DialogTitle {
+  color: var(--nv-dialog-title);
+}
+.fui-MenuPopover.fui-MenuPopover {
+  border: 1px solid var(--nv-menu-border);
+}
+.fui-MenuDivider {
+  border-bottom-color: var(--nv-separator);
 }
 
 @media (forced-colors: active) {
@@ -587,6 +631,9 @@ body:has(.fui-DialogSurface) .nv-wincontrols {
   }
   .nv-btn[aria-pressed='true'] {
     border-color: Highlight;
+  }
+  .nv-backstage__item.is-active::before {
+    border-left-color: Highlight;
   }
   .nv-titlebar,
   .nv-backstage__nav {

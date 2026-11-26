@@ -244,7 +244,7 @@
 }
 .nn-pageitem.is-current {
   background: var(--colorNeutralBackground1);
-  border-left-color: var(--nv-accent, #7719aa);
+  border-left-color: var(--colorBrandForeground1);
 }
 .nn-pageitem strong {
   font-weight: 500;

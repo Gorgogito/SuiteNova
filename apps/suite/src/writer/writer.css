@@ -568,7 +568,7 @@
   border-bottom: 2px solid transparent;
 }
 .nw-nav-tabs button[aria-selected='true'] {
-  border-bottom-color: var(--nv-accent, #2b6cb0);
+  border-bottom-color: var(--colorBrandForeground1);
   font-weight: 600;
 }
 .nw-nav-search {
@@ -715,7 +715,7 @@
   border-bottom: 2px solid transparent;
 }
 .nw-review-tabs button[aria-selected='true'] {
-  border-bottom-color: var(--nv-accent, #2b6cb0);
+  border-bottom-color: var(--colorBrandForeground1);
   font-weight: 600;
 }
 .nw-review-empty {

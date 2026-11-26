@@ -235,7 +235,7 @@ export function AnimPane({ ui }: { ui: SlidesUI }) {
     return txt || (el as { name?: string }).name || el.kind;
   };
   return (
-    <aside className="sl-pane sl-animpane" aria-label={t('Panel de animación')}>
+    <aside className="sl-pane sl-animpane nv-panel" aria-label={t('Panel de animación')}>
       <header>
         <b>{t('Panel de animación')}</b>
         <button type="button" aria-label={t('Cerrar el panel')} onClick={() => ((c.pane = 'none'), c.touch())}>×</button>

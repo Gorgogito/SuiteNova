@@ -66,7 +66,7 @@ export function FolderTree({ ctl }: { ctl: MailCtl }) {
     });
 
   return (
-    <nav className="ml-folders" aria-label={t('Carpetas')}>
+    <nav className="ml-folders nv-panel" aria-label={t('Carpetas')}>
       <ul role="tree" aria-label={t('Carpetas')}>
         {rows
           .filter(({ folder }) => !(folder.parent && hidden.has(folder.parent)))

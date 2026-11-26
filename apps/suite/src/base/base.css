@@ -1057,7 +1057,7 @@ select.bs-fc {
 .bs-chmenu:hover { background: var(--colorNeutralBackground1Hover, #eee); }
 .bs-grip { position: absolute; right: -3px; top: 0; width: 7px; height: 100%; cursor: col-resize; z-index: 3; }
 .bs-grip:hover { background: color-mix(in srgb, var(--nv-accent, #9b2470) 35%, transparent); }
-.bs-filtered { font-style: normal; color: var(--nv-accent, #9b2470); margin-left: 4px; }
+.bs-filtered { font-style: normal; color: var(--colorBrandForeground1); margin-left: 4px; }
 .bs-cell.is-frozen { background: var(--colorNeutralBackground1); box-shadow: 2px 0 0 var(--colorNeutralStroke2); }
 .bs-row.is-selected .bs-cell.is-frozen { background: color-mix(in srgb, var(--nv-accent, #9b2470) 14%, var(--colorNeutralBackground1)); }
 .bs-row.is-alt .bs-cell { background: color-mix(in srgb, var(--colorNeutralForeground1) 4%, transparent); }
@@ -1084,7 +1084,7 @@ select.bs-fc {
 .bs-fprops { border-top: 1px solid var(--colorNeutralStroke2); padding: 6px 10px 8px; flex: none; max-height: 42%; overflow: auto; }
 .bs-ptabs { display: flex; gap: 4px; align-items: center; margin-bottom: 6px; }
 .bs-ptabs button { height: 26px; padding: 0 12px; border: 1px solid transparent; border-bottom: 2px solid transparent; background: none; font: inherit; color: var(--colorNeutralForeground1); cursor: pointer; }
-.bs-ptabs button.is-on { border-bottom-color: var(--nv-accent, #9b2470); font-weight: 600; }
+.bs-ptabs button.is-on { border-bottom-color: var(--colorBrandForeground1); font-weight: 600; }
 .bs-pfield { margin-left: auto; color: var(--colorNeutralForeground3); font-size: 12px; }
 .bs-pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 14px; align-items: start; }
 .bs-pgrid label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
@@ -1134,7 +1134,7 @@ select.bs-fc {
 .bs-keyrow > input, .bs-keyrow > select { flex: 1 1 90px; min-width: 0; }
 .bs-taborder { margin: 0; padding-left: 20px; font-size: 12px; }
 .bs-taborder li { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
-.bs-linkbtn { flex: 1; text-align: left; background: none; border: 0; padding: 0; font: inherit; color: var(--nv-accent, #9b2470); cursor: pointer; }
+.bs-linkbtn { flex: 1; text-align: left; background: none; border: 0; padding: 0; font: inherit; color: var(--colorBrandForeground1); cursor: pointer; }
 
 /* files of the code */
 .bs-filelist { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow: auto; border: 1px solid var(--colorNeutralStroke2); }
@@ -1150,7 +1150,7 @@ select.bs-fc {
 .bs-dmevents .bs-btn.is-on { background: color-mix(in srgb, var(--nv-accent, #9b2470) 18%, transparent); font-weight: 600; }
 
 /* tables: attachments and calculated fields */
-.bs-attbtn { background: none; border: 0; padding: 0 4px; font: inherit; cursor: pointer; color: var(--nv-accent, #9b2470); }
+.bs-attbtn { background: none; border: 0; padding: 0 4px; font: inherit; cursor: pointer; color: var(--colorBrandForeground1); }
 .bs-attlist { border-collapse: collapse; width: 100%; font-size: 13px; }
 .bs-attlist th, .bs-attlist td { text-align: left; padding: 3px 8px; border-bottom: 1px solid var(--colorNeutralStroke3, #e6e6e6); }
 .bs-pgrid .bs-wide { grid-column: 1 / -1; }

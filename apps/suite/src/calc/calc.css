@@ -57,7 +57,7 @@
 .calc-fbar__fx {
   font-style: italic;
   font-weight: 600;
-  color: var(--nv-accent) !important;
+  color: var(--colorBrandForeground1) !important;
 }
 .calc-fbar__input {
   flex: 1;
@@ -154,7 +154,7 @@
   background: var(--colorBrandBackground2);
 }
 .calc-suggest__fx {
-  color: var(--nv-accent);
+  color: var(--colorBrandForeground1);
   font-style: italic;
   font-weight: 600;
 }
@@ -193,7 +193,7 @@
 }
 .calc-tab.is-active {
   background: var(--colorNeutralBackground1);
-  color: var(--nv-accent);
+  color: var(--colorBrandForeground1);
   font-weight: 600;
   box-shadow: inset 0 -3px 0 var(--tab-color, var(--nv-accent));
 }
