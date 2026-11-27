@@ -6,6 +6,9 @@ import '../macros/messages';
 import { collection, makeObject, noMember, type ParamTable } from '../macros/objects';
 import { MacroRuntime, type MacroRun } from '../macros/runtime';
 import type { ComposeState, MailCtl } from './ctl';
+import { docOf, messageContent } from './rich/content';
+import { renderMail } from './rich/html';
+import { htmlToDoc } from './rich/parse';
 
 type BVal = basic.BVal;
 type BObject = basic.BObject;
@@ -108,7 +111,19 @@ export class MailRuntime extends MacroRuntime {
 
     /** A message that is being composed (not yet in the mailbox). */
     const composeItem = (c: ComposeState): BObject => {
-      const field = (k: 'to' | 'cc' | 'bcc' | 'subject' | 'body') => ({ get: () => c[k] as BVal, set: (v: BVal) => void (c[k] = toStr(v)) });
+      const field = (k: 'to' | 'cc' | 'bcc' | 'subject') => ({ get: () => c[k] as BVal, set: (v: BVal) => void (c[k] = toStr(v)) });
+      // as in Outlook, Body and HTMLBody are the whole message, the original of an answer included; writing one replaces it
+      const body = { get: () => messageContent(c).text as BVal, set: (v: BVal) => ((c.body = toStr(v)), (c.doc = undefined), void (c.quote = undefined)) };
+      const htmlbody = {
+        get: () => (messageContent(c.doc || c.quote ? c : { ...c, doc: docOf(c).toJSON() }).html ?? messageContent(c).text) as BVal,
+        set: (v: BVal) => {
+          const doc = htmlToDoc(toStr(v));
+          c.doc = doc.toJSON();
+          c.body = renderMail(doc).text;
+          c.quote = undefined;
+        },
+      };
+      const importance = { get: () => (c.importance === 'high' ? 2 : c.importance === 'low' ? 0 : 1) as BVal, set: (v: BVal) => void (c.importance = toNum(v) === 2 ? 'high' : toNum(v) === 0 ? 'low' : undefined) };
       return make({
         type: 'MailItem',
         props: {
@@ -116,7 +131,9 @@ export class MailRuntime extends MacroRuntime {
           cc: field('cc'),
           bcc: field('bcc'),
           subject: field('subject'),
-          body: field('body'),
+          body,
+          htmlbody,
+          importance,
           entryid: { get: () => c.id },
           unread: { get: () => 0 },
           attachments: { get: () => collection('Attachments', () => c.attachments.map((a) => make({ type: 'Attachment', props: { filename: { get: () => a.filename }, displayname: { get: () => a.filename } } }))) },
@@ -160,6 +177,8 @@ export class MailRuntime extends MacroRuntime {
         props: {
           subject: { get: () => rec().subject, set: () => readOnly('el asunto') },
           body: { get: () => messageOf(rec()).text ?? rec().preview, set: () => readOnly('el texto') },
+          htmlbody: { get: () => messageOf(rec()).html ?? messageOf(rec()).text ?? '', set: () => readOnly('el texto') },
+          importance: { get: () => (rec().importance === 'high' ? 2 : rec().importance === 'low' ? 0 : 1), set: () => readOnly('la importancia') },
           sendername: { get: () => rec().from },
           senderemailaddress: { get: () => rec().fromEmail },
           to: { get: () => rec().to },

@@ -242,10 +242,13 @@ await check('Slides: the pane follows the word being edited and Insert replaces 
 });
 
 
+/** What is written in the message, as plain text. */
+const mailText = (p = page) => p.evaluate(() => new Promise((done) => setTimeout(() => done(window.__novaMail.ctl.compose.body), 80)));
 const fieldDlg = () => page.getByRole('dialog').filter({ has: page.getByRole('complementary', { name: 'Sinónimos' }) });
 const fieldMenuClick = async (root, word) => {
   const p = await page.evaluate(([root, word]) => {
-    const m = document.querySelector(root + ' .nv-pt__mirror');
+    // a text field is read from its mirror; an editor is read directly
+    const m = document.querySelector(root + ' .nv-pt__mirror') ?? document.querySelector(root);
     const w = document.createTreeWalker(m, NodeFilter.SHOW_TEXT);
     for (let n = w.nextNode(); n; n = w.nextNode()) {
       const i = n.textContent.indexOf(word);
@@ -271,20 +274,23 @@ await check('Mail: right click on a word of the body gives Cut/Copy/Paste and sy
   await body.click();
   await page.keyboard.type('Una casa grande y bonita');
   await settle(2200);
-  await fieldMenuClick('.nv-pt', 'casa');
+  await fieldMenuClick('.ml-editor', 'casa');
   const menu = page.locator('.nv-sp-menu');
   await menu.waitFor();
   for (const n of ['Cortar', 'Copiar', 'Pegar']) assert.equal(await menu.getByRole('menuitem', { name: n, exact: true }).count(), 1, n);
   await shot('mail-word-menu');
   await menu.locator('.nv-sp-syn', { hasText: /^apartamento$/ }).click();
   await settle(300);
-  assert.equal(await body.inputValue(), 'Una apartamento grande y bonita');
+  assert.equal(await mailText(), 'Una apartamento grande y bonita');
 });
 
 await check('Mail: Shift+F7 in the field opens the thesaurus dialog on the word at the cursor; Insert replaces it', async () => {
   const body = page.getByLabel('Cuerpo del mensaje');
   await body.click();
+  // the editor reads where the click and the key left the cursor a moment later: no person types faster than that
+  await settle(150);
   await page.keyboard.press('Control+End');
+  await settle(150);
   await page.keyboard.press('Shift+F7');
   const dlg = fieldDlg();
   await dlg.waitFor();
@@ -294,8 +300,8 @@ await check('Mail: Shift+F7 in the field opens the thesaurus dialog on the word 
   await shot('mail-dialog');
   await dlg.getByRole('button', { name: 'Cerrar' }).last().click();
   await settle(300);
-  assert.match(await body.inputValue(), /^Una apartamento grande y [a-záéíóúñ]+$/);
-  assert.ok(!/bonita/.test(await body.inputValue()), await body.inputValue());
+  assert.match(await mailText(), /^Una apartamento grande y [a-záéíóúñ]+$/);
+  assert.ok(!/bonita/.test(await mailText()), await mailText());
 });
 
 await check('Forms: the long answer of the preview opens the thesaurus with Shift+F7', async () => {

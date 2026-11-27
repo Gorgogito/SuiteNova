@@ -260,32 +260,36 @@ for (const P of PRODUCTS) {
     return fs.readFileSync(f, 'utf8');
   };
   const qp = (t) => t.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/g, (_m, h) => String.fromCharCode(parseInt(h, 16)));
-  await check('insertar tabla: la marca queda en el texto, las celdas se escriben y una fórmula da su resultado', async () => {
+  await check('insertar tabla: queda en el texto, las celdas se escriben y una fórmula da su resultado', async () => {
     await page.keyboard.press('Control+Shift+M');
     await page.getByLabel('Para', { exact: true }).fill('bea@x.es');
     await page.getByLabel('Asunto').fill('Con tabla');
-    await page.getByLabel('Cuerpo del mensaje').fill('Cifras:\n');
+    await page.getByLabel('Cuerpo del mensaje').click();
+    await page.keyboard.type('Cifras:');
+    await page.keyboard.press('Enter');
     await page.getByRole('button', { name: 'Insertar tabla', exact: true }).click();
     await page.getByRole('gridcell', { name: '2 × 3', exact: true }).click();
-    assert.match(await page.getByLabel('Cuerpo del mensaje').inputValue(), /\[Tabla: Tabla 1\]/);
-    await page.getByLabel('Fila 1, columna 1').fill('Cant');
-    await page.getByLabel('Fila 2, columna 1').fill('2');
-    await page.getByLabel('Fila 3, columna 1').fill('3');
-    await page.getByRole('button', { name: 'Agregar fila' }).click();
-    await page.getByLabel('Fila 4, columna 1').fill('=SUM(ABOVE)');
+    // the cursor is in the first cell
+    await page.keyboard.type('Cant');
+    for (const value of ['Nota', '2', 'a', '3', 'b']) {
+      await page.keyboard.press('Tab');
+      await page.keyboard.type(value);
+    }
+    await page.getByRole('toolbar', { name: 'Herramientas de tabla' }).getByRole('button', { name: 'Agregar fila' }).click();
+    await page.keyboard.press('Tab');
+    await page.keyboard.type('=SUM(ABOVE)');
     await page.getByLabel('Asunto').click();
-    assert.equal(await page.getByLabel('Fila 4, columna 1').inputValue(), '5');
+    await page.waitForFunction(() => document.querySelector('.ml-editor .nn-fval:not(.nn-fval--hint)')?.textContent === '5');
     await shot(page, 'mail-tabla');
   });
-  await check('exportar: el HTML lleva la tabla y el texto la lleva alineada con el resultado de la fórmula', async () => {
+  await check('exportar: el HTML lleva la tabla con su estilo y el texto la lleva alineada con el resultado de la fórmula', async () => {
     await page.getByRole('button', { name: 'Guardar borrador' }).click();
     const eml = qp(await exportEml());
-    assert.match(eml, /<table[^>]*data-nova=/);
-    assert.match(eml, /<th style=/);
+    assert.match(eml, /<table cellspacing="0"/);
+    assert.match(eml, /<t[hd][^>]* style="[^"]*border-top:/);
     assert.match(eml, />5<\/td>/);
-    // what is sent has the table as aligned text, not the token (the draft keeps the token: see mail/tables.test.ts)
-    assert.doesNotMatch(eml, /\[Tabla: Tabla 1\]/);
-    assert.match(eml, /Cant \|\r?\n[-+]+\r?\n\s*2 \|[^]*?\s5 \|/);
+    assert.doesNotMatch(eml.split('text/html')[1], /=SUM/);
+    assert.match(eml, /Cant \| Nota\r?\n\s*2 \| a\r?\n\s*3 \| b\r?\n\s*5/);
   });
   await ctx.close();
 }

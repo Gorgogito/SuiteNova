@@ -143,6 +143,7 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
         items: [
           { kind: 'button', command: 'mail.accounts', size: 'large', keytip: 'CU' },
           { kind: 'button', command: 'mail.settings', size: 'large', keytip: 'MD' },
+          { kind: 'button', command: 'mail.signatures', size: 'large', keytip: 'FI' },
         ],
       },
     ],

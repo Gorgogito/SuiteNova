@@ -69,6 +69,8 @@ const composer = () => page.getByRole('region', { name: 'Mensaje que escribes' }
 const question = () => page.getByRole('alertdialog');
 const field = (name) => page.getByLabel(name, { exact: true });
 const body = () => page.getByLabel('Cuerpo del mensaje');
+/** What is written in the message, as plain text. */
+const mailText = (p = page) => p.evaluate(() => new Promise((done) => setTimeout(() => done(window.__novaMail.ctl.compose.body), 80)));
 const row = (subject) => page.locator('.ml-item', { hasText: subject }).first();
 const compose = async () => {
   await page.keyboard.press('Control+Shift+M');
@@ -103,7 +105,7 @@ await check('con algo escrito, Esc y «Cerrar» preguntan: seguir, descartar o g
   await shot('pregunta');
   await question().getByRole('button', { name: 'Seguir escribiendo' }).click();
   await question().waitFor({ state: 'detached' });
-  assert.equal(await body().inputValue(), 'Un texto que no quiero perder.');
+  assert.equal(await mailText(), 'Un texto que no quiero perder.');
   await close();
   await question().getByRole('button', { name: 'Guardar en Borradores' }).click();
   await composer().waitFor({ state: 'detached' });
@@ -129,7 +131,7 @@ await check('el borrador se guarda solo, y al pasar a otro mensaje no se pierde 
   await page.locator('.ml-folders .ml-folder-name', { hasText: 'Borradores' }).click();
   await row('A medias').dblclick();
   await composer().waitFor();
-  assert.equal(await body().inputValue(), 'Más texto');
+  assert.equal(await mailText(), 'Más texto');
   await close();
   await composer().waitFor({ state: 'detached' });
   assert.deepEqual(await drafts(), ['A medias']);
@@ -168,7 +170,7 @@ await check('responder a todos no me incluye, y Ctrl+F mientras escribo no abre 
   await composer().waitFor();
   assert.equal(await field('Para').inputValue(), 'ana@x.test, luis@x.test');
   // el cursor, encima de lo citado
-  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Cuerpo del mensaje' && document.activeElement.selectionStart === 0);
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Cuerpo del mensaje' && window.getSelection().anchorOffset === 0);
   await page.keyboard.type('De acuerdo.');
   await page.keyboard.press('Control+f');
   await settle();
@@ -201,11 +203,12 @@ await check('arrastrar y pegar adjunta; una imagen sobre el texto se inserta en 
   await compose();
   assert.equal(await sendFiles('.ml-compose__att', 'drop', [TEXT]), true);
   await composer().locator('.ml-chip', { hasText: 'informe.txt' }).waitFor();
-  await sendFiles('textarea[aria-label="Cuerpo del mensaje"]', 'drop', [PNG]);
-  await page.waitForFunction(() => /\[Imagen: foto\.png\]/.test(document.querySelector('textarea[aria-label="Cuerpo del mensaje"]').value));
+  await sendFiles('.ml-editor', 'drop', [PNG]);
+  await page.locator('.ml-editor img.nw-image').waitFor();
+  assert.match(await mailText(), /\[Imagen: foto\.png\]/);
   assert.equal(await sendFiles('.ml-composer__head', 'drop', [{ ...PNG, name: 'otra.png' }]), true);
   await composer().locator('.ml-chip', { hasText: 'otra.png' }).waitFor();
-  await sendFiles('textarea[aria-label="Cuerpo del mensaje"]', 'paste', [{ ...TEXT, name: 'pegado.txt' }]);
+  await sendFiles('.ml-editor', 'paste', [{ ...TEXT, name: 'pegado.txt' }]);
   await composer().locator('.ml-chip', { hasText: 'pegado.txt' }).waitFor();
   await shot('adjuntos');
   // en la lista de mensajes se rechaza, y la ventana sigue siendo la de correo
@@ -223,7 +226,8 @@ await check('«Abrir en grande» y volver al panel conservan lo escrito; sin pan
   await composer().getByRole('button', { name: 'Abrir en grande' }).click();
   const dialog = page.getByRole('dialog', { name: 'Mensaje nuevo' });
   await dialog.waitFor();
-  assert.equal(await dialog.getByLabel('Cuerpo del mensaje').inputValue(), 'Lo mismo en los dos sitios');
+  assert.equal(await mailText(), 'Lo mismo en los dos sitios');
+  assert.equal(await dialog.getByLabel('Cuerpo del mensaje').innerText(), 'Lo mismo en los dos sitios');
   await dialog.getByLabel('Asunto').fill('Grande');
   await shot('en-grande');
   await page.keyboard.press('Escape');

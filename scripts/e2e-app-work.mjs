@@ -275,7 +275,7 @@ await check('las zonas de trabajo de Mail, Base, Plan, Notes y Forms quedan blan
   }
 });
 
-await check('lo escrito en el cuerpo de un mensaje se lee en los cuatro temas (campo con corrector)', async () => {
+await check('lo escrito en un mensaje se lee en los cuatro temas', async () => {
   await open('mail');
   await page.keyboard.press('Control+Shift+M');
   const body = page.getByLabel('Cuerpo del mensaje');
@@ -283,10 +283,9 @@ await check('lo escrito en el cuerpo de un mensaje se lee en los cuatro temas (c
   await page.keyboard.type('Texto del mensaje.');
   for (const theme of THEMES) {
     await setTheme(theme);
-    assert.deepEqual(await lowContrast(page, ['.nv-pt']), [], theme);
-    // the box looks like the other boxes of the message
-    const colour = (selector) => css(selector, 'backgroundColor');
-    assert.equal(await colour('.ml-composer .nv-pt'), await colour('.ml-composer .ml-compose input:not([type="file"])'), theme);
+    assert.deepEqual(await lowContrast(page, ['.ml-editorbox', '.ml-format', '.ml-composer .ml-compose']), [], theme);
+    // the message is written on white paper, like a page or a sheet
+    assert.equal(await css('.ml-editorbox', 'backgroundColor'), 'rgb(255, 255, 255)', theme);
     await shot(`mensaje-${theme}`);
   }
 });

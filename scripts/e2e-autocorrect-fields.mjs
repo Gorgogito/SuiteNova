@@ -31,6 +31,8 @@ const open = async (app, lang, store) => {
   await page.goto(`${BASE}?app=${app}`, { waitUntil: 'load' });
   await settle(900);
 };
+/** What is written in the message, as plain text. */
+const mailText = (p = page) => p.evaluate(() => new Promise((done) => setTimeout(() => done(window.__novaMail.ctl.compose.body), 80)));
 const mailBody = async () => {
   await page.keyboard.press('Control+Shift+M');
   const body = page.getByLabel('Cuerpo del mensaje');
@@ -42,14 +44,14 @@ await check('Mail en español: la lista española corrige «tambien» y deja «t
   await open('mail', 'es');
   const body = await mailBody();
   await page.keyboard.type('hola tambien teh ');
-  assert.equal(await body.inputValue(), 'Hola también teh ');
+  assert.equal(await mailText(), 'Hola también teh ');
 });
 
 await check('Mail en inglés: la lista inglesa corrige «teh» y deja «tambien»', async () => {
   await open('mail', 'en');
   const body = await mailBody();
   await page.keyboard.type('hello tambien teh ');
-  assert.equal(await body.inputValue(), 'Hello tambien the ');
+  assert.equal(await mailText(), 'Hello tambien the ');
 });
 
 const store = { version: 2, flags: {}, lists: {}, exceptions: { es: { firstLetter: ['zzz'], twoInitialCaps: [], other: [] } } };
@@ -57,11 +59,11 @@ await check('la excepción «zzz» del español vale en un campo en español y n
   await open('mail', 'es', store);
   let body = await mailBody();
   await page.keyboard.type('ok zzz. hola ');
-  assert.equal(await body.inputValue(), 'Ok zzz. hola ');
+  assert.equal(await mailText(), 'Ok zzz. hola ');
   await open('mail', 'en', store);
   body = await mailBody();
   await page.keyboard.type('ok zzz. hola ');
-  assert.equal(await body.inputValue(), 'Ok zzz. Hola ');
+  assert.equal(await mailText(), 'Ok zzz. Hola ');
 });
 
 await check('el menú del botón derecho del campo abre el cuadro de autocorrección (sin pestaña matemática)', async () => {
@@ -93,7 +95,7 @@ await check('un reemplazo añadido desde el campo vale al seguir escribiendo', a
   await body.click();
   await page.keyboard.press('Control+End');
   await page.keyboard.type('qqq ');
-  assert.match(await body.inputValue(), /quiero que quede $/);
+  assert.match(await mailText(), /quiero que quede $/);
 });
 
 await check('Calc en inglés: la celda corrige «teh» con la lista inglesa', async () => {

@@ -1,3 +1,5 @@
+@import '../writer/writer.css';
+
 .ml-app {
   position: relative;
   display: flex;
@@ -919,11 +921,6 @@
   outline: 2px solid var(--nv-accent, #0f6cbd);
 }
 
-.ml-table { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-.ml-table__bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.ml-table__grid { display: grid; gap: 2px; max-height: 240px; overflow: auto; }
-.ml-table__grid input { min-width: 0; padding: 3px 6px; }
-.ml-table__grid input[data-sel='true'] { outline: 2px solid var(--colorBrandStroke1, #4472c4); }
 
 /* ---- the message being written ---- */
 .ml-composer,
@@ -1019,4 +1016,200 @@
 }
 .ml-recip li[aria-selected='true'] {
   background: var(--colorNeutralBackground1Selected);
+}
+
+/* ---- the editor of the message ---- */
+.ml-format {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+.ml-format .nv-select {
+  height: 26px;
+}
+.ml-format .ml-tool {
+  justify-content: center;
+  min-width: 26px;
+}
+.ml-format--table {
+  gap: 4px;
+}
+.ml-linkform {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ml-linkform input {
+  width: 260px;
+  padding: 3px 6px;
+}
+/* the message is paper, white in every theme, as the pages and sheets of the other applications */
+.ml-editorbox {
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 4px;
+  background: #fff;
+}
+.ml-editorbox:focus-within {
+  outline: 2px solid var(--colorStrokeFocus2);
+  outline-offset: -1px;
+}
+.nw-doc.ml-editor {
+  min-height: 200px;
+  padding: 10px 12px;
+  outline: none;
+  color: #000;
+  font-family: Calibri, Carlito, 'Segoe UI', sans-serif;
+  font-size: 11pt;
+  overflow-wrap: break-word;
+  user-select: text;
+}
+.nw-doc.ml-editor p {
+  margin: 0;
+}
+.nw-doc.ml-editor img {
+  max-width: 100%;
+}
+.nw-doc.ml-editor .nw-gen-signature {
+  color: #444;
+}
+.nn-fval {
+  font-variant-numeric: tabular-nums;
+}
+.nn-fval.is-error {
+  color: #a4262c;
+}
+.nn-fval--hint {
+  color: #0f6cbd;
+  font-size: 0.85em;
+}
+.nn-fsrc {
+  display: none;
+}
+.ml-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ml-quote header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ml-quote header span {
+  flex: 1;
+  color: var(--colorNeutralForeground3);
+  font-size: 12px;
+}
+.ml-quote iframe {
+  width: 100%;
+  height: 220px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 4px;
+  background: #fff;
+  resize: vertical;
+}
+.ml-importance {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--colorNeutralBackground3);
+  font-size: 12px;
+}
+.ml-sigs {
+  display: flex;
+  gap: 12px;
+  min-height: 280px;
+}
+.ml-sigs__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 180px;
+  flex: none;
+}
+.ml-sigs__list ul {
+  flex: 1;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 4px;
+  overflow: auto;
+  list-style: none;
+}
+.ml-sigs__list li button {
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ml-sigs__list li button.is-current {
+  background: var(--colorNeutralBackground1Selected);
+}
+.ml-sigs__edit {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.ml-sigs__edit label {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.ml-sigs__edit input,
+.ml-templates__save input {
+  padding: 4px 8px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 4px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+}
+.ml-sigs__edit .nw-doc.ml-editor {
+  min-height: 130px;
+}
+.ml-sigs__defaults {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  text-align: left;
+}
+.ml-sigs__defaults caption {
+  margin-bottom: 4px;
+  font-weight: 600;
+  text-align: left;
+}
+.ml-sigs__defaults th,
+.ml-sigs__defaults td {
+  padding: 3px 6px;
+  font-weight: normal;
+}
+.ml-templates {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.ml-templates li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.ml-templates li span {
+  flex: 1;
+}
+.ml-templates__save {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ml-templates__save input {
+  flex: 1;
 }

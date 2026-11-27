@@ -219,4 +219,6 @@ Plan en `docs/diseno-tema-aplicativo.md`; medidas de Office real en `docs/office
 - [x] Fase 6: cierre (2026-11-26). Comparación con Office, contraste alto, foco del teclado, «Sistema», varias ventanas y tiempos; `e2e-app-close.mjs`; versión 0.0.14. **Tema del aplicativo completo.** Siguiente: el usuario da el próximo producto.
 
 ## Nova Mail frente a Outlook, segunda ronda (2026-11-26)
-Comparación y plan de 7 fases en `docs/diseno-mail-outlook.md`. **Propuesta pendiente de aprobación; sin tocar código.** Cuatro fallos anotados en el apartado 2 (los dos primeros comprobados en Edge).
+Comparación y plan de 7 fases en `docs/diseno-mail-outlook.md`, **aprobado** (2026-11-26).
+- [x] Fase 1: fallos y escritura segura (2026-11-26). Cuatro fallos corregidos, escribir en el panel de lectura, borrador automático, sugerencias de destinatarios, arrastrar y pegar adjuntos; arrastre en el escritorio; `e2e-mail-compose.mjs`. Detalle en la bitácora del diseño. Subida en `e4510ab` (estas notas se escribieron con la fase 2). Siguiente: fase 2, formato y firmas.
+- [x] Fase 2: formato y firmas (2026-11-26). Editor con formato (el de Writer y Notes), original conservado en respuestas, firmas por cuenta, plantillas, importancia; `e2e-mail-format.mjs`. Detalle en la bitácora del diseño. Siguiente: fase 3, lista y lectura.

@@ -157,7 +157,7 @@ for (const pr of PRODUCTS) {
     await page.getByTestId('clip-canvas').waitFor();
     await dlg(page).getByRole('button', { name: 'Cancelar', exact: true }).click();
     await dlg(page).waitFor({ state: 'detached' });
-    assert.doesNotMatch(await body.inputValue(), /\[Imagen/i);
+    assert.doesNotMatch(await page.evaluate(() => window.__novaMail.ctl.compose.body), /\[Imagen/i);
     await page.getByRole('button', { name: /Recorte de pantalla/ }).click();
     await page.getByTestId('clip-canvas').waitFor();
     await page.waitForTimeout(400);
@@ -165,7 +165,7 @@ for (const pr of PRODUCTS) {
     await dlg(page).getByRole('button', { name: 'Insertar el recorte', exact: true }).click();
     await dlg(page).waitFor({ state: 'detached' });
     await page.waitForTimeout(900);
-    const text = await body.inputValue();
+    const text = await page.evaluate(() => window.__novaMail.ctl.compose.body);
     assert.match(text, /\[Imagen[^\]]*Recorte de pantalla \d{4}-\d\d-\d\d/i, text + alerts.join('|'));
     if (shotsDir) await page.screenshot({ path: `${shotsDir}/${String(++step).padStart(2, '0')}-mail.png` });
   });

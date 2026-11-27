@@ -67,7 +67,7 @@ function pageLinkPlugin(ctl: NotesCtl): Plugin {
  * Table formulas: a cell that starts with "=" shows its result; the formula itself appears while the cursor is in the cell.
  */
 const focusKey = new PluginKey<boolean>('nn-focus');
-function formulaPlugin(): Plugin {
+export function formulaPlugin(): Plugin {
   return new Plugin({
     key: focusKey,
     state: { init: () => false, apply: (tr, v) => (tr.getMeta(focusKey) as boolean | undefined) ?? v },

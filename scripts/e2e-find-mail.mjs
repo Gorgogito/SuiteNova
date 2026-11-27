@@ -27,6 +27,8 @@ const bar = page.locator('.nv-find-bar');
 const find = bar.getByLabel('Buscar', { exact: true });
 const info = () => bar.locator('.nv-find-info').first().innerText();
 
+/** What is written in the message, as plain text. */
+const mailText = (p = page) => p.evaluate(() => new Promise((done) => setTimeout(() => done(window.__novaMail.ctl.compose.body), 80)));
 await check('writing: F4 finds, counts and selects in the body', async () => {
   await page.keyboard.press('Control+Shift+M');
   const body = page.getByLabel('Cuerpo del mensaje');
@@ -40,22 +42,16 @@ await check('writing: F4 finds, counts and selects in the body', async () => {
   await bar.getByRole('button', { name: 'Siguiente', exact: true }).click();
   await wait();
   assert.equal(await info(), '2 de 3');
-  const sel = await page.evaluate(() => {
-    const t = document.querySelector('textarea[aria-label="Cuerpo del mensaje"]');
-    return t.value.slice(t.selectionStart, t.selectionEnd);
-  });
+  const sel = await page.evaluate(() => window.getSelection().toString());
   assert.equal(sel.toLowerCase(), 'gato');
 });
 
 await check('writing: F3 goes on from the body', async () => {
   await page.keyboard.press('F3');
   await wait();
-  const sel = await page.evaluate(() => {
-    const t = document.querySelector('textarea[aria-label="Cuerpo del mensaje"]');
-    return [t.selectionStart, t.value.slice(t.selectionStart, t.selectionEnd)];
-  });
+  const sel = await page.evaluate(() => [window.getSelection().anchorNode.parentElement.closest('p')?.textContent, window.getSelection().toString()]);
   assert.equal(sel[1].toLowerCase(), 'gato');
-  assert.ok(sel[0] > 15);
+  assert.match(sel[0], /Gato y gato/);
 });
 
 await check('writing: Ctrl+H replaces all with groups (wildcards) and the draft keeps it', async () => {
@@ -69,7 +65,7 @@ await check('writing: Ctrl+H replaces all with groups (wildcards) and the draft 
   await bar.getByLabel('Reemplazar con').fill('\\2 \\1');
   await bar.getByRole('button', { name: 'Reemplazar todo', exact: true }).click();
   await wait();
-  const v = await page.getByLabel('Cuerpo del mensaje').inputValue();
+  const v = await mailText();
   assert.ok(v.startsWith('Ana Hola\n'), v);
 });
 
@@ -81,7 +77,7 @@ await check('writing: replace one by one with ^p', async () => {
   await wait();
   await bar.getByRole('button', { name: 'Reemplazar', exact: true }).click();
   await wait();
-  const v = await page.getByLabel('Cuerpo del mensaje').inputValue();
+  const v = await mailText();
   assert.ok(v.includes('Gato\ngato y GATO'), v);
   await bar.getByRole('button', { name: 'Cerrar', exact: true }).click();
   // the message has text: closing it asks

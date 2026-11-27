@@ -126,7 +126,8 @@ describe('Nova Mail controller', () => {
     ctl.reply(r.id, false);
     expect(ctl.compose!.to).toBe('ana@x.es');
     expect(ctl.compose!.subject).toBe('Re: Plan');
-    expect(ctl.compose!.body).toContain('> línea 1');
+    // the original is kept apart, below what is written
+    expect(ctl.compose!.quote!.text).toContain('> línea 1');
     expect(ctl.compose!.inReplyTo).toBe('<orig@x.es>');
     // nothing has been sent yet
     expect(r.answered).toBe(false);

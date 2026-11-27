@@ -7,6 +7,7 @@ import { saveBytes } from '../fileio';
 import type { MailCtl } from './ctl';
 import { FindPanel } from '../find';
 import { frameFindHost } from './find-hosts';
+import { sanitizeMailHtml } from './rich/sanitize';
 
 // ---------------------------------------------------------------------------------------------- folders
 export function FolderTree({ ctl }: { ctl: MailCtl }) {
@@ -217,6 +218,7 @@ export function MessageList({ ctl }: { ctl: MailCtl }) {
               <div className="ml-item__subject">
                 {m.subject || t('(sin asunto)')}
                 {m.hasAttachments && <span title={t('Con adjuntos')} aria-label={t('Con adjuntos')}> 📎</span>}
+                {m.importance === 'high' && <span title={t('Importancia alta')} aria-label={t('Importancia alta')}> ❗</span>}
                 <button type="button" className={`ml-flag${m.flagged ? ' is-on' : ''}`} aria-label={m.flagged ? t('Quitar bandera') : t('Marcar con bandera')} aria-pressed={m.flagged} onClick={(e) => { e.stopPropagation(); ctl.toggleFlag(m.id); }}>
                   {m.flagged ? '⚑' : '⚐'}
                 </button>
@@ -244,29 +246,16 @@ export function safeHtml(m: ParsedMessage, allowRemote: boolean): { html: string
   let body: string;
   let hasRemote = false;
   if (m.html !== null) {
-    const doc = new DOMParser().parseFromString(m.html, 'text/html');
-    doc.querySelectorAll('script,iframe,frame,object,embed,meta,link,base,form,applet,portal,noscript').forEach((n) => n.remove());
-    doc.querySelectorAll('*').forEach((el) => {
-      for (const a of [...el.attributes]) {
-        if (/^on/i.test(a.name)) el.removeAttribute(a.name);
-        else if (['href', 'src', 'action', 'formaction', 'xlink:href'].includes(a.name.toLowerCase()) && /^\s*(javascript|vbscript):/i.test(a.value)) el.removeAttribute(a.name);
-      }
-      if (el.tagName === 'A') {
-        el.setAttribute('rel', 'noopener noreferrer');
-        el.removeAttribute('target');
-      }
-    });
-    doc.querySelectorAll('img').forEach((img) => {
+    const safe = sanitizeMailHtml(m.html);
+    safe.body.querySelectorAll('img').forEach((img) => {
       const src = img.getAttribute('src') ?? '';
       if (src.startsWith('cid:')) {
         const part = m.inlineParts.find((p) => p.cid === src.slice(4));
         if (part) img.setAttribute('src', `data:${part.contentType};base64,${encodeBase64(part.data)}`);
       }
     });
-    hasRemote = REMOTE.test(doc.documentElement.outerHTML);
-    body = doc.body.innerHTML;
-    const styles = [...doc.head.querySelectorAll('style')].map((s) => s.outerHTML).join('');
-    body = styles + body;
+    hasRemote = REMOTE.test(safe.styles + safe.body.outerHTML);
+    body = safe.styles + safe.body.innerHTML;
   } else body = `<pre style="white-space:pre-wrap;font:inherit;margin:0">${linkify(m.text ?? '')}</pre>`;
   const img = allowRemote ? 'img-src data: https: http:' : 'img-src data:';
   return {
@@ -376,6 +365,11 @@ export function ReadingPane({ rec, onLink }: { rec: MailRecord; onLink: (href: s
             <button type="button" onClick={() => setAllow(rec.id)}>
               {t('Mostrar contenido externo')}
             </button>
+          </div>
+        )}
+        {rec.importance && (
+          <div className="ml-importance" role="note">
+            {rec.importance === 'high' ? `❗ ${t('Este mensaje se envió con importancia alta.')}` : `↓ ${t('Este mensaje se envió con importancia baja.')}`}
           </div>
         )}
         {parsed.warnings.length > 0 && <div className="ml-remote">{parsed.warnings.join(' ')}</div>}

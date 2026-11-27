@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildMessage } from './build';
+import { importanceOf } from './mime';
 import { addressBook, splitRecipients, suggestRecipients, typedRecipient } from './recipients';
 import { addRaw, newMailData } from './store';
 import { newContact } from './vcard';
@@ -54,5 +55,20 @@ describe('libreta de direcciones', () => {
     expect(found('maria al')).toEqual(['maria@x.es']);
     expect(found('')).toEqual([]);
     expect(suggestRecipients(book, 'mar', new Set(['marta@x.es'])).map((e) => e.email)).toEqual(['mario@x.es', 'maria@x.es']);
+  });
+});
+
+describe('importancia', () => {
+  it('se escribe con las dos cabeceras y se lee con cualquiera', () => {
+    const base = { from: { name: '', email: 'a@x.es' }, to: [{ name: '', email: 'b@x.es' }], subject: 's', text: 't' };
+    const high = buildMessage({ ...base, importance: 'high' });
+    expect(high).toMatch(/Importance: High\r\nX-Priority: 1\r\n/);
+    const d = newMailData();
+    expect(addRaw(d, 'inbox', high).importance).toBe('high');
+    expect(addRaw(d, 'inbox', buildMessage({ ...base, importance: 'low' })).importance).toBe('low');
+    expect(addRaw(d, 'inbox', buildMessage(base)).importance).toBeUndefined();
+    expect(importanceOf([['X-Priority', '1 (Highest)']])).toBe('high');
+    expect(importanceOf([['X-Priority', '3']])).toBeUndefined();
+    expect(importanceOf([['Importance', 'normal'], ['X-Priority', '1']])).toBeUndefined();
   });
 });

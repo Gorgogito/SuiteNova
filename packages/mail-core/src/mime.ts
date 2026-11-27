@@ -369,6 +369,17 @@ export function parseMessage(raw: string | Uint8Array): ParsedMessage {
   };
 }
 
+export type Importance = 'high' | 'low';
+/** How important its sender says a message is (`Importance`, or the older `X-Priority`); undefined when normal. */
+export function importanceOf(headers: [string, string][]): Importance | undefined {
+  const value = (name: string) => headers.find(([k]) => k.toLowerCase() === name)?.[1].trim().toLowerCase() ?? '';
+  const said = value('importance');
+  if (said === 'high' || said === 'low') return said;
+  if (said) return undefined;
+  const n = parseInt(value('x-priority'), 10);
+  return n === 1 || n === 2 ? 'high' : n === 4 || n === 5 ? 'low' : undefined;
+}
+
 /** Plain text of a message for previews and search: the text part, else the HTML stripped of tags. */
 export function bodyText(m: ParsedMessage): string {
   if (m.text !== null) return m.text;

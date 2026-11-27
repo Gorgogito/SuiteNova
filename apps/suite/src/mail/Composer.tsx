@@ -1,24 +1,34 @@
-import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle } from '@fluentui/react-components';
+import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Menu, MenuDivider, MenuItem, MenuList, MenuPopover, MenuTrigger } from '@fluentui/react-components';
 import { useImageSources } from '../images/useSources';
 import { t } from '@suitenova/core-ui';
+import { DEFAULT_OPTIONS } from '@suitenova/table-core';
+import { TextSelection } from 'prosemirror-state';
+import type { Node as PMNode } from 'prosemirror-model';
+import type { EditorView } from 'prosemirror-view';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import type { ComposeState, MailCtl } from './ctl';
 import { FindPanel } from '../find';
-import { textareaFindHost } from './find-hosts';
-import { ProofTextarea } from '../spell';
 import { FormatPictureDialog } from '../images/FormatPictureDialog';
 import { RemoveBackgroundDialog } from '../images/RemoveBackgroundDialog';
 import { AspectItems } from '../images/galleries';
 import { PicPopover } from '../images/PicPopover';
-import { imageSize } from '../calc/imagePick';
-import { mailPictureHost, tokenOf, uniqueName, type ComposePicture } from './pictures';
+import { mailPictureHost, type ComposePicture } from './pictures';
 import { PictureTextForm } from './dlg-ocr';
 import { GridPicker } from '../tables';
-import { TableEditor } from './TableEditor';
-import { newTable, tableToken, uniqueTableName, type ComposeTable } from './tables';
+import { createTable } from '../writer/editing';
 import { dataUriOf } from './ocr-images';
 import { packResult } from '@suitenova/ocr-core';
 import { RecipientInput } from './RecipientInput';
+import { docOf, messageContent } from './rich/content';
+import { FormatBar, TableBar } from './rich/FormatBar';
+import { richFindHost } from './rich/find';
+import { textOf } from './rich/html';
+import { SignaturesDialog, TemplatesDialog } from './rich/Libraries';
+import { loadSignatures, withSignature, type Signature, type Template } from './rich/library';
+import { docFromText } from './rich/parse';
+import { insertPictureFile, readPicture, removePicture, selectedPicture, writePicture } from './rich/picture';
+import { quotePreview } from './rich/quote';
+import { RichEditor } from './rich/RichEditor';
 
 /** The most a message can carry and still be accepted when sending. */
 const MAX_SEND_BYTES = 40 * 1024 * 1024;
@@ -41,66 +51,102 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
   const from = s.from && ctl.accounts.some((a) => a.id === s.from) ? s.from : (ctl.accounts[0]?.id ?? '');
   const fileRef = useRef<HTMLInputElement>(null);
   const picRef = useRef<HTMLInputElement>(null);
-  const caret = useRef<number | null>(null);
   const composeRef = useRef<HTMLDivElement>(null);
+  // the editor, and a count that redraws the buttons when its cursor moves
+  const [view, setView] = useState<EditorView | null>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  viewRef.current = view;
+  const [, setTick] = useState(0);
+  const initial = useRef<PMNode | null>(null);
+  initial.current ??= docOf(c);
   const [finding, setFinding] = useState<{ replace: boolean } | null>(null);
-  const findHost = useMemo(() => textareaFindHost(() => composeRef.current?.querySelector<HTMLTextAreaElement>('textarea[aria-label]') ?? null), []);
+  const findHost = useMemo(() => richFindHost(() => viewRef.current), []);
   const [selPic, setSelPic] = useState<string | null>(null);
+  const selRef = useRef(selPic);
+  selRef.current = selPic;
   const [picTool, setPicTool] = useState<null | 'corrections' | 'color' | 'artistic' | 'removeBg'>(null);
   const [textPic, setTextPic] = useState(false);
-  // the picture tools read the picture as it is now (a dialog stays open while the message changes)
+  const [library, setLibrary] = useState<null | 'signatures' | 'templates'>(null);
+  const [signatures, setSignatures] = useState(() => loadSignatures().list);
   const sRef = useRef(s);
   sRef.current = s;
-  const pics = s.pictures ?? [];
-  const pic = pics.find((p) => p.id === selPic);
-  const picHost = useMemo(() => mailPictureHost(() => sRef.current.pictures?.find((p) => p.id === selPic), (np) => setS((x) => ({ ...x, pictures: (x.pictures ?? []).map((p) => (p.id === np.id ? np : p)) }))), [selPic]);
-  const setPic = (patch: Partial<ComposePicture>) => pic && setS((x) => ({ ...x, pictures: (x.pictures ?? []).map((p) => (p.id === pic.id ? { ...p, ...patch } : p)) }));
-  const [selTable, setSelTable] = useState<string | null>(null);
-  const tbls = s.tables ?? [];
-  const tbl = tbls.find((x) => x.id === selTable);
-  const addTable = (rows: number, cols: number) => {
-    const name = uniqueTableName(sRef.current.tables?.map((x) => x.name) ?? []);
-    const tb = newTable(name, rows, cols);
-    setS((x) => {
-      const at = Math.min(caret.current ?? x.body.length, x.body.length);
-      const body = `${x.body.slice(0, at)}${at > 0 && x.body[at - 1] !== '\n' ? '\n' : ''}${tableToken(name)}\n${x.body.slice(at)}`;
-      return { ...x, body, tables: [...(x.tables ?? []), tb] };
-    });
-    setSelTable(tb.id);
+  // the picture tools read the picture as it is now (a dialog stays open while the message changes)
+  const pic = readPicture(view, selPic);
+  const picHost = useMemo(() => mailPictureHost(() => readPicture(viewRef.current, selRef.current), (np) => writePicture(viewRef.current, np)), []);
+  const setPic = (patch: Partial<ComposePicture>) => pic && writePicture(view, { ...pic, ...patch });
+  const quotePage = useMemo(() => (s.quote ? quotePreview(s.quote) : ''), [s.quote]);
+
+  const onDoc = (doc: PMNode) => {
+    setS((x) => ({ ...x, doc: doc.toJSON(), body: textOf(doc) }));
+    setMsg(null);
+    setErr(null);
   };
-  const removeTable = (tb: ComposeTable) => {
-    setS((x) => ({ ...x, body: x.body.split(`\n${tableToken(tb.name)}`).join('').split(tableToken(tb.name)).join(''), tables: (x.tables ?? []).filter((q) => q.id !== tb.id) }));
-    if (selTable === tb.id) setSelTable(null);
+  const onSelect = () => {
+    setTick((n) => n + 1);
+    const v = viewRef.current;
+    if (v) setSelPic(selectedPicture(v));
   };
-  const sources = useImageSources((f) => addPicture(f));
-  const addPicture = async (f: File) => {
+  /** Another content for the whole editor (a signature, the original turned into text), as one step that can be undone. */
+  const replaceDoc = (next: PMNode) => {
+    const v = viewRef.current;
+    if (!v) return;
+    const tr = v.state.tr.replaceWith(0, v.state.doc.content.size, next.content);
+    v.dispatch(tr.setSelection(TextSelection.atStart(tr.doc)));
+  };
+  const addPicture = async (f: File, at?: number) => {
+    const v = viewRef.current;
+    if (!v) return;
     try {
-      const data = new Uint8Array(await f.arrayBuffer());
-      const mime = f.type || 'image/png';
-      const size = await imageSize(data, mime);
-      const name = uniqueName(f.name || 'imagen.png', sRef.current.pictures?.map((p) => p.name) ?? []);
-      const p: ComposePicture = { id: `nova-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}@suitenova`, name, orig: { mime, data }, sent: { mime, data }, width: Math.min(size.width, 480), alt: '' };
-      setS((x) => {
-        const at = Math.min(caret.current ?? x.body.length, x.body.length);
-        const tok = tokenOf(name);
-        const body = `${x.body.slice(0, at)}${at > 0 && x.body[at - 1] !== '\n' ? '\n' : ''}${tok}\n${x.body.slice(at)}`;
-        return { ...x, body, pictures: [...(x.pictures ?? []), p] };
-      });
-      setSelPic(p.id);
-      setMsg(null);
-      setErr(null);
+      await insertPictureFile(v, f, 480, at);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
   };
-  const removePicture = (p: ComposePicture) => {
-    setS((x) => ({ ...x, body: x.body.split(`\n${tokenOf(p.name)}`).join('').split(tokenOf(p.name)).join(''), pictures: (x.pictures ?? []).filter((q) => q.id !== p.id) }));
-    if (selPic === p.id) setSelPic(null);
+  const sources = useImageSources((f) => addPicture(f));
+  const addTable = (rows: number, cols: number) => {
+    const v = viewRef.current;
+    if (!v) return;
+    const plain = createTable(rows, cols, Math.max(200, v.dom.clientWidth - 24));
+    const table = plain.type.create({ ...plain.attrs, tstyle: 'grid-1', topts: { ...DEFAULT_OPTIONS } }, plain.content);
+    // in the place of an empty line, or after the block the cursor is in; the cursor goes into the first cell
+    const tr = v.state.tr;
+    const { $from } = tr.selection;
+    const depth = Math.min(1, $from.depth);
+    const empty = depth === 1 && $from.parent.type.name === 'paragraph' && !$from.parent.content.size && $from.depth === 1;
+    const at = empty ? $from.before(1) : depth ? $from.after(1) : $from.pos;
+    if (empty) tr.replaceWith(at, $from.after(1), table);
+    else tr.insert(at, table);
+    v.dispatch(tr.setSelection(TextSelection.near(tr.doc.resolve(at + 1))).scrollIntoView());
+    v.focus();
   };
+  const editOriginal = () => {
+    const v = viewRef.current;
+    const q = sRef.current.quote;
+    if (!v || !q) return;
+    const text = docFromText(q.text.replace(/^\n+/, '\n').replace(/\n+$/, ''));
+    v.dispatch(v.state.tr.insert(v.state.doc.content.size, text.content).scrollIntoView());
+    setS((x) => ({ ...x, quote: undefined }));
+    v.focus();
+  };
+  const putSignature = (sig: Signature | null) => viewRef.current && replaceDoc(withSignature(viewRef.current.state.doc, sig));
+  const putTemplate = (template: Template, doc: PMNode) => {
+    const v = viewRef.current;
+    if (!v) return;
+    setLibrary(null);
+    // on a line of its own where the cursor is
+    const tr = v.state.tr;
+    const { $from } = tr.selection;
+    const empty = $from.parent.type.name === 'paragraph' && !$from.parent.content.size && $from.depth === 1;
+    if (empty) tr.replaceWith($from.before(1), $from.after(1), doc.content);
+    else tr.insert($from.depth >= 1 ? $from.after(1) : $from.pos, doc.content);
+    v.dispatch(tr.scrollIntoView());
+    if (template.subject && !sRef.current.subject.trim()) setS((x) => ({ ...x, subject: template.subject }));
+  };
+
   const canSend = ctl.canConnect && ctl.accounts.length > 0;
-  const addFiles = async (files: File[], inBody: boolean) => {
+  const addFiles = async (files: File[], inBody: boolean, at?: number) => {
     for (const f of files) {
-      if (inBody && /^image\/(png|jpe?g|gif|webp|bmp)$/.test(f.type)) await addPicture(f);
+      if (inBody && /^image\/(png|jpe?g|gif|webp|bmp)$/.test(f.type)) await addPicture(f, at);
       else {
         const added = { filename: f.name || 'adjunto', contentType: f.type || 'application/octet-stream', data: new Uint8Array(await f.arrayBuffer()) };
         setS((x) => ({ ...x, attachments: [...x.attachments, added] }));
@@ -109,7 +155,9 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
       }
     }
   };
-  const tooBig = s.attachments.reduce((n, a) => n + a.data.length, 0) + pics.reduce((n, p) => n + p.sent.data.length, 0) > MAX_SEND_BYTES;
+  // pictures travel inside the document, written in base64
+  const pictureBytes = () => [...JSON.stringify(s.doc ?? null).matchAll(/"src":"data:image[^"]*"/g)].reduce((n, m) => n + m[0].length * 0.75, 0);
+  const tooBig = s.attachments.reduce((n, a) => n + a.data.length, 0) + (s.quote?.inline.reduce((n, a) => n + a.data.length, 0) ?? 0) + pictureBytes() > MAX_SEND_BYTES;
   const set = (p: Partial<ComposeState>) => {
     setS((x) => ({ ...x, ...p }));
     setMsg(null);
@@ -132,25 +180,24 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
     ctl.updateCompose(sRef.current);
     ctl.requestCloseCompose();
   };
-  // an answer starts with the cursor above the quoted text; anything else, in «Para»
-  const answering = useRef(!!c.to && !!c.body);
+  // an answer starts in the text, above the signature and the original; anything else, in «Para»
+  const answering = useRef(!!c.quote && !!c.to);
+  const started = useRef(false);
   useEffect(() => {
+    if (!view || started.current) return;
+    started.current = true;
     if (!answering.current) return;
-    const id = requestAnimationFrame(() => {
-      const box = composeRef.current?.querySelector<HTMLTextAreaElement>('textarea[aria-label]');
-      box?.focus();
-      box?.setSelectionRange(0, 0);
-      if (box) box.scrollTop = 0;
-    });
-    return () => cancelAnimationFrame(id);
-  }, []);
+    view.dispatch(view.state.tr.setSelection(TextSelection.atStart(view.state.doc)));
+    view.focus();
+  }, [view]);
 
   const mailto = () => {
     const q = new URLSearchParams();
     if (s.cc.trim()) q.set('cc', s.cc);
     if (s.bcc.trim()) q.set('bcc', s.bcc);
     if (s.subject) q.set('subject', s.subject);
-    if (s.body) q.set('body', s.body);
+    const text = messageContent(s).text;
+    if (text) q.set('body', text);
     const a = document.createElement('a');
     a.href = `mailto:${encodeURIComponent(s.to.replace(/\s/g, '')).replace(/%2C/g, ',').replace(/%40/g, '@')}?${q.toString().replace(/\+/g, '%20')}`;
     a.click();
@@ -166,23 +213,36 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
     else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && canSend && !sending && (s.to.trim() || s.cc.trim() || s.bcc.trim())) (e.preventDefault(), void send());
   };
 
+  /** Pasted and dropped files are taken before the editor sees them. */
   const content = (
             <div
               className="ml-compose"
               ref={composeRef}
               onKeyDown={keys}
-              onPaste={(e) => {
+              onPasteCapture={(e) => {
                 // a copied file or picture is added; a copy that also has text is pasted as text
                 const files = [...e.clipboardData.files];
                 if (!files.length || e.clipboardData.types.includes('text/plain') || !e.currentTarget.contains(e.target as Node)) return;
                 e.preventDefault();
+                e.stopPropagation();
                 void addFiles(files, true);
               }}
             >
               {canSend && ctl.accounts.length > 1 && (
                 <label>
                   <span>{t('Desde')}</span>
-                  <select className="nv-select" aria-label={t('Desde')} value={from} onChange={(e) => set({ from: e.target.value })}>
+                  <select
+                    className="nv-select"
+                    aria-label={t('Desde')}
+                    value={from}
+                    onChange={(e) => {
+                      // the signature goes with the account
+                      const now = { ...sRef.current, from };
+                      const next = ctl.withAccount(now, e.target.value);
+                      set({ from: e.target.value });
+                      if (next.doc !== now.doc) replaceDoc(docOf(next));
+                    }}
+                  >
                     {ctl.accounts.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.name} &lt;{a.email}&gt;
@@ -201,7 +261,43 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
                 <input aria-label={t('Asunto')} value={s.subject} onChange={(e) => set({ subject: e.target.value })} />
               </label>
               {finding && <FindPanel host={findHost} replace={finding.replace} escape={false} key={String(finding.replace)} onClose={() => (findHost.clear(), setFinding(null))} />}
-              <ProofTextarea aria-label={t('Cuerpo del mensaje')} value={s.body} onChange={(e) => set({ body: e.target.value })} onSelect={(e) => (caret.current = (e.target as HTMLTextAreaElement).selectionStart)} onBlur={(e) => (caret.current = e.target.selectionStart)} rows={12} />
+              <FormatBar view={view}>
+                <span className="nv-sep" aria-hidden="true" />
+                {(
+                  [
+                    ['high', '❗', 'Importancia alta'],
+                    ['low', '↓', 'Importancia baja'],
+                  ] as const
+                ).map(([level, mark, label]) => (
+                  <button key={level} type="button" className="nv-btn nv-btn--small ml-tool" aria-label={t(label)} title={t(label)} aria-pressed={s.importance === level} onClick={() => set({ importance: s.importance === level ? undefined : level })}>
+                    <span aria-hidden="true">{mark}</span>
+                  </button>
+                ))}
+                <Menu onOpenChange={(_e, d) => d.open && setSignatures(loadSignatures().list)}>
+                  <MenuTrigger disableButtonEnhancement>
+                    <button type="button" className="ml-btn">
+                      {t('Firma')}
+                    </button>
+                  </MenuTrigger>
+                  <MenuPopover>
+                    <MenuList>
+                      {signatures.map((sig) => (
+                        <MenuItem key={sig.id} onClick={() => putSignature(sig)}>
+                          {sig.name}
+                        </MenuItem>
+                      ))}
+                      {signatures.length > 0 && <MenuItem onClick={() => putSignature(null)}>{t('(Sin firma)')}</MenuItem>}
+                      <MenuDivider />
+                      <MenuItem onClick={() => setLibrary('signatures')}>{t('Firmas…')}</MenuItem>
+                    </MenuList>
+                  </MenuPopover>
+                </Menu>
+                <button type="button" className="ml-btn" onClick={() => setLibrary('templates')}>
+                  {t('Plantillas…')}
+                </button>
+              </FormatBar>
+              <TableBar view={view} insert={addTable} />
+              <RichEditor initial={initial.current!} label={t('Cuerpo del mensaje')} onChange={onDoc} onSelect={onSelect} onView={setView} onEscape={() => !finding && close()} />
               <div className="ml-compose__att">
                 <button type="button" className="ml-btn" onClick={() => fileRef.current?.click()}>
                   📎 {t('Adjuntar archivo')}
@@ -261,60 +357,45 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
                   {t('Los adjuntos suman más de 40 MB: el servidor rechazará el mensaje.')}
                 </div>
               )}
-              {tbls.length > 0 && (
-                <div className="ml-pics" role="group" aria-label={t('Tablas del mensaje')}>
-                  <div className="ml-compose__att">
-                    {tbls.map((x) => (
-                      <span key={x.id} className={`ml-chip${x.id === selTable ? ' is-on' : ''}`}>
-                        <button type="button" aria-pressed={x.id === selTable} onClick={() => setSelTable(x.id === selTable ? null : x.id)}>
-                          ▦ {x.name}
-                        </button>
-                        <button type="button" aria-label={t('Quitar {name}', { name: x.name })} onClick={() => removeTable(x)}>
-                          ×
-                        </button>
-                      </span>
-                    ))}
+              {pic && (
+                <div className="ml-pics" role="group" aria-label={t('Imagen seleccionada')}>
+                  <div className="ml-pics__tools">
+                    <label>
+                      <span>{t('Texto alternativo')}</span>
+                      <input aria-label={t('Texto alternativo de la imagen')} value={pic.alt} onChange={(e) => setPic({ alt: e.target.value })} />
+                    </label>
+                    <label>
+                      <span>{t('Ancho (px)')}</span>
+                      <input aria-label={t('Ancho de la imagen (px)')} type="number" min={16} max={2000} value={Math.round(pic.width)} onChange={(e) => setPic({ width: Math.max(16, Number(e.target.value) || 16) })} />
+                    </label>
+                    <div className="ml-pics__btns">
+                      <button type="button" className="ml-btn" onClick={() => setTextPic(true)}>{t('Texto de la imagen…')}</button>
+                      <button type="button" className="ml-btn" onClick={() => setPicTool('removeBg')}>{t('Quitar fondo…')}</button>
+                      <button type="button" className="ml-btn" onClick={() => setPicTool('corrections')}>{t('Correcciones…')}</button>
+                      <button type="button" className="ml-btn" onClick={() => setPicTool('color')}>{t('Color…')}</button>
+                      <button type="button" className="ml-btn" onClick={() => setPicTool('artistic')}>{t('Efectos artísticos…')}</button>
+                      <PicPopover label="Relación de aspecto" icon="crop">{(close) => <AspectItems host={picHost} close={close} />}</PicPopover>
+                      <button type="button" className="ml-btn" disabled={!pic.edits && !pic.crop} onClick={() => setPic({ edits: undefined, crop: undefined, sent: pic.orig })}>{t('Restablecer imagen')}</button>
+                      <button type="button" className="ml-btn" onClick={() => removePicture(view, pic.id)}>{t('Quitar imagen')}</button>
+                    </div>
+                    <p className="ml-pics__note">{t('Se envía la imagen con los cambios hechos; el original se conserva en el borrador.')}</p>
                   </div>
-                  {tbl && <TableEditor table={tbl} onChange={(nt) => setS((x) => ({ ...x, tables: (x.tables ?? []).map((q) => (q.id === nt.id ? nt : q)) }))} />}
                 </div>
               )}
-              {pics.length > 0 && (
-                <div className="ml-pics" role="group" aria-label={t('Imágenes del mensaje')}>
-                  <div className="ml-compose__att">
-                    {pics.map((p) => (
-                      <span key={p.id} className={`ml-chip${p.id === selPic ? ' is-on' : ''}`}>
-                        <button type="button" aria-pressed={p.id === selPic} onClick={() => setSelPic(p.id === selPic ? null : p.id)}>
-                          🖼 {p.name}
-                        </button>
-                        <button type="button" aria-label={t('Quitar {name}', { name: p.name })} onClick={() => removePicture(p)}>
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  {pic && (
-                    <div className="ml-pics__tools">
-                      <label>
-                        <span>{t('Texto alternativo')}</span>
-                        <input aria-label={t('Texto alternativo de la imagen')} value={pic.alt} onChange={(e) => setPic({ alt: e.target.value })} />
-                      </label>
-                      <label>
-                        <span>{t('Ancho (px)')}</span>
-                        <input aria-label={t('Ancho de la imagen (px)')} type="number" min={16} max={2000} value={Math.round(pic.width)} onChange={(e) => setPic({ width: Math.max(16, Number(e.target.value) || 16) })} />
-                      </label>
-                      <div className="ml-pics__btns">
-                        <button type="button" className="ml-btn" onClick={() => setTextPic(true)}>{t('Texto de la imagen…')}</button>
-                        <button type="button" className="ml-btn" onClick={() => setPicTool('removeBg')}>{t('Quitar fondo…')}</button>
-                        <button type="button" className="ml-btn" onClick={() => setPicTool('corrections')}>{t('Correcciones…')}</button>
-                        <button type="button" className="ml-btn" onClick={() => setPicTool('color')}>{t('Color…')}</button>
-                        <button type="button" className="ml-btn" onClick={() => setPicTool('artistic')}>{t('Efectos artísticos…')}</button>
-                        <PicPopover label="Relación de aspecto" icon="crop">{(close) => <AspectItems host={picHost} close={close} />}</PicPopover>
-                        <button type="button" className="ml-btn" disabled={!pic.edits && !pic.crop} onClick={() => setPic({ edits: undefined, crop: undefined, sent: pic.orig })}>{t('Restablecer imagen')}</button>
-                      </div>
-                      <p className="ml-pics__note">{t('Se envía la imagen con los cambios hechos; el original se conserva mientras escribes el mensaje.')}</p>
-                    </div>
-                  )}
-                </div>
+              {s.quote && (
+                <section className="ml-quote" aria-label={t('Mensaje original')}>
+                  <header>
+                    <strong>{t('Mensaje original')}</strong>
+                    <span>{t('Va debajo de lo que escribes, como llegó.')}</span>
+                    <button type="button" className="ml-btn" onClick={editOriginal}>
+                      {t('Editar el original')}
+                    </button>
+                    <button type="button" className="ml-btn" onClick={() => set({ quote: undefined })}>
+                      {t('Quitar el original')}
+                    </button>
+                  </header>
+                  <iframe title={t('Vista del mensaje original')} sandbox="" srcDoc={quotePage} />
+                </section>
               )}
               {textPic && pic && (
                 <Dialog open modalType="modal" onOpenChange={(_e, d) => !d.open && setTextPic(false)}>
@@ -378,6 +459,12 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
     </>
   );
 
+  /** Where in the text a drop falls; undefined outside the editor. */
+  const dropPlace = (e: DragEvent): { inBody: boolean; at?: number } => {
+    const v = viewRef.current;
+    if (!v || !v.dom.parentElement?.contains(e.target as Node)) return { inBody: false };
+    return { inBody: true, at: v.posAtCoords({ left: e.clientX, top: e.clientY })?.pos };
+  };
   const drop = {
     onDragEnter: (e: DragEvent) => {
       if (!fileDrag(e)) return;
@@ -393,16 +480,25 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
     onDragLeave: (e: DragEvent) => {
       if (fileDrag(e) && --dragDepth.current <= 0) setDropping(false);
     },
-    onDrop: (e: DragEvent) => {
+    onDropCapture: (e: DragEvent) => {
       if (!fileDrag(e)) return;
       e.preventDefault();
+      e.stopPropagation();
       dragDepth.current = 0;
       setDropping(false);
       // a picture dropped on the text goes into it; anything else, and anywhere else, is attached
-      void addFiles([...e.dataTransfer.files], !!(e.target as HTMLElement).closest?.('textarea'));
+      const place = dropPlace(e);
+      void addFiles([...e.dataTransfer.files], place.inBody, place.at);
     },
   };
   const hint = dropping && <div className="ml-drop" aria-hidden="true">{t('Suelta los archivos para adjuntarlos (una imagen sobre el texto se inserta en él)')}</div>;
+
+  const libraries = (
+    <>
+      {library === 'signatures' && <SignaturesDialog accounts={ctl.accounts} onClose={() => (setLibrary(null), setSignatures(loadSignatures().list))} />}
+      {library === 'templates' && <TemplatesDialog subject={s.subject} doc={() => viewRef.current?.state.doc ?? docOf(s)} onInsert={putTemplate} onClose={() => setLibrary(null)} />}
+    </>
+  );
 
   const question = ctl.askClose && (
     <Dialog open modalType="alert">
@@ -447,6 +543,7 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
         <DialogActions>{actions}</DialogActions>
         {hint}
         {question}
+        {libraries}
       </div>
     );
 
@@ -482,6 +579,7 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
       <div className="ml-composer__body">{content}</div>
       {hint}
       {question}
+      {libraries}
     </section>
   );
 }

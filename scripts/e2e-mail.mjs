@@ -248,13 +248,17 @@ await check('search: accents and case ignored; * searches every folder', async (
   assert.equal(await rows().count(), 3);
 });
 
+/** What is written in the message, as plain text. */
+const mailText = (p = page) => p.evaluate(() => new Promise((done) => setTimeout(() => done(window.__novaMail.ctl.compose.body), 80)));
 await check('reply, reply all and forward prepare the message', async () => {
   await page.locator('.ml-item', { hasText: 'Presupuesto' }).click();
   await page.getByRole('button', { name: 'Responder a todos' }).first().click();
   assert.equal(await page.getByLabel('Asunto').inputValue(), 'Re: Presupuesto del próximo año');
   assert.equal(await page.getByLabel('Para', { exact: true }).inputValue(), 'ana@acme.es, luis@acme.es');
   assert.equal(await page.getByLabel('Cc', { exact: true }).inputValue(), 'marta@acme.es');
-  assert.match(await page.getByLabel('Cuerpo del mensaje').inputValue(), /> Hola, adjunto la propuesta/);
+  // the original is kept apart, below what is written
+  assert.match(await page.evaluate(() => window.__novaMail.ctl.compose.quote.text), /> Hola, adjunto la propuesta/);
+  await page.frameLocator('.ml-quote iframe').getByText(/adjunto la propuesta/).waitFor();
   await shot('reply');
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   await page.getByRole('button', { name: 'Responder', exact: true }).first().click();
@@ -264,7 +268,7 @@ await check('reply, reply all and forward prepare the message', async () => {
   await page.getByRole('button', { name: 'Reenviar' }).first().click();
   assert.equal(await page.getByLabel('Asunto').inputValue(), 'Fwd: Oferta con imágenes');
   assert.ok(await page.getByText(/datos\.csv/).count(), 'attachment travels with a forward');
-  assert.match(await page.getByLabel('Cuerpo del mensaje').inputValue(), /Mensaje reenviado/);
+  assert.match(await page.evaluate(() => window.__novaMail.ctl.compose.quote.text), /Mensaje reenviado/);
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
 });
 

@@ -2,6 +2,7 @@ import { registerMessages } from '@suitenova/core-ui';
 import './messages-accounts';
 import './messages-mail2';
 import './messages-compose';
+import './messages-format';
 
 // Spanish literals are the source text; English is provided here. Missing entries fall back to Spanish.
 registerMessages('en', {

@@ -110,7 +110,7 @@ export function WordMenuView({ a, x, y, onClose }: { a: WordMenuActions; x: numb
 }
 
 /** El menú de palabra de un editor de ProseMirror. */
-export function WordMenu({ host, view, target, x, y, onClose, onThesaurus }: { host: ReviewHost; view: EditorView; target: WordTarget; x: number; y: number; onClose: () => void; onThesaurus: () => void }) {
+export function WordMenu({ host, view, target, x, y, onClose, onThesaurus, onAutoCorrect }: { host: ReviewHost; view: EditorView; target: WordTarget; x: number; y: number; onClose: () => void; onThesaurus: () => void; onAutoCorrect?: () => void }) {
   const select = (from: number, to: number) => view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
   const actions: WordMenuActions = {
     word: target.word,
@@ -129,6 +129,7 @@ export function WordMenu({ host, view, target, x, y, onClose, onThesaurus }: { h
       onThesaurus();
     },
     focus: () => view.focus(),
+    openAutoCorrect: onAutoCorrect,
   };
   return <WordMenuView a={actions} x={x} y={y} onClose={onClose} />;
 }

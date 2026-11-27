@@ -1,6 +1,7 @@
 # Nova Mail frente a Outlook (segunda ronda)
 
-Estado: **propuesta, pendiente de aprobación** (2026-11-26). No se ha tocado código.
+Estado: **plan aprobado por el usuario** (2026-11-26); S/MIME y la sincronización de calendario y contactos con el
+servidor quedan para después. Fases 1 y 2 hechas (ver la bitácora al final).
 
 Referencia: Outlook clásico de Office 2024. La comparación sale de leer el código de Nova Mail, sus pruebas y
 `docs/LIMITACIONES.md`, y de lo que conozco de Outlook: **no se ha abierto el Outlook de este equipo** (usa cuentas reales).
@@ -72,3 +73,39 @@ Cada fase termina con pruebas, e2e con capturas, `LIMITACIONES.md` y `PROGRESO.m
 - Las invitaciones se probarán entre dos archivos de Nova Mail y con `.ics` creados para las pruebas, no con Outlook ni
   Google.
 - Todo el correo sigue en un solo archivo cargado en memoria. Cambiar el almacenamiento sería otro proyecto.
+
+## 7. Bitácora
+
+### Fase 1 (hecha, 2026-11-26): fallos y escritura segura
+- **Los cuatro fallos corregidos:** cerrar pregunta si se perdería algo; «Responder a todos» te quita también por las
+  cuentas; «respondido» al enviar; la respuesta sale de la cuenta que recibió el correo. De paso, un borrador de respuesta
+  abierto de nuevo conserva la conversación (antes perdía `In-Reply-To`) y ya no gana un salto de línea al final.
+- **Escribir:** en el panel de lectura (`Composer.tsx`), con «Abrir en grande»; Ctrl+Intro envía, Esc cierra; mientras
+  se escribe, las órdenes del mensaje elegido (Ctrl+R, Ctrl+F…) quedan desactivadas. Borrador automático y aviso al pasar
+  a otra cosa.
+- **Destinatarios** (`mail-core/recipients.ts`): sugerencias con teclado y ratón; los nombres con coma entre comillas ya
+  no se parten.
+- **Adjuntos:** arrastrar y pegar; una imagen sobre el texto se inserta en él; aviso por encima de 40 MB.
+- **Escritorio:** las ventanas dejan el arrastre a la página (`dragDropEnabled: false`) y un archivo soltado donde nada lo
+  espera se rechaza (`file-drop.ts`).
+- **Pruebas:** `compose.test.ts` (nuevas), `recipients.test.ts` (5), `e2e-mail-compose.mjs` (10), una más en
+  `e2e-window-native.mjs` (18).
+- **Cuentas de prueba:** el usuario ofreció una de Gmail y otra de Outlook.com. Los puertos responden desde esta red.
+  Gmail exige contraseña de aplicación u OAuth y Outlook.com solo OAuth, así que el alta la hace el usuario en la
+  aplicación. Las credenciales no se guardan en el repositorio.
+
+### Fase 2 (hecha, 2026-11-26): formato y firmas
+- **Editor** (`mail/rich/`): el de Writer y Notes (esquema de `writer-core`), con barra de formato, herramientas de
+  tabla, imágenes con las herramientas de siempre, corrector, sinónimos, autocorrección y buscar.
+- **Lo que se envía** (`rich/html.ts`): HTML propio con cada estilo en línea y la misma versión en texto; texto solo si no
+  hay formato. El borrador guarda además el documento del editor (`MailRecord.compose`) y se abre como se escribió.
+- **Responder y reenviar:** el original se conserva (HTML saneado e imágenes) debajo de lo escrito; «Editar el original» y
+  «Quitar el original».
+- **Firmas** por cuenta, para mensajes nuevos y para respuestas; **plantillas**; **importancia** (cabeceras
+  `Importance` y `X-Priority`, lista y panel de lectura). Macros: `HTMLBody` e `Importance`.
+- **Fallos hallados y corregidos al probar:** Esc no cerraba desde el editor; una segunda imagen sustituía a la primera;
+  tras insertar una tabla el cursor quedaba fuera; mirar un mensaje con firma lo marcaba como cambiado; Mayús+F7 podía leer
+  la palabra anterior; la cita de un correo sin fecha decía «El , …»; el botón «Firmas…» en Inicio ocultaba «Eliminar
+  carpeta» a 1400 px (pasó a «Enviar y recibir»).
+- **Se quitaron** las marcas `[Imagen: …]` y `[Tabla: …]` del texto y el panel de tablas.
+- **Pruebas:** `rich.test.ts` (11), `e2e-mail-format.mjs` (10); adaptadas las e2e que usaban el cuadro de texto.

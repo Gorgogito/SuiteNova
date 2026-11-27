@@ -70,6 +70,8 @@ const inlineBytes = (eml) => {
   return m ? Buffer.from(m[1].replace(/\s+/g, ''), 'base64') : null;
 };
 
+/** What is written in the message, as plain text. */
+const mailText = (p = page) => p.evaluate(() => new Promise((done) => setTimeout(() => done(window.__novaMail.ctl.compose.body), 80)));
 await check('insertar imagen: queda una marca en el texto y la imagen se elige para cambiarla', async () => {
   await page.keyboard.press('Control+Shift+M');
   await page.getByLabel('Para', { exact: true }).fill('bea@x.es');
@@ -78,7 +80,8 @@ await check('insertar imagen: queda una marca en el texto y la imagen se elige p
   const [c] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: /Insertar imagen/ }).click()]);
   await c.setFiles(pngFile);
   await wait(500);
-  assert.match(await page.getByLabel('Cuerpo del mensaje').inputValue(), /\[Imagen: foto\.png\]/);
+  assert.match(await mailText(), /\[Imagen: foto\.png\]/);
+  await page.locator('.ml-editor img.nw-image').waitFor();
   // la imagen recién insertada ya está elegida
   await page.getByLabel('Texto alternativo de la imagen').fill('Un disco rojo');
   await page.getByLabel('Ancho de la imagen (px)').fill('200');
@@ -146,16 +149,16 @@ await check('el borrador guardado vuelve con la imagen, su texto alternativo y s
   await page.locator('.ml-folders li button', { hasText: 'Borradores' }).click();
   await page.locator('.ml-item').first().dblclick();
   await wait();
-  assert.match(await page.getByLabel('Cuerpo del mensaje').inputValue(), /\[Imagen: foto\.png\]/);
-  await page.locator('.ml-chip button[aria-pressed]').first().click();
+  assert.match(await mailText(), /\[Imagen: Un disco rojo\]/);
+  await page.locator('.ml-editor img.nw-image').click();
   assert.equal(await page.getByLabel('Texto alternativo de la imagen').inputValue(), 'Un disco rojo');
   assert.equal(await page.getByLabel('Ancho de la imagen (px)').inputValue(), '200');
   await shot('reabierto');
 });
 
-await check('quitar la imagen quita también su marca del texto', async () => {
-  await page.getByRole('button', { name: /Quitar foto\.png/ }).click();
-  assert.doesNotMatch(await page.getByLabel('Cuerpo del mensaje').inputValue(), /Imagen:/);
+await check('quitar la imagen la quita del mensaje', async () => {
+  await page.getByRole('button', { name: 'Quitar imagen', exact: true }).click();
+  assert.doesNotMatch(await mailText(), /Imagen:/);
   await page.getByRole('button', { name: 'Guardar borrador' }).click();
   const eml = await exportEml();
   assert.doesNotMatch(eml, /multipart\/related/);

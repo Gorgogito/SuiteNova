@@ -3,7 +3,7 @@ import type { MailCtl } from './ctl';
 import { ocrCommands } from './commands-ocr';
 import { voiceCommands } from './commands-voice';
 
-export type MailDialog = 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
+export type MailDialog = 'signatures' | 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
 export type ImportKind = 'eml' | 'mbox' | 'ics' | 'contacts' | 'outlook';
 
 export interface MailUI {
@@ -58,6 +58,7 @@ export function mailCommands(ui: MailUI): CommandDef[] {
 
   // mail
   add({ id: 'mail.compose', label: 'Correo nuevo', icon: 'mailNew', shortcut: 'Ctrl+Shift+M', run: () => c.newMessage() });
+  add({ id: 'mail.signatures', label: 'Firmas…', icon: 'edit', description: 'Crea firmas y elige cuál se pone sola en cada cuenta, en los mensajes nuevos y en las respuestas.', run: () => ui.openDialog('signatures') });
   add({ id: 'mail.reply', label: 'Responder', icon: 'reply', shortcut: 'Ctrl+R', enabled: () => hasMsg() && c.folder !== 'drafts', run: () => c.reply(c.selectedId!, false) });
   add({ id: 'mail.replyAll', label: 'Responder a todos', icon: 'replyAll', shortcut: 'Ctrl+Shift+R', enabled: () => hasMsg() && c.folder !== 'drafts', run: () => c.reply(c.selectedId!, true) });
   add({ id: 'mail.forward', label: 'Reenviar', icon: 'forward', shortcut: 'Ctrl+F', enabled: hasMsg, run: () => c.forward(c.selectedId!) });

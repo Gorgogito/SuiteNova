@@ -21,6 +21,7 @@ export interface Draft {
   messageId?: string;
   inReplyTo?: string;
   references?: string[];
+  importance?: 'high' | 'low';
 }
 
 const enc = new TextEncoder();
@@ -114,6 +115,8 @@ export function buildMessage(d: Draft): string {
   h.push(fold('Message-ID', d.messageId ?? newMessageId(d.from.email.split('@')[1])));
   if (d.inReplyTo) h.push(fold('In-Reply-To', d.inReplyTo));
   if (d.references?.length) h.push(fold('References', d.references.join(' ')));
+  // both forms: mail programs read one or the other
+  if (d.importance) h.push(`Importance: ${d.importance === 'high' ? 'High' : 'Low'}`, `X-Priority: ${d.importance === 'high' ? 1 : 5}`);
   h.push('MIME-Version: 1.0');
 
   const textPart = (type: string, body: string) => `Content-Type: ${type}; charset=UTF-8${CRLF}Content-Transfer-Encoding: quoted-printable${CRLF}${CRLF}${qp(body)}`;

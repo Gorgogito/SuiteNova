@@ -1,5 +1,8 @@
-import { htmlBody, picturesOfDraft, type ComposePicture } from './pictures';
-import { tablesOfDraft, textBody, type ComposeTable } from './tables';
+import { docOf, messageContent } from './rich/content';
+import { signatureFor, withSignature, type SignatureUse } from './rich/library';
+import { htmlToDoc } from './rich/parse';
+import { renderMail } from './rich/html';
+import { makeQuote, type Quote } from './rich/quote';
 import { MailImageOcr } from './ocr-images';
 import { MailReader } from './read-aloud';
 import {
@@ -25,7 +28,6 @@ import {
   newMailId,
   newTask,
   parseMessage,
-  quoteText,
   rawOf,
   reSubject,
   searchMessages,
@@ -35,6 +37,7 @@ import {
   type Contact,
   type Draft,
   type Folder,
+  type Importance,
   type MailData,
   type MailRecord,
   type OutgoingAttachment,
@@ -95,13 +98,14 @@ export interface ComposeState {
   cc: string;
   bcc: string;
   subject: string;
-  /** Plain text body. */
+  /** What is written, as plain text. */
   body: string;
+  /** The editor's document, with its formatting, pictures and tables; without it, `body` is the message. */
+  doc?: unknown;
+  /** The original of a reply or a forward, which goes below what is written. */
+  quote?: Quote;
+  importance?: Importance;
   attachments: OutgoingAttachment[];
-  /** Pictures in the body (each one is a `[Imagen: nombre]` token of the text) and go as inline images. */
-  pictures?: ComposePicture[];
-  /** Tables in the body (each one is a `[Tabla: nombre]` token of the text): HTML table and aligned text when sent. */
-  tables?: ComposeTable[];
   inReplyTo?: string;
   references?: string[];
   /** The draft record being edited, replaced when saved again. */
@@ -132,10 +136,45 @@ const signature = (c: ComposeState): string =>
     c.body,
     c.from ?? '',
     c.attachments.map((a) => [a.filename, a.data.length]),
-    (c.pictures ?? []).map((p) => [p.id, p.name, p.width, p.alt, p.sent.data.length]),
-    c.tables ?? [],
+    c.doc ?? null,
+    c.quote?.kind ?? null,
+    c.importance ?? null,
   ]);
-const isBlank = (c: ComposeState): boolean => ![c.to, c.cc, c.bcc, c.subject, c.body].some((x) => x.trim()) && !c.attachments.length && !c.pictures?.length && !c.tables?.length;
+const isBlank = (c: ComposeState): boolean => ![c.to, c.cc, c.bcc, c.subject].some((x) => x.trim()) && !c.attachments.length && !c.quote && !c.body.trim() && !/"type":"(image|table)"/.test(JSON.stringify(c.doc ?? null));
+
+/** What a draft record keeps so that it opens again as it was written. */
+interface StoredCompose {
+  v: 1;
+  body: string;
+  doc?: unknown;
+  quote?: Omit<Quote, 'inline'>;
+}
+const stored = (c: ComposeState): Record<string, unknown> | undefined => {
+  if (!c.doc && !c.quote) return undefined;
+  // the pictures of the original travel in the message itself: they are not kept twice
+  const quote = c.quote ? { kind: c.quote.kind, head: c.quote.head, html: c.quote.html, text: c.quote.text } : undefined;
+  const out: StoredCompose = { v: 1, body: c.body, doc: c.doc, quote };
+  return out as unknown as Record<string, unknown>;
+};
+
+/** The written part of a draft opened again: as it was kept, or else read from the message. */
+function writtenOf(rec: MailRecord, m: ParsedMessage): Pick<ComposeState, 'body' | 'doc' | 'quote'> {
+  const kept = rec.compose as Partial<StoredCompose> | undefined;
+  if (kept?.v === 1 && typeof kept.body === 'string') {
+    const q = kept.quote;
+    const quote: Quote | undefined =
+      q && (q.kind === 'reply' || q.kind === 'forward') && Array.isArray(q.head) && typeof q.text === 'string'
+        ? { kind: q.kind, head: q.head, html: typeof q.html === 'string' ? q.html : null, text: q.text, inline: m.inlineParts.filter((p) => p.cid && !!q.html?.includes(`cid:${p.cid}`)).map((p) => ({ filename: p.filename, contentType: p.contentType, data: p.data, contentId: p.cid! })) }
+        : undefined;
+    return { body: kept.body, doc: kept.doc, quote };
+  }
+  if (m.html !== null) {
+    const doc = htmlToDoc(m.html, m.inlineParts);
+    return { body: renderMail(doc).text, doc: doc.toJSON() };
+  }
+  // the message was written with one line break more than the text had
+  return { body: (m.text ?? '').replace(/\r\n/g, '\n').replace(/\n$/, '') };
+}
 
 export const startOfDay = (t: number): number => {
   const d = new Date(t);
@@ -607,8 +646,27 @@ export class MailCtl {
     this.touch();
   }
 
+  /** The written part of a new message: empty, with the signature of the account. */
+  private blank(from: string | undefined, use: SignatureUse): Pick<ComposeState, 'body' | 'doc'> {
+    const sig = signatureFor(from, use);
+    if (!sig) return { body: '' };
+    const doc = withSignature(docOf({ body: '' }), sig);
+    return { body: renderMail(doc).text, doc: doc.toJSON() };
+  }
+
+  /** Another account to send from: its signature takes the place of the one there was. */
+  withAccount(c: ComposeState, from: string): ComposeState {
+    const use: SignatureUse = c.quote || c.inReplyTo ? 'reply' : 'new';
+    const had = signatureFor(c.from, use);
+    const sig = signatureFor(from, use);
+    if (had?.id === sig?.id) return { ...c, from };
+    const doc = withSignature(docOf(c), sig);
+    return { ...c, from, doc: doc.toJSON(), body: renderMail(doc).text };
+  }
+
   newMessage(to = ''): void {
-    this.openCompose({ id: newMailId(), to, cc: '', bcc: '', subject: '', body: '', attachments: [], from: this.accountFor() });
+    const from = this.accountFor();
+    this.openCompose({ id: newMailId(), to, cc: '', bcc: '', subject: '', attachments: [], from, ...this.blank(from, 'new') });
   }
 
   reply(id: string, all: boolean): void {
@@ -627,17 +685,19 @@ export class MailCtl {
     let to = unique([...first, ...others].filter((a) => !mine(a)));
     if (!to.length) to = unique(first);
     const cc = all ? unique(m.cc.filter((a) => !mine(a)), new Set(to.map((e) => e.toLowerCase()))) : [];
+    const from = this.accountFor(rec, m);
     this.openCompose({
       id: newMailId(),
       to: to.join(', '),
       cc: cc.join(', '),
       bcc: '',
       subject: reSubject(m.subject, 'Re'),
-      body: quoteText(rawOf(rec), 'reply'),
+      ...this.blank(from, 'reply'),
+      quote: makeQuote(rawOf(rec), 'reply'),
       attachments: [],
       inReplyTo: m.messageId,
       references: [...m.references, m.messageId].filter(Boolean),
-      from: this.accountFor(rec, m),
+      from,
     });
   }
 
@@ -645,15 +705,17 @@ export class MailCtl {
     const rec = this.data.messages.find((m) => m.id === id);
     if (!rec) return;
     const m = parseMessage(rawOf(rec));
+    const from = this.accountFor(rec, m);
     this.openCompose({
       id: newMailId(),
       to: '',
       cc: '',
       bcc: '',
       subject: reSubject(m.subject, 'Fwd'),
-      body: quoteText(rawOf(rec), 'forward'),
+      ...this.blank(from, 'reply'),
+      quote: makeQuote(rawOf(rec), 'forward'),
       attachments: m.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, data: a.data })),
-      from: this.accountFor(rec, m),
+      from,
     });
   }
 
@@ -671,11 +733,9 @@ export class MailCtl {
         cc: fmt(m.cc),
         bcc: (rec.bcc ?? []).join(', '),
         subject: m.subject,
-        // the message was written with one line break more than the text had
-        body: (m.text ?? '').replace(/\r\n/g, '\n').replace(/\n$/, ''),
+        ...writtenOf(rec, m),
+        importance: rec.importance,
         attachments: m.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, data: a.data })),
-        pictures: picturesOfDraft(m.html, m.inlineParts),
-        tables: tablesOfDraft(m.html),
         draftId: id,
         inReplyTo: m.inReplyTo || undefined,
         references: m.references.length ? m.references : undefined,
@@ -805,20 +865,22 @@ export class MailCtl {
   }
 
   /** Build the RFC 5322 text of the draft being composed. */
-  buildRaw(c: ComposeState, sender?: Address, keepTokens = false): { raw: string; to: Address[]; cc: Address[]; bcc: Address[] } {
+  buildRaw(c: ComposeState, sender?: Address): { raw: string; to: Address[]; cc: Address[]; bcc: Address[] } {
     const to = splitRecipients(c.to), cc = splitRecipients(c.cc), bcc = splitRecipients(c.bcc);
-    const html = htmlBody(c.body, c.pictures ?? [], c.tables ?? []);
+    const content = messageContent(c);
     const account = this.accounts.find((a) => a.id === c.from);
     const from = sender ?? (account ? { name: this.data.owner.name || account.name, email: account.email } : this.data.owner.email ? this.data.owner : { name: '', email: NO_ADDRESS });
-    const draft: Draft = { from, to, cc, bcc, subject: c.subject, text: keepTokens ? c.body : textBody(c.body, c.tables ?? []), ...(html ? { html: html.html } : {}), attachments: [...c.attachments, ...(html?.inline ?? [])], inReplyTo: c.inReplyTo, references: c.references };
+    const draft: Draft = { from, to, cc, bcc, subject: c.subject, text: content.text, ...(content.html ? { html: content.html } : {}), attachments: [...c.attachments, ...content.inline], inReplyTo: c.inReplyTo, references: c.references, importance: c.importance };
     return { raw: buildMessage(draft), to, cc, bcc };
   }
 
   saveDraft(c: ComposeState): MailRecord {
-    const { raw, bcc } = this.buildRaw(c, undefined, true);
+    const { raw, bcc } = this.buildRaw(c);
     const old = this.drafts.get(c.id) ?? c.draftId;
     if (old) this.data.messages = this.data.messages.filter((m) => m.id !== old);
     const rec = addRaw(this.data, 'drafts', raw, { read: true, bcc: bcc.map((a) => a.email) });
+    const keep = stored(c);
+    if (keep) rec.compose = keep;
     c.draftId = rec.id;
     this.drafts.set(c.id, rec.id);
     if (this.compose?.id === c.id) {

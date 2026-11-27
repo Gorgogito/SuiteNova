@@ -38,6 +38,8 @@ const open = async (app) => {
 const underlined = (root) => root.locator('.nv-pt__mirror .nw-misspelled').allInnerTexts();
 const grammar = (root) => root.locator('.nv-pt__mirror .nw-grammar').allInnerTexts();
 
+/** What is written in the message, as plain text. */
+const mailText = (p = page) => p.evaluate(() => new Promise((done) => setTimeout(() => done(window.__novaMail.ctl.compose.body), 80)));
 await check('Mail: the body underlines spelling and grammar, aligned under the typed words', async () => {
   await open('mail');
   await page.keyboard.press('Control+Shift+M');
@@ -46,59 +48,33 @@ await check('Mail: the body underlines spelling and grammar, aligned under the t
   await body.click();
   await page.keyboard.type('Hola, una cassa  rara.\nOtra linea con los mesa.');
   await settle(2500);
-  const wrap = page.locator('.nv-pt').first();
-  assert.deepEqual(await underlined(wrap), ['cassa']);
-  assert.ok((await grammar(wrap)).length >= 2, JSON.stringify(await grammar(wrap)));
-  // el subrayado está justo bajo la palabra: el centro del rectángulo de «cassa» cae dentro del campo, sobre su línea
-  const geo = await page.evaluate(() => {
-    const m = document.querySelector('.nv-pt__mirror .nw-misspelled').getBoundingClientRect();
-    const t = document.querySelector('.nv-pt textarea');
-    const r = t.getBoundingClientRect();
-    const probe = document.createElement('div');
-    const cs = getComputedStyle(t);
-    probe.style.cssText = `position:fixed;visibility:hidden;white-space:pre;font:${cs.font};letter-spacing:${cs.letterSpacing}`;
-    probe.textContent = 'Hola, una ';
-    document.body.append(probe);
-    const w = probe.getBoundingClientRect().width;
-    probe.remove();
-    return { mx: m.left - r.left - parseFloat(cs.paddingLeft) - parseFloat(cs.borderLeftWidth), expected: w, inside: m.top >= r.top && m.bottom <= r.bottom };
-  });
-  assert.ok(Math.abs(geo.mx - geo.expected) < 2, JSON.stringify(geo));
-  assert.ok(geo.inside);
+  const wrap = page.locator('.ml-editor');
+  assert.deepEqual(await wrap.locator('.nw-misspelled').allInnerTexts(), ['cassa']);
+  assert.ok((await wrap.locator('.nw-grammar').count()) >= 2);
   await shot('mail-body');
 });
 
-await check('Mail: right click on a word corrects it in the field and the message keeps the text', async () => {
-  const wrap = page.locator('.nv-pt').first();
-  await wrap.locator('.nv-pt__mirror .nw-misspelled').first().evaluate(() => {});
-  const box = await page.evaluate(() => {
-    const r = document.querySelector('.nv-pt__mirror .nw-misspelled').getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-  });
-  await page.mouse.click(box.x, box.y, { button: 'right' });
+await check('Mail: right click on a word corrects it in the message and the message keeps the text', async () => {
+  const wrap = page.locator('.ml-editor');
+  await wrap.locator('.nw-misspelled').first().click({ button: 'right' });
   await page.locator('.nv-sp-menu').waitFor();
   await shot('mail-menu');
   await page.locator('.nv-sp-menu [role=menuitem]', { hasText: /^casa$/ }).click();
   await settle(900);
-  assert.match(await page.getByLabel('Cuerpo del mensaje').inputValue(), /una casa {2}rara/);
-  assert.deepEqual(await underlined(wrap), []);
+  assert.match(await mailText(), /una casa {2}rara/);
+  assert.equal(await wrap.locator('.nw-misspelled').count(), 0);
 });
 
 await check('Mail: grammar issues can be fixed from the menu', async () => {
-  const wrap = page.locator('.nv-pt').first();
-  const box = await page.evaluate(() => {
-    const els = [...document.querySelectorAll('.nv-pt__mirror .nw-grammar')];
-    const r = els[0].getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-  });
-  await page.mouse.click(box.x, box.y, { button: 'right' });
+  const wrap = page.locator('.ml-editor');
+  await wrap.locator('.nw-grammar').first().click({ button: 'right' });
   const item = page.locator('.nv-sp-menu [role=menuitem]').first();
   await item.waitFor();
   await item.click();
   await settle(900);
-  const v = await page.getByLabel('Cuerpo del mensaje').inputValue();
+  const v = await mailText();
   assert.ok(!/ {2}rara/.test(v) || !/los mesa/.test(v), v);
-  assert.ok((await grammar(wrap)).length < 2);
+  assert.ok((await wrap.locator('.nw-grammar').count()) < 2);
 });
 
 await check('AutoCorrect while typing in a field: capital after a period, smart quotes and symbols', async () => {
@@ -107,7 +83,7 @@ await check('AutoCorrect while typing in a field: capital after a period, smart 
   const body = page.getByLabel('Cuerpo del mensaje');
   await body.click();
   await page.keyboard.type('hola. mañana (c) dijo "si" y mide 1/2 ');
-  assert.equal(await body.inputValue(), 'Hola. Mañana © dijo “si” y mide ½ ');
+  assert.equal(await mailText(), 'Hola. Mañana © dijo “si” y mide ½ ');
 });
 
 await check('the shared AutoCorrect list: a replacement added in Writer applies in Mail', async () => {
@@ -118,7 +94,7 @@ await check('the shared AutoCorrect list: a replacement added in Writer applies 
   const body = page.getByLabel('Cuerpo del mensaje');
   await body.click();
   await page.keyboard.type('bss ');
-  assert.equal(await body.inputValue(), 'Buenos días ');
+  assert.equal(await mailText(), 'Buenos días ');
   await page.evaluate(() => localStorage.removeItem('nova.writer.autocorrect'));
 });
 

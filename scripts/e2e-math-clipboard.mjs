@@ -205,7 +205,7 @@ await check('Calc: Ctrl+C con la ecuación elegida la copia como ecuación y Ctr
 });
 
 // ------------------------------------------------------------------------------------------------------------------- Mail
-// el cuerpo de un correo es texto sin formato: la ecuación llega en el formato lineal (lo único que cabe ahí)
+// los programas de correo no dibujan ecuaciones: la del mensaje se envía en formato lineal
 const mail = await ctx.newPage();
 watch(mail);
 await mail.goto(`${BASE}?app=mail`, { waitUntil: 'load' });
@@ -218,7 +218,8 @@ await check('Mail: pegar una ecuación en el cuerpo de un correo deja su formato
   await body.click();
   await mail.keyboard.press('Control+v');
   await mail.waitForTimeout(300);
-  assert.equal(await body.inputValue(), LINEAR);
+  await mail.waitForTimeout(200);
+  assert.equal(await mail.evaluate(() => window.__novaMail.ctl.compose.body.trim()), LINEAR);
 });
 
 // ----------------------------------------------------------------------------------------------------- HTML que viene de Word

@@ -134,7 +134,7 @@ for (const pr of PRODUCTS) {
     await putOnClipboard(page);
     await page.getByRole('button', { name: /Imagen del portapapeles/ }).click();
     await page.waitForTimeout(700);
-    const body = () => page.locator('textarea').first().inputValue();
+    const body = () => page.evaluate(() => window.__novaMail.ctl.compose.body);
     const first = await body();
     assert.match(first, /\[Imagen/i, first);
     await page.getByRole('button', { name: /Iconos/ }).click();

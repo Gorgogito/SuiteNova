@@ -22,6 +22,7 @@ import { MessageImagesForm } from './dlg-ocr';
 import { ReadAloudBar } from '../voice/ReadAloudBar';
 import { StickyDialog } from './StickyDialog';
 import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
+import { SignaturesDialog } from './rich/Libraries';
 import { ContactsView, TasksView } from './PeopleViews';
 import { mailTabs } from './ribbonDef';
 import './mail.css';
@@ -499,10 +500,11 @@ export function MailApp({ module }: { module: ModuleInfo }) {
           {!inPane && composer('dialog')}
         </StickyDialog>
         <LinkConfirm link={link} onClose={() => setLink(null)} />
+        {dialog === 'signatures' && <SignaturesDialog accounts={ctl.accounts} onClose={() => setDialog(null)} />}
         {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={() => setDialog(null)} onEdit={() => setDialog('macroEditor')} />}
         {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={() => setDialog(null)} />}
         {dialog === 'macroSecurity' && <MacroSecurity ctl={ctl} onClose={() => setDialog(null)} />}
-        <StickyDialog open={dialog !== null && dialog !== 'macros' && dialog !== 'macroEditor'} onClose={() => setDialog(null)} width={dialog === 'accounts' ? 640 : undefined}>
+        <StickyDialog open={dialog !== null && dialog !== 'macros' && dialog !== 'macroEditor' && dialog !== 'signatures'} onClose={() => setDialog(null)} width={dialog === 'accounts' ? 640 : undefined}>
           {dialog === 'imageText' && <MessageImagesForm ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'settings' && <SettingsDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'accounts' && <AccountsDialog ctl={ctl} onClose={() => setDialog(null)} />}

@@ -1,4 +1,4 @@
-import { bodyText, bytesOf, decodeBase64, encodeBase64, formatAddress, parseMessage, type Address } from './mime';
+import { bodyText, bytesOf, decodeBase64, encodeBase64, formatAddress, importanceOf, parseMessage, type Address, type Importance } from './mime';
 import type { CalEvent, TaskItem } from './ics';
 import type { Contact } from './vcard';
 
@@ -45,6 +45,9 @@ export interface MailRecord {
   remote?: { account: string; folder: string; key: string };
   /** Message-ID, para reconocer la copia local de un mensaje cuando el servidor lo devuelve. */
   mid?: string;
+  importance?: Importance;
+  /** Un borrador tal como se estaba escribiendo (el formato del editor, opaco aquí): el mensaje de `raw` es lo que se enviaría. */
+  compose?: Record<string, unknown>;
   /** The text read from the pictures of the message (OCR), by picture (`imagePartKey`): `StoredOcr` of the shared OCR, opaque here. */
   ocr?: Record<string, unknown>;
   /** Lower-case text of those readings for searching (limited in length): searching the mailbox also finds what is written in a picture. */
@@ -119,6 +122,7 @@ export function recordFromRaw(raw: string | Uint8Array, folder: string, opts: Pa
     answered: opts.answered ?? false,
     bcc: opts.bcc,
     mid: m.messageId || undefined,
+    importance: importanceOf(m.headers),
   };
 }
 
@@ -234,7 +238,7 @@ export function quoteText(raw: string | Uint8Array, kind: 'reply' | 'forward'): 
   const who = m.from[0] ? formatAddress(m.from[0]) : '';
   const when = m.date ? m.date.toLocaleString() : '';
   const body = bodyText(m);
-  if (kind === 'reply') return `\n\nEl ${when}, ${who} escribió:\n${body.split('\n').map((l) => `> ${l}`).join('\n')}\n`;
+  if (kind === 'reply') return `\n\n${when ? `El ${when}, ` : ''}${who} escribió:\n${body.split('\n').map((l) => `> ${l}`).join('\n')}\n`;
   return `\n\n---------- Mensaje reenviado ----------\nDe: ${who}\nFecha: ${when}\nAsunto: ${m.subject}\nPara: ${m.to.map(formatAddress).join(', ')}\n\n${body}\n`;
 }
 
@@ -265,6 +269,8 @@ function readRecord(m: MailRecord, ids: Set<string>): MailRecord {
     else delete rec.remote;
   } else delete rec.remote;
   if (typeof rec.mid !== 'string') delete rec.mid;
+  if (rec.importance !== 'high' && rec.importance !== 'low') delete rec.importance;
+  if (!rec.compose || typeof rec.compose !== 'object' || Array.isArray(rec.compose)) delete rec.compose;
   // the readings of the pictures: kept only when they are readings, and the search text follows them
   const ocr = m.ocr && typeof m.ocr === 'object' ? Object.entries(m.ocr).filter(([k, v]) => k.length < 300 && v && typeof (v as { text?: unknown }).text === 'string') : [];
   delete rec.ocr;
