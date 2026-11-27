@@ -43,7 +43,10 @@ export function dueReminders(d: MailData, now: number): DueReminder[] {
     if (m.flagged && m.follow?.remind !== undefined && m.follow.remind <= now) out.push({ key: `f:${m.id}`, kind: 'mail', title: m.subject, at: m.follow.remind, messageId: m.id, due: m.follow.due });
   }
   const states = d.reminders ?? {};
-  for (const o of occurrencesBetween(d.events.filter((e) => e.reminder !== null), now - 3600_000, now + 7 * 86400_000)) {
+  // a series is looked at whole: one of its occurrences may have a reminder of its own
+  const timed = d.events.filter((e) => !e.cancelled && (e.reminder !== null || e.changes?.some((c) => c.reminder !== null)));
+  for (const o of occurrencesBetween(timed, now - 3600_000, now + 7 * 86400_000)) {
+    if (o.event.reminder === null) continue;
     const key = `${o.event.id}@${o.start}`;
     if (states[key]) continue;
     const at = o.start - (o.event.reminder ?? 0) * 60_000;
@@ -54,7 +57,7 @@ export function dueReminders(d: MailData, now: number): DueReminder[] {
     if (s.done || s.until === undefined || s.until > now) continue;
     const { id, start } = parts(key);
     const e = d.events.find((x) => x.id === id);
-    if (e) out.push({ key, kind: 'event', title: e.title, at: start });
+    if (e && !e.cancelled) out.push({ key, kind: 'event', title: e.changes?.find((c) => c.start === start)?.title ?? e.title, at: start });
   }
   return out;
 }

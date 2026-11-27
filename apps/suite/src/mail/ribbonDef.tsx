@@ -194,7 +194,15 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
       },
     ],
     calendar: [
-      { id: 'new', label: 'Nuevo', icon: 'calendarPlus', items: [{ kind: 'button', command: 'cal.new', size: 'large', keytip: 'N' }] },
+      {
+        id: 'new',
+        label: 'Nuevo',
+        icon: 'calendarPlus',
+        items: [
+          { kind: 'button', command: 'cal.new', size: 'large', keytip: 'N' },
+          { kind: 'button', command: 'cal.meeting', size: 'large', keytip: 'R' },
+        ],
+      },
       {
         id: 'goto',
         label: 'Ir a',
@@ -202,10 +210,13 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
         items: [
           { kind: 'button', command: 'cal.today', size: 'large', keytip: 'H' },
           { kind: 'button', command: 'cal.view.day', size: 'large', keytip: 'VD' },
+          { kind: 'button', command: 'cal.view.workweek', size: 'large', keytip: 'VL' },
           { kind: 'button', command: 'cal.view.week', size: 'large', keytip: 'VS' },
           { kind: 'button', command: 'cal.view.month', size: 'large', keytip: 'VM' },
+          { kind: 'button', command: 'cal.view.agenda', size: 'large', keytip: 'VG' },
         ],
       },
+      { id: 'print', label: 'Imprimir', icon: 'print', items: [{ kind: 'button', command: 'cal.print', size: 'large', keytip: 'P' }] },
     ],
     contacts: [
       { id: 'new', label: 'Nuevo', icon: 'userPlus', items: [{ kind: 'button', command: 'contact.new', size: 'large', keytip: 'N' }] },

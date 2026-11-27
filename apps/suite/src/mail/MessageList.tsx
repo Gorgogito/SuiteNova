@@ -277,6 +277,7 @@ export function MessageList({ ctl, actions }: { ctl: MailCtl; actions: ListActio
           <span>
             {m.subject || t('(sin asunto)')}
             {has((x) => x.hasAttachments) && <span title={t('Con adjuntos')} aria-label={t('Con adjuntos')}> 📎</span>}
+            {has((x) => !!x.meeting) && <span title={t('Reunión')} aria-label={t('Reunión')}> 📅</span>}
             {has((x) => x.importance === 'high') && <span title={t('Importancia alta')} aria-label={t('Importancia alta')}> ❗</span>}
           </span>
           <button

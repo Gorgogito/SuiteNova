@@ -21,7 +21,7 @@ import {
 } from '@suitenova/mail-core';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { categoryLabel } from './CategoryViews';
-import { dateStr, parseLocal, timeStr } from './CalendarView';
+import { dateStr, parseLocal, timeStr } from './dates';
 import type { MailCtl } from './ctl';
 import { buildQuery, type SearchForm } from './search-form';
 

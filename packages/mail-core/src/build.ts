@@ -22,6 +22,8 @@ export interface Draft {
   inReplyTo?: string;
   references?: string[];
   importance?: 'high' | 'low';
+  /** An invitation, an answer or a cancellation: it goes as one more form of the body and as a file. */
+  calendar?: { method: string; ics: string };
 }
 
 const enc = new TextEncoder();
@@ -122,13 +124,18 @@ export function buildMessage(d: Draft): string {
   const textPart = (type: string, body: string) => `Content-Type: ${type}; charset=UTF-8${CRLF}Content-Transfer-Encoding: quoted-printable${CRLF}${CRLF}${qp(body)}`;
   let body: string;
   let ctype: string;
-  const alt = d.html ? (() => {
+  const alt = d.html || d.calendar ? (() => {
     const b = boundary();
-    return { b, text: `--${b}${CRLF}${textPart('text/plain', d.text)}${CRLF}--${b}${CRLF}${textPart('text/html', d.html!)}${CRLF}--${b}--` };
+    const forms = [textPart('text/plain', d.text)];
+    if (d.html) forms.push(textPart('text/html', d.html));
+    if (d.calendar) forms.push(textPart(`text/calendar; method=${d.calendar.method.replace(/[^A-Za-z]/g, '')}`, d.calendar.ics));
+    return { b, text: forms.map((f) => `--${b}${CRLF}${f}${CRLF}`).join('') + `--${b}--` };
   })() : null;
   // inline images (referenced from the HTML) go with it in a multipart/related; the rest are attachments of a multipart/mixed
   const inline = d.html ? (d.attachments ?? []).filter((a) => a.contentId) : [];
   const regular = (d.attachments ?? []).filter((a) => !inline.includes(a));
+  // programs that do not read the calendar inside the body find it as a file
+  if (d.calendar) regular.push({ filename: 'invitacion.ics', contentType: 'application/ics', data: enc.encode(d.calendar.ics) });
   const attachmentPart = (b: string, a: OutgoingAttachment, disposition: 'attachment' | 'inline') => {
     const name = encodeHeader(a.filename);
     const star = /^[\x20-\x7e]*$/.test(a.filename) ? `filename="${a.filename.replace(/(["\\])/g, '\\$1')}"` : `filename*=UTF-8''${encodeURIComponent(a.filename)}`;

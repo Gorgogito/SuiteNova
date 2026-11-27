@@ -1,6 +1,6 @@
 import { Button, DialogActions, DialogContent, DialogTitle, Input } from '@fluentui/react-components';
 import { AppFrame, CommandRegistry, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { SNOOZE_CHOICES, contactsFromCsv, contactsToCsv, isFollowed, parseIcs, parseMailData, parseMbox, parseVcf, rawHeaders, rawOf, serializeMail, writeIcs, writeMbox, writeVcf, type DueReminder } from '@suitenova/mail-core';
+import { SNOOZE_CHOICES, calendarOf, calendarsOf, contactsFromCsv, contactsToCsv, isFollowed, parseIcs, parseMailData, parseMbox, parseVcf, rawHeaders, rawOf, serializeMail, writeIcs, writeMbox, writeVcf, type DueReminder } from '@suitenova/mail-core';
 import { Calendar, CheckSquare, Mail, Users } from 'lucide-react';
 import { parseCsv, toCsv } from '@suitenova/base-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -26,6 +26,7 @@ import { LinkConfirm, ReadingPane } from './MailViews';
 import { MessageList } from './MessageList';
 import { removeSelected, saveAttachmentsOf } from './actions';
 import { printMessage } from './print';
+import { printCalendar } from './calendar-print';
 import { MessageImagesForm } from './dlg-ocr';
 import { ReadAloudBar } from '../voice/ReadAloudBar';
 import { StickyDialog } from './StickyDialog';
@@ -88,6 +89,8 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+E', 'Buscar'],
   ['F4', 'Buscar en el mensaje (al leer y al escribir); Ctrl+H reemplaza al escribir'],
   ['Ctrl+Mayús+A', 'Evento nuevo'],
+  ['Ctrl+Mayús+Q', 'Reunión nueva'],
+  ['Ctrl+flechas · Ctrl+Mayús+flechas', 'En el calendario: mover la cita elegida o cambiar su duración'],
   ['Ctrl+Mayús+C', 'Contacto nuevo'],
   ['Ctrl+Mayús+K', 'Tarea nueva'],
   ['Alt', 'Atajos de la cinta (KeyTips)'],
@@ -240,9 +243,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
           setStatus(t('Se importaron {n} mensajes.', { n: raw.length }));
         } else if (kind === 'ics') {
           const { events, tasks, warnings } = parseIcs(await files[0]!.text());
-          ctl.data.events = [...ctl.data.events, ...events];
-          ctl.data.tasks = [...ctl.data.tasks, ...tasks];
-          ctl.touch(true);
+          ctl.calendar.import(events, tasks);
           setStatus(t('Se importaron {e} eventos y {t} tareas.', { e: events.length, t: tasks.length }));
           if (warnings.length) window.alert(t('El archivo se importó, pero:') + '\n\n' + warnings.join('\n'));
         } else {
@@ -296,6 +297,16 @@ export function MailApp({ module }: { module: ModuleInfo }) {
       exportCalendar: async () => {
         await saveBytes('calendario.ics', new TextEncoder().encode(writeIcs(ctl.data.events, ctl.data.tasks)), [{ name: 'iCalendar', extensions: ['ics'] }]);
       },
+      exportOneCalendar: async (id) => {
+        const c = calendarsOf(ctl.data).find((x) => x.id === id);
+        if (!c) return;
+        const events = ctl.data.events.filter((e) => calendarOf(ctl.data, e).id === id);
+        await saveBytes(`${clean(c.name)}.ics`, new TextEncoder().encode(writeIcs(events, [], 'Nova Mail', { calendarName: c.name })), [{ name: 'iCalendar', extensions: ['ics'] }]);
+      },
+      saveEml: async (raw, name) => {
+        await saveBytes(`${clean(name)}.eml`, new TextEncoder().encode(raw), [{ name: 'Mensaje', extensions: ['eml'] }]);
+      },
+      printCalendar: () => printCalendar(ctl),
       exportContacts: async (csv) => {
         if (csv) await saveBytes('contactos.csv', new TextEncoder().encode('﻿' + toCsv(contactsToCsv(ctl.data.contacts)[0]!, contactsToCsv(ctl.data.contacts).slice(1))), [{ name: 'CSV', extensions: ['csv'] }]);
         else await saveBytes('contactos.vcf', new TextEncoder().encode(writeVcf(ctl.data.contacts)), [{ name: 'vCard', extensions: ['vcf'] }]);
@@ -382,9 +393,20 @@ export function MailApp({ module }: { module: ModuleInfo }) {
     const key = (e: KeyboardEvent) => {
       if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
       const el = e.target as HTMLElement;
-      if (ctl.section !== 'mail' || ctl.compose || el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.closest('[role="dialog"]')) return;
+      if ((ctl.section !== 'mail' && ctl.section !== 'calendar') || (ctl.section === 'mail' && ctl.compose) || el.isContentEditable || (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && (el as HTMLInputElement).type !== 'checkbox') || el.closest('[role="dialog"]')) return;
       e.preventDefault();
       ctl.undo();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [ctl]);
+
+  // Ctrl+P prints what is seen: the message (a command of its own) or the calendar
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'p' || ctl.section !== 'calendar' || (e.target as HTMLElement).closest?.('[role="dialog"]')) return;
+      e.preventDefault();
+      printCalendar(ctl);
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
@@ -561,7 +583,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
             )}
           </div>
         )}
-        {ctl.section === 'calendar' && <CalendarView ctl={ctl} />}
+        {ctl.section === 'calendar' && <CalendarView ctl={ctl} ui={ui} />}
         {ctl.section === 'contacts' && <ContactsView ctl={ctl} />}
         {ctl.section === 'tasks' && <TasksView ctl={ctl} />}
 

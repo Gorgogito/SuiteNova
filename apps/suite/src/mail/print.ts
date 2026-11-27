@@ -23,7 +23,10 @@ export function printableHtml(rec: MailRecord): string {
   return safeHtml(m, false).html.replace('<body>', () => `<body>${head}`);
 }
 
-export function printMessage(rec: MailRecord): void {
+export const printMessage = (rec: MailRecord): void => printPage(printableHtml(rec));
+
+/** Prints a page of the program, in a frame of its own with the dialog of the system. */
+export function printPage(html: string): void {
   document.querySelector('iframe.ml-print')?.remove();
   const frame = document.createElement('iframe');
   frame.className = 'ml-print';
@@ -39,6 +42,6 @@ export function printMessage(rec: MailRecord): void {
       frame.contentWindow?.print();
     }, 60);
   });
-  frame.srcdoc = printableHtml(rec);
+  frame.srcdoc = html;
   document.body.appendChild(frame);
 }

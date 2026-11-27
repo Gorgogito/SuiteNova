@@ -156,3 +156,19 @@ Cada fase termina con pruebas, e2e con capturas, `LIMITACIONES.md` y `PROGRESO.m
   se haría.
 - **Pruebas:** `outbox.test.ts` (8), `outbox-alerts.test.ts` (22), 4 de Rust (y una que muestra un aviso real, aparte),
   `e2e-mail-send.mjs` (7).
+
+### Fase 6 (hecha, 2026-11-27): calendario
+- **Núcleo** (`mail-core`): `calendars.ts` (varios calendarios), `events.ts` (una repetición, la serie, mover y estirar,
+  invitados), `invites.ts` (invitar, contestar y cancelar según iTIP). `ics.ts` lee y escribe organizador, asistentes,
+  versión, estado y repeticiones cambiadas (RECURRENCE-ID); los mensajes llevan y reconocen `text/calendar`.
+- **Aplicación:** `calendar.ts` (cambios con deshacer propio y reuniones, que salen por la Bandeja de salida),
+  `CalendarView.tsx` rehecho (lista de calendarios, semana laboral, agenda, arrastrar, estirar y teclado),
+  `EventDialog.tsx`, `InviteCard.tsx` en el panel de lectura y `calendar-print.ts`. Órdenes nuevas: «Reunión nueva»
+  (Ctrl+Mayús+Q), «Semana laboral», «Vista Agenda» e «Imprimir el calendario».
+- **Cambios en lo que ya había:** Ctrl+Z deshace también en el calendario (el aviso al eliminar ya no dice que no se
+  puede); los `.ics` con repeticiones cambiadas ya no las tratan como citas sueltas.
+- **Fallos hallados y corregidos al probar y repasar:** deshacer un cambio anterior a un envío devolvía la reunión sin su
+  número de versión (la siguiente actualización habría llegado como anticuada) y borraba respuestas anotadas; los
+  recordatorios pospuestos de una cita cancelada seguían saliendo; los botones del cuadro se partían en varias líneas;
+  la descripción quedaba muy estrecha; los títulos decían «Junio De 2026».
+- **Pruebas:** `calendar.test.ts` (15), `calendar-actions.test.ts` (13), `e2e-mail-calendar.mjs` (10).

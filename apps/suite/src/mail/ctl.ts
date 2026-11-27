@@ -8,6 +8,7 @@ import { MailReader } from './read-aloud';
 import { MailOrganizer } from './organizer';
 import { MailAlerts } from './alerts';
 import { MailOutbox } from './outbox';
+import { MailCalendar } from './calendar';
 import {
   RFC_FLAGS,
   addRaw,
@@ -40,7 +41,6 @@ import {
   reconcileFolder,
   inFolder,
   newContact,
-  newEvent,
   newMailData,
   newMailId,
   newTask,
@@ -54,6 +54,7 @@ import {
   searchFoldersOf,
   setCategory,
   setFollow,
+  calendarOf,
   syncKey,
   decodeBase64,
   dismissReminder,
@@ -173,7 +174,7 @@ function readSettings(): { autoMinutes: number; limit: number } {
 }
 
 export type Section = 'mail' | 'calendar' | 'contacts' | 'tasks';
-export type CalView = 'day' | 'week' | 'month';
+export type CalView = 'day' | 'workweek' | 'week' | 'month' | 'agenda';
 
 export interface ComposeState {
   id: string;
@@ -299,6 +300,8 @@ export class MailCtl {
   readonly outbox = new MailOutbox(this);
   /** Notices of new mail, reminders and failures, and receiving at once. */
   readonly alerts = new MailAlerts(this);
+  /** Appointments, calendars and meetings by mail. */
+  readonly calendar = new MailCalendar(this);
   /** The folder being named: a new one, or another name for one there is. */
   folderEdit: { kind: 'new'; inside: boolean } | { kind: 'rename'; id: string } | null = null;
   /** An undo that has to wait for the server. */
@@ -464,6 +467,7 @@ export class MailCtl {
     this.organize.reset();
     this.alerts.reset();
     this.alerts.startWatch();
+    this.calendar.reset();
     pruneReminders(d, Date.now());
     this.rowCache = null;
     this.folderEdit = null;
@@ -636,6 +640,7 @@ export class MailCtl {
 
   private read(m: MailRecord): void {
     this.keep(m);
+    if (m.meeting === 'REPLY') this.calendar.noteReply(m.id);
     if (!m.read) {
       m.read = true;
       this.pushFlag(m, RFC_FLAGS.seen, true);
@@ -746,8 +751,9 @@ export class MailCtl {
     if (undoable && parts.length) this.push({ label, parts });
   }
 
-  /** What the next undo takes back; empty when there is nothing. */
+  /** What the next undo takes back; empty when there is nothing. The calendar keeps its own. */
   get undoLabel(): string {
+    if (this.section === 'calendar') return this.calendar.undoLabel;
     return this.undoSteps[this.undoSteps.length - 1]?.label ?? '';
   }
 
@@ -1003,6 +1009,7 @@ export class MailCtl {
 
   /** Takes back the last action on messages. What was already done on the server is taken back there too. */
   undo(): void {
+    if (this.section === 'calendar') return this.calendar.undo();
     const step = this.undoSteps.pop();
     if (!step) return;
     const back: Change[] = [];
@@ -1784,6 +1791,7 @@ export class MailCtl {
         arrived.push(...this.applyNew(account, p, res, watch).arrived);
       });
     }
+    this.calendar.noteReplies(arrived);
     this.organize.arrive(arrived);
     this.alerts.newMail(arrived);
   }
@@ -1868,6 +1876,7 @@ export class MailCtl {
       }
     }
     this.syncing = false;
+    this.calendar.noteReplies(arrived);
     const organized = this.organize.arrive(arrived);
     this.alerts.newMail(arrived);
     if (!this.folderExists(this.folder)) this.folder = 'inbox';
@@ -1937,6 +1946,15 @@ export class MailCtl {
           : '';
     this.touch(true);
     this.outbox.schedule();
+  }
+
+  /** A message the program wrote (an invitation, an answer) leaves through the Outbox. */
+  post(raw: string, outgoing: Outgoing): void {
+    this.batch(() => {
+      addRaw(this.data, 'outbox', raw, { read: true }).outgoing = outgoing;
+    });
+    this.touch(true);
+    void this.outbox.process();
   }
 
   /** Saves the copy in Sent, marks the original as answered and asks the server for its copy. Returns a remark, if any. */
@@ -2012,30 +2030,52 @@ export class MailCtl {
 
   // ---------- calendar ----------
 
+  setCalView(view: CalView): void {
+    this.calView = view;
+    this.touch();
+  }
+
+  /** Goes to an appointment in the calendar. */
+  openEvent(id: string): void {
+    const e = this.calendar.find(id);
+    if (!e) return;
+    // an appointment of a hidden calendar is shown
+    const c = calendarOf(this.data, e);
+    if (c.hidden) this.calendar.edit(c.id, { hidden: false });
+    this.go('calendar');
+    this.selectedEvent = id;
+    this.setAnchor(e.start);
+  }
+
   setAnchor(t: number): void {
     this.anchor = t;
     this.touch();
   }
 
   addEvent(ev: CalEvent): void {
-    this.data.events = [...this.data.events, ev];
+    this.calendar.change('Agregar cita', () => {
+      this.data.events = [...this.data.events, ev];
+    });
     this.selectedEvent = ev.id;
-    this.touch(true);
+    this.touch();
   }
 
   updateEvent(ev: CalEvent): void {
-    this.data.events = this.data.events.map((e) => (e.id === ev.id ? ev : e));
-    this.touch(true);
+    this.calendar.change('Cambiar cita', () => {
+      this.data.events = this.data.events.map((e) => (e.id === ev.id ? ev : e));
+    });
   }
 
   deleteEvent(id: string): void {
-    this.data.events = this.data.events.filter((e) => e.id !== id);
+    this.calendar.change('Eliminar cita', () => {
+      this.data.events = this.data.events.filter((e) => e.id !== id);
+    });
     if (this.selectedEvent === id) this.selectedEvent = null;
-    this.touch(true);
+    this.touch();
   }
 
   newEventAt(start: number, allDay = false): CalEvent {
-    return { ...newEvent(start, allDay ? addDays(start, 1) : start + 3600000, ''), allDay };
+    return this.calendar.newAt(start, allDay ? addDays(start, 1) : start + 3600000, allDay);
   }
 
   // ---------- contacts ----------

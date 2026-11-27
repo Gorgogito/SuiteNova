@@ -6,6 +6,7 @@ import { saveBytes } from '../fileio';
 import { FindPanel } from '../find';
 import { frameFindHost } from './find-hosts';
 import { CategoryChips } from './CategoryViews';
+import { InviteCard } from './InviteCard';
 import type { MailCtl } from './ctl';
 import { sanitizeMailHtml } from './rich/sanitize';
 
@@ -152,6 +153,7 @@ export function ReadingPane({ ctl, rec, onLink }: { ctl: MailCtl; rec: MailRecor
           </div>
         )}
         <CategoryChips data={ctl.data} names={rec.categories} />
+        {parsed.calendar && <InviteCard key={rec.id} ctl={ctl} rec={rec} parsed={parsed} />}
         {rec.outgoing && (
           <div className={`ml-follow${rec.outgoing.held ? ' is-late' : ''}`} role="status">
             <span>⏱ {ctl.outbox.status(rec)}</span>

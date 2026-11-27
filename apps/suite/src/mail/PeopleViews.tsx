@@ -1,7 +1,7 @@
 import { t } from '@suitenova/core-ui';
 import { displayName, isDone, isFollowed, type Contact, type LabeledValue, type MailRecord, type TaskItem } from '@suitenova/mail-core';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { dateStr, parseLocal } from './CalendarView';
+import { dateStr, parseLocal } from './dates';
 import { CategoryChips, CategoryPicker } from './CategoryViews';
 import { startOfDay, type MailCtl } from './ctl';
 import { ProofTextarea } from '../spell';

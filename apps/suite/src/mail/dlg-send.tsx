@@ -3,7 +3,7 @@ import { t } from '@suitenova/core-ui';
 import { sendLaterPresets, type MailRecord } from '@suitenova/mail-core';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { DELAY_CHOICES, type WatchState } from './alerts';
-import { dateStr, parseLocal, timeStr } from './CalendarView';
+import { dateStr, parseLocal, timeStr } from './dates';
 import type { MailCtl } from './ctl';
 import { systemNotices } from './notify';
 import { protocolOf } from './remote';

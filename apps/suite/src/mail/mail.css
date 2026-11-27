@@ -429,6 +429,14 @@
   flex: 1;
   min-width: 0;
   display: flex;
+  /* dragging an appointment must not select text */
+  user-select: none;
+}
+.ml-cal__main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
   flex-direction: column;
 }
 .ml-cal__bar {
@@ -443,7 +451,11 @@
   margin: 0 8px;
   font-size: 16px;
   font-weight: 600;
-  text-transform: capitalize;
+}
+/* «Junio de 2026», not «Junio De 2026» */
+.ml-cal__bar h2::first-letter,
+.ml-agenda h3::first-letter {
+  text-transform: uppercase;
 }
 .ml-week {
   flex: 1;
@@ -515,9 +527,9 @@
   margin: 1px 0;
   padding: 1px 5px;
   border: 0;
-  border-left: 3px solid var(--colorBrandForeground1);
+  border-left: 3px solid var(--ev, var(--colorBrandForeground1));
   border-radius: 3px;
-  background: color-mix(in srgb, var(--nv-accent, #0f6cbd) 18%, var(--colorNeutralBackground1));
+  background-color: color-mix(in srgb, var(--ev, #0f6cbd) 18%, var(--colorNeutralBackground1));
   color: var(--colorNeutralForeground1);
   font: inherit;
   font-size: 12px;
@@ -533,9 +545,7 @@
   margin: 0;
 }
 .ml-ev.is-allday {
-  background: var(--nv-accent, #0f6cbd);
-  color: #fff;
-  border-left-color: transparent;
+  background-color: color-mix(in srgb, var(--ev, #0f6cbd) 36%, var(--colorNeutralBackground1));
 }
 .ml-month {
   flex: 1;
@@ -1797,5 +1807,225 @@
 .ml-toast__actions {
   display: flex;
   flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ---------- calendar: several calendars, dragging, agenda and invitations ---------- */
+.ml-ev.is-tentative {
+  background-image: repeating-linear-gradient(45deg, transparent 0 6px, color-mix(in srgb, var(--ev, #0f6cbd) 22%, transparent) 6px 9px);
+}
+.ml-ev.is-cancelled {
+  text-decoration: line-through;
+}
+.ml-ev.is-dragging {
+  z-index: 3;
+  box-shadow: var(--shadow8);
+  cursor: grabbing;
+}
+.ml-ev--block,
+.ml-month .ml-ev,
+.ml-week__allday .ml-ev {
+  touch-action: none;
+}
+.ml-ev__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
+.ml-cals {
+  flex: none;
+  width: 190px;
+  overflow-y: auto;
+  padding: 8px;
+  border-right: 1px solid var(--colorNeutralStroke2);
+  font-size: 13px;
+}
+.ml-cals h3 {
+  margin: 0 4px 6px;
+  color: var(--colorNeutralForeground3);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ml-cals ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ml-cals li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+}
+.ml-cals li label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ml-cals li label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ml-cals li > button {
+  flex: none;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.ml-cals li > button:hover {
+  background: var(--colorNeutralBackground1Hover);
+}
+.ml-cals form {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+.ml-cals form div {
+  display: flex;
+  gap: 4px;
+}
+.ml-cals input:not([type='checkbox']),
+.ml-cals select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 4px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  font: inherit;
+}
+.ml-moved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground3);
+  font-size: 12px;
+}
+.ml-agenda {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 16px 16px;
+}
+.ml-agenda h3 {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+.ml-agenda h3.is-today {
+  color: var(--colorBrandForeground1);
+}
+.ml-agenda ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ml-ev.ml-agenda__item {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 2fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  margin: 2px 0;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.ml-agenda__item > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ml-agenda__item em {
+  color: var(--colorNeutralForeground2);
+  font-size: 12px;
+  font-style: normal;
+}
+.ml-invite {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-left: 4px solid var(--nv-accent, #0f6cbd);
+  border-radius: 4px;
+  background: var(--colorNeutralBackground1);
+  font-size: 13px;
+}
+.ml-invite.is-cancelled {
+  border-left-color: var(--colorPaletteRedForeground1);
+}
+.ml-invite > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ml-invite__when {
+  white-space: pre-line;
+}
+.ml-invite__busy {
+  font-weight: 600;
+}
+.ml-invite button[aria-pressed='true'] {
+  outline: 2px solid var(--colorStrokeFocus2);
+  outline-offset: 1px;
+}
+.ml-answers {
+  max-height: 110px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: 12px;
+}
+.ml-answers li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ml-answers em {
+  color: var(--colorNeutralForeground3);
+  font-style: normal;
+}
+.ml-answers em.is-accepted {
+  color: var(--colorPaletteGreenForeground1);
+}
+.ml-answers em.is-declined {
+  color: var(--colorPaletteRedForeground1);
+}
+.ml-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 4px 8px 8px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 4px;
+}
+.ml-form label textarea {
+  width: 100%;
+  resize: vertical;
+}
+/* the dialog of an appointment has many buttons: they go on to another line, never split in two */
+.ml-dlgactions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ml-dlgactions button {
+  white-space: nowrap;
+}
+.ml-form .ml-scope label {
+  display: flex;
+  align-items: center;
   gap: 4px;
 }

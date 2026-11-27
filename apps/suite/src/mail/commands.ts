@@ -35,6 +35,10 @@ export interface MailUI {
   exportFolder(): Promise<void>;
   exportCalendar(): Promise<void>;
   exportContacts(csv: boolean): Promise<void>;
+  exportOneCalendar(id: string): Promise<void>;
+  /** Saves a message to be sent with another program. */
+  saveEml(raw: string, name: string): Promise<void>;
+  printCalendar(): void;
   focusSearch(): void;
   print(): void;
   saveAttachments(): void;
@@ -92,7 +96,7 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   add({ id: 'mail.editDraft', label: 'Editar borrador', icon: 'edit', enabled: () => hasOne() && (c.selected!.folder === 'drafts' || !!c.selected!.outgoing), run: () => (c.selected!.outgoing ? void c.outbox.takeBack(c.selectedId!) : c.editDraft(c.selectedId!)) });
   add({ id: 'mail.delete', label: 'Eliminar mensaje', icon: 'trash', hint: 'Supr', enabled: hasMsg, run: () => removeSelected(c) });
   add({ id: 'mail.deletePermanent', label: 'Eliminar para siempre', icon: 'trash', hint: 'Mayús+Supr', enabled: hasMsg, run: () => removeSelected(c, true) });
-  add({ id: 'mail.undo', label: 'Deshacer', icon: 'undo', hint: 'Ctrl+Z', description: 'Deshace lo último que se hizo con los mensajes: eliminar, mover, archivar, marcar. En el servidor también.', enabled: () => c.section === 'mail' && !c.compose && !!c.undoLabel, run: () => c.undo() });
+  add({ id: 'mail.undo', label: 'Deshacer', icon: 'undo', hint: 'Ctrl+Z', description: 'Deshace lo último que se hizo con los mensajes (también en el servidor) o, en el calendario, con las citas.', enabled: () => ((c.section === 'mail' && !c.compose) || c.section === 'calendar') && !!c.undoLabel, run: () => c.undo() });
   add({ id: 'mail.selectAll', label: 'Seleccionar todo', icon: 'checkSquare', hint: 'Ctrl+A', enabled: () => c.section === 'mail' && !c.compose && c.list().length > 0, run: () => c.selectAll() });
   add({ id: 'mail.archive', label: 'Archivar', icon: 'archive', enabled: () => hasMsg() && c.selectedRecords.some((m) => m.folder !== 'archive'), run: () => void c.moveMany(c.selectedIds(), 'archive') });
   add({ id: 'mail.junk', label: 'Correo no deseado', icon: 'ban', enabled: () => hasMsg() && c.selectedRecords.some((m) => m.folder !== 'junk'), run: () => void c.moveMany(c.selectedIds(), 'junk') });
@@ -178,9 +182,22 @@ export function mailCommands(ui: MailUI): CommandDef[] {
     });
 
   // calendar
-  add({ id: 'cal.new', label: 'Evento nuevo', icon: 'calendarPlus', shortcut: 'Ctrl+Shift+A', run: () => { c.go('calendar'); setTimeout(() => window.dispatchEvent(new Event('nova:new-event')), 0); } });
+  const newEvent = (meeting: boolean) => {
+    c.go('calendar');
+    setTimeout(() => window.dispatchEvent(new CustomEvent('nova:new-event', { detail: { meeting } })), 0);
+  };
+  add({ id: 'cal.new', label: 'Evento nuevo', icon: 'calendarPlus', shortcut: 'Ctrl+Shift+A', run: () => newEvent(false) });
+  add({ id: 'cal.meeting', label: 'Reunión nueva', icon: 'contacts', shortcut: 'Ctrl+Shift+Q', description: 'Una cita a la que invitas a otras personas por correo.', run: () => newEvent(true) });
+  add({ id: 'cal.print', label: 'Imprimir el calendario…', icon: 'print', hint: 'Ctrl+P', enabled: () => c.section === 'calendar', run: () => ui.printCalendar() });
   add({ id: 'cal.today', label: 'Hoy', icon: 'calendar', run: () => c.setAnchor(Date.now()) });
-  for (const v of ['day', 'week', 'month'] as const) add({ id: `cal.view.${v}`, label: v === 'day' ? 'Vista Día' : v === 'week' ? 'Vista Semana' : 'Vista Mes', icon: 'calendar', checked: () => c.calView === v, run: () => { c.calView = v; c.touch(); } });
+  const VIEWS = [
+    ['day', 'Vista Día'],
+    ['workweek', 'Semana laboral'],
+    ['week', 'Vista Semana'],
+    ['month', 'Vista Mes'],
+    ['agenda', 'Vista Agenda'],
+  ] as const;
+  for (const [v, label] of VIEWS) add({ id: `cal.view.${v}`, label, icon: 'calendar', checked: () => c.calView === v, run: () => c.setCalView(v) });
 
   // contacts and tasks
   add({ id: 'contact.new', label: 'Contacto nuevo', icon: 'userPlus', shortcut: 'Ctrl+Shift+C', run: () => { c.go('contacts'); c.addContact(); } });

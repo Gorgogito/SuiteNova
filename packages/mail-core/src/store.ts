@@ -2,6 +2,9 @@ import { bodyText, bytesOf, decodeBase64, encodeBase64, formatAddress, importanc
 import type { CalEvent, TaskItem } from './ics';
 import type { Contact } from './vcard';
 import { messageIds } from './threads';
+import { readCalendars, type CalendarInfo } from './calendars';
+import { findInvite, type InviteMethod } from './invites';
+import { readEvent } from './events';
 import { readCategories, readNames, type Category } from './categories';
 import { readFollow, type FollowUp } from './followup';
 import { readJunk, type JunkLists } from './junk';
@@ -62,6 +65,10 @@ export interface MailRecord {
   categories?: string[];
   /** Seguimiento: vencimiento, aviso y cuándo se completó (la bandera es `flagged`). */
   follow?: FollowUp;
+  /** Es una invitación a una reunión, la respuesta a una o su cancelación. */
+  meeting?: InviteMethod;
+  /** Lo que se contestó aquí a una invitación. */
+  rsvp?: 'accepted' | 'tentative' | 'declined';
   /** Un mensaje de la Bandeja de salida: con qué cuenta, a quién y cuándo se envía. */
   outgoing?: Outgoing;
   /** Un borrador tal como se estaba escribiendo (el formato del editor, opaco aquí): el mensaje de `raw` es lo que se enviaría. */
@@ -118,6 +125,8 @@ export interface MailData {
   junk?: JunkLists;
   /** Recordatorios de citas descartados o pospuestos. */
   reminders?: Record<string, ReminderState>;
+  /** Los calendarios, con su color; sin la lista, solo el primero. */
+  calendars?: CalendarInfo[];
 }
 
 let counter = 0;
@@ -153,8 +162,14 @@ export function recordFromRaw(raw: string | Uint8Array, folder: string, opts: Pa
     mid: m.messageId || undefined,
     refs: [...new Set([...m.references, ...messageIds(m.inReplyTo)])],
     importance: importanceOf(m.headers),
+    ...(m.calendar ? meetingOf(m) : {}),
   };
 }
+
+const meetingOf = (m: Parameters<typeof findInvite>[0]): { meeting?: InviteMethod } => {
+  const invite = findInvite(m);
+  return invite ? { meeting: invite.method } : {};
+};
 
 export const rawOf = (r: MailRecord): Uint8Array => decodeBase64(r.raw);
 
@@ -295,6 +310,8 @@ function readRecord(m: MailRecord, ids: Set<string>): MailRecord {
   const follow = readFollow(rec.follow);
   if (follow) rec.follow = follow;
   else delete rec.follow;
+  if (rec.meeting !== 'REQUEST' && rec.meeting !== 'REPLY' && rec.meeting !== 'CANCEL') delete rec.meeting;
+  if (rec.rsvp !== 'accepted' && rec.rsvp !== 'tentative' && rec.rsvp !== 'declined') delete rec.rsvp;
   // in the Outbox only what knows how to leave; anything else goes back to Drafts
   const outgoing = rec.folder === 'outbox' ? readOutgoing(rec.outgoing) : undefined;
   if (outgoing) rec.outgoing = outgoing;
@@ -405,7 +422,7 @@ export function parseMailData(text: string): MailData {
     messages: arr<MailRecord>(o.messages)
       .filter((m) => m && typeof m.raw === 'string' && typeof m.id === 'string')
       .map((m) => readRecord(m, ids)),
-    events: arr<CalEvent>(o.events).filter((e) => e && typeof e.start === 'number' && typeof e.end === 'number').map(tagged),
+    events: arr<CalEvent>(o.events).filter((e) => e && typeof e.start === 'number' && typeof e.end === 'number').map((e) => tagged(readEvent(e))),
     tasks: arr<TaskItem>(o.tasks).filter((t) => t && typeof t.id === 'string').map(tagged),
     contacts: arr<Contact>(o.contacts).filter((c) => c && typeof c.id === 'string').map(tagged),
     categories: readCategories(o.categories),
@@ -414,6 +431,7 @@ export function parseMailData(text: string): MailData {
     searchFolders: readSearchFolders(o.searchFolders),
     junk: readJunk(o.junk),
     reminders: readReminders(o.reminders),
+    calendars: readCalendars(o.calendars),
     sync: readSync(o.sync),
     pending: readPending(o.pending),
     servers: readServers(o.servers),

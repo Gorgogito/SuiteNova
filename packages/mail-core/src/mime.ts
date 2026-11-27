@@ -32,6 +32,8 @@ export interface ParsedMessage {
   attachments: Attachment[];
   /** Images referenced by `cid:` from the HTML. */
   inlineParts: Attachment[];
+  /** The calendar the message carries (an invitation, an answer…), as iCalendar text. */
+  calendar?: string;
   /** Problems found while reading (unknown charset, broken encoding…). */
   warnings: string[];
 }
@@ -306,6 +308,7 @@ interface Collected {
   attachments: Attachment[];
   inline: Attachment[];
   warnings: string[];
+  calendar?: string;
 }
 
 function walk(part: RawPart, out: Collected, depth = 0): void {
@@ -331,6 +334,11 @@ function walk(part: RawPart, out: Collected, depth = 0): void {
     const text = decodeCharset(bytes, ct.params.charset, out.warnings);
     (type === 'text/html' ? out.html : out.text).push(text);
     return;
+  }
+  if (type === 'text/calendar' || type === 'application/ics' || /\.ics$/i.test(filename)) {
+    out.calendar ??= decodeCharset(bytes, ct.params.charset, out.warnings);
+    // the calendar that is part of the body of an invitation is not one more file
+    if (!filename && disp.value !== 'attachment') return;
   }
   const a: Attachment = { filename: decodeWords(headerText(filename)) || (type === 'message/rfc822' ? 'mensaje.eml' : type.startsWith('image/') ? `imagen.${type.split('/')[1]}` : 'adjunto'), contentType: type, data: bytes, cid: cid || undefined, inline: disp.value === 'inline' || (!!cid && !isAttachment) };
   if (cid && type.startsWith('image/') && disp.value !== 'attachment') out.inline.push(a);
@@ -387,6 +395,7 @@ export function parseMessage(raw: string | Uint8Array): ParsedMessage {
     html,
     attachments,
     inlineParts,
+    calendar: out.calendar,
     warnings: out.warnings,
   };
 }

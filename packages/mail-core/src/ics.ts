@@ -21,6 +21,42 @@ export interface CalEvent {
   reminder: number | null;
   /** Colour categories, by name. */
   categories?: string[];
+  /** The calendar it is in; without it, the first one. */
+  calendar?: string;
+  /** A meeting: who called it, and who was invited with their answer. */
+  organizer?: Person;
+  attendees?: Attendee[];
+  /** The version of a meeting: it grows with each change that is sent. */
+  sequence?: number;
+  /** The version whose invitations were sent from here. */
+  sent?: number;
+  cancelled?: boolean;
+  /** Single occurrences of a series that differ from it. */
+  changes?: EventChange[];
+  /** Read from an invitation that speaks of one occurrence only: the start it would have had. */
+  recurrenceId?: number;
+}
+
+export interface Person {
+  name: string;
+  email: string;
+}
+export type PartStat = 'needs-action' | 'accepted' | 'tentative' | 'declined';
+export interface Attendee extends Person {
+  status: PartStat;
+  optional?: boolean;
+}
+
+/** One occurrence of a series as it was changed. */
+export interface EventChange {
+  /** The start it would have had in the series. */
+  at: number;
+  title: string;
+  location: string;
+  description: string;
+  start: number;
+  end: number;
+  reminder: number | null;
 }
 
 export interface TaskItem {
@@ -153,8 +189,20 @@ function parseDuration(s: string): number | null {
   return m[1] === '-' ? -ms : ms;
 }
 
-export function parseIcs(text: string): { events: CalEvent[]; tasks: TaskItem[]; warnings: string[] } {
+/** Most invitations carry a few people; a file with thousands is cut. */
+const MAX_PEOPLE = 500;
+
+function personOf(p: Prop): Person | null {
+  const email = p.value.trim().replace(/^mailto:/i, '');
+  if (!/^[^\s<>,;"]+@[^\s<>,;"]+$/.test(email)) return null;
+  return { name: unescapeText(p.params.CN ?? '').replace(/[\r\n]+/g, ' '), email };
+}
+
+const STATS: Record<string, PartStat> = { ACCEPTED: 'accepted', DECLINED: 'declined', TENTATIVE: 'tentative' };
+
+export function parseIcs(text: string): { events: CalEvent[]; tasks: TaskItem[]; warnings: string[]; method: string } {
   const lines = unfold(text);
+  const method = lines.map((l) => /^METHOD:(\w+)/i.exec(l)?.[1]).find(Boolean)?.toUpperCase() ?? '';
   const ctx: Ctx = { zones: new Map(), warnings: new Set() };
   const events: CalEvent[] = [];
   const tasks: TaskItem[] = [];
@@ -226,6 +274,21 @@ export function parseIcs(text: string): { events: CalEvent[]; tasks: TaskItem[];
         if (t) ex.push(t.t);
       }
       const id = newId('e');
+      const meeting: Partial<CalEvent> = {};
+      const organizer = get('ORGANIZER') && personOf(get('ORGANIZER')!);
+      if (organizer) meeting.organizer = organizer;
+      const attendees = all('ATTENDEE')
+        .slice(0, MAX_PEOPLE)
+        .flatMap((p): Attendee[] => {
+          const who = personOf(p);
+          return who ? [{ ...who, status: STATS[(p.params.PARTSTAT ?? '').toUpperCase()] ?? 'needs-action', ...(p.params.ROLE?.toUpperCase() === 'OPT-PARTICIPANT' ? { optional: true } : {}) }] : [];
+        });
+      if (attendees.length) meeting.attendees = attendees;
+      const sequence = Number(get('SEQUENCE')?.value ?? '');
+      if (get('SEQUENCE') && Number.isInteger(sequence) && sequence >= 0) meeting.sequence = sequence;
+      if ((get('STATUS')?.value ?? '').toUpperCase() === 'CANCELLED') meeting.cancelled = true;
+      const ofOne = get('RECURRENCE-ID') && parseTime(get('RECURRENCE-ID')!, ctx);
+      if (ofOne) meeting.recurrenceId = ofOne.t;
       events.push({
         id,
         uid,
@@ -239,6 +302,7 @@ export function parseIcs(text: string): { events: CalEvent[]; tasks: TaskItem[];
         exdates: ex,
         reminder,
         ...(categories ? { categories } : {}),
+        ...meeting,
       });
     } else {
       const due = get('DUE') ? parseTime(get('DUE')!, ctx) : null;
@@ -260,7 +324,20 @@ export function parseIcs(text: string): { events: CalEvent[]; tasks: TaskItem[];
     }
   }
   if (skipped) ctx.warnings.add(`${skipped} eventos sin fecha de inicio válida se omitieron.`);
-  return { events, tasks, warnings: [...ctx.warnings] };
+  return { events: gather(events), tasks, warnings: [...ctx.warnings], method };
+}
+
+/** An occurrence written apart joins its series: as a change, or as one taken away. */
+function gather(events: CalEvent[]): CalEvent[] {
+  const series = new Map(events.filter((e) => e.recurrenceId === undefined).map((e) => [e.uid, e]));
+  return events.filter((e) => {
+    const at = e.recurrenceId;
+    const of = at === undefined ? undefined : series.get(e.uid);
+    if (at === undefined || !of) return true;
+    if (e.cancelled) of.exdates.push(at);
+    else (of.changes ??= []).push({ at, title: e.title, location: e.location, description: e.description, start: e.start, end: e.end, reminder: e.reminder });
+    return false;
+  });
 }
 
 // ---------- writing ----------
@@ -294,21 +371,49 @@ const day = (t: number) => {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 };
 
-export function writeIcs(events: CalEvent[], tasks: TaskItem[] = [], name = 'Nova Mail'): string {
+/** A parameter of a property: without quotes or line breaks, between quotes if it has the signs that separate. */
+const param = (v: string): string => {
+  const clean = v.replace(/["\r\n\u0000-\u001f]/g, ' ').trim();
+  return /[;:,]/.test(clean) ? `"${clean}"` : clean;
+};
+const mailto = (email: string): string => `mailto:${email.replace(/[\s<>"]/g, '')}`;
+const cn = (p: Person): string => (p.name ? `;CN=${param(p.name)}` : '');
+
+function writeEvent(L: string[], stamp: string, e: CalEvent, one?: { at: number; allDay: boolean }): void {
+  L.push('BEGIN:VEVENT', `UID:${e.uid}`, `DTSTAMP:${stamp}`);
+  if (one) L.push(one.allDay ? `RECURRENCE-ID;VALUE=DATE:${day(one.at)}` : `RECURRENCE-ID:${utc(one.at)}`);
+  if (e.allDay) L.push(`DTSTART;VALUE=DATE:${day(e.start)}`, `DTEND;VALUE=DATE:${day(e.end)}`);
+  else L.push(`DTSTART:${utc(e.start)}`, `DTEND:${utc(e.end)}`);
+  L.push(`SUMMARY:${escapeText(e.title)}`);
+  if (e.location) L.push(`LOCATION:${escapeText(e.location)}`);
+  if (e.description) L.push(`DESCRIPTION:${escapeText(e.description)}`);
+  if (e.rrule && !one) L.push(`RRULE:${e.rrule}`);
+  if (e.categories?.length) L.push(`CATEGORIES:${e.categories.map(escapeText).join(',')}`);
+  if (!one) for (const x of e.exdates) L.push(e.allDay ? `EXDATE;VALUE=DATE:${day(x)}` : `EXDATE:${utc(x)}`);
+  if (e.organizer) L.push(`ORGANIZER${cn(e.organizer)}:${mailto(e.organizer.email)}`);
+  for (const a of e.attendees ?? []) L.push(`ATTENDEE${cn(a)};ROLE=${a.optional ? 'OPT' : 'REQ'}-PARTICIPANT;PARTSTAT=${a.status.toUpperCase()};RSVP=TRUE:${mailto(a.email)}`);
+  if (e.sequence !== undefined) L.push(`SEQUENCE:${e.sequence}`);
+  if (e.cancelled) L.push('STATUS:CANCELLED');
+  if (e.reminder !== null) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeText(e.title || 'Recordatorio')}`, `TRIGGER:-PT${e.reminder}M`, 'END:VALARM');
+  L.push('END:VEVENT');
+}
+
+export interface IcsOptions {
+  /** For an invitation: REQUEST, REPLY or CANCEL. */
+  method?: 'REQUEST' | 'REPLY' | 'CANCEL';
+  /** The name of the calendar being exported. */
+  calendarName?: string;
+}
+
+export function writeIcs(events: CalEvent[], tasks: TaskItem[] = [], name = 'Nova Mail', opts: IcsOptions = {}): string {
   const L: string[] = ['BEGIN:VCALENDAR', 'VERSION:2.0', `PRODID:-//SuiteNova//${name}//ES`, 'CALSCALE:GREGORIAN'];
+  if (opts.method) L.push(`METHOD:${opts.method}`);
+  if (opts.calendarName) L.push(`X-WR-CALNAME:${escapeText(opts.calendarName)}`);
   const stamp = utc(Date.now());
   for (const e of events) {
-    L.push('BEGIN:VEVENT', `UID:${e.uid}`, `DTSTAMP:${stamp}`);
-    if (e.allDay) L.push(`DTSTART;VALUE=DATE:${day(e.start)}`, `DTEND;VALUE=DATE:${day(e.end)}`);
-    else L.push(`DTSTART:${utc(e.start)}`, `DTEND:${utc(e.end)}`);
-    L.push(`SUMMARY:${escapeText(e.title)}`);
-    if (e.location) L.push(`LOCATION:${escapeText(e.location)}`);
-    if (e.description) L.push(`DESCRIPTION:${escapeText(e.description)}`);
-    if (e.rrule) L.push(`RRULE:${e.rrule}`);
-    if (e.categories?.length) L.push(`CATEGORIES:${e.categories.map(escapeText).join(',')}`);
-    for (const x of e.exdates) L.push(e.allDay ? `EXDATE;VALUE=DATE:${day(x)}` : `EXDATE:${utc(x)}`);
-    if (e.reminder !== null) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeText(e.title || 'Recordatorio')}`, `TRIGGER:-PT${e.reminder}M`, 'END:VALARM');
-    L.push('END:VEVENT');
+    // an event that speaks of one occurrence only keeps saying which
+    writeEvent(L, stamp, e, e.recurrenceId === undefined ? undefined : { at: e.recurrenceId, allDay: e.allDay });
+    for (const c of e.changes ?? []) writeEvent(L, stamp, { ...e, ...c, rrule: '', exdates: [], changes: undefined }, { at: c.at, allDay: e.allDay });
   }
   for (const t of tasks) {
     L.push('BEGIN:VTODO', `UID:${t.uid}`, `DTSTAMP:${stamp}`, `SUMMARY:${escapeText(t.title)}`);
@@ -328,7 +433,12 @@ export function writeIcs(events: CalEvent[], tasks: TaskItem[] = [], name = 'Nov
 export interface Occurrence {
   start: number;
   end: number;
+  /** The event as it is in this occurrence (with what was changed in it). */
   event: CalEvent;
+  /** In a series: the start it would have had, which names it. */
+  original?: number;
+  /** It differs from the series. */
+  changed?: boolean;
 }
 
 const DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
@@ -391,9 +501,11 @@ const MAX_OCCURRENCES = 20000;
 /** Occurrences of an event that overlap [from, to). Recurrences are computed in local wall-clock time. */
 export function expandEvent(ev: CalEvent, from: number, to: number): Occurrence[] {
   const dur = ev.end - ev.start;
-  const one = (s: number): Occurrence => ({ start: s, end: s + dur, event: ev });
+  const one = (s: number): Occurrence => ({ start: s, end: s + dur, event: ev, ...(ev.rrule ? { original: s } : {}) });
   const rule = ev.rrule ? parseRule(ev.rrule) : null;
   if (!rule) return ev.start < to && Math.max(ev.end, ev.start + 1) > from ? [one(ev.start)] : [];
+  const overlaps = (s: number, e: number) => s < to && Math.max(e, s + 1) > from;
+  const changed = new Map((ev.changes ?? []).map((c) => [c.at, c]));
 
   const base = new Date(ev.start);
   const h = base.getHours(), mi = base.getMinutes(), se = base.getSeconds();
@@ -409,7 +521,7 @@ export function expandEvent(ev: CalEvent, from: number, to: number): Occurrence[
     if (t > limit) return false;
     produced++;
     if (rule.count !== null && produced > rule.count) return false;
-    if (!ex.has(t) && t < to && t + Math.max(dur, 1) > from) out.push(one(t));
+    if (!ex.has(t) && !changed.has(t) && overlaps(t, t + dur)) out.push(one(t));
     return true;
   };
 
@@ -430,7 +542,10 @@ export function expandEvent(ev: CalEvent, from: number, to: number): Occurrence[
         const t = at(sY, sM, weekStart + w * 7 + d);
         if (t < ev.start) continue;
         if (t >= to) past = true;
-        if (!emit(t)) return out;
+        if (!emit(t)) {
+          past = true;
+          break;
+        }
         if (past) break;
       }
       if (past) break;
@@ -449,7 +564,10 @@ export function expandEvent(ev: CalEvent, from: number, to: number): Occurrence[
         const t = at(y, m, d);
         if (t < ev.start) continue;
         if (t >= to) past = true;
-        if (!emit(t)) return out;
+        if (!emit(t)) {
+          past = true;
+          break;
+        }
         if (past) break;
       }
       if (past || at(y, m, 1) >= to) break;
@@ -465,11 +583,20 @@ export function expandEvent(ev: CalEvent, from: number, to: number): Occurrence[
         const t = at(y, m, d);
         if (t < ev.start) continue;
         if (t >= to) past = true;
-        if (!emit(t)) return out;
+        if (!emit(t)) {
+          past = true;
+          break;
+        }
         if (past) break;
       }
       if (past || at(y, 0, 1) >= to) break;
     }
+  }
+  // the changed ones are where they were moved to, which may be outside the dates of their original
+  for (const c of changed.values()) {
+    if (ex.has(c.at) || !overlaps(c.start, c.end)) continue;
+    const { at: original, ...how } = c;
+    out.push({ start: c.start, end: c.end, event: { ...ev, ...how }, original, changed: true });
   }
   return out;
 }
