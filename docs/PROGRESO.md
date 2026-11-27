@@ -230,4 +230,5 @@ Comparación y plan de 7 fases en `docs/diseno-mail-outlook.md`, **aprobado** (2
 
 ## Nova Forms frente a Microsoft Forms, segunda ronda (2026-11-27)
 Comparación y plan de 7 fases en `docs/diseno-forms-msforms.md`, **aprobado** (2026-11-27), con respuestas por red local.
-- [x] Fase 1: fallos y cimientos (2026-11-27). Renombrar opciones conserva lo que dependía de ellas, deshacer por cambio, respuestas fuera del deshacer, numeración, puntuación, y la versión correcta en el «Acerca de» de todos los productos. Detalle en la bitácora del diseño. Siguiente: fase 2, preguntas como en Forms.
+- [x] Fase 1: fallos y cimientos (2026-11-27). Renombrar opciones conserva lo que dependía de ellas, deshacer por cambio, respuestas fuera del deshacer, numeración, puntuación, y la versión correcta en el «Acerca de» de todos los productos. Detalle en la bitácora del diseño. Subida en `9b7f1d7`. Siguiente: fase 2, preguntas como en Forms.
+- [x] Fase 2: preguntas como en Forms (2026-11-27). Clasificación, subida de archivos, restricciones de número y de casillas, barajar opciones, estrellas y etiquetas, ecuaciones. Detalle en la bitácora del diseño. Siguiente: fase 3, secciones y ramificación.

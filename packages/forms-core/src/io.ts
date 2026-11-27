@@ -1,6 +1,7 @@
 import { uniqueTexts } from './edit';
+import { FILE_KINDS, MAX_FILES, SIZE_CHOICES, isFiles } from './files';
 import { cleanResponse, keptResponse, score } from './logic';
-import { IMAGE_SIZES, QTYPES, isInput, isSafeImage, newForm, newId, newQuestion, type Answer, type Form, type QType, type Question, type Response } from './model';
+import { IMAGE_SIZES, NUMBER_RULES, QTYPES, RATING_SYMBOLS, canDecide, isInput, isSafeImage, newForm, newId, newQuestion, type Answer, type Form, type QType, type Question, type Response } from './model';
 
 export interface Project {
   form: Form;
@@ -27,14 +28,28 @@ export function readForm(raw: any): Form {
     while (ids.has(id)) id = newId('q');
     ids.add(id);
     const sf = r?.showIf;
+    const extra: Partial<Question> = {};
+    if (typeof r?.equation === 'string' && r.equation.trim()) extra.equation = r.equation.slice(0, 5000);
+    if (r?.shuffle === true) extra.shuffle = true;
+    if (type === 'number' && NUMBER_RULES.some((x) => x.id === r?.rule) && r.rule !== 'range') extra.rule = r.rule;
+    for (const key of ['lowLabel', 'highLabel'] as const) if ((type === 'rating' || type === 'nps') && typeof r?.[key] === 'string' && r[key].trim()) extra[key] = r[key].slice(0, 100);
+    if (type === 'file') {
+      extra.maxFiles = Math.min(MAX_FILES, Math.max(1, Math.round(num(r?.maxFiles, 1)!)));
+      extra.maxMb = SIZE_CHOICES.includes(r?.maxMb) ? r.maxMb : 10;
+      extra.kinds = FILE_KINDS.map((k) => k.id).filter((k) => Array.isArray(r?.kinds) && r.kinds.includes(k));
+    }
+    // a file written before ratings had signs shows numbers
+    delete d.symbol;
+    if (type === 'rating' && RATING_SYMBOLS.some((x) => x.id === r?.symbol)) extra.symbol = r.symbol;
     return {
       ...d,
+      ...extra,
       id,
       title: str(r?.title, '', 500),
       description: str(r?.description, '', 2000),
       required: r?.required === true,
       // choices and rows are told apart by their text: none may be empty or repeated
-      options: Array.isArray(r?.options) ? uniqueTexts(strs(r.options), type === 'likert' ? 'Columna' : 'Opción') : d.options,
+      options: Array.isArray(r?.options) ? uniqueTexts(strs(r.options), type === 'likert' ? 'Columna' : type === 'ranking' ? 'Elemento' : 'Opción') : d.options,
       rows: Array.isArray(r?.rows) ? uniqueTexts(strs(r.rows), 'Fila') : d.rows,
       allowOther: r?.allowOther === true,
       max: Math.min(10, Math.max(3, Math.round(num(r?.max, 5)!))),
@@ -48,9 +63,9 @@ export function readForm(raw: any): Form {
       ...(isSafeImage(r?.image?.src) ? { image: { src: r.image.src, alt: str(r.image.alt, '', 500), size: IMAGE_SIZES.some((z) => z.id === r.image.size) ? r.image.size : 'medium' } } : {}),
     };
   });
-  // conditions must point at an earlier question
+  // conditions must point at an earlier question that can decide
   questions.forEach((q, i) => {
-    if (q.showIf && !questions.slice(0, i).some((x) => x.id === q.showIf!.question && isInput(x))) q.showIf = null;
+    if (q.showIf && !questions.slice(0, i).some((x) => x.id === q.showIf!.question && canDecide(x))) q.showIf = null;
   });
   return {
     ...base,
@@ -158,7 +173,9 @@ const cell = (v: string | number): string => {
   return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-const show = (a: Answer | undefined): string => (a === null || a === undefined ? '' : Array.isArray(a) ? a.join(' | ') : typeof a === 'object' ? '' : String(a));
+/** A cell of the table: files by their names; what was put in order, from first to last. */
+const show = (q: Question, a: Answer | undefined): string =>
+  a === null || a === undefined ? '' : isFiles(a) ? a.map((f) => f.name).join(' | ') : Array.isArray(a) ? a.join(q.type === 'ranking' ? ' > ' : ' | ') : typeof a === 'object' ? '' : String(a);
 
 export function responsesToCsv(form: Form, responses: Response[]): string {
   const qs = form.questions.filter(isInput);
@@ -178,7 +195,7 @@ export function responsesToCsv(form: Form, responses: Response[]): string {
     for (const q of qs) {
       const a = r.answers[q.id];
       if (q.type === 'likert') for (const row of q.rows) line.push(typeof a === 'object' && a && !Array.isArray(a) ? ((a as Record<string, string>)[row] ?? '') : '');
-      else line.push(show(a));
+      else line.push(show(q, a));
     }
     rows.push(line.map(cell).join(';'));
   }

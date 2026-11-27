@@ -1,4 +1,6 @@
-export type QType = 'text' | 'longtext' | 'choice' | 'multi' | 'dropdown' | 'rating' | 'nps' | 'date' | 'number' | 'likert' | 'title';
+import type { FileKind } from './files';
+
+export type QType = 'text' | 'longtext' | 'choice' | 'multi' | 'dropdown' | 'ranking' | 'rating' | 'nps' | 'date' | 'number' | 'likert' | 'file' | 'title';
 
 export const QTYPES: { id: QType; name: string }[] = [
   { id: 'text', name: 'Texto corto' },
@@ -6,11 +8,13 @@ export const QTYPES: { id: QType; name: string }[] = [
   { id: 'choice', name: 'Opción única' },
   { id: 'multi', name: 'Casillas (varias opciones)' },
   { id: 'dropdown', name: 'Lista desplegable' },
+  { id: 'ranking', name: 'Clasificación (ordenar)' },
   { id: 'rating', name: 'Calificación' },
   { id: 'nps', name: 'Recomendación (0–10)' },
   { id: 'date', name: 'Fecha' },
   { id: 'number', name: 'Número' },
   { id: 'likert', name: 'Escala por filas' },
+  { id: 'file', name: 'Subir archivos' },
   { id: 'title', name: 'Título o texto' },
 ];
 
@@ -43,13 +47,35 @@ export const isSafeImage = (src: unknown): src is string => typeof src === 'stri
 /** The limit, in bytes, of a picture file. */
 export const MAX_IMAGE_BYTES = 1_500_000;
 
+/**
+ * How a number is limited: `range` (at least `min`, at most `maxValue`; either may be missing), more than `min`, less
+ * than `maxValue`, other than `min`, or outside the stretch from `min` to `maxValue`.
+ */
+export const NUMBER_RULES = [
+  { id: 'range', name: 'Entre un mínimo y un máximo' },
+  { id: 'gt', name: 'Mayor que' },
+  { id: 'lt', name: 'Menor que' },
+  { id: 'ne', name: 'Distinto de' },
+  { id: 'outside', name: 'Fuera de un intervalo' },
+] as const;
+export type NumberRule = (typeof NUMBER_RULES)[number]['id'];
+
+/** What a rating is drawn with: the sign when chosen and when not (numbers have none). */
+export const RATING_SYMBOLS = [
+  { id: 'number', name: 'Números', on: '', off: '' },
+  { id: 'star', name: 'Estrellas', on: '★', off: '☆' },
+  { id: 'heart', name: 'Corazones', on: '♥', off: '♡' },
+  { id: 'circle', name: 'Círculos', on: '●', off: '○' },
+] as const;
+export type RatingSymbol = (typeof RATING_SYMBOLS)[number]['id'];
+
 export interface Question {
   id: string;
   type: QType;
   title: string;
   description: string;
   required: boolean;
-  /** choice, multi, dropdown: the options. likert: the columns. */
+  /** choice, multi, dropdown: the options. ranking: what is put in order. likert: the columns. */
   options: string[];
   /** likert: the rows. */
   rows: string[];
@@ -59,7 +85,7 @@ export interface Question {
   max: number;
   /** text: "none", "email" or "url". */
   format: 'none' | 'email' | 'url';
-  /** number: limits; text: limits on the length. */
+  /** number: limits; text: limits on the length; multi: how many may be chosen. */
   min: number | null;
   maxValue: number | null;
   integer: boolean;
@@ -69,6 +95,30 @@ export interface Question {
   points: number;
   /** A picture shown under the title of the question. */
   image?: QuestionImage;
+  /** An equation shown under the title, written as in LaTeX. */
+  equation?: string;
+  /** choice, multi, dropdown, ranking: each person sees the options in another order. */
+  shuffle?: boolean;
+  /** number: how `min` and `maxValue` limit it (without it, `range`). */
+  rule?: NumberRule;
+  /** rating: what it is drawn with (without it, numbers). */
+  symbol?: RatingSymbol;
+  /** rating and nps: what the two ends mean. */
+  lowLabel?: string;
+  highLabel?: string;
+  /** file: how many files, how large each (MB) and of which kinds (none: any that is not blocked). */
+  maxFiles?: number;
+  maxMb?: number;
+  kinds?: FileKind[];
+}
+
+/** A file that comes with a response. */
+export interface UploadedFile {
+  name: string;
+  size: number;
+  type: string;
+  /** The content, in base64. */
+  data: string;
 }
 
 export interface Form {
@@ -83,8 +133,11 @@ export interface Form {
   questions: Question[];
 }
 
-/** A single answer: text, a number, a list (multi), or one column per row (likert). null = not answered. */
-export type Answer = string | number | string[] | Record<string, string> | null;
+/**
+ * A single answer: text, a number, a list (multi; ranking, in order), files, or one column per row (likert).
+ * null = not answered.
+ */
+export type Answer = string | number | string[] | UploadedFile[] | Record<string, string> | null;
 
 export interface Response {
   id: string;
@@ -116,6 +169,9 @@ export function newQuestion(type: QType): Question {
     points: 1,
   };
   if (type === 'choice' || type === 'multi' || type === 'dropdown') base.options = ['Opción 1', 'Opción 2'];
+  if (type === 'ranking') base.options = ['Elemento 1', 'Elemento 2', 'Elemento 3'];
+  if (type === 'rating') base.symbol = 'star';
+  if (type === 'file') Object.assign(base, { maxFiles: 1, maxMb: 10, kinds: [] });
   if (type === 'likert') {
     base.options = ['Muy en desacuerdo', 'En desacuerdo', 'De acuerdo', 'Muy de acuerdo'];
     base.rows = ['Afirmación 1', 'Afirmación 2'];
@@ -128,7 +184,9 @@ export function newForm(title = 'Formulario sin título'): Form {
 }
 
 export const isInput = (q: Question): boolean => q.type !== 'title';
-export const hasOptions = (q: Question): boolean => q.type === 'choice' || q.type === 'multi' || q.type === 'dropdown' || q.type === 'likert';
+export const hasOptions = (q: Question): boolean => q.type === 'choice' || q.type === 'multi' || q.type === 'dropdown' || q.type === 'ranking' || q.type === 'likert';
+/** Whether another question can depend on the answer to this one. */
+export const canDecide = (q: Question): boolean => q.type !== 'title' && q.type !== 'file' && q.type !== 'ranking';
 /** Question types a quiz can grade. */
 export const gradable = (q: Question): boolean => ['choice', 'multi', 'dropdown', 'text', 'number'].includes(q.type);
 /** The number each question shows, by its id: titles and texts are not questions and take none. */

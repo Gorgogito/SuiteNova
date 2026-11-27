@@ -1,4 +1,5 @@
-import { gradable, isInput, type Answer, type Form, type Question, type Response } from './model';
+import { MAX_FILES, MAX_RESPONSE_MB, MB, fileProblem, readFileItem } from './files';
+import { gradable, isInput, type Answer, type Form, type Question, type Response, type UploadedFile } from './model';
 
 /*
  * Rules shared by the editor, the fill-in screen and the standalone HTML. The HTML carries its own copy of these
@@ -18,7 +19,7 @@ export const isEmpty = (a: Answer | undefined): boolean => {
 /** Text that a condition compares with: the answer, or the chosen options joined. */
 function asText(a: Answer | undefined): string[] {
   if (a === null || a === undefined) return [];
-  if (Array.isArray(a)) return a;
+  if (Array.isArray(a)) return (a as unknown[]).filter((x): x is string => typeof x === 'string');
   if (typeof a === 'object') return Object.values(a);
   return [String(a)];
 }
@@ -35,6 +36,33 @@ export function isVisible(form: Form, q: Question, answers: Record<string, Answe
   if (c.op === 'neq') return !got.includes(want);
   return got.some((g) => g.includes(want));
 }
+
+/** A number made from a text (FNV-1a), to start the order of a shuffled list. */
+const hash = (s: string): number => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+};
+
+/** The list in an order of its own for each seed: the same seed gives the same order. */
+export function shuffled<T>(list: T[], seed: string): T[] {
+  let a = hash(seed);
+  const random = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let x = Math.imul(a ^ (a >>> 15), 1 | a);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+/** The options of a question in the order a person sees them. */
+export const orderOf = (q: Question, seed: string): string[] => (q.shuffle ? shuffled(q.options, seed + q.id) : q.options);
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const URL_RE = /^https?:\/\/[^\s]+$/i;
@@ -62,9 +90,20 @@ export function validateAnswer(q: Question, a: Answer | undefined): string | nul
       const n = typeof a === 'number' ? a : Number(String(a).replace(',', '.'));
       if (!Number.isFinite(n)) return 'Escribe un número.';
       if (q.integer && !Number.isInteger(n)) return 'Escribe un número entero.';
-      if (q.min !== null && n < q.min) return `El valor mínimo es ${q.min}.`;
-      if (q.maxValue !== null && n > q.maxValue) return `El valor máximo es ${q.maxValue}.`;
-      return null;
+      switch (q.rule ?? 'range') {
+        case 'gt':
+          return q.min !== null && n <= q.min ? `Escribe un número mayor que ${q.min}.` : null;
+        case 'lt':
+          return q.maxValue !== null && n >= q.maxValue ? `Escribe un número menor que ${q.maxValue}.` : null;
+        case 'ne':
+          return q.min !== null && n === q.min ? `El número no puede ser ${q.min}.` : null;
+        case 'outside':
+          return q.min !== null && q.maxValue !== null && n >= q.min && n <= q.maxValue ? `Escribe un número menor que ${q.min} o mayor que ${q.maxValue}.` : null;
+        default:
+          if (q.min !== null && n < q.min) return `El valor mínimo es ${q.min}.`;
+          if (q.maxValue !== null && n > q.maxValue) return `El valor máximo es ${q.maxValue}.`;
+          return null;
+      }
     }
     case 'date':
       return typeof a === 'string' && DATE.test(a) && realDate(a) ? null : 'Escribe una fecha válida.';
@@ -82,7 +121,25 @@ export function validateAnswer(q: Question, a: Answer | undefined): string | nul
       return q.options.includes(a) || (q.allowOther && q.type === 'choice') ? null : 'Elige una de las opciones.';
     case 'multi':
       if (!Array.isArray(a)) return 'Elige una o varias opciones.';
-      return a.every((x) => q.options.includes(x) || q.allowOther) ? null : 'Hay una opción que no existe.';
+      if (!(a as unknown[]).every((x) => typeof x === 'string' && (q.options.includes(x) || q.allowOther))) return 'Hay una opción que no existe.';
+      if (q.min !== null && a.length < q.min) return `Elige al menos ${q.min} opciones.`;
+      if (q.maxValue !== null && a.length > q.maxValue) return `Elige como máximo ${q.maxValue} opciones.`;
+      return null;
+    case 'ranking': {
+      if (!Array.isArray(a) || !(a as unknown[]).every((x) => typeof x === 'string' && q.options.includes(x))) return 'Hay un elemento que no existe.';
+      return a.length === q.options.length && new Set(a as string[]).size === a.length ? null : 'Ordena todos los elementos.';
+    }
+    case 'file': {
+      if (!Array.isArray(a) || !(a as unknown[]).every((x) => typeof x === 'object' && x !== null)) return 'Adjunta un archivo.';
+      const list = a as UploadedFile[];
+      const max = Math.min(MAX_FILES, q.maxFiles ?? 1);
+      if (list.length > max) return `Puedes adjuntar como máximo ${max} archivo(s).`;
+      for (const f of list) {
+        const problem = fileProblem(q, f.name, f.size);
+        if (problem) return problem;
+      }
+      return list.reduce((n, f) => n + f.size, 0) > MAX_RESPONSE_MB * MB ? `Entre todos, los archivos pasan de ${MAX_RESPONSE_MB} MB.` : null;
+    }
     case 'likert': {
       if (typeof a !== 'object' || Array.isArray(a)) return 'Responde cada fila.';
       const rec = a as Record<string, string>;
@@ -131,7 +188,7 @@ function isRight(q: Question, a: Answer | undefined): boolean {
       return typeof a === 'string' && norm(a) === right[0];
     case 'multi': {
       if (!Array.isArray(a)) return false;
-      const got = a.map(norm);
+      const got = (a as string[]).map(norm);
       return got.length === right.length && right.every((r) => got.includes(r));
     }
     case 'text':
@@ -179,6 +236,7 @@ export function cleanResponse(form: Form, raw: unknown): { response: Response; d
     if (!isInput(q) || !(q.id in src)) continue;
     let v = src[q.id] as Answer;
     if (q.type === 'multi' && typeof v === 'string') v = [v];
+    if (q.type === 'file') v = shaped(q, v);
     if (q.type === 'number' && typeof v === 'string' && v.trim() !== '') v = Number(v.replace(',', '.'));
     if ((q.type === 'rating' || q.type === 'nps') && typeof v === 'string') v = Number(v);
     if (isEmpty(v)) continue;
@@ -205,7 +263,10 @@ function shaped(q: Question, v: unknown): Answer {
     case 'nps':
       return number(v);
     case 'multi':
+    case 'ranking':
       return (Array.isArray(v) ? v : [v]).flatMap((x) => text(x) ?? []).slice(0, 200);
+    case 'file':
+      return Array.isArray(v) ? v.slice(0, MAX_FILES).flatMap((x) => readFileItem(x) ?? []) : null;
     case 'likert':
       return v && typeof v === 'object' && !Array.isArray(v)
         ? Object.fromEntries(Object.entries(v as Record<string, unknown>).slice(0, 200).flatMap(([row, column]) => (typeof column === 'string' ? [[row, column.slice(0, MAX_ANSWER)]] : [])))

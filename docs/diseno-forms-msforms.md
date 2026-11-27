@@ -1,7 +1,7 @@
 # Nova Forms frente a Microsoft Forms (segunda ronda)
 
 Estado: **plan aprobado por el usuario** (2026-11-27): las 7 fases en este orden, respuestas por **red local** (opción A) y
-el número de versión corregido en todos los productos dentro de la fase 1. Fase 1 hecha (ver la bitácora al final).
+el número de versión corregido en todos los productos dentro de la fase 1. Fases 1 y 2 hechas (ver la bitácora al final).
 
 Referencia: Microsoft Forms (web). La comparación sale de leer el código de Nova Forms y `docs/LIMITACIONES.md`, de
 probar en Edge los fallos de la sección 2 y de la ayuda de Microsoft sobre
@@ -107,3 +107,16 @@ que la aplicación y una prueba lo compara.
   `Application.Version` de las macros de Base. Una prueba compara `package.json`, `Cargo.toml` y `tauri.conf.json` y
   que nadie la escriba a mano.
 - **Pruebas:** `edit.test.ts` (12), `version.test.ts` (3), 5 más en `forms.test.ts`, `e2e-forms.mjs` pasa de 21 a 27.
+
+### Fase 2 (hecha, 2026-11-27): preguntas como en Forms
+- **Núcleo** (`forms-core`): tipos «clasificación» y «subir archivos», `files.ts` (tipos vetados, límites y nombres
+  seguros), restricciones de número, mínimo y máximo de casillas, barajar con semilla, símbolos y etiquetas de
+  calificación y ecuaciones (`math-core`). La página web (`html.ts`) hace lo mismo y una prueba lo compara.
+- **Aplicación:** `Fields.tsx` (símbolos, ordenar, archivos), `Equation.tsx` (el editor de ecuaciones compartido),
+  `uploads.ts` (guardar los archivos recibidos) y los ajustes nuevos en el diseñador y los resultados.
+- **Cambios en lo que ya había:** una calificación nueva se dibuja con estrellas; las escalas lineales de Google se
+  importan con sus etiquetas (antes iban en la descripción) y sus preguntas de subir archivos ya no se omiten.
+- **Fallos hallados y corregidos al probar:** el cuadro de ecuación dejaba la página oculta para los lectores de pantalla
+  al cerrarse; en el tema gris oscuro la línea de fechas de Resultados no se leía (venía de antes); «1 respuestas
+  añadidas».
+- **Pruebas:** `types.test.ts` (14), 2 más en `forms.test.ts`, `e2e-forms.mjs` pasa de 27 a 32.

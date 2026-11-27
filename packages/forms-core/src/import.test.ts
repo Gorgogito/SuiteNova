@@ -53,7 +53,7 @@ describe('Google Forms page', () => {
     expect(byTitle('País')).toMatchObject({ type: 'dropdown', options: ['España', 'Chile'] });
     expect(byTitle('Aficiones')).toMatchObject({ type: 'multi', options: ['Cine', 'Libros', 'Deporte'] });
     expect(byTitle('Satisfacción')).toMatchObject({ type: 'rating', max: 5 });
-    expect(byTitle('Satisfacción').description).toContain('Mala');
+    expect(byTitle('Satisfacción')).toMatchObject({ lowLabel: 'Mala', highLabel: 'Excelente', symbol: 'number' });
     expect(byTitle('Recomendarías').type).toBe('nps');
     expect(byTitle('Valoración')).toMatchObject({ type: 'likert', options: ['Mal', 'Bien'], rows: ['Servicio', 'Precio'] });
     expect(byTitle('Fecha de nacimiento').type).toBe('date');
@@ -62,7 +62,7 @@ describe('Google Forms page', () => {
   it('turns sections and descriptive text into titles and drops what has no equivalent, telling the user', () => {
     expect(byTitle('Sección 2').type).toBe('title');
     expect(byTitle('Mensaje').type).toBe('title');
-    expect(r.form.questions.some((q) => q.title === 'Foto')).toBe(false);
+    expect(byTitle('Foto')).toMatchObject({ type: 'file', maxFiles: 1 });
     const w = r.warnings.join('\n');
     expect(w).toMatch(/subir archivos/);
     expect(w).toMatch(/hora/);

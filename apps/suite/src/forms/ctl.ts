@@ -19,6 +19,8 @@ export class FormsCtl {
   message = '';
   /** The answer being filled in: it stays while looking at the design or the results. */
   draft: Record<string, Answer> = {};
+  /** Starts the order of the shuffled options of the answer being filled in: another one for each answer. */
+  seed = newId('s');
   /** The box being typed in: its letters count as one change. */
   private typing: string | null = null;
   private past: Doc[] = [];
@@ -111,6 +113,7 @@ export class FormsCtl {
     this.future = [];
     this.typing = null;
     this.draft = {};
+    this.seed = newId('s');
     this.selected = FORM_HEAD;
     this.mode = 'design';
     this.fileName = name;
@@ -255,6 +258,7 @@ export class FormsCtl {
     this.future = this.future.map(keep);
     this.doc = keep(this.doc);
     this.draft = {};
+    this.seed = newId('s');
     this.typing = null;
     this.dirty = true;
     this.touch();

@@ -117,8 +117,9 @@ export function parseGoogleForm(text: string): ImportedForm {
         const first = nums[0];
         const last = nums[nums.length - 1]!;
         const consecutive = nums.length > 1 && nums.every((n, i) => Number.isInteger(n) && n === first! + i);
-        if (consecutive && first === 1 && last >= 3 && last <= 10) make('rating', { max: last, description: hint });
-        else if (consecutive && first === 0 && last === 10) make('nps', { description: hint });
+        const ends = { ...(low ? { lowLabel: low } : {}), ...(high ? { highLabel: high } : {}) };
+        if (consecutive && first === 1 && last >= 3 && last <= 10) make('rating', { max: last, symbol: 'number', ...ends });
+        else if (consecutive && first === 0 && last === 10) make('nps', ends);
         else {
           make('choice', { options: vals.filter(Boolean), description: hint });
           warnings.push(`La escala «${title}» (de ${vals[0] ?? '?'} a ${vals[vals.length - 1] ?? '?'}) no tiene equivalente exacto y se importó como opción única.`);
@@ -155,7 +156,8 @@ export function parseGoogleForm(text: string): ImportedForm {
         skip('vídeos');
         break;
       case 13:
-        skip('preguntas de subir archivos');
+        make('file', { maxFiles: 1, maxMb: 10, kinds: [] });
+        warnings.push(`La pregunta «${title}» de subir archivos se importó sin sus límites: revisa cuántos archivos admite, de qué tamaño y de qué tipo.`);
         break;
       default:
         skip('elementos desconocidos');
@@ -250,7 +252,7 @@ function inferColumn(title: string, values: string[], seps: string[], order: Dat
     const ints = nums.every(Number.isInteger);
     const lo = Math.min(...nums);
     const hi = Math.max(...nums);
-    if (n >= 3 && ints && lo >= 1 && hi <= 10 && ordered(values).length <= 10) return as('rating', { max: hi <= 5 ? 5 : Math.max(hi, 6) });
+    if (n >= 3 && ints && lo >= 1 && hi <= 10 && ordered(values).length <= 10) return as('rating', { max: hi <= 5 ? 5 : Math.max(hi, 6), symbol: 'number' });
     if (n >= 3 && ints && lo === 0 && hi <= 10 && hi > 5) return as('nps');
     return as('number', { integer: ints });
   }

@@ -243,6 +243,30 @@ describe('deshacer, opciones y respuestas a medias', () => {
   });
 });
 
+describe('preguntas nuevas', () => {
+  it('cada respuesta recogida baraja de nuevo, y deshacer no copia sus archivos', () => {
+    const { ctl } = setup();
+    const q = ctl.addQuestion('file');
+    const first = ctl.seed;
+    const file = { name: 'a.txt', size: 3, type: 'text/plain', data: 'QUJD' };
+    ctl.setDraft({ [q.id]: [file] });
+    expect(ctl.hasDraft).toBe(true);
+    expect(ctl.seed).toBe(first);
+    ctl.addResponse({ [q.id]: [file] });
+    expect(ctl.seed).not.toBe(first);
+    ctl.updateQuestion(q.id, { title: 'Apuntes' });
+    ctl.undo();
+    expect((ctl.responses[0]!.answers[q.id] as (typeof file)[])[0]).toBe(file);
+  });
+
+  it('se añaden desde la cinta con sus valores de partida', () => {
+    const { ctl, registry } = setup();
+    registry.run('forms.q.add.ranking');
+    registry.run('forms.q.add.file');
+    expect(ctl.form.questions.map((q) => [q.type, q.options.length, q.maxFiles])).toEqual([['ranking', 3, undefined], ['file', 0, 1]]);
+  });
+});
+
 describe('Import from Microsoft Forms and Google Forms', () => {
   const rows = [
     ['Id', 'Hora de inicio', 'Hora de finalización', 'Correo electrónico', 'Nombre', 'Color', 'Edad'],

@@ -133,9 +133,10 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
         if (!f) return;
         try {
           const r = ctl.importResponses(new TextDecoder('utf-8').decode(f.data));
+          const added = r.added === 1 ? t('1 respuesta añadida') : t('{n} respuestas añadidas', { n: r.added });
           ctl.setMode('results');
-          ctl.say(r.added ? t('{n} respuestas añadidas', { n: r.added }) : '');
-          if (r.warnings.length || !r.added) window.alert((r.added ? t('{n} respuestas añadidas', { n: r.added }) : t('No se añadió ninguna respuesta.')) + (r.warnings.length ? '\n\n' + r.warnings.join('\n') : ''));
+          ctl.say(r.added ? added : '');
+          if (r.warnings.length || !r.added) window.alert((r.added ? added : t('No se añadió ninguna respuesta.')) + (r.warnings.length ? '\n\n' + r.warnings.join('\n') : ''));
         } catch (e) {
           window.alert(t('No se pudo importar "{name}": {error}', { name: f.name, error: (e as Error).message }));
         }
@@ -221,7 +222,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
           <div className="fm-page">
             {ctl.mode === 'design' && <Designer ctl={ctl} />}
             {ctl.mode === 'preview' && <Runner key={`p-${JSON.stringify(ctl.form).length}-${ctl.form.questions.length}`} form={ctl.form} onSubmit={null} />}
-            {ctl.mode === 'fill' && <Runner key="fill" form={ctl.form} draft={{ answers: ctl.draft, keep: (a) => ctl.setDraft(a) }} onSubmit={(a) => { ctl.addResponse(a); }} />}
+            {ctl.mode === 'fill' && <Runner key="fill" form={ctl.form} seed={ctl.seed} draft={{ answers: ctl.draft, keep: (change) => ctl.setDraft(change(ctl.draft)) }} onSubmit={(a) => { ctl.addResponse(a); }} />}
             {ctl.mode === 'results' && <Results ctl={ctl} />}
           </div>
         </div>

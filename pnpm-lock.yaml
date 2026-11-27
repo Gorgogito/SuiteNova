@@ -519,6 +519,10 @@ importers:
         version: 3.2.7(@types/node@22.20.5)(jsdom@27.4.0)(lightningcss@1.33.0)
 
   packages/forms-core:
+    dependencies:
+      '@suitenova/math-core':
+        specifier: workspace:*
+        version: link:../math-core
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

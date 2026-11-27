@@ -1,5 +1,6 @@
 import { isEmpty, score } from './logic';
-import { isInput, type Form, type Question, type Response } from './model';
+import { isFiles } from './files';
+import { isInput, type Form, type Question, type Response, type UploadedFile } from './model';
 
 export type QSummary =
   | { kind: 'counts'; question: Question; answered: number; items: { label: string; count: number; pct: number }[]; others: string[] }
@@ -9,6 +10,9 @@ export type QSummary =
   | { kind: 'text'; question: Question; answered: number; values: string[] }
   | { kind: 'date'; question: Question; answered: number; values: string[] }
   | { kind: 'likert'; question: Question; answered: number; rows: { row: string; counts: number[]; average: number | null }[] }
+  /** What was put in order: the place each thing got on average (1 is first) and how often it came first. */
+  | { kind: 'ranking'; question: Question; answered: number; items: { label: string; average: number | null; first: number }[] }
+  | { kind: 'files'; question: Question; answered: number; files: { response: number; file: UploadedFile }[] }
   | { kind: 'none'; question: Question; answered: number };
 
 export interface Summary {
@@ -39,7 +43,7 @@ export function summarize(form: Form, responses: Response[]): Summary {
         const counts = new Map<string, number>(q.options.map((o) => [o, 0]));
         const others: string[] = [];
         for (const a of given) {
-          for (const v of Array.isArray(a) ? a : [String(a)]) {
+          for (const v of Array.isArray(a) ? (a as string[]) : [String(a)]) {
             if (counts.has(v)) counts.set(v, counts.get(v)! + 1);
             else others.push(v);
           }
@@ -88,6 +92,20 @@ export function summarize(form: Form, responses: Response[]): Summary {
         questions.push({ kind: 'likert', question: q, answered: n, rows });
         break;
       }
+      case 'ranking': {
+        const orders = given.filter((a): a is string[] => Array.isArray(a));
+        const items = q.options.map((label) => {
+          const places = orders.map((o) => o.indexOf(label)).filter((p) => p >= 0);
+          return { label, average: places.length ? places.reduce((s, p) => s + p + 1, 0) / places.length : null, first: places.filter((p) => p === 0).length };
+        });
+        // the best placed first
+        items.sort((a, b) => (a.average ?? Infinity) - (b.average ?? Infinity));
+        questions.push({ kind: 'ranking', question: q, answered: n, items });
+        break;
+      }
+      case 'file':
+        questions.push({ kind: 'files', question: q, answered: n, files: responses.flatMap((r, i) => (isFiles(r.answers[q.id]) ? (r.answers[q.id] as UploadedFile[]).map((file) => ({ response: i + 1, file })) : [])) });
+        break;
       default:
         questions.push({ kind: 'none', question: q, answered: n });
     }

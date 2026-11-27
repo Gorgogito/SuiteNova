@@ -1,7 +1,24 @@
 import { t } from '@suitenova/core-ui';
-import { QTYPES, numbers, score, summarize, type Answer, type Form, type QSummary, type Response } from '@suitenova/forms-core';
+import { QTYPES, isFiles, numbers, score, summarize, type Answer, type Form, type QSummary, type Question, type Response, type UploadedFile } from '@suitenova/forms-core';
 import { useMemo, useState } from 'react';
 import type { FormsCtl } from './ctl';
+import { Equation } from './Equation';
+import { saveUpload, saveUploads, sizeText } from './uploads';
+
+/** A file of a response, with the button that saves it. */
+function FileLine({ file, who }: { file: UploadedFile; who?: string }) {
+  return (
+    <li>
+      <span className="fm-item">
+        {who && <span className="fm-muted">{who} · </span>}
+        {file.name} <span className="fm-muted">({sizeText(file.size)})</span>
+      </span>
+      <button type="button" aria-label={`${t('Guardar')} ${file.name}`} onClick={() => void saveUpload(file).catch((e) => window.alert((e as Error).message))}>
+        {t('Guardar')}
+      </button>
+    </li>
+  );
+}
 
 const fmtDate = (iso: string): string => {
   const d = new Date(iso);
@@ -38,6 +55,7 @@ function Card({ s, n }: { s: QSummary; n: number }) {
       <div className="fm-type">
         {t(typeName)} · {s.answered} {s.answered === 1 ? t('respuesta') : t('respuestas')}
       </div>
+      <Equation tex={q.equation} />
       {s.answered === 0 && <p className="fm-muted">{t('Nadie ha respondido todavía a esta pregunta.')}</p>}
       {s.answered > 0 && s.kind === 'counts' && (
         <>
@@ -93,6 +111,41 @@ function Card({ s, n }: { s: QSummary; n: number }) {
           {s.values.length > 200 && <li className="fm-muted">… {s.values.length - 200} {t('más')}</li>}
         </ul>
       )}
+      {s.answered > 0 && s.kind === 'ranking' && (
+        <table className="fm-likert" aria-label={t('Clasificación')}>
+          <thead>
+            <tr>
+              <th scope="col">{t('Elemento')}</th>
+              <th scope="col">{t('Puesto medio')}</th>
+              <th scope="col">{t('Veces en primer lugar')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {s.items.map((it) => (
+              <tr key={it.label}>
+                <th scope="row">{it.label}</th>
+                <td>{it.average === null ? '—' : num(it.average)}</td>
+                <td>{it.first}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {s.answered > 0 && s.kind === 'files' && (
+        <>
+          <ul className="fm-items" aria-label={t('Archivos recibidos')}>
+            {s.files.slice(0, 200).map((f, i) => (
+              <FileLine key={i} file={f.file} who={`${t('Respuesta')} ${f.response}`} />
+            ))}
+            {s.files.length > 200 && <li className="fm-muted">… {s.files.length - 200} {t('más')}</li>}
+          </ul>
+          {s.files.length > 1 && (
+            <button type="button" className="fm-btn fm-btn--sec" onClick={() => void saveUploads(s.files, q.title || t('Archivos'), t('Carpeta donde guardar los archivos')).catch((e) => window.alert((e as Error).message))}>
+              {t('Guardar todos los archivos')}
+            </button>
+          )}
+        </>
+      )}
       {s.answered > 0 && s.kind === 'likert' && (
         <table className="fm-likert">
           <thead>
@@ -123,9 +176,9 @@ function Card({ s, n }: { s: QSummary; n: number }) {
   );
 }
 
-function show(a: Answer | undefined): string {
+function show(q: Question, a: Answer | undefined): string {
   if (a === null || a === undefined) return '—';
-  if (Array.isArray(a)) return a.join(', ');
+  if (Array.isArray(a)) return q.type === 'ranking' ? (a as string[]).map((x, i) => `${i + 1}. ${x}`).join('  ') : (a as string[]).join(', ');
   if (typeof a === 'object') return Object.entries(a).map(([k, v]) => `${k}: ${v}`).join('; ');
   return String(a);
 }
@@ -163,7 +216,17 @@ function Individual({ ctl, form, responses }: { ctl: FormsCtl; form: Form; respo
             .map((q) => (
               <div key={q.id}>
                 <dt>{q.title || t('(sin título)')}</dt>
-                <dd>{show(r.answers[q.id])}</dd>
+                <dd>
+                  {isFiles(r.answers[q.id]) ? (
+                    <ul className="fm-items">
+                      {(r.answers[q.id] as UploadedFile[]).map((f, i) => (
+                        <FileLine key={i} file={f} />
+                      ))}
+                    </ul>
+                  ) : (
+                    show(q, r.answers[q.id])
+                  )}
+                </dd>
               </div>
             ))}
         </dl>

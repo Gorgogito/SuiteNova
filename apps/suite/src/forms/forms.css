@@ -339,3 +339,77 @@
   margin: 8px 0;
   border-radius: 4px;
 }
+
+/* ---------- signs, putting in order, files and equations ---------- */
+.fm-scale.fm-signs {
+  gap: 2px;
+}
+.fm-scale.fm-signs label {
+  min-width: 0;
+  padding: 0 4px;
+  border: 0;
+  font-size: 2em;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--fm-color, #0f6cbd) 55%, var(--colorNeutralForeground1));
+}
+.fm-scale.fm-signs label.is-on {
+  background: none;
+  color: color-mix(in srgb, var(--fm-color, #0f6cbd) 55%, var(--colorNeutralForeground1));
+}
+.fm-ends span {
+  max-width: 48%;
+}
+.fm-items {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+.fm-items li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 4px 8px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 6px;
+}
+.fm-items li[draggable="true"] {
+  cursor: grab;
+}
+.fm-place {
+  min-width: 1.6em;
+  font-weight: 600;
+}
+.fm-item {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+.fm-items button {
+  padding: 2px 10px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 4px;
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground1);
+  cursor: pointer;
+}
+.fm-items button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.fm-file {
+  color: inherit;
+  font: inherit;
+}
+.fm-eq {
+  margin: 6px 0;
+  overflow-x: auto;
+  font-size: 1.15em;
+}
+
+/* what is written between the cards sits on the canvas: its quieter text too */
+.fm-top .fm-muted,
+.fm-pager .fm-muted {
+  color: inherit;
+}

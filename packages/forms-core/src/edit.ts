@@ -53,10 +53,11 @@ export function renameInAnswers(q: Question, list: ItemList, from: string, to: s
     const entries = Object.entries(a);
     if (!entries.some(([row, column]) => (list === 'rows' ? row : column) === from)) return answers;
     next = Object.fromEntries(entries.map(([row, column]) => (list === 'rows' ? [swap(row), column] : [row, swap(column)])));
-  } else if (list === 'rows') return answers;
+  } else if (list === 'rows' || q.type === 'file') return answers;
   else if (Array.isArray(a)) {
-    if (!a.includes(from)) return answers;
-    next = [...new Set(a.map(swap))];
+    const texts = a as string[];
+    if (!texts.includes(from)) return answers;
+    next = [...new Set(texts.map(swap))];
   } else if (a === from) next = to;
   else return answers;
   return { ...answers, [q.id]: next };

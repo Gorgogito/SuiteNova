@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { lowContrast } from './lib-contrast.mjs';
 
 const URL = process.env.NOVA_URL ?? 'http://localhost:1420/?app=forms';
 const shotsDir = process.argv.includes('--shots') ? process.argv[process.argv.indexOf('--shots') + 1] : null;
@@ -371,7 +372,7 @@ await check('the exported page works in any browser: validation, conditions, sco
   assert.ok(texts.some((t) => /mínimo es 18/.test(t)), texts.join('|'));
   // the follow-up question is hidden until the rating is 2
   assert.equal(await p2.locator('[data-q]').nth(5).isHidden(), true);
-  await p2.locator('[data-q]').nth(3).getByText('2', { exact: true }).click();
+  await p2.locator('[data-q]').nth(3).locator('label[title="2"]').click();
   assert.equal(await p2.locator('[data-q]').nth(5).isVisible(), true);
   await p2.getByLabel('¿Qué mejorarías?').fill('Más práctica');
   await p2.getByLabel('Tu correo').fill('web@x.es');
@@ -446,7 +447,7 @@ await check('answers to questions that were edited are repaired, not trusted', a
   const [c] = await Promise.all([page.waitForEvent('filechooser'), (async () => { await tab('Respuestas'); await press('Importar respuestas…'); })()]);
   await c.setFiles(evil);
   await page.waitForTimeout(300);
-  assert.match(dialogs.pop() ?? '', /1 respuesta\(s\) añadidas?|respuestas añadidas|1 respuestas añadidas/);
+  assert.match(dialogs.pop() ?? '', /1 respuesta añadida/);
   const r = await ev(() => window.__novaForms.ctl.responses.find((x) => x.id === 'mala1'));
   // the age (5) is below the limit and the unknown question is not part of the form: both are dropped;
   // the free-text "other" answer is kept, as plain text
@@ -543,11 +544,11 @@ await check('import from Google Forms (saved page) and from the responses sheets
   await page.waitForFunction(() => window.__novaForms.ctl.form.title === 'Encuesta importada');
   await settle();
   const imported = await qs();
-  assert.deepEqual(imported.map((q) => q.type), ['text', 'choice', 'multi', 'rating']);
+  assert.deepEqual(imported.map((q) => q.type), ['text', 'choice', 'multi', 'rating', 'file']);
   assert.equal(imported[1].allowOther, true);
   assert.deepEqual(imported[1].options, ['Rojo', 'Azul']);
   const msg = dialogs.pop() ?? '';
-  assert.match(msg, /4 preguntas y 0 respuestas/);
+  assert.match(msg, /5 preguntas y 0 respuestas/);
   assert.match(msg, /subir archivos/);
   const s = await st();
   assert.equal(s.dirty, true);
@@ -741,6 +742,217 @@ await check('what is being typed is saved with the form, and «Acerca de» says 
   await page.getByText('Acerca de Nova Forms', { exact: true }).click();
   assert.match(await page.getByRole('dialog').innerText(), new RegExp(`Nova Forms ${version.replace(/\./g, '\\.')}`));
   await page.getByRole('dialog').getByRole('button', { name: 'Cerrar' }).click();
+});
+
+// ------------------------------------------------------------ questions as in Microsoft Forms (phase 2)
+const read = (f) => fs.readFileSync(f);
+const exportPage = async (name) => {
+  await tab('Respuestas');
+  const [dl] = await Promise.all([page.waitForEvent('download'), press('Exportar formulario como página web…')]);
+  const out = path.join(tmp, name);
+  await dl.saveAs(out);
+  await tab('Inicio');
+  return out;
+};
+const openPage = async (f) => {
+  const p = await ctx.newPage();
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await p.goto(pathToFileURL(f).href);
+  return { p, errs };
+};
+const items = (root, name) => root.getByRole('list', { name }).locator('li > span:nth-child(2)').allInnerTexts();
+const some = { name: 'notas del curso.txt', mimeType: 'text/plain', buffer: Buffer.from('apuntes: ñandú y más\n') };
+
+await check('design: ranking, files, number and checkbox limits, stars with labels, shuffling and an equation', async () => {
+  await fresh();
+  await ev(() => window.__novaForms.ctl.setForm({ title: 'Fase dos' }));
+  await addVia('Clasificación (ordenar)');
+  await setTitle('Ordena los temas');
+  for (const [n, v] of [[1, 'Álgebra'], [2, 'Geometría'], [3, 'Cálculo']]) {
+    await option(n, 'Elementos').fill(v);
+    await option(n, 'Elementos').press('Enter');
+  }
+  assert.deepEqual((await qs())[0].options, ['Álgebra', 'Geometría', 'Cálculo']);
+  await addVia('Subir archivos');
+  await setTitle('Tus apuntes');
+  await page.getByLabel('Número de archivos').selectOption('2');
+  await page.getByLabel('Tamaño máximo de cada uno').selectOption('1');
+  await page.getByRole('checkbox', { name: 'Documentos' }).check();
+  await addVia('Número');
+  await setTitle('Horas de estudio');
+  await page.getByLabel('Restricción').selectOption('gt');
+  await page.getByLabel('Mayor que').fill('2');
+  await addVia('Casillas (varias opciones)');
+  await setTitle('Días que puedes');
+  await page.getByRole('group', { name: 'Opciones', exact: true }).getByRole('button', { name: 'Añadir' }).click();
+  await page.getByLabel('Mínimo de opciones').fill('1');
+  await page.getByLabel('Máximo de opciones').fill('2');
+  await addVia('Calificación');
+  await setTitle('¿Qué tal fue?');
+  await page.getByLabel('Etiqueta del extremo bajo').fill('Mal');
+  await page.getByLabel('Etiqueta del extremo alto').fill('Genial');
+  assert.equal(await page.getByLabel('Símbolo').inputValue(), 'star');
+  await addVia('Opción única');
+  await setTitle('Resultado de la integral');
+  await page.getByRole('group', { name: 'Opciones', exact: true }).getByRole('button', { name: 'Añadir' }).click();
+  await page.getByRole('checkbox', { name: 'Barajar las opciones' }).check();
+  await press('Agregar una ecuación…');
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Código LaTeX (se actualiza solo; también se puede escribir aquí)').fill('\\int_0^1 x^2 \\, dx');
+  await shot('equation-dialog');
+  await dialog.getByRole('button', { name: 'Aceptar' }).click();
+  await dialog.waitFor({ state: 'detached' });
+  assert.equal(await ev(() => window.__novaForms.ctl.form.questions[5].equation.includes('int')), true);
+  assert.equal(await page.locator('.fm-card.is-sel .fm-eq msubsup').count() + await page.locator('.fm-card.is-sel .fm-eq munderover').count() > 0, true);
+  // a ranking or a file cannot decide whether another question shows
+  const sources = await page.getByRole('group', { name: 'Mostrar solo si…' }).getByLabel('Pregunta de la condición').locator('option').allInnerTexts();
+  assert.deepEqual(sources, ['Siempre', '3. Horas de estudio', '4. Días que puedes', '5. ¿Qué tal fue?']);
+  await shot('designed-two');
+});
+
+await check('filling in: order with the arrows and dragging, attach and refuse files, limits and stars', async () => {
+  await mode('Rellenar y guardar respuestas');
+  const form = page.getByRole('form', { name: 'Fase dos' });
+  const list = 'Ordena los temas';
+  assert.deepEqual(await items(form, list), ['Álgebra', 'Geometría', 'Cálculo']);
+  await form.getByRole('button', { name: 'Subir Cálculo' }).click();
+  assert.deepEqual(await items(form, list), ['Álgebra', 'Cálculo', 'Geometría']);
+  assert.equal(await ev(() => document.activeElement.getAttribute('aria-label')), 'Subir Cálculo', 'the arrow keeps the focus');
+  const lis = form.getByRole('list', { name: list }).locator('li');
+  await lis.nth(2).dragTo(lis.nth(0));
+  assert.deepEqual(await items(form, list), ['Geometría', 'Álgebra', 'Cálculo']);
+  const files = form.getByLabel('Tus apuntes');
+  await files.setInputFiles({ name: 'virus.pdf.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('x') });
+  await form.getByText('No se admiten archivos .exe.').waitFor();
+  await files.setInputFiles({ name: 'enorme.txt', mimeType: 'text/plain', buffer: Buffer.alloc(1024 * 1024 + 1, 65) });
+  await form.getByText(/pasa de 1 MB/).waitFor();
+  await files.setInputFiles({ name: 'foto.png', mimeType: 'image/png', buffer: Buffer.from('x') });
+  await form.getByText(/no es de un tipo admitido/).waitFor();
+  await files.setInputFiles([some, { name: 'otro.md', mimeType: 'text/markdown', buffer: Buffer.from('# hola') }]);
+  await form.getByRole('button', { name: 'Quitar otro.md' }).waitFor();
+  await files.setInputFiles({ name: 'tercero.txt', mimeType: 'text/plain', buffer: Buffer.from('x') });
+  await form.getByText(/como máximo 2/).waitFor();
+  await form.getByLabel('Horas de estudio').fill('2');
+  const boxes = form.getByRole('group', { name: 'Días que puedes' }).getByRole('checkbox');
+  await boxes.nth(0).check();
+  await boxes.nth(1).check();
+  assert.equal(await boxes.nth(2).isDisabled(), true);
+  await form.getByRole('radio', { name: '4', exact: true }).check();
+  assert.equal((await form.getByRole('radiogroup', { name: '¿Qué tal fue?' }).innerText()).replace(/\s/g, ''), '★★★★☆');
+  assert.match(await form.innerText(), /Mal[\s\S]*Genial/);
+  // the half-filled answer, files included, stays when looking elsewhere
+  await mode('Diseñar');
+  await mode('Rellenar y guardar respuestas');
+  assert.deepEqual(await items(form, list), ['Geometría', 'Álgebra', 'Cálculo']);
+  await form.getByRole('button', { name: 'Quitar otro.md' }).waitFor();
+  await shot('filling');
+  await form.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await form.getByText('Escribe un número mayor que 2.').waitFor();
+  await form.getByLabel('Horas de estudio').fill('3');
+  await form.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.getByRole('button', { name: 'Rellenar otra respuesta' }).waitFor();
+  const a = await ev(() => { const { ctl } = window.__novaForms; return ctl.form.questions.map((q) => ctl.responses[0].answers[q.id]); });
+  assert.deepEqual(a[0], ['Geometría', 'Álgebra', 'Cálculo']);
+  assert.deepEqual(a[1].map((f) => [f.name, f.size]), [['notas del curso.txt', some.buffer.length], ['otro.md', 6]]);
+  assert.equal(a[4], 4);
+});
+
+await check('results: the places, and the files saved byte for byte, one by one and all together', async () => {
+  await mode('Resultados');
+  const ranking = page.getByRole('table', { name: 'Clasificación' });
+  assert.match(await ranking.innerText(), /Geometría\s+1\s+1[\s\S]*Álgebra\s+2\s+0[\s\S]*Cálculo\s+3\s+0/);
+  const received = page.getByRole('list', { name: 'Archivos recibidos' });
+  const [one] = await Promise.all([page.waitForEvent('download'), received.getByRole('button', { name: 'Guardar notas del curso.txt' }).click()]);
+  assert.equal(one.suggestedFilename(), 'notas del curso.txt');
+  assert.deepEqual(read(await one.path()), some.buffer);
+  const [zip] = await Promise.all([page.waitForEvent('download'), press('Guardar todos los archivos')]);
+  assert.match(zip.suggestedFilename(), /Tus apuntes\.zip/);
+  assert.equal(read(await zip.path()).subarray(0, 2).toString(), 'PK');
+  await shot('results-two');
+  await page.getByRole('tab', { name: 'Individuales' }).click();
+  const indiv = page.getByRole('region', { name: 'Respuesta individual' });
+  assert.match(await indiv.innerText(), /1\. Geometría\s+2\. Álgebra/);
+  assert.equal(await indiv.getByRole('button', { name: /Guardar/ }).count(), 2);
+  await page.getByRole('tab', { name: 'Resumen' }).click();
+  const [csv] = await Promise.all([page.waitForEvent('download'), (async () => { await tab('Respuestas'); await press('Exportar respuestas a CSV…'); })()]);
+  const text = read(await csv.path()).toString('utf8');
+  assert.match(text, /Geometría > Álgebra > Cálculo;notas del curso\.txt \| otro\.md/);
+  await tab('Inicio');
+});
+
+await check('the exported page does the same: order, files, limits, stars, shuffling and the equation', async () => {
+  const f = await exportPage('dos.html');
+  const { p, errs } = await openPage(f);
+  assert.equal(await p.locator('.eq math').count(), 1);
+  assert.ok(await p.locator('.eq math').evaluate((m) => m.getBoundingClientRect().height > 20), 'the equation is drawn');
+  const options = await p.locator('[data-q]').nth(5).locator('.opt label').allInnerTexts();
+  assert.deepEqual([...options].sort(), ['Opción 1', 'Opción 2', 'Opción 3']);
+  const list = 'Ordena los temas';
+  await p.getByRole('button', { name: 'Subir Cálculo' }).click();
+  await p.getByRole('button', { name: 'Bajar Álgebra' }).click();
+  assert.deepEqual(await p.getByRole('list', { name: list }).locator('.t').allInnerTexts(), ['Cálculo', 'Álgebra', 'Geometría']);
+  const lis = p.getByRole('list', { name: list }).locator('li');
+  await lis.nth(2).dragTo(lis.nth(0));
+  assert.deepEqual(await p.getByRole('list', { name: list }).locator('.t').allInnerTexts(), ['Geometría', 'Cálculo', 'Álgebra']);
+  const files = p.getByLabel('Tus apuntes');
+  await files.setInputFiles({ name: 'virus.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('x') });
+  await p.getByText('No se admiten archivos .exe.').waitFor();
+  await files.setInputFiles(some);
+  await p.getByRole('button', { name: 'Quitar notas del curso.txt' }).waitFor();
+  await p.getByLabel('Horas de estudio').fill('1');
+  const boxes = p.locator('[data-q]').nth(3).getByRole('checkbox');
+  await boxes.nth(0).check();
+  await boxes.nth(2).check();
+  assert.equal(await boxes.nth(1).isDisabled(), true);
+  await p.locator('label[title="5"]').click();
+  assert.equal((await p.getByRole('radiogroup', { name: '¿Qué tal fue?' }).innerText()).replace(/\s/g, ''), '★★★★★');
+  await shot('page-two', p);
+  await p.getByRole('button', { name: 'Enviar' }).click();
+  await p.getByText('Escribe un número mayor que 2.').waitFor();
+  await p.getByLabel('Horas de estudio').fill('8');
+  await p.getByRole('button', { name: 'Enviar' }).click();
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'Descargar mi respuesta' }).click()]);
+  const answer = path.join(tmp, 'respuesta-dos.json');
+  await dl.saveAs(answer);
+  await p.getByRole('button', { name: 'Responder otra vez' }).click();
+  // a new answer starts empty
+  await p.getByRole('button', { name: /^Quitar/ }).waitFor({ state: 'detached' });
+  assert.equal((await p.getByRole('radiogroup', { name: '¿Qué tal fue?' }).innerText()).replace(/\s/g, ''), '☆☆☆☆☆');
+  assert.equal(await boxes.nth(1).isDisabled(), false);
+  assert.deepEqual(errs, []);
+  await p.close();
+  // and Nova Forms reads what the page gave
+  const [c] = await Promise.all([page.waitForEvent('filechooser'), (async () => { await tab('Respuestas'); await press('Importar respuestas…'); })()]);
+  await c.setFiles(answer);
+  await page.waitForFunction(() => window.__novaForms.ctl.responses.length === 2);
+  const a = await ev(() => { const { ctl } = window.__novaForms; return ctl.form.questions.map((q) => ctl.responses[1].answers[q.id]); });
+  assert.deepEqual(a[0], ['Geometría', 'Cálculo', 'Álgebra']);
+  assert.equal(Buffer.from(a[1][0].data, 'base64').toString('utf8'), some.buffer.toString('utf8'));
+  assert.deepEqual([a[2], a[3], a[4]], [8, ['Opción 1', 'Opción 3'], 5]);
+  await tab('Inicio');
+});
+
+await check('the new questions and their results are readable in the four themes', async () => {
+  dialogs.length = 0;
+  for (const theme of ['colorful', 'white', 'darkgray', 'black']) {
+    await ev((t) => window.__novaSettings.set('theme', t), theme);
+    await page.waitForFunction((t) => document.querySelector('[data-app]').dataset.theme === t, theme);
+    await mode('Rellenar y guardar respuestas');
+    await page.getByRole('button', { name: 'Borrar respuestas' }).click();
+    await page.locator('.fm-scale label[title="3"]').click();
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `rellenar ${theme}`);
+    await shot(`theme-${theme}-fill`);
+    await mode('Resultados');
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `resultados ${theme}`);
+    await mode('Diseñar');
+    await ev(() => { const { ctl } = window.__novaForms; ctl.select(ctl.form.questions[1].id); });
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `diseñar ${theme}`);
+    await shot(`theme-${theme}-design`);
+  }
 });
 
 await shot('final');

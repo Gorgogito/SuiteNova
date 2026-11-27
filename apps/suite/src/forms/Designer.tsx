@@ -1,7 +1,8 @@
 import { t } from '@suitenova/core-ui';
-import { IMAGE_SIZES, MAX_IMAGE_BYTES, QTYPES, gradable, hasOptions, isInput, isSafeImage, nextName, numbers, type ImageSize, type ItemList, type Question } from '@suitenova/forms-core';
+import { FILE_KINDS, IMAGE_SIZES, MAX_FILES, MAX_IMAGE_BYTES, NUMBER_RULES, QTYPES, RATING_SYMBOLS, SIZE_CHOICES, canDecide, gradable, hasOptions, isInput, isSafeImage, nextName, numbers, type ImageSize, type ItemList, type NumberRule, type Question, type RatingSymbol } from '@suitenova/forms-core';
 import { useState } from 'react';
 import { DraftInput } from './DraftInput';
+import { Equation, EquationField } from './Equation';
 import { QImage } from './Runner';
 import type { FormsCtl } from './ctl';
 import { FORM_HEAD } from './ctl';
@@ -109,7 +110,15 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
   const up = (patch: Partial<Question>, typing?: boolean) => ctl.updateQuestion(q.id, patch, typing);
   const nums = numbers(ctl.form);
   const i = ctl.form.questions.indexOf(q);
-  const earlier = ctl.form.questions.slice(0, i).filter(isInput);
+  const earlier = ctl.form.questions.slice(0, i).filter(canDecide);
+  const rule = q.rule ?? 'range';
+  /** A box for one of the two limits of a number or of the checkboxes. */
+  const limit = (key: 'min' | 'maxValue', label: string, least?: number) => (
+    <label className="fm-field fm-inline">
+      <span>{label}</span>
+      <input className="fm-input fm-narrow" type="number" min={least} aria-label={label} value={q[key] ?? ''} onChange={(e) => up({ [key]: numOrNull(e.target.value) }, true)} />
+    </label>
+  );
   const src = earlier.find((x) => x.id === q.showIf?.question);
   const numOrNull = (v: string): number | null => (v.trim() === '' || !Number.isFinite(Number(v)) ? null : Number(v));
   const quiz = ctl.form.quiz && gradable(q);
@@ -124,6 +133,8 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
         <ProofTextarea className="fm-input" rows={2} value={q.description} onChange={(e) => up({ description: e.target.value }, true)} />
       </label>
 
+      <EquationField tex={q.equation} onChange={(equation) => up({ equation })} />
+
       <div className="fm-field" role="group" aria-label={t('Imagen de la pregunta')}>
         <span>{t('Imagen (opcional)')}</span>
         <PictureField q={q} up={up} />
@@ -136,10 +147,22 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
           <ListEditor ctl={ctl} q={q} list="options" label={t('Columnas')} one={t('Columna')} min={2} />
         </>
       )}
+      {q.type === 'ranking' && <ListEditor ctl={ctl} q={q} list="options" label={t('Elementos')} one={t('Elemento')} min={2} />}
       {(q.type === 'choice' || q.type === 'multi') && (
         <label className="fm-check">
           <input type="checkbox" checked={q.allowOther} onChange={(e) => up({ allowOther: e.target.checked })} /> {t('Permitir la respuesta "Otro"')}
         </label>
+      )}
+      {(q.type === 'choice' || q.type === 'multi' || q.type === 'dropdown' || q.type === 'ranking') && (
+        <label className="fm-check">
+          <input type="checkbox" checked={!!q.shuffle} onChange={(e) => up({ shuffle: e.target.checked || undefined })} /> {q.type === 'ranking' ? t('Empezar con los elementos desordenados') : t('Barajar las opciones')}
+        </label>
+      )}
+      {q.type === 'multi' && (
+        <div className="fm-row">
+          {limit('min', t('Mínimo de opciones'), 1)}
+          {limit('maxValue', t('Máximo de opciones'), 1)}
+        </div>
       )}
       {q.type === 'rating' && (
         <label className="fm-field fm-inline">
@@ -152,6 +175,68 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
             ))}
           </select>
         </label>
+      )}
+      {q.type === 'rating' && (
+        <label className="fm-field fm-inline">
+          <span>{t('Símbolo')}</span>
+          <select className="fm-input" aria-label={t('Símbolo')} value={q.symbol ?? 'number'} onChange={(e) => up({ symbol: e.target.value as RatingSymbol })}>
+            {RATING_SYMBOLS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.on ? `${s.on} ` : ''}
+                {t(s.name)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {(q.type === 'rating' || q.type === 'nps') && (
+        <div className="fm-row">
+          {(['lowLabel', 'highLabel'] as const).map((key) => {
+            const label = key === 'lowLabel' ? t('Etiqueta del extremo bajo') : t('Etiqueta del extremo alto');
+            return (
+              <label key={key} className="fm-field">
+                <span>{label}</span>
+                <input className="fm-input" aria-label={label} maxLength={100} value={q[key] ?? ''} placeholder={q.type === 'nps' ? (key === 'lowLabel' ? t('Nada probable') : t('Muy probable')) : ''} onChange={(e) => up({ [key]: e.target.value || undefined }, true)} />
+              </label>
+            );
+          })}
+        </div>
+      )}
+      {q.type === 'file' && (
+        <>
+          <div className="fm-row">
+            <label className="fm-field fm-inline">
+              <span>{t('Número de archivos')}</span>
+              <select className="fm-input fm-narrow" aria-label={t('Número de archivos')} value={q.maxFiles ?? 1} onChange={(e) => up({ maxFiles: Number(e.target.value) })}>
+                {Array.from({ length: MAX_FILES }, (_, k) => (
+                  <option key={k + 1} value={k + 1}>
+                    {k + 1}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="fm-field fm-inline">
+              <span>{t('Tamaño máximo de cada uno')}</span>
+              <select className="fm-input fm-narrow" aria-label={t('Tamaño máximo de cada uno')} value={q.maxMb ?? 10} onChange={(e) => up({ maxMb: Number(e.target.value) })}>
+                {SIZE_CHOICES.map((mb) => (
+                  <option key={mb} value={mb}>
+                    {mb} MB
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <fieldset className="fm-fieldset">
+            <legend>{t('Tipos admitidos (sin marcar ninguno: cualquiera menos programas)')}</legend>
+            <div className="fm-row">
+              {FILE_KINDS.map((k) => (
+                <label key={k.id} className="fm-check">
+                  <input type="checkbox" checked={!!q.kinds?.includes(k.id)} onChange={(e) => up({ kinds: e.target.checked ? [...(q.kinds ?? []), k.id] : (q.kinds ?? []).filter((x) => x !== k.id) })} /> {t(k.name)}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </>
       )}
       {(q.type === 'text' || q.type === 'longtext') && (
         <div className="fm-row">
@@ -176,13 +261,22 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
       {q.type === 'number' && (
         <div className="fm-row">
           <label className="fm-field fm-inline">
-            <span>{t('Valor mínimo')}</span>
-            <input className="fm-input fm-narrow" type="number" value={q.min ?? ''} onChange={(e) => up({ min: numOrNull(e.target.value) }, true)} />
+            <span>{t('Restricción')}</span>
+            <select className="fm-input" aria-label={t('Restricción')} value={rule} onChange={(e) => up({ rule: e.target.value === 'range' ? undefined : (e.target.value as NumberRule) })}>
+              {NUMBER_RULES.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {t(x.name)}
+                </option>
+              ))}
+            </select>
           </label>
-          <label className="fm-field fm-inline">
-            <span>{t('Valor máximo')}</span>
-            <input className="fm-input fm-narrow" type="number" value={q.maxValue ?? ''} onChange={(e) => up({ maxValue: numOrNull(e.target.value) }, true)} />
-          </label>
+          {rule === 'range' && limit('min', t('Valor mínimo'))}
+          {rule === 'range' && limit('maxValue', t('Valor máximo'))}
+          {rule === 'gt' && limit('min', t('Mayor que'))}
+          {rule === 'lt' && limit('maxValue', t('Menor que'))}
+          {rule === 'ne' && limit('min', t('Distinto de'))}
+          {rule === 'outside' && limit('min', t('Fuera de: desde'))}
+          {rule === 'outside' && limit('maxValue', t('hasta'))}
           <label className="fm-check">
             <input type="checkbox" checked={q.integer} onChange={(e) => up({ integer: e.target.checked })} /> {t('Solo enteros')}
           </label>
@@ -322,8 +416,9 @@ export function Designer({ ctl }: { ctl: FormsCtl }) {
                   {q.title || t('(sin título)')}
                   {q.required && <span className="fm-req"> *</span>}
                 </span>
+                <Equation tex={q.equation} />
                 {q.image && <QImage q={q} />}
-                <span className="fm-type">{t(typeName(q))}{q.showIf ? ` · ${t('condicional')}` : ''}{hasOptions(q) && q.type !== 'likert' ? ` · ${q.options.length} ${t('opciones')}` : ''}</span>
+                <span className="fm-type">{t(typeName(q))}{q.showIf ? ` · ${t('condicional')}` : ''}{hasOptions(q) && q.type !== 'likert' ? ` · ${q.options.length} ${q.type === 'ranking' ? t('elementos') : t('opciones')}` : ''}</span>
               </button>
             )}
             {sel && <div className="fm-type">{t(typeName(q))}</div>}
