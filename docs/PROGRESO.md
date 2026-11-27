@@ -217,3 +217,6 @@ Plan en `docs/diseno-tema-aplicativo.md`; medidas de Office real en `docs/office
 - [x] Fase 4: superficies comunes (2026-11-26). Paneles, cuadros, menús, vista Archivo e inicio con los colores de Office; Archivo › Cuenta; corregidos los dos fallos que seguían a Windows; `e2e-app-surfaces.mjs`. Siguiente: fase 5, áreas de trabajo.
 - [x] Fase 5: áreas de trabajo (2026-11-26). Página oscura de Writer en Negro con «Cambiar modos», hoja de Calc siempre blanca, reglas, barra de fórmulas y pestañas, zonas de trabajo del resto; `e2e-app-work.mjs`. Siguiente: fase 6, cierre.
 - [x] Fase 6: cierre (2026-11-26). Comparación con Office, contraste alto, foco del teclado, «Sistema», varias ventanas y tiempos; `e2e-app-close.mjs`; versión 0.0.14. **Tema del aplicativo completo.** Siguiente: el usuario da el próximo producto.
+
+## Nova Mail frente a Outlook, segunda ronda (2026-11-26)
+Comparación y plan de 7 fases en `docs/diseno-mail-outlook.md`. **Propuesta pendiente de aprobación; sin tocar código.** Cuatro fallos anotados en el apartado 2 (los dos primeros comprobados en Edge).

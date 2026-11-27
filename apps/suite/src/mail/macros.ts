@@ -127,8 +127,7 @@ export class MailRuntime extends MacroRuntime {
             return undefined;
           },
           display: () => {
-            ctl.compose = c;
-            ctl.touch();
+            ctl.openCompose(c);
             return undefined;
           },
           send: () => {

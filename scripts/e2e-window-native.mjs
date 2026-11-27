@@ -305,6 +305,23 @@ foreach ($p in @(${probes.map(([, x, y]) => `@(${x},${y})`).join(',')})) {
     await until(async () => (await tabs.count()) === 1, 'no la borró al aceptar');
   });
 
+  await check('cerrar Nova Mail con un mensaje a medias pregunta, aunque el borrador aún no se haya guardado', async () => {
+    await hub.locator('.hub__card[data-app="mail"]').click();
+    const mail = await app.window((u) => u.searchParams.get('app') === 'mail');
+    await mail.getByRole('button', { name: 'Correo nuevo', exact: true }).first().click();
+    await mail.getByRole('region', { name: 'Mensaje que escribes' }).waitFor();
+    await mail.getByLabel('Asunto', { exact: true }).fill('A medias');
+    await button(mail, 'Cerrar ventana').click({ noWaitAfter: true });
+    const d = await nextDialog();
+    assert.match(d.message(), /cambios sin guardar/);
+    await d.dismiss();
+    await sleep(800);
+    assert.ok(!mail.isClosed(), 'se cerró a pesar de cancelar');
+    await button(mail, 'Cerrar ventana').click({ noWaitAfter: true });
+    await (await nextDialog()).accept();
+    await until(() => mail.isClosed(), 'la ventana de correo sigue abierta');
+  });
+
   await check('sin cambios, la ventana de inicio se cierra sin preguntar y las demás siguen', async () => {
     await button(hub, 'Cerrar ventana').click({ noWaitAfter: true });
     await until(() => hub.isClosed(), 'la ventana de inicio sigue abierta');

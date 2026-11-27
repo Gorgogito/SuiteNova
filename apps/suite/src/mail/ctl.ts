@@ -5,6 +5,8 @@ import { MailReader } from './read-aloud';
 import {
   RFC_FLAGS,
   addRaw,
+  addressBook,
+  splitRecipients,
   applyFetched,
   applyPlan,
   buildMessage,
@@ -28,6 +30,7 @@ import {
   reSubject,
   searchMessages,
   type Address,
+  type BookEntry,
   type CalEvent,
   type Contact,
   type Draft,
@@ -35,6 +38,7 @@ import {
   type MailData,
   type MailRecord,
   type OutgoingAttachment,
+  type ParsedMessage,
   type PendingOp,
   type SpecialFolder,
   type TaskItem,
@@ -50,6 +54,10 @@ const FETCH_BATCH = 50;
 export const DEFAULT_SYNC = { autoMinutes: 5, limit: 500 };
 export const AUTO_SYNC_CHOICES = [0, 1, 5, 15, 30, 60];
 export const SYNC_LIMIT_CHOICES = [100, 200, 500, 1000, 2000, 5000];
+/** How long after the last keystroke the message being written is saved as a draft, and the longest it waits. */
+export const DRAFT_DELAY = 3000;
+const DRAFT_MAX_WAIT = 15000;
+const NO_ADDRESS = 'yo@nova.local';
 const SETTINGS_KEY = 'novamail.sync';
 const MACROS_KEY = 'novamail.macros';
 
@@ -98,7 +106,36 @@ export interface ComposeState {
   references?: string[];
   /** The draft record being edited, replaced when saved again. */
   draftId?: string;
+  /** The account it is sent from. */
+  from?: string;
 }
+
+/** What the message being written looked like when it was opened and when it was last saved on purpose. */
+interface ComposeSession {
+  id: string;
+  opened: string;
+  /** Saved with «Guardar borrador»: closing keeps that version, and «Descartar» goes back to it. */
+  kept: { signature: string; record: MailRecord } | null;
+  /** What the draft record holds now. */
+  stored: string;
+  /** The draft as it was before editing it. */
+  before: MailRecord | null;
+}
+
+/** Everything the person can change in a message, to know whether anything did. */
+const signature = (c: ComposeState): string =>
+  JSON.stringify([
+    c.to,
+    c.cc,
+    c.bcc,
+    c.subject,
+    c.body,
+    c.from ?? '',
+    c.attachments.map((a) => [a.filename, a.data.length]),
+    (c.pictures ?? []).map((p) => [p.id, p.name, p.width, p.alt, p.sent.data.length]),
+    c.tables ?? [],
+  ]);
+const isBlank = (c: ComposeState): boolean => ![c.to, c.cc, c.bcc, c.subject, c.body].some((x) => x.trim()) && !c.attachments.length && !c.pictures?.length && !c.tables?.length;
 
 export const startOfDay = (t: number): number => {
   const d = new Date(t);
@@ -132,6 +169,18 @@ export class MailCtl {
   selectedTask: string | null = null;
 
   compose: ComposeState | null = null;
+  /** The message is being written in its large window instead of the reading pane. */
+  composePopped = false;
+  /** Closing the message needs an answer: save it, discard it or keep writing. */
+  askClose = false;
+  /** What happened to a message that was left without sending it, for the status bar. */
+  composeNotice = '';
+  private session: ComposeSession | null = null;
+  private draftTimer: ReturnType<typeof setTimeout> | null = null;
+  private draftDue = 0;
+  /** The draft record of each message written in this window. */
+  private drafts = new Map<string, string>();
+  private book: { version: number; entries: BookEntry[] } | null = null;
   /** Cuentas de correo conectadas (sin contraseña). */
   accounts: RemoteAccount[] = [];
   syncing = false;
@@ -232,6 +281,7 @@ export class MailCtl {
     if (this.autoTimer) clearInterval(this.autoTimer);
     if (this.flushTimer) clearTimeout(this.flushTimer);
     this.autoTimer = this.flushTimer = null;
+    this.cancelDraftTimer();
   }
 
   get docTitle(): string {
@@ -249,7 +299,10 @@ export class MailCtl {
     this.selectedId = null;
     this.query = '';
     this.selectedEvent = this.selectedContact = this.selectedTask = null;
-    this.compose = null;
+    this.endCompose(false);
+    this.composeNotice = '';
+    this.drafts.clear();
+    this.book = null;
     this.touch();
   }
 
@@ -272,11 +325,13 @@ export class MailCtl {
   // ---------- mail ----------
 
   go(section: Section): void {
+    if (section !== 'mail') this.leaveCompose();
     this.section = section;
     this.touch();
   }
 
   setFolder(id: string): void {
+    this.leaveCompose();
     this.folder = id;
     this.selectedId = null;
     this.query = '';
@@ -294,6 +349,8 @@ export class MailCtl {
   }
 
   select(id: string | null): void {
+    // looking at another message leaves the one being written, kept as a draft
+    if (this.compose && id !== this.compose.draftId) this.leaveCompose();
     this.selectedId = id;
     const m = this.selected;
     if (m && !m.read) {
@@ -336,6 +393,7 @@ export class MailCtl {
   move(id: string, folder: string): boolean {
     const m = this.data.messages.find((x) => x.id === id);
     if (!m || m.folder === folder) return true;
+    if (this.compose?.draftId === id) this.endCompose(false);
     const r = m.remote;
     if (r) {
       const to = folderTarget(this.data, r.account, folder);
@@ -363,6 +421,7 @@ export class MailCtl {
     const list = this.list();
     const i = list.findIndex((m) => m.id === id);
     const rec = this.data.messages.find((m) => m.id === id);
+    if (this.compose?.draftId === id) this.endCompose(false);
     if (rec) {
       const r = rec.remote;
       if (rec.folder === 'trash') {
@@ -497,39 +556,96 @@ export class MailCtl {
 
   // ---------- compose ----------
 
-  newMessage(to = ''): void {
-    this.compose = { id: newMailId(), to, cc: '', bcc: '', subject: '', body: '', attachments: [] };
+  // ---------- writing ----------
+
+  /** The addresses of the person: their own, those of the accounts and those they have sent from. */
+  ownAddresses(): Set<string> {
+    const own = new Set<string>();
+    const add = (email: string | undefined) => {
+      const e = email?.trim().toLowerCase();
+      if (e && e !== NO_ADDRESS) own.add(e);
+    };
+    add(this.data.owner.email);
+    for (const a of this.accounts) add(a.email);
+    for (const m of this.data.messages) if (m.folder === 'sent') add(m.fromEmail);
+    return own;
+  }
+
+  /** The account a message arrived at (or, in Sent, left from); with a new message, the one of the folder being seen. */
+  accountFor(rec?: MailRecord | null, parsed?: ParsedMessage): string | undefined {
+    const known = (id: string | undefined) => (id && this.accounts.some((a) => a.id === id) ? id : undefined);
+    const byAddress = (list: string[]) => {
+      const wanted = new Set(list.map((e) => e.toLowerCase()));
+      return this.accounts.find((a) => wanted.has(a.email.toLowerCase()))?.id;
+    };
+    const here = known(this.data.folders.find((f) => f.id === (rec?.folder ?? this.folder))?.remote?.account);
+    if (!rec) return here ?? this.accounts[0]?.id;
+    const m = parsed ?? parseMessage(rawOf(rec));
+    const delivered = m.headers.filter(([k]) => /^(delivered-to|x-original-to)$/i.test(k)).map(([, v]) => v.trim());
+    return known(rec.remote?.account) ?? byAddress([...m.to, ...m.cc].map((a) => a.email).concat(rec.bcc ?? [], delivered)) ?? byAddress(m.from.map((a) => a.email)) ?? here ?? this.accounts[0]?.id;
+  }
+
+  /** Contacts and people of the mail, for the suggestions of To, Cc and Bcc. */
+  addressEntries(): BookEntry[] {
+    // not rebuilt for every keystroke of the message being written
+    if (this.book?.version !== this.version) this.book = { version: this.version, entries: addressBook(this.data, this.ownAddresses()) };
+    return this.book.entries;
+  }
+
+  /** Starts writing a message. Whatever was being written is kept as a draft. */
+  openCompose(c: ComposeState, before: MailRecord | null = null): void {
+    if (this.compose === c) {
+      this.touch();
+      return;
+    }
+    this.composeNotice = '';
+    this.leaveCompose();
+    const now = signature(c);
+    this.compose = c;
+    this.session = { id: c.id, opened: now, kept: null, stored: now, before: before ? { ...before } : null };
+    if (c.draftId) this.drafts.set(c.id, c.draftId);
     this.touch();
+  }
+
+  newMessage(to = ''): void {
+    this.openCompose({ id: newMailId(), to, cc: '', bcc: '', subject: '', body: '', attachments: [], from: this.accountFor() });
   }
 
   reply(id: string, all: boolean): void {
     const rec = this.data.messages.find((m) => m.id === id);
     if (!rec) return;
     const m = parseMessage(rawOf(rec));
-    const me = this.data.owner.email.toLowerCase();
-    const target = (m.replyTo[0] ?? m.from[0])?.email ?? '';
-    const others = all ? [...m.to, ...m.cc].filter((a) => a.email.toLowerCase() !== me && a.email.toLowerCase() !== target.toLowerCase()) : [];
-    this.compose = {
+    const own = this.ownAddresses();
+    for (const [k, v] of m.headers) if (/^(delivered-to|x-original-to)$/i.test(k)) own.add(v.trim().toLowerCase());
+    const mine = (a: Address) => own.has(a.email.toLowerCase());
+    const unique = (list: Address[], seen = new Set<string>()) =>
+      list.map((a) => a.email).filter((e) => e && !seen.has(e.toLowerCase()) && !!seen.add(e.toLowerCase()));
+    // answering a message of one's own writes again to the people it was sent to
+    const sentByMe = !!m.from[0] && mine(m.from[0]);
+    const first = sentByMe ? m.to : m.replyTo.length ? m.replyTo : m.from.slice(0, 1);
+    const others = all && !sentByMe ? m.to : [];
+    let to = unique([...first, ...others].filter((a) => !mine(a)));
+    if (!to.length) to = unique(first);
+    const cc = all ? unique(m.cc.filter((a) => !mine(a)), new Set(to.map((e) => e.toLowerCase()))) : [];
+    this.openCompose({
       id: newMailId(),
-      to: [target, ...(all ? others.filter((a) => m.to.includes(a)).map((a) => a.email) : [])].filter(Boolean).join(', '),
-      cc: all ? others.filter((a) => m.cc.includes(a)).map((a) => a.email).join(', ') : '',
+      to: to.join(', '),
+      cc: cc.join(', '),
       bcc: '',
       subject: reSubject(m.subject, 'Re'),
       body: quoteText(rawOf(rec), 'reply'),
       attachments: [],
       inReplyTo: m.messageId,
       references: [...m.references, m.messageId].filter(Boolean),
-    };
-    rec.answered = true;
-    this.pushFlag(rec, RFC_FLAGS.answered, true);
-    this.touch(true);
+      from: this.accountFor(rec, m),
+    });
   }
 
   forward(id: string): void {
     const rec = this.data.messages.find((m) => m.id === id);
     if (!rec) return;
     const m = parseMessage(rawOf(rec));
-    this.compose = {
+    this.openCompose({
       id: newMailId(),
       to: '',
       cc: '',
@@ -537,46 +653,179 @@ export class MailCtl {
       subject: reSubject(m.subject, 'Fwd'),
       body: quoteText(rawOf(rec), 'forward'),
       attachments: m.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, data: a.data })),
-    };
-    this.touch();
+      from: this.accountFor(rec, m),
+    });
   }
 
   editDraft(id: string): void {
+    if (this.compose?.draftId === id) return;
     const rec = this.data.messages.find((m) => m.id === id);
     if (!rec) return;
     const m = parseMessage(rawOf(rec));
     const fmt = (l: Address[]) => l.map((a) => a.email).join(', ');
-    this.compose = { id: newMailId(), to: fmt(m.to), cc: fmt(m.cc), bcc: (rec.bcc ?? []).join(', '), subject: m.subject, body: m.text ?? '', attachments: m.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, data: a.data })), pictures: picturesOfDraft(m.html, m.inlineParts), tables: tablesOfDraft(m.html), draftId: id };
+    const sender = m.from[0]?.email.toLowerCase();
+    this.openCompose(
+      {
+        id: newMailId(),
+        to: fmt(m.to),
+        cc: fmt(m.cc),
+        bcc: (rec.bcc ?? []).join(', '),
+        subject: m.subject,
+        // the message was written with one line break more than the text had
+        body: (m.text ?? '').replace(/\r\n/g, '\n').replace(/\n$/, ''),
+        attachments: m.attachments.map((a) => ({ filename: a.filename, contentType: a.contentType, data: a.data })),
+        pictures: picturesOfDraft(m.html, m.inlineParts),
+        tables: tablesOfDraft(m.html),
+        draftId: id,
+        inReplyTo: m.inReplyTo || undefined,
+        references: m.references.length ? m.references : undefined,
+        from: this.accounts.find((a) => a.email.toLowerCase() === sender)?.id ?? this.accountFor(),
+      },
+      rec,
+    );
+    this.selectedId = id;
     this.touch();
   }
 
-  closeCompose(): void {
+  /** The window keeps here what is typed; it is saved as a draft a moment later. */
+  updateCompose(next: ComposeState): void {
+    const cur = this.compose;
+    if (!cur || cur.id !== next.id || cur === next) return;
+    this.compose = { ...next, draftId: cur.draftId };
+    this.scheduleDraft();
+  }
+
+  private scheduleDraft(): void {
+    const now = Date.now();
+    if (!this.draftTimer) this.draftDue = now + DRAFT_MAX_WAIT;
+    else clearTimeout(this.draftTimer);
+    this.draftTimer = setTimeout(() => this.autosaveCompose(), Math.max(0, Math.min(DRAFT_DELAY, this.draftDue - now)));
+  }
+
+  private cancelDraftTimer(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    this.draftTimer = null;
+  }
+
+  /** Saves the message being written if it has something that the draft does not hold yet. */
+  autosaveCompose(): void {
+    this.cancelDraftTimer();
+    const c = this.compose;
+    const s = this.session;
+    if (!c || !s || s.id !== c.id) return;
+    if (signature(c) === s.stored || (isBlank(c) && !c.draftId)) return;
+    this.saveDraft(c);
+  }
+
+  /** «Guardar borrador». */
+  keepDraft(): void {
+    const c = this.compose;
+    if (!c) return;
+    const record = this.saveDraft(c);
+    if (this.session) this.session.kept = { signature: signature(c), record: { ...record } };
+  }
+
+  /** Whether closing would lose something: it changed since it was opened, or since it was last saved on purpose. */
+  get composeUnsaved(): boolean {
+    const c = this.compose;
+    if (!c) return false;
+    const s = this.session;
+    if (!s || s.id !== c.id) return !isBlank(c);
+    if (isBlank(c) && !s.kept && !s.before) return false;
+    return signature(c) !== (s.kept?.signature ?? s.opened);
+  }
+
+  /** Close, Escape or a click outside: asks only if something would be lost. */
+  requestCloseCompose(): void {
+    if (!this.compose) return;
+    if (this.composeUnsaved) {
+      this.askClose = true;
+      this.touch();
+    } else if (this.session?.kept) {
+      this.autosaveCompose();
+      this.endCompose();
+    } else this.discardCompose();
+  }
+
+  /** Leaving the message for something else: nothing is lost and nothing is asked. */
+  leaveCompose(): void {
+    if (!this.compose) return;
+    if (this.composeUnsaved) {
+      this.autosaveCompose();
+      this.composeNotice = 'El mensaje sin enviar se guardó en Borradores.';
+      this.endCompose();
+    } else if (this.session?.kept) {
+      this.autosaveCompose();
+      this.endCompose();
+    } else this.discardCompose();
+  }
+
+  /** Saves it and closes it. */
+  closeSaving(): void {
+    if (!this.compose) return;
+    this.keepDraft();
+    this.endCompose();
+  }
+
+  /** Throws away what was written: the draft goes back to its last version saved on purpose, if there was one. */
+  discardCompose(): void {
+    const c = this.compose;
+    if (!c) return;
+    const s = this.session;
+    const back = s?.kept?.record ?? s?.before ?? null;
+    const written = this.drafts.get(c.id) ?? c.draftId;
+    let changed = false;
+    if (written && written !== back?.id) {
+      const n = this.data.messages.length;
+      this.data.messages = this.data.messages.filter((m) => m.id !== written);
+      changed = n !== this.data.messages.length;
+      if (back && !this.data.messages.some((m) => m.id === back.id)) {
+        this.data.messages.push({ ...back });
+        changed = true;
+      }
+      if (this.selectedId === written) this.selectedId = back?.id ?? null;
+    }
+    this.drafts.delete(c.id);
+    this.endCompose(false);
+    this.touch(changed);
+  }
+
+  private endCompose(touch = true): void {
+    this.cancelDraftTimer();
     this.compose = null;
-    this.touch();
+    this.session = null;
+    this.composePopped = false;
+    this.askClose = false;
+    if (touch) this.touch();
+  }
+
+  /** Closes the window of the message without saving or restoring anything. */
+  closeCompose(): void {
+    this.endCompose();
   }
 
   /** Build the RFC 5322 text of the draft being composed. */
   buildRaw(c: ComposeState, sender?: Address, keepTokens = false): { raw: string; to: Address[]; cc: Address[]; bcc: Address[] } {
-    const split = (s: string): Address[] =>
-      s
-        .split(/[,;]/)
-        .map((x) => x.trim())
-        .filter(Boolean)
-        .map((x) => {
-          const m = /^(.*)<([^<>]+)>$/.exec(x);
-          return m ? { name: m[1]!.trim().replace(/^"|"$/g, ''), email: m[2]!.trim() } : { name: '', email: x };
-        });
-    const to = split(c.to), cc = split(c.cc), bcc = split(c.bcc);
+    const to = splitRecipients(c.to), cc = splitRecipients(c.cc), bcc = splitRecipients(c.bcc);
     const html = htmlBody(c.body, c.pictures ?? [], c.tables ?? []);
-    const draft: Draft = { from: sender ?? (this.data.owner.email ? this.data.owner : { name: '', email: 'yo@nova.local' }), to, cc, bcc, subject: c.subject, text: keepTokens ? c.body : textBody(c.body, c.tables ?? []), ...(html ? { html: html.html } : {}), attachments: [...c.attachments, ...(html?.inline ?? [])], inReplyTo: c.inReplyTo, references: c.references };
+    const account = this.accounts.find((a) => a.id === c.from);
+    const from = sender ?? (account ? { name: this.data.owner.name || account.name, email: account.email } : this.data.owner.email ? this.data.owner : { name: '', email: NO_ADDRESS });
+    const draft: Draft = { from, to, cc, bcc, subject: c.subject, text: keepTokens ? c.body : textBody(c.body, c.tables ?? []), ...(html ? { html: html.html } : {}), attachments: [...c.attachments, ...(html?.inline ?? [])], inReplyTo: c.inReplyTo, references: c.references };
     return { raw: buildMessage(draft), to, cc, bcc };
   }
 
   saveDraft(c: ComposeState): MailRecord {
     const { raw, bcc } = this.buildRaw(c, undefined, true);
-    if (c.draftId) this.data.messages = this.data.messages.filter((m) => m.id !== c.draftId);
+    const old = this.drafts.get(c.id) ?? c.draftId;
+    if (old) this.data.messages = this.data.messages.filter((m) => m.id !== old);
     const rec = addRaw(this.data, 'drafts', raw, { read: true, bcc: bcc.map((a) => a.email) });
     c.draftId = rec.id;
+    this.drafts.set(c.id, rec.id);
+    if (this.compose?.id === c.id) {
+      this.compose.draftId = rec.id;
+      if (this.session) this.session.stored = signature(this.compose);
+    }
+    if (old && this.selectedId === old) this.selectedId = rec.id;
     this.touch(true);
     return rec;
   }
@@ -768,11 +1017,21 @@ export class MailCtl {
     const wantCopy = protocolOf(acc) === 'imap' && savesSentCopy(acc);
     let note = '';
     this.batch(() => {
-      if (c.draftId) this.data.messages = this.data.messages.filter((m) => m.id !== c.draftId);
+      // the draft saved while it was being written (even during the sending) goes away
+      const draft = this.drafts.get(c.id) ?? c.draftId;
+      if (draft) this.data.messages = this.data.messages.filter((m) => m.id !== draft);
+      this.drafts.delete(c.id);
       addRaw(this.data, 'sent', raw, { read: true, bcc: bcc.map((a) => a.email) });
+      // only now has the original been answered
+      if (c.inReplyTo)
+        for (const m of this.data.messages)
+          if (m.mid === c.inReplyTo && !m.answered) {
+            m.answered = true;
+            this.pushFlag(m, RFC_FLAGS.answered, true);
+          }
       if (wantCopy && sentTarget) this.queue({ account: acc.id, kind: 'append', folder: sentTarget, raw: encodeBase64(bytes), seen: true });
       else if (wantCopy) note = ' (la copia en Enviados del servidor no se guardó: sincroniza la cuenta para que se conozca esa carpeta)';
-      this.compose = null;
+      if (this.compose?.id === c.id) this.endCompose(false);
     });
     this.syncMessage = `Mensaje enviado a ${recipients.length === 1 ? recipients[0] : `${recipients.length} destinatarios`}${note}`;
     this.touch();

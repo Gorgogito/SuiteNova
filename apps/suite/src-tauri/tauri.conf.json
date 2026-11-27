@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [
-      { "label": "main", "title": "SuiteNova", "width": 1100, "height": 620, "center": true, "minWidth": 640, "minHeight": 420, "decorations": false, "visible": false }
+      { "label": "main", "title": "SuiteNova", "width": 1100, "height": 620, "center": true, "minWidth": 640, "minHeight": 420, "decorations": false, "visible": false, "dragDropEnabled": false }
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data: ipc: http://ipc.localhost"

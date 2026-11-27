@@ -16,7 +16,8 @@ import { mailCommands, type ImportKind, type MailDialog, type MailUI } from './c
 import { MailCtl } from './ctl';
 import './messages';
 import { setTransport } from './remote';
-import { ComposeBody, FolderTree, LinkConfirm, MessageList, ReadingPane } from './MailViews';
+import { ComposeBody } from './Composer';
+import { FolderTree, LinkConfirm, MessageList, ReadingPane } from './MailViews';
 import { MessageImagesForm } from './dlg-ocr';
 import { ReadAloudBar } from '../voice/ReadAloudBar';
 import { StickyDialog } from './StickyDialog';
@@ -61,6 +62,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+N / O / S', 'Nuevo / Abrir / Guardar'],
   ['Ctrl+1 / 2 / 3 / 4', 'Correo / Calendario / Contactos / Tareas'],
   ['Ctrl+Mayús+M', 'Correo nuevo'],
+  ['Ctrl+Intro / Esc', 'Enviar / cerrar el mensaje que escribes'],
   ['Ctrl+R / Ctrl+Mayús+R', 'Responder / Responder a todos'],
   ['Ctrl+F', 'Reenviar'],
   ['Supr', 'Eliminar el mensaje'],
@@ -136,6 +138,8 @@ export function MailApp({ module }: { module: ModuleInfo }) {
   const saveNow = useCallback(
     async (saveAs: boolean, silent = false) => {
       try {
+        // the message being written goes into the file too
+        if (!silent) ctl.autosaveCompose();
         const base = (ctl.fileName ?? 'Nova Mail').replace(/\.[^.]+$/, '');
         const keep = !saveAs && ctl.filePath?.toLowerCase().endsWith('.novamail') ? ctl.filePath : null;
         const saved = await saveBytes(`${clean(base)}.novamail`, new TextEncoder().encode(serializeMail(ctl.data)), FILTERS, keep);
@@ -239,6 +243,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
       openDialog: (k) => setDialog(k),
       newWindow: () => void openModuleWindow('mail', module.name),
       open: async () => {
+        ctl.leaveCompose();
         if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
         const f = await pickAndRead(OPEN_FILTERS).catch((e) => {
           window.alert(String(e));
@@ -331,7 +336,10 @@ export function MailApp({ module }: { module: ModuleInfo }) {
     return () => clearInterval(id);
   }, [checkReminders, ctl.data.events]);
 
-  useCloseGuard(() => ctl.dirty);
+  useCloseGuard(() => {
+    ctl.autosaveCompose();
+    return ctl.dirty;
+  });
 
   const tabs = useMemo(() => mailTabs(ui, ctl.section), [ui, ctl.section]);
   const backstage: BackstageEntry[] = useMemo(() => {
@@ -350,6 +358,11 @@ export function MailApp({ module }: { module: ModuleInfo }) {
   }, [module.name]);
 
   const sel = ctl.selected;
+  // the message is written in the reading pane when there is one to be seen
+  const canWriteInPane = ctl.section === 'mail' && ctl.showReadingPane;
+  const inPane = !!ctl.compose && canWriteInPane && !ctl.composePopped;
+  const composer = (variant: 'pane' | 'dialog') =>
+    ctl.compose && <ComposeBody key={`${ctl.compose.id}-${variant}`} ctl={ctl} c={ctl.compose} variant={variant} canPop={canWriteInPane} onExport={(raw, name) => void saveBytes(`${clean(name)}.eml`, new TextEncoder().encode(raw), [{ name: 'Mensaje', extensions: ['eml'] }])} />;
   const unreadAll = ctl.data.messages.filter((m) => m.folder === 'inbox' && !m.read).length;
 
   return (
@@ -365,6 +378,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
         <>
           <span>{ctl.section === 'mail' ? t('{n} mensajes', { n: ctl.list().length }) : ctl.section === 'calendar' ? t('{n} eventos', { n: ctl.data.events.length }) : ctl.section === 'contacts' ? t('{n} contactos', { n: ctl.data.contacts.length }) : t('{n} tareas', { n: ctl.data.tasks.length })}</span>
           {status && <span aria-live="polite">{status}</span>}
+          {ctl.composeNotice && <span aria-live="polite" data-testid="compose-status">{t(ctl.composeNotice)}</span>}
           {ctl.syncMessage && <span aria-live="polite" data-testid="sync-status">{t(ctl.syncMessage)}</span>}
           {ctl.pendingCount > 0 && <span data-testid="pending-status">{ctl.pendingCount === 1 ? t('1 cambio sin enviar al servidor') : t('{n} cambios sin enviar al servidor', { n: ctl.pendingCount })}</span>}
         </>
@@ -409,7 +423,9 @@ export function MailApp({ module }: { module: ModuleInfo }) {
             {ctl.showReadingPane && (
               <div className="ml-mail__pane">
                 {ctl.readAloud.visible && <ReadAloudBar ctrl={ctl.readAloud.voice} onClose={() => ctl.readAloud.stop()} />}
-                {sel ? (
+                {inPane ? (
+                  composer('pane')
+                ) : sel ? (
                   <>
                     <div className="ml-mail__actions" role="toolbar" aria-label={t('Acciones del mensaje')}>
                       {ctl.folder === 'drafts' ? (
@@ -479,8 +495,8 @@ export function MailApp({ module }: { module: ModuleInfo }) {
             if (files.length) void handleImport(files);
           }}
         />
-        <StickyDialog open={!!ctl.compose} onClose={() => ctl.closeCompose()} width={760}>
-          {ctl.compose && <ComposeBody key={ctl.compose.id} ctl={ctl} c={ctl.compose} onExport={(raw, name) => void saveBytes(`${clean(name)}.eml`, new TextEncoder().encode(raw), [{ name: 'Mensaje', extensions: ['eml'] }])} />}
+        <StickyDialog open={!!ctl.compose && !inPane} forget={inPane} onClose={() => ctl.requestCloseCompose()} width={880}>
+          {!inPane && composer('dialog')}
         </StickyDialog>
         <LinkConfirm link={link} onClose={() => setLink(null)} />
         {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={() => setDialog(null)} onEdit={() => setDialog('macroEditor')} />}

@@ -128,7 +128,8 @@ describe('Nova Mail controller', () => {
     expect(ctl.compose!.subject).toBe('Re: Plan');
     expect(ctl.compose!.body).toContain('> línea 1');
     expect(ctl.compose!.inReplyTo).toBe('<orig@x.es>');
-    expect(r.answered).toBe(true);
+    // nothing has been sent yet
+    expect(r.answered).toBe(false);
     ctl.reply(r.id, true);
     expect(ctl.compose!.to).toBe('ana@x.es, luis@x.es');
     expect(ctl.compose!.cc).toBe('marta@x.es');

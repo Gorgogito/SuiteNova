@@ -19,8 +19,9 @@ export async function openModuleWindow(moduleId: string, title: string, openPath
   if (isTauri()) {
     const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
     const label = `${moduleId}-${Date.now().toString(36)}-${counter++}`;
-    // no title bar of Windows (the frame has its own) and hidden until the page is drawn
-    const win = new WebviewWindow(label, { url, title, ...fitToScreen(1280, 800), center: true, minWidth: 640, minHeight: 420, decorations: false, visible: false });
+    // no title bar of Windows (the frame has its own) and hidden until the page is drawn. Dragging is left to the page:
+    // with the handler of Tauri, Windows gets no drag and drop inside it at all
+    const win = new WebviewWindow(label, { url, title, ...fitToScreen(1280, 800), center: true, minWidth: 640, minHeight: 420, decorations: false, visible: false, dragDropEnabled: false });
     await new Promise<void>((resolve, reject) => {
       void win.once('tauri://created', () => resolve());
       void win.once('tauri://error', (e) => reject(new Error(String(e.payload))));
@@ -43,7 +44,7 @@ export async function closeThisWindow(): Promise<void> {
 export async function openWindowQuery(query: string, title: string, label: string): Promise<void> {
   if (isTauri()) {
     const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-    const win = new WebviewWindow(label, { url: `index.html?${query}`, title, ...fitToScreen(1280, 800), center: true });
+    const win = new WebviewWindow(label, { url: `index.html?${query}`, title, ...fitToScreen(1280, 800), center: true, dragDropEnabled: false });
     await new Promise<void>((resolve, reject) => {
       void win.once('tauri://created', () => resolve());
       void win.once('tauri://error', (e) => reject(new Error(String(e.payload))));

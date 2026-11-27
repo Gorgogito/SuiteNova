@@ -18,6 +18,7 @@ import { FormsApp } from './forms/FormsApp';
 import { DiagramApp } from './diagram/DiagramApp';
 import { ModuleShell } from './shell/ModuleShell';
 import './app.css';
+import { guardFileDrops } from './file-drop';
 
 function Root() {
   const app = new URLSearchParams(location.search).get('app');
@@ -46,6 +47,8 @@ function ShowWhenDrawn() {
 
 // for the browser tests, which change settings without reloading
 if (import.meta.env.DEV) (window as { __novaSettings?: typeof settings }).__novaSettings = settings;
+
+guardFileDrops();
 
 const app = new URLSearchParams(location.search).get('app');
 const render = () =>

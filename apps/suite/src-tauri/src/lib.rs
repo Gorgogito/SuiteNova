@@ -48,6 +48,8 @@ fn open_file_from_args(app: &tauri::App) -> Result<(), Box<dyn std::error::Error
         // como las demás ventanas: sin barra de título de Windows y oculta hasta que la página esté dibujada
         .decorations(false)
         .visible(false)
+        // arrastrar y soltar queda para la página (como en tauri.conf.json)
+        .disable_drag_drop_handler()
         .build()?;
     // el Hub no hace falta si se llegó con un archivo
     if let Some(main) = app.get_webview_window("main") {

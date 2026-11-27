@@ -25,7 +25,8 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   const c = ui.ctl;
   const defs: CommandDef[] = [];
   const add = (d: CommandDef) => defs.push(d);
-  const hasMsg = () => c.section === 'mail' && !!c.selected;
+  // while a message is being written, the commands of the selected one wait: Ctrl+R or Ctrl+F do not interrupt
+  const hasMsg = () => c.section === 'mail' && !!c.selected && !c.compose;
 
   add({ id: 'mail.new', label: 'Archivo de correo nuevo', icon: 'new', shortcut: 'Ctrl+N', run: () => ui.newWindow() });
   add({ id: 'mail.open', label: 'Abrir…', icon: 'open', shortcut: 'Ctrl+O', run: () => void ui.open() });

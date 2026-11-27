@@ -284,9 +284,9 @@ await check('lo escrito en el cuerpo de un mensaje se lee en los cuatro temas (c
   for (const theme of THEMES) {
     await setTheme(theme);
     assert.deepEqual(await lowContrast(page, ['.nv-pt']), [], theme);
-    // the box looks like the other boxes of the dialog
+    // the box looks like the other boxes of the message
     const colour = (selector) => css(selector, 'backgroundColor');
-    assert.equal(await colour('.fui-DialogSurface .nv-pt'), await colour('.fui-DialogSurface input:not([type="file"])'), theme);
+    assert.equal(await colour('.ml-composer .nv-pt'), await colour('.ml-composer .ml-compose input:not([type="file"])'), theme);
     await shot(`mensaje-${theme}`);
   }
 });

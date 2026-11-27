@@ -6,3 +6,4 @@ export * from './store';
 export * from './vcard';
 export * from './remote';
 export * from './outlook';
+export * from './recipients';

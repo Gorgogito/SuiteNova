@@ -84,7 +84,9 @@ await check('writing: replace one by one with ^p', async () => {
   const v = await page.getByLabel('Cuerpo del mensaje').inputValue();
   assert.ok(v.includes('Gato\ngato y GATO'), v);
   await bar.getByRole('button', { name: 'Cerrar', exact: true }).click();
-  await page.getByRole('button', { name: 'Cerrar', exact: true }).last().click().catch(() => undefined);
+  // the message has text: closing it asks
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).last().click();
+  await page.getByRole('button', { name: 'Descartar', exact: true }).click();
 });
 
 await check('reading: F4 highlights and counts in the message', async () => {

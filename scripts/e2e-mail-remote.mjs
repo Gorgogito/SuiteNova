@@ -52,6 +52,8 @@ const check = async (name, fn) => {
 const ev = (fn, arg) => page.evaluate(fn, arg);
 const settle = () => page.waitForTimeout(150);
 const dialog = () => page.getByRole('dialog');
+/** The message being written, in the reading pane. */
+const composer = () => page.getByRole('region', { name: 'Mensaje que escribes' });
 const item = (cmd) => page.locator(`[data-nv-item="${cmd}"]`);
 const tab = (n) => page.getByRole('tab', { name: n, exact: true }).click();
 const act = async (cmd, tabName = 'Enviar y recibir') => {
@@ -61,7 +63,8 @@ const act = async (cmd, tabName = 'Enviar y recibir') => {
 const st = () => ev(() => ({ n: window.__novaMail.ctl.data.messages.length, accounts: window.__novaMail.ctl.accounts.length, sync: window.__novaMail.ctl.syncMessage, dirty: window.__novaMail.ctl.dirty, pending: window.__novaMail.ctl.pendingCount }));
 const status = () => page.getByTestId('sync-status').innerText().catch(() => '');
 const row = (subject) => page.getByRole('option', { name: new RegExp(subject) });
-const syncDone = () => page.waitForFunction(() => /Sincronizado|Error al sincronizar/.test(window.__novaMail.ctl.syncMessage) && !window.__novaMail.ctl.syncing, null, { timeout: 60000 });
+// a retry of pending changes that was already scheduled may write over the result of the synchronisation
+const syncDone = () => page.waitForFunction(() => /Sincronizado|Error al sincronizar|No se pudo actualizar el servidor/.test(window.__novaMail.ctl.syncMessage) && !window.__novaMail.ctl.syncing, null, { timeout: 60000 });
 const sync = async () => {
   await ev(() => (window.__novaMail.ctl.syncMessage = ''));
   await act('mail.sync');
@@ -373,7 +376,7 @@ await check('a second account with a password: wrong password explained, the pas
 await check('write and send with the iCloud account: the copy is saved in the server Sent folder once, and recognised after syncing', async () => {
   await tab('Inicio');
   await page.getByRole('button', { name: 'Correo nuevo', exact: true }).first().click();
-  const d = dialog();
+  const d = composer();
   await d.getByLabel('Desde').selectOption({ label: /Casa 2/ }).catch(async () => {
     const opts = await d.getByLabel('Desde').locator('option').allInnerTexts();
     await d.getByLabel('Desde').selectOption({ label: opts.find((o) => /Casa 2/.test(o)) });
@@ -389,7 +392,7 @@ await check('write and send with the iCloud account: the copy is saved in the se
   assert.equal(await fake(() => window.__fake.sent.length), 0);
   await fake(() => (window.__fake.failWith = null));
   await d.getByRole('button', { name: 'Enviar', exact: true }).click();
-  await dialog().waitFor({ state: 'hidden' });
+  await composer().waitFor({ state: 'detached' });
   await noPending();
   const sent = await fake(() => window.__fake.sent[0]);
   assert.deepEqual(sent.recipients, ['luis@x.es', 'oculta@x.es']);
@@ -498,9 +501,9 @@ await check('removing the accounts forgets their credentials; sending and syncin
   assert.equal(await item('mail.sync').isDisabled(), true);
   await tab('Inicio');
   await page.getByRole('button', { name: 'Correo nuevo', exact: true }).first().click();
-  assert.equal(await dialog().getByRole('button', { name: 'Enviar', exact: true }).count(), 0);
-  await dialog().getByRole('button', { name: 'Cerrar' }).click();
-  await dialog().waitFor({ state: 'hidden' });
+  assert.equal(await composer().getByRole('button', { name: 'Enviar', exact: true }).count(), 0);
+  await composer().getByRole('button', { name: 'Cerrar' }).click();
+  await composer().waitFor({ state: 'detached' });
 });
 
 await check('five hundred messages and a dozen folders are brought down without freezing the window', async () => {

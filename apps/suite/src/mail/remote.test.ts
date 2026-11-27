@@ -212,6 +212,7 @@ describe('lo que se hace aquí también se hace en el servidor', () => {
     ctl.toggleFlag(dos.id);
     ctl.setRead(dos.id, false);
     ctl.reply(dos.id, false);
+    await ctl.send(ctl.compose!, 'a1');
     await ctl.flush();
     const f = srv.folder('INBOX').msgs.find((m) => m.key === '2')!;
     expect(f.flags.sort()).toEqual(['\\Answered', '\\Flagged']);
@@ -343,7 +344,7 @@ describe('enviar', () => {
   it('envía con la cuenta elegida, incluye los destinatarios ocultos en el sobre y guarda copia en Enviados', async () => {
     await ctl.syncAll();
     ctl.newMessage();
-    const c = compose({ to: 'Luis <luis@x.es>', cc: 'cc@x.es', bcc: 'oculta@x.es', subject: 'Reunión', body: 'Hola, ¿mañana?' });
+    const c = Object.assign(ctl.compose!, { to: 'Luis <luis@x.es>', cc: 'cc@x.es', bcc: 'oculta@x.es', subject: 'Reunión', body: 'Hola, ¿mañana?' });
     ctl.saveDraft(c);
     await ctl.send(c, 'a1');
     expect(srv.sent).toHaveLength(1);
