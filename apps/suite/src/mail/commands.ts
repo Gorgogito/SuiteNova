@@ -7,7 +7,7 @@ import { ocrCommands } from './commands-ocr';
 import { voiceCommands } from './commands-voice';
 import { ruleFrom } from './organize-menus';
 
-export type MailDialog = 'categories' | 'follow' | 'rules' | 'quickSteps' | 'junk' | 'searchFolder' | 'advancedSearch' | 'headers' | 'signatures' | 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
+export type MailDialog = 'options' | 'retime' | 'categories' | 'follow' | 'rules' | 'quickSteps' | 'junk' | 'searchFolder' | 'advancedSearch' | 'headers' | 'signatures' | 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
 export type ImportKind = 'eml' | 'mbox' | 'ics' | 'contacts' | 'outlook';
 
 /** What a dialog is opened with. */
@@ -82,10 +82,14 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   // mail
   add({ id: 'mail.compose', label: 'Correo nuevo', icon: 'mailNew', shortcut: 'Ctrl+Shift+M', run: () => c.newMessage() });
   add({ id: 'mail.signatures', label: 'Firmas…', icon: 'edit', description: 'Crea firmas y elige cuál se pone sola en cada cuenta, en los mensajes nuevos y en las respuestas.', run: () => ui.openDialog('signatures') });
-  add({ id: 'mail.reply', label: 'Responder', icon: 'reply', shortcut: 'Ctrl+R', enabled: () => hasOne() && c.selected!.folder !== 'drafts', run: () => c.reply(c.selectedId!, false) });
-  add({ id: 'mail.replyAll', label: 'Responder a todos', icon: 'replyAll', shortcut: 'Ctrl+Shift+R', enabled: () => hasOne() && c.selected!.folder !== 'drafts', run: () => c.reply(c.selectedId!, true) });
-  add({ id: 'mail.forward', label: 'Reenviar', icon: 'forward', shortcut: 'Ctrl+F', enabled: hasOne, run: () => c.forward(c.selectedId!) });
-  add({ id: 'mail.editDraft', label: 'Editar borrador', icon: 'edit', enabled: () => hasOne() && c.selected!.folder === 'drafts', run: () => c.editDraft(c.selectedId!) });
+  // a message that has not been written to the end, or not sent yet, is not answered
+  const written = () => hasOne() && c.selected!.folder !== 'drafts' && !c.selected!.outgoing;
+  add({ id: 'mail.options', label: 'Avisos y envío…', icon: 'mailBell', description: 'Avisos de correo nuevo, recibir al instante y retrasar el envío para poder deshacerlo.', run: () => ui.openDialog('options') });
+  add({ id: 'mail.sendNow', label: 'Enviar ahora', icon: 'mailSend', enabled: () => hasOne() && !!c.selected!.outgoing && !c.outbox.isSending(c.selectedId!), run: () => void c.outbox.sendNow(c.selectedId!) });
+  add({ id: 'mail.reply', label: 'Responder', icon: 'reply', shortcut: 'Ctrl+R', enabled: written, run: () => c.reply(c.selectedId!, false) });
+  add({ id: 'mail.replyAll', label: 'Responder a todos', icon: 'replyAll', shortcut: 'Ctrl+Shift+R', enabled: written, run: () => c.reply(c.selectedId!, true) });
+  add({ id: 'mail.forward', label: 'Reenviar', icon: 'forward', shortcut: 'Ctrl+F', enabled: () => hasOne() && !c.selected!.outgoing, run: () => c.forward(c.selectedId!) });
+  add({ id: 'mail.editDraft', label: 'Editar borrador', icon: 'edit', enabled: () => hasOne() && (c.selected!.folder === 'drafts' || !!c.selected!.outgoing), run: () => (c.selected!.outgoing ? void c.outbox.takeBack(c.selectedId!) : c.editDraft(c.selectedId!)) });
   add({ id: 'mail.delete', label: 'Eliminar mensaje', icon: 'trash', hint: 'Supr', enabled: hasMsg, run: () => removeSelected(c) });
   add({ id: 'mail.deletePermanent', label: 'Eliminar para siempre', icon: 'trash', hint: 'Mayús+Supr', enabled: hasMsg, run: () => removeSelected(c, true) });
   add({ id: 'mail.undo', label: 'Deshacer', icon: 'undo', hint: 'Ctrl+Z', description: 'Deshace lo último que se hizo con los mensajes: eliminar, mover, archivar, marcar. En el servidor también.', enabled: () => c.section === 'mail' && !c.compose && !!c.undoLabel, run: () => c.undo() });

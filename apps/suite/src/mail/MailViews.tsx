@@ -152,6 +152,11 @@ export function ReadingPane({ ctl, rec, onLink }: { ctl: MailCtl; rec: MailRecor
           </div>
         )}
         <CategoryChips data={ctl.data} names={rec.categories} />
+        {rec.outgoing && (
+          <div className={`ml-follow${rec.outgoing.held ? ' is-late' : ''}`} role="status">
+            <span>⏱ {ctl.outbox.status(rec)}</span>
+          </div>
+        )}
         {rec.flagged && (
           <div className={`ml-follow${isOverdue(rec, Date.now()) ? ' is-late' : ''}`} role="note">
             <span>⚑ {rec.follow?.due != null ? t('Seguimiento: vence el {date}.', { date: day(rec.follow.due) }) : t('Marcado para seguimiento.')}</span>

@@ -1,11 +1,13 @@
 use super::account::{Account, Security};
-use super::backend::{check_flag, parse_keys_u32, Backend, Creds, Fetched, FolderState, RemoteFolder, RemoteMessage, Skipped, StateItem};
+use super::backend::{check_flag, parse_keys_u32, Backend, Creds, Fetched, FolderState, RemoteFolder, RemoteMessage, Skipped, StateItem, Watched};
 use super::smtp_client;
-use super::tls::{clean, connector, tcp};
+use super::tls::{clean, connector, tcp, TIMEOUT};
 use super::utf7;
 use base64::Engine;
+use imap::extensions::idle::WaitOutcome;
 use std::cell::Cell;
 use std::net::TcpStream;
+use std::time::Duration;
 
 enum Sess {
     Tls(imap::Session<native_tls::TlsStream<TcpStream>>),
@@ -56,6 +58,9 @@ pub struct Imap {
     creds: Creds,
     has_move: bool,
     has_uidplus: bool,
+    has_idle: bool,
+    /// El mismo enchufe que usa la sesión, para volver a poner su plazo de espera después de esperar correo.
+    socket: Option<TcpStream>,
 }
 
 macro_rules! login {
@@ -72,9 +77,12 @@ impl Imap {
         account.validate()?;
         let sv = &account.imap;
         let host = sv.host.trim();
+        let mut socket = None;
         let s = match sv.security {
             Security::Tls => {
-                let tls = connector()?.connect(host, tcp(host, sv.port)?).map_err(|e| format!("No se pudo establecer la conexión segura (¿el certificado es válido para {host}?): {e}"))?;
+                let stream = tcp(host, sv.port)?;
+                socket = stream.try_clone().ok();
+                let tls = connector()?.connect(host, stream).map_err(|e| format!("No se pudo establecer la conexión segura (¿el certificado es válido para {host}?): {e}"))?;
                 let c = imap::Client::new(tls);
                 Sess::Tls(login!(c, account, creds)?)
             }
@@ -83,20 +91,29 @@ impl Imap {
                 Sess::Tls(login!(c, account, creds)?)
             }
             Security::None => {
-                let c = imap::Client::new(tcp(host, sv.port)?);
+                let stream = tcp(host, sv.port)?;
+                socket = stream.try_clone().ok();
+                let c = imap::Client::new(stream);
                 Sess::Plain(login!(c, account, creds)?)
             }
         };
-        let mut me = Imap { s, account: account.clone(), creds: creds.clone(), has_move: false, has_uidplus: false };
+        let mut me = Imap { s, account: account.clone(), creds: creds.clone(), has_move: false, has_uidplus: false, has_idle: false, socket };
         if let Ok(caps) = on!(&mut me.s, s => s.capabilities()) {
             me.has_move = caps.has_str("MOVE");
             me.has_uidplus = caps.has_str("UIDPLUS");
+            me.has_idle = caps.has_str("IDLE");
         }
         Ok(me)
     }
 
     fn select(&mut self, folder: &str) -> Result<(), String> {
         on!(&mut self.s, s => s.select(folder)).map(|_| ()).map_err(explain)
+    }
+
+    /// Cómo está la bandeja de entrada: cambia cuando llega o desaparece un mensaje.
+    fn inbox_marker(&mut self) -> Result<String, String> {
+        let mb = on!(&mut self.s, s => s.examine("INBOX")).map_err(explain)?;
+        Ok(format!("{}:{}:{}", mb.uid_validity.unwrap_or(0), mb.uid_next.unwrap_or(0), mb.exists))
     }
 
     /// Quita del buzón seleccionado los mensajes marcados `\Deleted` (solo los indicados si el servidor lo permite).
@@ -253,6 +270,27 @@ impl Backend for Imap {
 
     fn send(&mut self, from: &str, recipients: &[String], raw: &[u8]) -> Result<(), String> {
         smtp_client::send(&self.account, &self.creds, from, recipients, raw)
+    }
+
+    fn wait_change(&mut self, known: Option<&str>, max: Duration) -> Result<Watched, String> {
+        if !self.has_idle {
+            return Ok(Watched { status: "unsupported", marker: String::new() });
+        }
+        let before = self.inbox_marker()?;
+        match known {
+            None => return Ok(Watched { status: "timeout", marker: before }),
+            // llegó algo entre la espera anterior y esta
+            Some(k) if k != before => return Ok(Watched { status: "changed", marker: before }),
+            _ => {}
+        }
+        let outcome = on!(&mut self.s, s => s.idle().and_then(|handle| handle.wait_with_timeout(max))).map_err(explain)?;
+        if let Some(socket) = &self.socket {
+            let _ = socket.set_read_timeout(Some(TIMEOUT));
+        }
+        let after = self.inbox_marker()?;
+        // un cambio de marcas (leído en otro sitio) no mueve la marca, pero el servidor lo avisa igual
+        let changed = outcome == WaitOutcome::MailboxChanged || after != before;
+        Ok(Watched { status: if changed { "changed" } else { "timeout" }, marker: after })
     }
 
     fn logout(mut self: Box<Self>) {

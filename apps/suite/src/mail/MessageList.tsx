@@ -60,13 +60,20 @@ function messageItems(ctl: MailCtl, actions: ListActions): MenuItem[] {
   const ids = ctl.selectedIds();
   const items: MenuItem[] = [];
   if (one) {
-    if (one.folder === 'drafts') items.push({ label: t('Editar borrador'), run: () => ctl.editDraft(one.id) });
+    if (one.outgoing)
+      items.push(
+        { label: t('Enviar ahora'), disabled: ctl.outbox.isSending(one.id), run: () => void ctl.outbox.sendNow(one.id) },
+        { label: t('Cambiar la hora…'), disabled: ctl.outbox.isSending(one.id), run: () => actions.openDialog('retime', { ids: [one.id] }) },
+        { label: t('Editar (cancela el envío)'), disabled: ctl.outbox.isSending(one.id), run: () => void ctl.outbox.takeBack(one.id) },
+        'separator',
+      );
+    else if (one.folder === 'drafts') items.push({ label: t('Editar borrador'), run: () => ctl.editDraft(one.id) });
     else
       items.push(
         { label: t('Responder'), hint: 'Ctrl+R', run: () => ctl.reply(one.id, false) },
         { label: t('Responder a todos'), run: () => ctl.reply(one.id, true) },
       );
-    items.push({ label: t('Reenviar'), hint: 'Ctrl+F', run: () => ctl.forward(one.id) }, 'separator');
+    if (!one.outgoing) items.push({ label: t('Reenviar'), hint: 'Ctrl+F', run: () => ctl.forward(one.id) }, 'separator');
   }
   items.push(
     { label: t('Marcar como leído'), hint: 'Ctrl+Q', disabled: !records.some((m) => !m.read), run: () => ctl.setReadMany(ids, true) },
@@ -182,6 +189,7 @@ export function MessageList({ ctl, actions }: { ctl: MailCtl; actions: ListActio
       else ctl.setFlagMany(ctl.selectedIds(), true);
     }
     else if (e.key === 'Enter' && ctl.selected?.folder === 'drafts') ctl.editDraft(ctl.selected.id);
+    else if (e.key === 'Enter' && ctl.selected?.outgoing) ctl.outbox.takeBack(ctl.selected.id);
     else if ((e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) && ctl.selectedId) {
       const el = ref.current!.querySelector('.ml-item.is-selected') ?? ref.current!;
       const r = el.getBoundingClientRect();
@@ -223,7 +231,7 @@ export function MessageList({ ctl, actions }: { ctl: MailCtl; actions: ListActio
           ctl.selectRow(r.key, { add: e.ctrlKey || e.metaKey, range: e.shiftKey });
           ref.current?.focus({ preventScroll: true });
         }}
-        onDoubleClick={() => (m.folder === 'drafts' ? ctl.editDraft(m.id) : th && ctl.toggleThread(th.key))}
+        onDoubleClick={() => (m.folder === 'drafts' ? ctl.editDraft(m.id) : m.outgoing ? void ctl.outbox.takeBack(m.id) : th && ctl.toggleThread(th.key))}
         // Shift+click selects a range, not the text of the rows
         onMouseDown={(e) => e.shiftKey && e.preventDefault()}
         onContextMenu={(e) => {
@@ -290,7 +298,7 @@ export function MessageList({ ctl, actions }: { ctl: MailCtl; actions: ListActio
         </div>
         <div className="ml-item__preview">
           <CategoryChips data={ctl.data} names={names} max={2} />
-          <span>{m.preview}</span>
+          {m.outgoing ? <span className={`ml-item__out${m.outgoing.held ? ' is-held' : ''}`}>{ctl.outbox.status(m)}</span> : <span>{m.preview}</span>}
         </div>
       </div>
     );

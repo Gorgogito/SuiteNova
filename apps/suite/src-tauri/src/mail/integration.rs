@@ -302,6 +302,51 @@ fn smtp_sends_with_an_oauth_token() {
 }
 
 #[test]
+fn waits_for_new_mail_with_idle() {
+    use std::time::{Duration, Instant};
+    let s = server();
+    let mut c = imap(&s);
+    // sin marca: contesta enseguida con la de ahora
+    let first = c.wait_change(None, Duration::from_secs(5)).unwrap();
+    assert_eq!(first.status, "timeout");
+    assert!(!s.log().iter().any(|l| l.contains("IDLE")));
+    // nada cambia
+    let quiet = c.wait_change(Some(&first.marker), Duration::from_millis(300)).unwrap();
+    assert_eq!((quiet.status, quiet.marker.as_str()), ("timeout", first.marker.as_str()));
+    // llega un mensaje mientras se espera
+    let state = s.state.clone();
+    let post = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(150));
+        let mut st = state.lock().unwrap();
+        let inbox = st.folders.iter_mut().find(|f| f.name == "INBOX").unwrap();
+        let uid = inbox.msgs.iter().map(|m| m.uid).max().unwrap_or(0) + 1;
+        inbox.msgs.push(mail(uid, &[], "Recién llegado", "hola"));
+    });
+    let t = Instant::now();
+    let got = c.wait_change(Some(&first.marker), Duration::from_secs(10)).unwrap();
+    post.join().unwrap();
+    assert_eq!(got.status, "changed");
+    assert_ne!(got.marker, first.marker);
+    assert!(t.elapsed() < Duration::from_secs(5), "no espera todo el plazo");
+    // lo que llegó entre una espera y otra no se pierde
+    let missed = c.wait_change(Some(&first.marker), Duration::from_secs(10)).unwrap();
+    assert_eq!(missed.status, "changed");
+    // la conexión sigue sirviendo
+    assert!(c.list_folders().unwrap().iter().any(|f| f.name == "INBOX"));
+    assert!(s.log().iter().any(|l| l.ends_with("IDLE")));
+}
+
+#[test]
+fn servers_without_idle_and_other_protocols_do_not_wait() {
+    use std::time::Duration;
+    let s = server();
+    s.state.lock().unwrap().has_idle = false;
+    let mut c = imap(&s);
+    assert_eq!(c.wait_change(None, Duration::from_secs(5)).unwrap().status, "unsupported");
+    assert!(!s.log().iter().any(|l| l.contains("IDLE")));
+}
+
+#[test]
 fn unreachable_servers_fail_with_a_message() {
     let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = l.local_addr().unwrap().port();

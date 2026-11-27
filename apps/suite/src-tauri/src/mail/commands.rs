@@ -1,6 +1,6 @@
 use super::account::{Account, AuthKind, Protocol};
 use super::auth;
-use super::backend::{self, Backend, Creds, Fetched, FolderState, RemoteFolder};
+use super::backend::{self, Backend, Creds, Fetched, FolderState, RemoteFolder, Watched};
 use super::smtp_client;
 use super::store::{Accounts, Secrets, SystemSecrets};
 use base64::Engine;
@@ -176,6 +176,12 @@ pub async fn mail_rename_folder(app: AppHandle, id: String, folder: String, path
 #[tauri::command]
 pub async fn mail_delete_folder(app: AppHandle, id: String, folder: String) -> Result<(), String> {
     with_backend(&app, id, move |b| b.delete_folder(&folder)).await
+}
+
+/// Espera a que llegue correo (IMAP IDLE): la página la llama una y otra vez mientras Nova Mail está abierto.
+#[tauri::command]
+pub async fn mail_wait(app: AppHandle, id: String, marker: Option<String>, seconds: u64) -> Result<Watched, String> {
+    with_backend(&app, id, move |b| b.wait_change(marker.as_deref(), Duration::from_secs(seconds.clamp(10, 600)))).await
 }
 
 #[tauri::command]

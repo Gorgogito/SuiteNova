@@ -1,7 +1,7 @@
 import { registerIcon, t, type RibbonGroup, type RibbonTab } from '@suitenova/core-ui';
 import { LIST_FILTERS, SORT_KEYS, canChangeFolder, type ListFilter, type SortKey } from '@suitenova/mail-core';
 import { folderMoveItems, moveTargets } from './actions';
-import { Archive, ArrowDownUp, Ban, CalendarPlus, CircleCheck, Contact, Flag, FolderSearch, Forward, Group, Inbox, ListChecks, MailOpen, MailPlus, MessagesSquare, PanelRight, Reply, ReplyAll, Star, Tag, UserPlus, UserX, Zap } from 'lucide-react';
+import { Archive, ArrowDownUp, Ban, BellRing, CalendarPlus, CircleCheck, Contact, Flag, FolderSearch, Forward, Group, Inbox, ListChecks, MailOpen, MailPlus, MessagesSquare, PanelRight, Reply, ReplyAll, Send, Star, Tag, UserPlus, UserX, Zap } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import { helpTab, viewTab } from '../common';
 import type { MailUI } from './commands';
@@ -26,6 +26,8 @@ registerIcon('groups', Group);
 registerIcon('sortReverse', ArrowDownUp);
 registerIcon('star', Star);
 registerIcon('mailDone', CircleCheck);
+registerIcon('mailBell', BellRing);
+registerIcon('mailSend', Send);
 registerIcon('mailTag', Tag);
 registerIcon('mailRules', ListChecks);
 registerIcon('mailBolt', Zap);
@@ -232,7 +234,16 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
     label: 'Enviar y recibir',
     keytip: 'E',
     groups: [
-      { id: 'receive', label: 'Enviar y recibir', icon: 'refresh', items: [{ kind: 'button', command: 'mail.sync', size: 'large', keytip: 'SY' }] },
+      {
+        id: 'receive',
+        label: 'Enviar y recibir',
+        icon: 'refresh',
+        items: [
+          { kind: 'button', command: 'mail.sync', size: 'large', keytip: 'SY' },
+          { kind: 'button', command: 'mail.sendNow', size: 'large', keytip: 'EA' },
+          { kind: 'button', command: 'mail.options', size: 'large', keytip: 'AV' },
+        ],
+      },
       {
         id: 'accounts',
         label: 'Cuentas',

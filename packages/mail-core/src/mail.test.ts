@@ -436,7 +436,7 @@ describe('mail store', () => {
     expect(back.messages[0]).toMatchObject({ subject: 'Hola', read: true, flagged: true });
     expect(back.events).toHaveLength(1);
     expect(back.tasks[0]!.title).toBe('Tarea');
-    expect(back.folders.map((f) => f.id)).toEqual(['inbox', 'drafts', 'sent', 'archive', 'junk', 'trash']);
+    expect(back.folders.map((f) => f.id)).toEqual(['inbox', 'drafts', 'sent', 'archive', 'junk', 'trash', 'outbox']);
     expect(() => parseMailData('no json')).toThrow(/JSON/);
     expect(() => parseMailData('{"version":2}')).toThrow(/formato desconocido/);
     const odd = parseMailData(JSON.stringify({ version: 1, messages: [{ id: 'a', raw: 'eA==', folder: 'carpeta-rara' }, { nada: 1 }], events: [{}, { start: 1, end: 2 }] }));

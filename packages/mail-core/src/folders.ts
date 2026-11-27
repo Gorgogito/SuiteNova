@@ -12,7 +12,8 @@ export function folderParents(d: MailData, id: string): (string | null)[] {
   const inside = new Set(descendants(d, id));
   const account = f!.remote?.account;
   const fits = (p: Folder): boolean => {
-    if (inside.has(p.id)) return false;
+    // nothing is kept inside the Outbox
+    if (inside.has(p.id) || p.id === 'outbox') return false;
     if (account) return p.system ? !!d.servers?.[account]?.paths?.[p.id as 'inbox'] : p.remote?.account === account || p.id.startsWith(`c:${account}:`);
     return p.system || (!p.remote && !p.id.startsWith('c:'));
   };

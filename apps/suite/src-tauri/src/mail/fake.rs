@@ -43,6 +43,8 @@ pub struct ImapState {
     pub token: Option<String>,
     /// ¿Anuncia y entiende `MOVE`? Sin él el cliente debe copiar, marcar y expulsar.
     pub has_move: bool,
+    /// ¿Anuncia y entiende `IDLE`?
+    pub has_idle: bool,
     pub folders: Vec<Folder>,
     pub log: Vec<String>,
 }
@@ -56,7 +58,7 @@ impl FakeImap {
     pub fn start(user: &str, pass: &str, folders: Vec<Folder>) -> FakeImap {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
-        let state = Arc::new(Mutex::new(ImapState { user: user.into(), pass: pass.into(), token: None, has_move: true, folders, log: vec![] }));
+        let state = Arc::new(Mutex::new(ImapState { user: user.into(), pass: pass.into(), token: None, has_move: true, has_idle: true, folders, log: vec![] }));
         let st = state.clone();
         thread::spawn(move || {
             for conn in listener.incoming().flatten() {
@@ -130,8 +132,11 @@ fn imap_session(conn: TcpStream, st: Arc<Mutex<ImapState>>) -> std::io::Result<(
         let args = rest.get(cmd.len()..).unwrap_or("").trim().to_string();
         match cmd.as_str() {
             "CAPABILITY" => {
-                let mv = st.lock().unwrap().has_move;
-                w.write_all(format!("* CAPABILITY IMAP4rev1 UIDPLUS AUTH=XOAUTH2{}\r\n{tag} OK done\r\n", if mv { " MOVE" } else { "" }).as_bytes())?
+                let (mv, idle) = {
+                    let s = st.lock().unwrap();
+                    (s.has_move, s.has_idle)
+                };
+                w.write_all(format!("* CAPABILITY IMAP4rev1 UIDPLUS AUTH=XOAUTH2{}{}\r\n{tag} OK done\r\n", if mv { " MOVE" } else { "" }, if idle { " IDLE" } else { "" }).as_bytes())?
             }
             "NOOP" => w.write_all(format!("{tag} OK done\r\n").as_bytes())?,
             "LOGIN" => {
@@ -243,6 +248,36 @@ fn imap_session(conn: TcpStream, st: Arc<Mutex<ImapState>>) -> std::io::Result<(
                     }
                     None => w.write_all(format!("{tag} NO no such mailbox\r\n").as_bytes())?,
                 }
+            }
+            "IDLE" => {
+                let Some(i) = sel else {
+                    w.write_all(format!("{tag} BAD no mailbox selected\r\n").as_bytes())?;
+                    continue;
+                };
+                let look = |s: &ImapState| s.folders.get(i).map(|f| f.msgs.iter().map(|m| format!("{}:{}", m.uid, m.flags.join(","))).collect::<Vec<_>>().join(";")).unwrap_or_default();
+                let mut seen = look(&st.lock().unwrap());
+                w.write_all(b"+ idling\r\n")?;
+                r.get_ref().set_read_timeout(Some(std::time::Duration::from_millis(20)))?;
+                let mut done = String::new();
+                loop {
+                    match r.read_line(&mut done) {
+                        Ok(0) => return Ok(()),
+                        Ok(_) if done.trim_end().eq_ignore_ascii_case("DONE") => break,
+                        Ok(_) => done.clear(),
+                        Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
+                        Err(e) => return Err(e),
+                    }
+                    let (now, count) = {
+                        let s = st.lock().unwrap();
+                        (look(&s), s.folders.get(i).map_or(0, |f| f.msgs.len()))
+                    };
+                    if now != seen {
+                        seen = now;
+                        w.write_all(format!("* {count} EXISTS\r\n").as_bytes())?;
+                    }
+                }
+                r.get_ref().set_read_timeout(None)?;
+                w.write_all(format!("{tag} OK IDLE terminated\r\n").as_bytes())?;
             }
             "EXPUNGE" => {
                 let Some(i) = sel else {

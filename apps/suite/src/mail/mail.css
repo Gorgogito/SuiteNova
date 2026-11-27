@@ -1727,3 +1727,75 @@
 .ml-senders .ml-editlist {
   max-height: 18vh;
 }
+
+/* ---------- sending: waiting, taking back, and when new mail is received ---------- */
+.ml-undo {
+  position: fixed;
+  bottom: 34px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(640px, 92vw);
+  padding: 8px 12px;
+  transform: translateX(-50%);
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 6px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  box-shadow: var(--shadow16);
+  font-size: 13px;
+}
+.ml-undo > span[aria-hidden] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ml-undo button {
+  flex: none;
+}
+.ml-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ml-item__out {
+  color: var(--colorNeutralForeground2);
+  font-style: italic;
+}
+.ml-item__out.is-held {
+  color: var(--colorPaletteRedForeground1);
+}
+.ml-presets {
+  display: grid;
+  gap: 4px;
+}
+.ml-presets button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.ml-presets em {
+  color: var(--colorNeutralForeground3);
+  font-size: 12px;
+  font-style: normal;
+}
+.ml-watch {
+  margin: 0;
+  padding-inline-start: 22px;
+  color: var(--colorNeutralForeground2);
+  font-size: 12px;
+}
+.ml-acc__err button {
+  margin-inline-start: 8px;
+}
+.ml-toast__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

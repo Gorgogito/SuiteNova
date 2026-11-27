@@ -69,14 +69,14 @@ describe('organizar (en este equipo)', () => {
   it('los avisos de seguimiento salen a su hora y al descartarlos no vuelven', () => {
     ctl.followMany([id('Saludos')], null, 1000);
     ctl.followMany([id('Factura 1')], new Date(2026, 2, 20).getTime(), 5000);
-    expect(ctl.organize.dueReminders(999)).toEqual([]);
-    expect(ctl.organize.dueReminders(2000).map((r) => r.subject)).toEqual(['Saludos']);
-    ctl.organize.dismissReminder(id('Saludos'));
+    expect(ctl.dueReminders(999)).toEqual([]);
+    expect(ctl.dueReminders(2000).map((r) => r.title)).toEqual(['Saludos']);
+    ctl.dismissReminder(`f:${id('Saludos')}`);
     expect(rec('Saludos')).toMatchObject({ flagged: true });
     expect(rec('Saludos').follow).toBeUndefined();
-    ctl.organize.dismissReminder(id('Factura 1'));
+    ctl.dismissReminder(`f:${id('Factura 1')}`);
     expect(rec('Factura 1').follow).toEqual({ due: new Date(2026, 2, 20).getTime() });
-    expect(ctl.organize.dueReminders(1e13)).toEqual([]);
+    expect(ctl.dueReminders(1e13)).toEqual([]);
   });
 
   it('una carpeta de búsqueda reúne mensajes de cualquier carpeta y no deja desaparecer lo que se está leyendo', () => {

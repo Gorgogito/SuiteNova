@@ -38,6 +38,9 @@ export class FakeServer {
   failWith: string | null = null;
   /** Falla solo esta orden (por ejemplo `mail_move`). */
   failOnly: string | null = null;
+  /** ¿Avisa de correo nuevo (IDLE)? */
+  idle = true;
+  private waiters = new Set<() => void>();
   /** ¿Lo borrado o movido en el servidor desaparece de aquí? Con POP3, no. */
   mirror = true;
   /** JMAP y Exchange guardan ellos mismos lo enviado en Enviados. */
@@ -48,6 +51,17 @@ export class FakeServer {
     const body = opts.size ? 'x'.repeat(opts.size) : (opts.body ?? `cuerpo de ${subject}`);
     const raw = `From: Ana <ana@x.es>\r\nTo: yo@ejemplo.es\r\nSubject: ${subject}\r\nMessage-ID: ${opts.messageId ?? `<${key}@srv>`}\r\nDate: Mon, 3 Mar 2025 10:00:00 +0000\r\n${opts.extra ?? ''}\r\n${body}\r\n`;
     return { key, flags: opts.flags ?? [], raw };
+  }
+
+  /** Llega un mensaje: quien esté esperando se entera. */
+  deliver(msg: FakeMsg): void {
+    this.folder('INBOX').msgs.push(msg);
+    this.wake();
+  }
+  wake(): void {
+    const all = [...this.waiters];
+    this.waiters.clear();
+    for (const w of all) w();
   }
 
   folder(name: string): FakeFolder {
@@ -196,6 +210,15 @@ export class FakeServer {
             x.name = x.path;
           }
         return null;
+      }
+      case 'mail_wait': {
+        if (!this.idle) return { status: 'unsupported', marker: '' };
+        const now = () => folder('INBOX').msgs.map((m) => m.key).join(',');
+        if (args.marker === null) return { status: 'timeout', marker: now() };
+        if (args.marker === now()) await new Promise<void>((done) => this.waiters.add(done));
+        if (this.failWith || this.failOnly === cmd) throw new Error(this.failWith ?? 'Error de red: sin conexión');
+        const marker = now();
+        return { status: marker === args.marker ? 'timeout' : 'changed', marker };
       }
       case 'mail_send': {
         this.sent.push({ id: args.id as string, recipients: args.recipients as string[], raw: atob(args.raw as string) });

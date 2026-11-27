@@ -1,6 +1,6 @@
 import { Button, DialogActions, DialogContent, DialogTitle, Input } from '@fluentui/react-components';
 import { AppFrame, CommandRegistry, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { contactsFromCsv, contactsToCsv, isFollowed, occurrencesBetween, parseIcs, parseMailData, parseMbox, parseVcf, rawHeaders, rawOf, serializeMail, writeIcs, writeMbox, writeVcf } from '@suitenova/mail-core';
+import { SNOOZE_CHOICES, contactsFromCsv, contactsToCsv, isFollowed, parseIcs, parseMailData, parseMbox, parseVcf, rawHeaders, rawOf, serializeMail, writeIcs, writeMbox, writeVcf, type DueReminder } from '@suitenova/mail-core';
 import { Calendar, CheckSquare, Mail, Users } from 'lucide-react';
 import { parseCsv, toCsv } from '@suitenova/base-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -18,6 +18,8 @@ import { AdvancedSearchDialog, CategoriesDialog, FollowDialog, JunkDialog, Quick
 import { MailCtl } from './ctl';
 import './messages';
 import { setTransport } from './remote';
+import { onNoticePressed, setNotifier } from './notify';
+import { LaterDialog, OptionsForm, UndoSend } from './dlg-send';
 import { ComposeBody } from './Composer';
 import { FolderTree } from './FolderTree';
 import { LinkConfirm, ReadingPane } from './MailViews';
@@ -150,7 +152,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
   }, []);
   const [status, setStatus] = useState('');
   const [link, setLink] = useState<string | null>(null);
-  const [reminders, setReminders] = useState<{ key: string; title: string; when: string; message?: string }[]>([]);
+  const [reminders, setReminders] = useState<DueReminder[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const importKind = useRef<ImportKind>('eml');
@@ -328,9 +330,15 @@ export function MailApp({ module }: { module: ModuleInfo }) {
     ctl.startSync();
     ctl.macroRt.runStartup();
     void ctl.loadAccounts().then(() => {
+      // from now on the accounts that can tell are listened to
+      ctl.alerts.enableWatch();
       if (ctl.accounts.length && ctl.autoMinutes > 0) void ctl.syncAll({ auto: true });
     });
-    return () => ctl.dispose();
+    const off = onNoticePressed((p) => ctl.alerts.pressed(p));
+    return () => {
+      off();
+      ctl.dispose();
+    };
   }, [ctl]);
 
   useEffect(() => {
@@ -341,20 +349,13 @@ export function MailApp({ module }: { module: ModuleInfo }) {
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    (window as unknown as { __novaMail: unknown }).__novaMail = { ctl, checkReminders: () => checkReminders(), setTransport };
+    (window as unknown as { __novaMail: unknown }).__novaMail = { ctl, checkReminders: () => checkReminders(), setTransport, setNotifier };
   });
 
-  // reminders: look for events whose reminder time has come
+  // reminders: of appointments and of messages followed up
   const checkReminders = useCallback(() => {
-    const now = Date.now();
-    const due: { key: string; title: string; when: string; message?: string }[] = ctl.organize
-      .dueReminders(now)
-      .map((m) => ({ key: `f:${m.id}`, title: m.subject, when: m.due === null ? t('Seguimiento') : t('Seguimiento: vence el {date}.', { date: new Date(m.due).toLocaleDateString() }), message: m.id }));
-    for (const o of occurrencesBetween(ctl.data.events.filter((e) => e.reminder !== null), now - 3600000, now + 7 * 86400000)) {
-      const at = o.start - (o.event.reminder ?? 0) * 60000;
-      const key = `${o.event.id}@${o.start}`;
-      if (at <= now && now < o.end && !ctl.dismissed.has(key)) due.push({ key, title: o.event.title, when: new Date(o.start).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) });
-    }
+    const due = ctl.dueReminders();
+    ctl.alerts.reminders(due);
     setReminders((cur) => (JSON.stringify(cur) === JSON.stringify(due) ? cur : due));
   }, [ctl]);
   useEffect(() => {
@@ -389,10 +390,13 @@ export function MailApp({ module }: { module: ModuleInfo }) {
     return () => window.removeEventListener('keydown', key);
   }, [ctl]);
 
-  useCloseGuard(() => {
-    ctl.autosaveCompose();
-    return ctl.dirty;
-  });
+  useCloseGuard(
+    () => {
+      ctl.autosaveCompose();
+      return ctl.dirty;
+    },
+    () => ctl.outbox.closeQuestion(),
+  );
 
   const tabs = useMemo(() => mailTabs(ui, ctl.section), [ui, ctl.section]);
   const backstage: BackstageEntry[] = useMemo(() => {
@@ -435,6 +439,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
           {status && <span aria-live="polite">{status}</span>}
           {ctl.composeNotice && <span aria-live="polite" data-testid="compose-status">{t(ctl.composeNotice)}</span>}
           {ctl.syncMessage && <span aria-live="polite" data-testid="sync-status">{t(ctl.syncMessage)}</span>}
+          {ctl.outbox.messages.length > 0 && <span data-testid="outbox-status">{t('En la Bandeja de salida: {n}', { n: ctl.outbox.messages.length })}</span>}
           {ctl.pendingCount > 0 && <span data-testid="pending-status">{ctl.pendingCount === 1 ? t('1 cambio sin enviar al servidor') : t('{n} cambios sin enviar al servidor', { n: ctl.pendingCount })}</span>}
         </>
       }
@@ -512,7 +517,19 @@ export function MailApp({ module }: { module: ModuleInfo }) {
                 ) : sel ? (
                   <>
                     <div className="ml-mail__actions" role="toolbar" aria-label={t('Acciones del mensaje')}>
-                      {sel.folder === 'drafts' ? (
+                      {sel.outgoing ? (
+                        <>
+                          <button type="button" className="ml-btn ml-btn--primary" disabled={ctl.outbox.isSending(sel.id)} onClick={() => void ctl.outbox.sendNow(sel.id)}>
+                            {t('Enviar ahora')}
+                          </button>
+                          <button type="button" className="ml-btn" disabled={ctl.outbox.isSending(sel.id)} onClick={() => openDialog('retime', { ids: [sel.id] })}>
+                            {t('Cambiar la hora…')}
+                          </button>
+                          <button type="button" className="ml-btn" disabled={ctl.outbox.isSending(sel.id)} onClick={() => void ctl.outbox.takeBack(sel.id)}>
+                            {t('Editar (cancela el envío)')}
+                          </button>
+                        </>
+                      ) : sel.folder === 'drafts' ? (
                         <button type="button" className="ml-btn" onClick={() => ctl.editDraft(sel.id)}>
                           {t('Editar borrador')}
                         </button>
@@ -526,9 +543,11 @@ export function MailApp({ module }: { module: ModuleInfo }) {
                           </button>
                         </>
                       )}
-                      <button type="button" className="ml-btn" onClick={() => ctl.forward(sel.id)}>
-                        {t('Reenviar')}
-                      </button>
+                      {!sel.outgoing && (
+                        <button type="button" className="ml-btn" onClick={() => ctl.forward(sel.id)}>
+                          {t('Reenviar')}
+                        </button>
+                      )}
                       <button type="button" className="ml-btn" onClick={() => removeSelected(ctl)}>
                         {t('Eliminar')}
                       </button>
@@ -546,8 +565,32 @@ export function MailApp({ module }: { module: ModuleInfo }) {
         {ctl.section === 'contacts' && <ContactsView ctl={ctl} />}
         {ctl.section === 'tasks' && <TasksView ctl={ctl} />}
 
-        {(reminders.length > 0 || ctl.organize.notices.length > 0) && (
+        <UndoSend ctl={ctl} />
+        {(reminders.length > 0 || ctl.organize.notices.length > 0 || ctl.alerts.toasts.length > 0) && (
           <div className="ml-toasts" role="region" aria-label={t('Recordatorios')} aria-live="polite">
+            {ctl.alerts.toasts.map((n) => (
+              <div key={n.key} className="ml-toast">
+                <strong>{n.title}</strong>
+                <span>{n.text}</span>
+                <div className="ml-toast__actions">
+                {n.messageId && (
+                  <button
+                    type="button"
+                    className="ml-btn"
+                    onClick={() => {
+                      ctl.openMessage(n.messageId!);
+                      ctl.alerts.dismiss(n.key);
+                    }}
+                  >
+                    {t('Abrir')}
+                  </button>
+                )}
+                <button type="button" className="ml-btn" onClick={() => ctl.alerts.dismiss(n.key)}>
+                  {t('Cerrar')}
+                </button>
+                </div>
+              </div>
+            ))}
             {ctl.organize.notices.map((n) => (
               <div key={n.key} className="ml-toast">
                 <strong>{n.title || t('Regla')}</strong>
@@ -560,33 +603,46 @@ export function MailApp({ module }: { module: ModuleInfo }) {
             {reminders.map((r) => (
               <div key={r.key} className="ml-toast">
                 <strong>{r.title || t('(sin título)')}</strong>
-                <span>{r.when}</span>
-                {r.message && (
-                  <button
-                    type="button"
-                    className="ml-btn"
-                    onClick={() => {
-                      const m = ctl.data.messages.find((x) => x.id === r.message);
-                      if (!m) return;
-                      ctl.go('mail');
-                      ctl.setFolder(m.folder);
-                      ctl.select(m.id);
-                    }}
-                  >
-                    {t('Abrir')}
-                  </button>
-                )}
+                <span>
+                  {r.kind === 'mail'
+                    ? r.due == null
+                      ? t('Seguimiento')
+                      : t('Seguimiento: vence el {date}.', { date: new Date(r.due).toLocaleDateString() })
+                    : new Date(r.at).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                </span>
+                <div className="ml-toast__actions">
+                <button type="button" className="ml-btn" onClick={() => ctl.openReminder(r.key)}>
+                  {t('Abrir')}
+                </button>
+                <select
+                  className="ml-btn"
+                  aria-label={t('Posponer {name}', { name: r.title || t('(sin título)') })}
+                  value=""
+                  onChange={(e) => {
+                    ctl.snoozeReminder(r.key, Number(e.target.value));
+                    checkReminders();
+                  }}
+                >
+                  <option value="" disabled>
+                    {t('Posponer…')}
+                  </option>
+                  {SNOOZE_CHOICES.map((c) => (
+                    <option key={c.minutes} value={c.minutes}>
+                      {t(c.label)}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="button"
                   className="ml-btn"
                   onClick={() => {
-                    if (r.message) ctl.organize.dismissReminder(r.message);
-                    else ctl.dismissed.add(r.key);
+                    ctl.dismissReminder(r.key);
                     checkReminders();
                   }}
                 >
                   {t('Descartar')}
                 </button>
+                </div>
               </div>
             ))}
           </div>
@@ -613,7 +669,18 @@ export function MailApp({ module }: { module: ModuleInfo }) {
         {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={() => setDialog(null)} onEdit={() => setDialog('macroEditor')} />}
         {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={() => setDialog(null)} />}
         {dialog === 'macroSecurity' && <MacroSecurity ctl={ctl} onClose={() => setDialog(null)} />}
-        <StickyDialog open={dialog !== null && dialog !== 'macros' && dialog !== 'macroEditor' && dialog !== 'signatures'} onClose={() => setDialog(null)} width={dialog === 'accounts' || dialog === 'categories' || dialog === 'junk' ? 640 : dialog === 'headers' || dialog === 'rules' || dialog === 'quickSteps' ? 760 : undefined}>
+        {dialog === 'retime' && (
+          <LaterDialog
+            initial={ctl.records(arg.ids ?? [])[0]?.outgoing?.at}
+            onClose={() => setDialog(null)}
+            onPick={(at) => {
+              for (const id of arg.ids ?? []) ctl.outbox.retime(id, at);
+              setDialog(null);
+            }}
+          />
+        )}
+        <StickyDialog open={dialog !== null && dialog !== 'retime' && dialog !== 'macros' && dialog !== 'macroEditor' && dialog !== 'signatures'} onClose={() => setDialog(null)} width={dialog === 'accounts' || dialog === 'categories' || dialog === 'junk' ? 640 : dialog === 'headers' || dialog === 'rules' || dialog === 'quickSteps' ? 760 : undefined}>
+          {dialog === 'options' && <OptionsForm ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'categories' && <CategoriesDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'follow' && <FollowDialog ctl={ctl} ids={arg.ids ?? []} onClose={() => setDialog(null)} />}
           {dialog === 'rules' && <RulesDialog ctl={ctl} initial={arg.rule} onClose={() => setDialog(null)} />}

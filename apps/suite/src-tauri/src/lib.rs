@@ -1,6 +1,7 @@
 mod clip;
 mod fonts;
 mod mail;
+mod notify;
 
 use tauri::{webview::PageLoadEvent, Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -72,6 +73,7 @@ const SHOW_ANYWAY: std::time::Duration = std::time::Duration::from_secs(3);
 pub fn run() {
     tauri::Builder::default()
         .manage(clip::ClipState::default())
+        .manage(notify::Notices::default())
         // antes que el de diálogos: el orden de los complementos es el de sus guiones
         .plugin(tauri::plugin::Builder::<tauri::Wry>::new("nova-confirm").js_init_script(NATIVE_CONFIRM).build())
         .plugin(tauri_plugin_dialog::init())
@@ -117,6 +119,8 @@ pub fn run() {
             mail::commands::mail_rename_folder,
             mail::commands::mail_set_flag,
             mail::commands::mail_send,
+            mail::commands::mail_wait,
+            notify::notify_show,
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar SuiteNova");

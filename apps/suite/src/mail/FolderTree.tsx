@@ -78,7 +78,9 @@ export function FolderTree({ ctl, openDialog }: { ctl: MailCtl; openDialog: Open
   /** The folder something is being dragged over; '' is the top level. */
   const [over, setOver] = useState<string | null>(null);
   const [dragged, setDragged] = useState<string | null>(null);
-  const rows = folderRows(ctl.data);
+  // the Outbox is only there while something waits in it
+  const waiting = ctl.data.messages.filter((m) => m.folder === 'outbox').length;
+  const rows = folderRows(ctl.data).filter(({ folder }) => folder.id !== 'outbox' || waiting > 0 || ctl.folder === 'outbox');
   const hidden = new Set<string>();
   for (const { folder } of rows) if (collapsed.has(folder.id) || (folder.parent && hidden.has(folder.parent))) hidden.add(folder.id);
   const current = ctl.data.folders.find((f) => f.id === ctl.folder);
@@ -128,6 +130,7 @@ export function FolderTree({ ctl, openDialog }: { ctl: MailCtl; openDialog: Open
     const items: MenuItem[] = [
       {
         label: t('Carpeta nueva dentro…'),
+        disabled: f.id === 'outbox',
         run: () => {
           ctl.setFolder(f.id);
           ctl.editFolder({ kind: 'new', inside: true });
@@ -147,7 +150,7 @@ export function FolderTree({ ctl, openDialog }: { ctl: MailCtl; openDialog: Open
   /** Whether what is being dragged can be left on a folder (null: the top level). */
   const accepts = (e: DragEvent, target: Folder | null): boolean => {
     const types = Array.from(e.dataTransfer.types);
-    if (types.includes(MAIL_DRAG)) return !!target && !target.id.startsWith('c:');
+    if (types.includes(MAIL_DRAG)) return !!target && target.id !== 'outbox' && !target.id.startsWith('c:');
     if (!types.includes(FOLDER_DRAG) || !dragged) return false;
     const to = target?.id ?? null;
     return (ctl.data.folders.find((f) => f.id === dragged)?.parent ?? null) !== to && folderParents(ctl.data, dragged).includes(to);
@@ -174,7 +177,8 @@ export function FolderTree({ ctl, openDialog }: { ctl: MailCtl; openDialog: Open
   });
 
   const button = (f: Folder, favorite = false) => {
-    const n = unreadCount(ctl.data, f.id);
+    // in the Outbox what counts is what waits, read or not
+    const n = f.id === 'outbox' ? waiting : unreadCount(ctl.data, f.id);
     return (
       <button
         type="button"
@@ -207,7 +211,7 @@ export function FolderTree({ ctl, openDialog }: { ctl: MailCtl; openDialog: Open
         }}
       >
         <span>{t(f.name)}</span>
-        {n > 0 && !QUIET.has(f.id) ? <b aria-label={t('{n} sin leer', { n })}>{n}</b> : null}
+        {n > 0 && !QUIET.has(f.id) ? <b aria-label={f.id === 'outbox' ? t('{n} por enviar', { n }) : t('{n} sin leer', { n })}>{n}</b> : null}
       </button>
     );
   };
@@ -308,7 +312,7 @@ export function FolderTree({ ctl, openDialog }: { ctl: MailCtl; openDialog: Open
               else if (e.key === 'Escape') close();
             }}
           />
-          {current && (
+          {current && current.id !== 'outbox' && (
             <label>
               <input type="checkbox" checked={inside} onChange={(e) => setInside(e.target.checked)} /> {t('Dentro de «{name}»', { name: t(current.name) })}
             </label>

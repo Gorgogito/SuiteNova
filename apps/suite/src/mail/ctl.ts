@@ -6,6 +6,8 @@ import { makeQuote, type Quote } from './rich/quote';
 import { MailImageOcr } from './ocr-images';
 import { MailReader } from './read-aloud';
 import { MailOrganizer } from './organizer';
+import { MailAlerts } from './alerts';
+import { MailOutbox } from './outbox';
 import {
   RFC_FLAGS,
   addRaw,
@@ -53,6 +55,14 @@ import {
   setCategory,
   setFollow,
   syncKey,
+  decodeBase64,
+  dismissReminder,
+  dueReminders,
+  pruneReminders,
+  retryDelay,
+  snoozeReminder,
+  type DueReminder,
+  type Outgoing,
   type Address,
   type BookEntry,
   type CalEvent,
@@ -285,6 +295,10 @@ export class MailCtl {
   private serverCopies = new Set<string>();
   /** Categories, follow-up, rules, quick steps, search folders and blocked senders. */
   readonly organize = new MailOrganizer(this);
+  /** What waits to be sent. */
+  readonly outbox = new MailOutbox(this);
+  /** Notices of new mail, reminders and failures, and receiving at once. */
+  readonly alerts = new MailAlerts(this);
   /** The folder being named: a new one, or another name for one there is. */
   folderEdit: { kind: 'new'; inside: boolean } | { kind: 'rename'; id: string } | null = null;
   /** An undo that has to wait for the server. */
@@ -356,8 +370,6 @@ export class MailCtl {
     this.saveMacros();
     this.touch();
   }
-  /** Reminders already shown (event id + start). */
-  dismissed = new Set<string>();
 
   subscribe = (fn: () => void): (() => void) => {
     this.listeners.add(fn);
@@ -424,6 +436,8 @@ export class MailCtl {
     if (this.flushTimer) clearTimeout(this.flushTimer);
     this.autoTimer = this.flushTimer = null;
     this.cancelDraftTimer();
+    this.outbox.dispose();
+    this.alerts.dispose();
   }
 
   get docTitle(): string {
@@ -448,6 +462,9 @@ export class MailCtl {
     this.gathering = null;
     this.serverCopies.clear();
     this.organize.reset();
+    this.alerts.reset();
+    this.alerts.startWatch();
+    pruneReminders(d, Date.now());
     this.rowCache = null;
     this.folderEdit = null;
     this.endCompose(false);
@@ -455,6 +472,7 @@ export class MailCtl {
     this.drafts.clear();
     this.book = null;
     this.touch();
+    this.outbox.schedule();
   }
 
   newDoc(): void {
@@ -527,7 +545,7 @@ export class MailCtl {
 
   /** The folder lists who each message goes to, not who sent it. */
   get outgoing(): boolean {
-    return this.folder === 'sent' || this.folder === 'drafts';
+    return this.folder === 'sent' || this.folder === 'drafts' || this.folder === 'outbox';
   }
 
   /** Messages shown in the list: a search runs over the current folder, or over all when prefixed with `*`. */
@@ -564,7 +582,7 @@ export class MailCtl {
     let threads: { of: Map<string, string>; members: Map<string, MailRecord[]> } | undefined;
     if (this.view.conversations) {
       // what was thrown away or is not finished does not belong to the conversation seen from another folder
-      const apart = new Set(['trash', 'junk', 'drafts']);
+      const apart = new Set(['trash', 'junk', 'drafts', 'outbox']);
       const all = this.data.messages.filter((m) => m.folder === this.folder || !apart.has(m.folder));
       const of = conversationsOf(all);
       const members = new Map<string, MailRecord[]>();
@@ -851,6 +869,13 @@ export class MailCtl {
   }
 
   private relocate(m: MailRecord, folder: string, was?: Change): boolean {
+    if (folder === 'outbox') return false;
+    if (this.outbox.isSending(m.id)) {
+      this.syncMessage = 'Se está enviando: espera a que termine.';
+      return false;
+    }
+    // taken out of the Outbox, it is no longer sent
+    delete m.outgoing;
     if (this.compose?.draftId === m.id) this.endCompose(false);
     const r = m.remote;
     if (r) {
@@ -920,6 +945,10 @@ export class MailCtl {
     const gone = new Set<string>();
     this.batch(() => {
       for (const rec of this.records(ids)) {
+        if (this.outbox.isSending(rec.id)) {
+          this.syncMessage = 'Se está enviando: espera a que termine.';
+          continue;
+        }
         if (this.compose?.draftId === rec.id) this.endCompose(false);
         const was = snapshot(rec);
         const r = rec.remote;
@@ -944,6 +973,7 @@ export class MailCtl {
             delete rec.remote;
           }
           rec.folder = 'trash';
+          delete rec.outgoing;
         }
         changes.push(was);
       }
@@ -1013,11 +1043,13 @@ export class MailCtl {
 
   /** Puts a message back where it was; what the server has to do first is left in `back`. */
   private restorePlace(c: Change, back: Change[], notes: Set<string>, restored: string[]): void {
-    const home = this.data.folders.some((f) => f.id === c.folder) ? c.folder : 'inbox';
+    // what was waiting to be sent comes back as a draft: it is not sent by undoing
+    const home = c.folder === 'outbox' ? 'drafts' : this.data.folders.some((f) => f.id === c.folder) ? c.folder : 'inbox';
     let m = this.data.messages.find((x) => x.id === c.id);
     if (!m) {
       if (!c.removed) return;
       m = { ...c.removed, folder: home };
+      delete m.outgoing;
       if (c.remote && c.sent && !cancelPending(this.data, 'remove', c.remote.account, c.remote.folder, c.remote.key, this.inflight)) {
         delete m.remote;
         notes.add('Ya se había borrado del servidor: se recupera solo en este equipo.');
@@ -1605,6 +1637,8 @@ export class MailCtl {
       this.syncMessage = messageOf(e);
     }
     this.touch();
+    this.alerts.startWatch();
+    this.outbox.schedule();
   }
 
   /** Anota un cambio que falta enviar al servidor y lo intenta enseguida (si falla, se reintenta en cada sincronización). */
@@ -1751,6 +1785,23 @@ export class MailCtl {
       });
     }
     this.organize.arrive(arrived);
+    this.alerts.newMail(arrived);
+  }
+
+  /** The inbox of one account, at once: the server said that it changed. */
+  async pullInbox(account: string): Promise<void> {
+    while (this.syncing) await new Promise((done) => setTimeout(done, 250));
+    const inbox = this.data.servers?.[account]?.targets.inbox;
+    if (!inbox) return this.syncAll({ auto: true });
+    this.relinking = this.relinking.then(async () => {
+      if (this.syncing) return;
+      try {
+        await this.pullFolder(account, inbox);
+      } catch {
+        // the next synchronisation brings it
+      }
+    });
+    await this.relinking;
   }
 
   /**
@@ -1818,6 +1869,7 @@ export class MailCtl {
     }
     this.syncing = false;
     const organized = this.organize.arrive(arrived);
+    this.alerts.newMail(arrived);
     if (!this.folderExists(this.folder)) this.folder = 'inbox';
     const parts = [added === 1 ? '1 mensaje nuevo' : `${added} mensajes nuevos`];
     if (removed) parts.push(removed === 1 ? '1 quitado (ya no está en el servidor)' : `${removed} quitados (ya no están en el servidor)`);
@@ -1830,10 +1882,11 @@ export class MailCtl {
   }
 
   /**
-   * Envía el mensaje con una cuenta. El remitente es siempre la dirección de la cuenta. Si el envío falla no se pierde
-   * nada: el mensaje sigue en la ventana de redacción. Tras enviarlo se guarda una copia en Enviados.
+   * Envía el mensaje con una cuenta. El remitente es siempre la dirección de la cuenta. Con `at` (enviar más tarde), con
+   * `keep` (dejarlo para cuando se pueda) o si hay un retraso para deshacer, espera en la Bandeja de salida; si no,
+   * sale ahora y, si falla, no se pierde nada: sigue en la ventana de redacción.
    */
-  async send(c: ComposeState, accountId: string): Promise<void> {
+  async send(c: ComposeState, accountId: string, opts: { at?: number; keep?: string } = {}): Promise<void> {
     const acc = this.accounts.find((a) => a.id === accountId);
     if (!acc) throw new Error('Elige la cuenta desde la que enviar.');
     const sender: Address = { name: this.data.owner.name || acc.name, email: acc.email };
@@ -1843,30 +1896,118 @@ export class MailCtl {
     const bad = recipients.find((r) => !EMAIL_OK.test(r));
     if (bad) throw new Error(`La dirección «${bad}» no es válida.`);
     const bytes = new TextEncoder().encode(raw);
+    const hidden = bcc.map((a) => a.email);
+    const out = { account: acc.id, recipients };
+    if (opts.at !== undefined) return this.wait(c, bytes, hidden, { ...out, at: opts.at, kind: 'later' });
+    if (opts.keep !== undefined) return this.wait(c, bytes, hidden, { ...out, at: Date.now() + retryDelay(1), kind: 'queued', tries: 1, error: opts.keep });
+    const delay = this.alerts.settings.delay;
+    if (delay > 0) return this.wait(c, bytes, hidden, { ...out, at: Date.now() + delay * 1000, kind: 'delay' });
     await remote.send(acc.id, recipients, encodeBase64(bytes));
-    // JMAP y Exchange guardan por sí mismos la copia en Enviados; con IMAP se guarda aquí si la cuenta lo pide (Gmail y Outlook ya la guardan)
-    const sentTarget = this.data.servers?.[acc.id]?.targets.sent;
-    const wantCopy = protocolOf(acc) === 'imap' && savesSentCopy(acc);
     let note = '';
     this.batch(() => {
-      // the draft saved while it was being written (even during the sending) goes away
-      const draft = this.drafts.get(c.id) ?? c.draftId;
-      if (draft) this.data.messages = this.data.messages.filter((m) => m.id !== draft);
-      this.drafts.delete(c.id);
-      addRaw(this.data, 'sent', raw, { read: true, bcc: bcc.map((a) => a.email) });
-      // only now has the original been answered
-      if (c.inReplyTo)
-        for (const m of this.data.messages)
-          if (m.mid === c.inReplyTo && !m.answered) {
-            m.answered = true;
-            this.pushFlag(m, RFC_FLAGS.answered, true);
-          }
-      if (wantCopy && sentTarget) this.queue({ account: acc.id, kind: 'append', folder: sentTarget, raw: encodeBase64(bytes), seen: true });
-      else if (wantCopy) note = ' (la copia en Enviados del servidor no se guardó: sincroniza la cuenta para que se conozca esa carpeta)';
+      this.dropDraft(c);
+      note = this.afterSent(acc, bytes, hidden, c.inReplyTo);
       if (this.compose?.id === c.id) this.endCompose(false);
     });
+    this.sayAsSent(recipients, note);
+  }
+
+  /** The draft saved while it was being written (even during the sending) goes away. */
+  private dropDraft(c: ComposeState): void {
+    const draft = this.drafts.get(c.id) ?? c.draftId;
+    if (draft) this.data.messages = this.data.messages.filter((m) => m.id !== draft);
+    this.drafts.delete(c.id);
+  }
+
+  /** Leaves a written message in the Outbox, as it was written, so that it can be taken back. */
+  private wait(c: ComposeState, bytes: Uint8Array, bcc: string[], outgoing: Outgoing): void {
+    this.batch(() => {
+      this.dropDraft(c);
+      const rec = addRaw(this.data, 'outbox', bytes, { read: true, bcc });
+      const keep = stored(c);
+      if (keep) rec.compose = keep;
+      rec.outgoing = outgoing;
+      if (this.compose?.id === c.id) this.endCompose(false);
+    });
+    this.syncMessage =
+      outgoing.kind === 'later'
+        ? 'Programado en la Bandeja de salida: se envía a su hora, con Nova Mail abierto.'
+        : outgoing.kind === 'queued'
+          ? 'El mensaje quedó en la Bandeja de salida: se enviará cuando se pueda.'
+          : '';
+    this.touch(true);
+    this.outbox.schedule();
+  }
+
+  /** Saves the copy in Sent, marks the original as answered and asks the server for its copy. Returns a remark, if any. */
+  private afterSent(acc: RemoteAccount, bytes: Uint8Array, bcc: string[], inReplyTo: string | undefined, copied = false): string {
+    // JMAP y Exchange guardan por sí mismos la copia en Enviados; con IMAP se guarda aquí si la cuenta lo pide (Gmail y Outlook ya la guardan)
+    const sentTarget = this.data.servers?.[acc.id]?.targets.sent;
+    const wantCopy = !copied && protocolOf(acc) === 'imap' && savesSentCopy(acc);
+    addRaw(this.data, 'sent', bytes, { read: true, bcc });
+    // only now has the original been answered
+    if (inReplyTo)
+      for (const m of this.data.messages)
+        if (m.mid === inReplyTo && !m.answered) {
+          m.answered = true;
+          this.pushFlag(m, RFC_FLAGS.answered, true);
+        }
+    if (wantCopy && sentTarget) this.queue({ account: acc.id, kind: 'append', folder: sentTarget, raw: encodeBase64(bytes), seen: true });
+    else if (wantCopy) return ' (la copia en Enviados del servidor no se guardó: sincroniza la cuenta para que se conozca esa carpeta)';
+    return '';
+  }
+
+  private sayAsSent(recipients: string[], note: string): void {
     this.syncMessage = `Mensaje enviado a ${recipients.length === 1 ? recipients[0] : `${recipients.length} destinatarios`}${note}`;
     this.touch();
+  }
+
+  /** A message of the Outbox has left. */
+  delivered(m: MailRecord, acc: RemoteAccount, raw: string, before = false): void {
+    const recipients = m.outgoing?.recipients ?? [];
+    const inReplyTo = parseMessage(rawOf(m)).inReplyTo || undefined;
+    const after = this.afterLeaving();
+    let note = '';
+    this.batch(() => {
+      this.data.messages = this.data.messages.filter((x) => x.id !== m.id);
+      note = this.afterSent(acc, decodeBase64(raw), m.bcc ?? [], inReplyTo, before);
+    });
+    after(new Set([m.id]));
+    this.sayAsSent(recipients, note);
+  }
+
+  // ---------- opening and reminders ----------
+
+  /** Goes to a message and reads it (from a notice, from the tasks). */
+  openMessage(id: string): void {
+    const m = this.data.messages.find((x) => x.id === id);
+    if (!m) return;
+    this.go('mail');
+    this.setFolder(m.folder);
+    this.select(m.id);
+  }
+
+  openReminder(key: string): void {
+    if (key.startsWith('f:')) return this.openMessage(key.slice(2));
+    const at = key.lastIndexOf('@');
+    const start = Number(key.slice(at + 1));
+    this.go('calendar');
+    this.selectedEvent = key.slice(0, at);
+    if (Number.isFinite(start)) this.setAnchor(start);
+  }
+
+  dueReminders(now = Date.now()): DueReminder[] {
+    return dueReminders(this.data, now);
+  }
+
+  dismissReminder(key: string): void {
+    dismissReminder(this.data, key);
+    this.touch(true);
+  }
+
+  snoozeReminder(key: string, minutes: number): void {
+    snoozeReminder(this.data, key, Date.now() + minutes * 60_000);
+    this.touch(true);
   }
 
   // ---------- calendar ----------

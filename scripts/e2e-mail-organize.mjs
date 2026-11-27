@@ -423,8 +423,11 @@ await check('en una cuenta: reglas y bloqueados al sincronizar, con aviso, tambi
   const toast = page.getByRole('region', { name: 'Recordatorios' });
   assert.match(await toast.innerText(), /Informes[\s\S]*Ha llegado un informe/);
   await shot('regla-al-recibir');
-  await toast.getByRole('button', { name: 'Cerrar' }).click();
-  await toast.waitFor({ state: 'detached' });
+  // besides what the rule says, the new mail is told
+  assert.match(await toast.innerText(), /Informe semanal/);
+  const said = toast.locator('.ml-toast', { hasText: 'Ha llegado un informe' });
+  await said.getByRole('button', { name: 'Cerrar' }).click();
+  await said.waitFor({ state: 'detached' });
   assert.deepEqual((await subjects()).sort(), ['Dos', 'Tres', 'Uno'], 'what the rules took is not in the inbox');
   await folder('Archivo').click();
   assert.equal(await row('Informe semanal').locator('.ml-cat').innerText(), 'Categoría azul');

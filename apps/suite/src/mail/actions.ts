@@ -54,7 +54,7 @@ export function moveFolder(ctl: MailCtl, id: string, parent: string | null): voi
 /** The folders a message can be moved to, indented as in the tree. */
 export function moveTargets(ctl: MailCtl, from?: string): { id: string; label: string }[] {
   return folderRows(ctl.data)
-    .filter(({ folder: f }) => f.id !== from && !f.id.startsWith('c:'))
+    .filter(({ folder: f }) => f.id !== from && f.id !== 'outbox' && !f.id.startsWith('c:'))
     .map(({ folder: f, depth }) => ({ id: f.id, label: `${'  '.repeat(depth)}${t(f.name)}` }));
 }
 

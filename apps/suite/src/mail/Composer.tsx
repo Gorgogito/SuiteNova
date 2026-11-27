@@ -29,6 +29,8 @@ import { docFromText } from './rich/parse';
 import { insertPictureFile, readPicture, removePicture, selectedPicture, writePicture } from './rich/picture';
 import { quotePreview } from './rich/quote';
 import { RichEditor } from './rich/RichEditor';
+import { LaterDialog } from './dlg-send';
+import { isRetryable } from '@suitenova/mail-core';
 
 /** The most a message can carry and still be accepted when sending. */
 const MAX_SEND_BYTES = 40 * 1024 * 1024;
@@ -47,6 +49,7 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [later, setLater] = useState(false);
   // the account of the message; the first one while there is none (the accounts may arrive after the message is opened)
   const from = s.from && ctl.accounts.some((a) => a.id === s.from) ? s.from : (ctl.accounts[0]?.id ?? '');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -163,11 +166,11 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
     setMsg(null);
     setErr(null);
   };
-  const send = async () => {
+  const send = async (how: { at?: number; keep?: string } = {}) => {
     setSending(true);
     setErr(null);
     try {
-      await ctl.send({ ...s, from }, from);
+      await ctl.send({ ...s, from }, from, how);
     } catch (e) {
       // el mensaje sigue aquí: no se pierde nada
       setErr(e instanceof Error ? e.message : String(e));
@@ -423,6 +426,11 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
               {err && (
                 <div className="ml-acc__err" role="alert">
                   {t('No se pudo enviar: {error}', { error: t(err) })}
+                  {isRetryable(err) && (
+                    <button type="button" className="ml-btn" disabled={sending} onClick={() => void send({ keep: err })}>
+                      {t('Dejar en la Bandeja de salida')}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -433,6 +441,11 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
             {canSend && (
               <Button appearance="primary" disabled={sending || !(s.to.trim() || s.cc.trim() || s.bcc.trim())} onClick={() => void send()} title="Ctrl+Intro">
                 {sending ? t('Enviando…') : t('Enviar')}
+              </Button>
+            )}
+            {canSend && (
+              <Button disabled={sending || !(s.to.trim() || s.cc.trim() || s.bcc.trim())} onClick={() => setLater(true)}>
+                {t('Enviar más tarde…')}
               </Button>
             )}
             <Button onClick={close}>{t('Cerrar')}</Button>
@@ -495,6 +508,15 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
 
   const libraries = (
     <>
+      {later && (
+        <LaterDialog
+          onClose={() => setLater(false)}
+          onPick={(at) => {
+            setLater(false);
+            void send({ at });
+          }}
+        />
+      )}
       {library === 'signatures' && <SignaturesDialog accounts={ctl.accounts} onClose={() => (setLibrary(null), setSignatures(loadSignatures().list))} />}
       {library === 'templates' && <TemplatesDialog subject={s.subject} doc={() => viewRef.current?.state.doc ?? docOf(s)} onInsert={putTemplate} onClose={() => setLibrary(null)} />}
     </>

@@ -4,6 +4,7 @@
 
 use super::account::{Account, Protocol};
 use serde::Serialize;
+use std::time::Duration;
 
 /// Con qué se inicia sesión: una contraseña o un token de acceso de OAuth (ya renovado si hacía falta).
 #[derive(Clone)]
@@ -70,6 +71,15 @@ pub struct Fetched {
     pub skipped: Vec<Skipped>,
 }
 
+/// Lo que pasó mientras se esperaba correo nuevo.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+pub struct Watched {
+    /// `changed`: la bandeja de entrada cambió; `timeout`: nada en ese tiempo; `unsupported`: el servidor no avisa.
+    pub status: &'static str,
+    /// Cómo estaba la bandeja: se pasa en la espera siguiente para no perder lo que llegue entre una y otra.
+    pub marker: String,
+}
+
 pub trait Backend {
     fn list_folders(&mut self) -> Result<Vec<RemoteFolder>, String>;
     fn folder_state(&mut self, folder: &str) -> Result<FolderState, String>;
@@ -86,6 +96,11 @@ pub trait Backend {
     fn rename_folder(&mut self, folder: &str, path: &str) -> Result<(), String>;
     /// Envía un mensaje ya construido. `from` es siempre la dirección de la cuenta.
     fn send(&mut self, from: &str, recipients: &[String], raw: &[u8]) -> Result<(), String>;
+    /// Espera (como mucho `max`) a que cambie la bandeja de entrada. `known` es la marca de la espera anterior; sin ella
+    /// se contesta enseguida con la de ahora. Solo IMAP con IDLE.
+    fn wait_change(&mut self, _known: Option<&str>, _max: Duration) -> Result<Watched, String> {
+        Ok(Watched { status: "unsupported", marker: String::new() })
+    }
     fn logout(self: Box<Self>);
 }
 

@@ -181,7 +181,7 @@ export function FollowDialog({ ctl, ids, onClose }: { ctl: MailCtl; ids: string[
 
 const folderOptions = (ctl: MailCtl) =>
   folderRows(ctl.data)
-    .filter(({ folder: f }) => !f.id.startsWith('c:') && f.id !== 'drafts')
+    .filter(({ folder: f }) => !f.id.startsWith('c:') && f.id !== 'drafts' && f.id !== 'outbox')
     .map(({ folder: f, depth }) => (
       <option key={f.id} value={f.id}>
         {`${'  '.repeat(depth)}${t(f.name)}`}

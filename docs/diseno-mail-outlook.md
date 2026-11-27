@@ -1,7 +1,7 @@
 # Nova Mail frente a Outlook (segunda ronda)
 
 Estado: **plan aprobado por el usuario** (2026-11-26); S/MIME y la sincronización de calendario y contactos con el
-servidor quedan para después. Fases 1 a 4 hechas (ver la bitácora al final).
+servidor quedan para después. Fases 1 a 5 hechas (ver la bitácora al final).
 
 Referencia: Outlook clásico de Office 2024. La comparación sale de leer el código de Nova Mail, sus pruebas y
 `docs/LIMITACIONES.md`, y de lo que conozco de Outlook: **no se ha abierto el Outlook de este equipo** (usa cuentas reales).
@@ -140,3 +140,19 @@ Cada fase termina con pruebas, e2e con capturas, `LIMITACIONES.md` y `PROGRESO.m
   bandera y «completado» se leían mal en el tema Negro.
 - **Pruebas:** `organize.test.ts` (19), `organize-actions.test.ts` (23), una de macros, una de atajos,
   `e2e-mail-organize.mjs` (10).
+
+### Fase 5 (hecha, 2026-11-27): avisos y envío
+- **Escritorio:** orden `mail_wait` (IMAP IDLE, con una marca para no perder lo que llegue entre dos esperas) y
+  `notify.rs` (avisos de Windows con botones; nueva dependencia directa de `windows` y `windows-registry`).
+- **Núcleo:** `outbox.ts` (reintentos, fecha del envío, horas para enviar más tarde) y `reminders.ts` (posponer y
+  descartar, guardado en el archivo). Carpeta del sistema «Bandeja de salida».
+- **Aplicación:** `outbox.ts` (cola de salida, deshacer envío, sin envíos dobles), `alerts.ts` (avisos, recibir al
+  instante, ajustes), `notify.ts`, `dlg-send.tsx`. La pregunta al cerrar admite avisar de lo que dejará de ocurrir.
+- **Cambios en lo que ya había:** un fallo de red de SMTP ya no se explica como un problema de certificado; los
+  recordatorios descartados no vuelven al reabrir el archivo.
+- **Fallos hallados y corregidos al probar y repasar:** un recordatorio pospuesto justo hasta la hora de la cita no volvía
+  a avisar a Windows; dos ventanas habrían subido dos copias a Enviados del servidor (y podían enviar a la vez); un paso
+  rápido de responder se podía aplicar a un mensaje sin enviar; la barra de estado seguía diciendo que un envío retenido
+  se haría.
+- **Pruebas:** `outbox.test.ts` (8), `outbox-alerts.test.ts` (22), 4 de Rust (y una que muestra un aviso real, aparte),
+  `e2e-mail-send.mjs` (7).

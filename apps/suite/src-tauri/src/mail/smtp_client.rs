@@ -49,11 +49,19 @@ fn explain(e: lettre::transport::smtp::Error) -> String {
     if e.is_timeout() {
         return "El servidor SMTP no respondió a tiempo. Comprueba el servidor y el puerto (algunas redes bloquean los puertos de correo).".into();
     }
-    // sin respuesta del servidor: la conexión o el cifrado fallaron antes de poder hablar con él
-    if e.is_tls() || !(e.is_response() || e.is_permanent() || e.is_transient()) {
-        return format!("No se pudo establecer la conexión segura (¿el certificado es válido para este servidor?): {}", t.chars().filter(|c| !c.is_control()).take(300).collect::<String>());
+    let shown: String = t.chars().filter(|c| !c.is_control()).take(300).collect();
+    if e.is_tls() {
+        return format!("No se pudo establecer la conexión segura (¿el certificado es válido para este servidor?): {shown}");
     }
-    format!("Error de SMTP: {}", t.chars().filter(|c| !c.is_control()).take(300).collect::<String>())
+    // un rechazo pasajero (4xx) se puede reintentar; uno definitivo, no
+    if e.is_transient() {
+        return format!("Error temporal de SMTP: {shown}");
+    }
+    // sin respuesta del servidor: no se llegó a hablar con él
+    if !(e.is_response() || e.is_permanent()) {
+        return format!("Error de red: no se pudo conectar con el servidor SMTP: {shown}");
+    }
+    format!("Error de SMTP: {shown}")
 }
 
 /// Comprueba que se puede conectar y autenticar.

@@ -37,6 +37,11 @@ export interface RemoteAccount {
   save_sent?: boolean | null;
 }
 
+export interface Watched {
+  status: 'changed' | 'timeout' | 'unsupported';
+  marker: string;
+}
+
 export type Transport = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
 
 let custom: Transport | null = null;
@@ -82,6 +87,8 @@ export const remote = {
   /** `path` es la ruta nueva completa, con «/» entre niveles. */
   renameFolder: (id: string, folder: string, path: string) => call<void>('mail_rename_folder', { id, folder, path }),
   send: (id: string, recipients: string[], raw: string) => call<void>('mail_send', { id, recipients, raw }),
+  /** Espera correo nuevo (IMAP IDLE). `marker` es el de la espera anterior. */
+  wait: (id: string, marker: string | null, seconds: number) => call<Watched>('mail_wait', { id, marker, seconds }),
 };
 
 export const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));

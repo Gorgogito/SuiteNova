@@ -112,11 +112,11 @@ Este documento se actualiza con cada fase. Lo que no está aquí listado como "s
 - **Seguridad de la conexión:** siempre cifrada (TLS desde el inicio o STARTTLS; las direcciones web, siempre `https://`) y **siempre se valida el certificado del servidor**: no hay forma de aceptar uno inválido. La única conexión sin cifrar que se admite es hacia este mismo equipo (`localhost`), para pruebas.
 - **Credenciales:** se guardan en el almacén seguro del sistema (Administrador de credenciales de Windows, Llavero de macOS, Secret Service en Linux), nunca en el archivo `.novamail` ni en el almacenamiento de la página, y la página **nunca las recibe de vuelta**. Las órdenes de Rust solo aceptan el identificador de una cuenta ya guardada y usan el servidor guardado con ella: para cambiar el servidor, el puerto, el usuario, el protocolo o la configuración de OAuth de una cuenta hay que volver a escribir la contraseña (o a iniciar sesión), así nada puede redirigir una credencial ya guardada a otro destino. El remitente del sobre es siempre la dirección de la cuenta.
 - **Todas las carpetas del servidor se descargan**, con sus subcarpetas (se muestran en un árbol que se pliega y se despliega), salvo las **vistas que repiten correo** (en Gmail «Todos», «Destacados» e «Importantes»: no se descargan; «Todos» es adonde se archiva) y las que no se pueden abrir. De cada carpeta se conservan aquí los **N mensajes más nuevos** (100 a 5 000; 500 por defecto): los más antiguos ni se descargan ni se tocan. Los de más de 25 MB no se descargan (se avisa). Gmail muestra sus etiquetas como carpetas: un mensaje con varias etiquetas aparece en varias carpetas, como cualquier cliente IMAP. Renombrar y mover carpetas se describe en «Lista y lectura», más abajo.
-- **Sincronización automática** mientras la aplicación está abierta: cada 1, 5 (por defecto), 15, 30 o 60 minutos, o nunca (solo con «Enviar y recibir», F9); además se sincroniza al abrir y al guardar una cuenta. **No hay notificación inmediata** (IMAP IDLE, push de Exchange o de JMAP no se usan): un correo nuevo llega en la siguiente pasada. Cada sincronización pide la lista de mensajes de cada carpeta; con buzones muy grandes tarda.
+- **Sincronización automática** mientras la aplicación está abierta: cada 1, 5 (por defecto), 15, 30 o 60 minutos, o nunca (solo con «Enviar y recibir», F9); además se sincroniza al abrir y al guardar una cuenta. Con IMAP, además, lo que llega a la Bandeja de entrada se recibe al instante si el servidor puede avisar (ver «Avisos y envío», más abajo); con POP3, JMAP y Exchange y en las demás carpetas llega en la siguiente pasada. Cada sincronización pide la lista de mensajes de cada carpeta; con buzones muy grandes tarda.
 - **El servidor manda:** un mensaje borrado o movido en el servidor (por otro programa o por el móvil) desaparece o cambia de carpeta aquí en la siguiente sincronización, y las marcas (leído, bandera, respondido) se reflejan; una carpeta creada o quitada allí aparece o desaparece. **Con POP3 no** (lo que ya no está allí se conserva). Si el servidor renumera una carpeta (cambia su UIDVALIDITY en IMAP) se baja de nuevo; lo que solo existe aquí (importado, redactado) no se toca.
 - **Eliminar, archivar y mover se hacen también en el servidor**, como en Gmail o Hotmail: *Eliminar* manda el mensaje a la papelera de la cuenta y, desde la papelera, lo borra para siempre; *Archivar* lo manda a la carpeta de archivo (en Gmail, «Todos»); mover a una carpeta es moverlo a la carpeta equivalente de esa cuenta; vaciar la papelera borra allí; leído, bandera y respondido se envían. **Un mensaje de una cuenta no se puede mover a una carpeta que solo existe en este equipo ni a una sin equivalente en esa cuenta** (se avisa): crea la carpeta en la cuenta («Carpeta nueva → En el servidor»). Eliminar una carpeta del servidor la borra allí **con todos sus mensajes** (hay que quitar antes las subcarpetas; se pide confirmación).
 - **Si no hay conexión o el servidor falla, los cambios quedan pendientes** (se guardan en el archivo `.novamail`, la barra de estado los cuenta) y **se reintentan solos en cada sincronización**; mientras un cambio esté pendiente, el mensaje no se vuelve a bajar ni se quita. Al cambiar de carpeta, el servidor da al mensaje otro identificador: justo después de enviar el cambio se lee la carpeta nueva y se reconoce por su **Message-ID** (si falla, en la sincronización siguiente); un mensaje sin Message-ID, o dos con el mismo, pueden aparecer repetidos.
-- **Enviar:** texto, o HTML con su versión en texto cuando el mensaje tiene formato, con adjuntos (el límite es de 40 MB). Tras enviar se guarda una copia local en Enviados. **Copia en Enviados del servidor:** con **JMAP y Exchange la guarda el propio servidor**; con **IMAP** Nova Mail la sube a la carpeta Enviados de la cuenta (opción «Guardar una copia de lo enviado», marcada por omisión salvo en Gmail y Outlook / Microsoft 365, que guardan la suya; **si tu proveedor también guarda la suya, desmarca la opción o quedará repetida en el servidor**, aunque aquí se reconoce por el Message-ID y no se duplica). Si aún no se ha sincronizado la cuenta no se conoce esa carpeta y no se sube (se avisa). Con POP3 no hay carpeta de enviados en el servidor. Si el envío falla, el mensaje no se pierde: sigue abierto para corregirlo.
+- **Enviar:** texto, o HTML con su versión en texto cuando el mensaje tiene formato, con adjuntos (el límite es de 40 MB). Tras enviar se guarda una copia local en Enviados. **Copia en Enviados del servidor:** con **JMAP y Exchange la guarda el propio servidor**; con **IMAP** Nova Mail la sube a la carpeta Enviados de la cuenta (opción «Guardar una copia de lo enviado», marcada por omisión salvo en Gmail y Outlook / Microsoft 365, que guardan la suya; **si tu proveedor también guarda la suya, desmarca la opción o quedará repetida en el servidor**, aunque aquí se reconoce por el Message-ID y no se duplica). Si aún no se ha sincronizado la cuenta no se conoce esa carpeta y no se sube (se avisa). Con POP3 no hay carpeta de enviados en el servidor. Si el envío falla, el mensaje no se pierde: sigue abierto para corregirlo o, si es un fallo de red, se puede dejar en la Bandeja de salida (ver «Avisos y envío»).
 - **Los mensajes descargados se guardan enteros en el archivo `.novamail`** (en base64, junto con el resto): un buzón grande, y más con todas las carpetas, da un archivo grande, y todo se carga en memoria (por eso el límite de mensajes por carpeta).
 - **Archivos de Outlook (`.msg`, `.pst` y `.ost`): se abren e importan.** Se leen con las bibliotecas libres `@kenjiuno/msgreader` (Apache-2.0) y `pst-extractor` (MIT), que implementan los formatos documentados por Microsoft; no se escriben (Nova Mail no crea `.pst` ni `.msg`). *Abrir* uno empieza un archivo de Nova Mail nuevo con su contenido; *Datos → Importar de Outlook* lo añade al actual.
   - Un **`.msg`** es un mensaje (remitente, destinatarios con Cc y Cco, asunto, fecha, texto, HTML si lo trae, adjuntos, imágenes incrustadas y mensajes adjuntos, que se vuelven `.eml`). Va a la carpeta que se esté viendo.
@@ -137,7 +137,7 @@ Este documento se actualiza con cada fase. Lo que no está aquí listado como "s
 ### Calendario
 - Las repeticiones se calculan en **hora local del equipo**, también las de eventos creados en otra zona: cerca de cambios de horario de verano entre zonas puede haber una hora de diferencia. Se admiten diaria, semanal (con días), mensual (día del mes o posición del día de la semana) y anual, con intervalo, COUNT, UNTIL y excepciones; otras reglas (BYSETPOS, semanas del año, etc.) se conservan en el archivo pero se muestran como evento único, y el cuadro de edición avisa de que la regla es avanzada.
 - Se pueden eliminar repeticiones sueltas, pero **no modificar una sola repetición** (no hay excepciones con cambios, RECURRENCE-ID).
-- Sin invitaciones ni respuestas (el organizador y los asistentes de un `.ics` se ignoran), calendarios compartidos, varias agendas con color, zonas horarias por evento, recordatorios con sonido ni alarmas del sistema: el recordatorio es un aviso dentro de la aplicación **mientras está abierta**.
+- Sin invitaciones ni respuestas (el organizador y los asistentes de un `.ics` se ignoran), calendarios compartidos, varias agendas con color, zonas horarias por evento, ni recordatorios con sonido propio: el recordatorio sale dentro de la aplicación y, en Windows, como aviso del sistema, **solo mientras Nova Mail está abierto**.
 - Se omiten al importar los eventos sin fecha de inicio válida (se avisa).
 
 ### Correo
@@ -218,8 +218,7 @@ Este documento se actualiza con cada fase. Lo que no está aquí listado como "s
   una categoría no cambia las carpetas de búsqueda que la nombran. En el calendario se ve el color de la primera.
 - **Seguimiento:** vencimiento sin hora ni fecha de inicio. **Al servidor solo va la bandera**; la fecha, el aviso y el
   «completado» quedan en este equipo. **Un clic en la bandera de un mensaje marcado ahora lo da por completado**, como en
-  Outlook (antes la quitaba); «Quitar la marca» está en el menú. El aviso aparece **solo con Nova Mail abierto**, dentro
-  de la ventana y sin posponer (fase 5).
+  Outlook (antes la quitaba); «Quitar la marca» está en el menú. El aviso aparece **solo con Nova Mail abierto**.
 - **Reglas:** se aplican en este equipo, **con Nova Mail abierto**, a los mensajes nuevos **sin leer** que llegan a la
   Bandeja de entrada al sincronizar; no la primera vez que se lee una carpeta ni cuando el servidor la renumera. «Ejecutar»
   aplica las activas a una carpeta, leídos incluidos. Las condiciones se cumplen todas (las palabras de una son
@@ -246,12 +245,42 @@ Este documento se actualiza con cada fase. Lo que no está aquí listado como "s
 - **Macros:** `MailItem.Categories` y `FlagStatus` (2 marcado, 1 completado, 0 sin marca).
 - **Verificado** con servidores falsos y en Edge (`scripts/e2e-mail-organize.mjs`); **no con cuentas reales**.
 
+### Avisos y envío (fase 5)
+- **Todo funciona solo con la ventana de Nova Mail abierta.** Cerrada, no llega correo, no se envía lo que espera y no
+  hay avisos.
+- **Correo al instante:** solo IMAP con IDLE y **solo la Bandeja de entrada**. Mientras espera mantiene una conexión por
+  cuenta que **se abre de nuevo cada cuatro minutos y tras cada aviso** (inicia sesión cada vez; un proveedor que limite
+  las conexiones podría quejarse). Si falla, reintenta entre 30 segundos y 5 minutos. Se puede apagar.
+- **Avisos de correo nuevo:** dentro del programa (10 segundos) y como aviso de Windows. No avisan de la primera lectura de
+  una cuenta, de lo ya leído ni de lo que va a No deseado o Eliminados. Sin sonido propio ni contador en el icono.
+- **Avisos de Windows:** solo en la aplicación de escritorio en Windows (macOS y Linux no). Para que Windows los muestre
+  sin instalador, Nova Mail **anota su nombre en el registro del usuario**
+  (`HKCU\Software\Classes\AppUserModelId\org.suitenova.app`); no llevan icono propio. «No molestar» los oculta, y
+  pulsar uno después de cerrar el programa no hace nada. Muestran remitente y asunto: si se ven con la pantalla
+  bloqueada depende de los ajustes de Windows. **Comprobado que Windows acepta un aviso** (prueba de Rust que se ejecuta
+  a propósito); **no se ha probado pulsarlo ni sus botones en la aplicación compilada** (esa parte, con avisos simulados).
+- **Recordatorios:** se abren, se posponen (5 y 15 minutos, 1 hora, 1 día; 10 minutos desde Windows) o se descartan, y eso
+  se guarda en el archivo. Ya no vuelven al reabrirlo.
+- **Bandeja de salida:** aparece cuando hay algo. **Deshacer envío viene apagado**; en «Enviar y recibir → Avisos y
+  envío» se elige un retraso de 5 a 60 segundos.
+- **Enviar más tarde:** sale a su hora solo si Nova Mail está abierto; si pasa **más de un día**, no se envía sin
+  preguntar. Un fallo de red se reintenta a los 1, 2, 5, 15 y 30 minutos; un rechazo definitivo (dirección, contraseña,
+  certificado) queda en rojo esperando. Al cerrar con algo pendiente, pregunta.
+- **Para que nada salga dos veces** se anota en este equipo lo enviado, por su Message-ID. Si el programa se cierra a
+  mitad de un envío, el mensaje queda retenido para que lo compruebes. **Otro equipo que abra el mismo archivo no lo sabe**
+  y podría enviarlo otra vez. Si se cierra justo después de enviar y antes de guardar, con IMAP puede faltar la copia en
+  Enviados del servidor.
+- Lo que espera **no se sube al servidor**. Moverlo o eliminarlo cancela su envío; deshacer lo devuelve como borrador.
+  La fecha del mensaje es la del momento en que sale.
+- **Verificado** con servidores falsos y avisos simulados en Edge (`scripts/e2e-mail-send.mjs`) y con pruebas de Rust de
+  IDLE; **no con cuentas reales**.
+
 ### Contactos y tareas
 - Contactos: nombre, empresa, cargo, varios correos y teléfonos con etiqueta, dirección (un solo texto), sitio web, cumpleaños y notas. Sin foto, grupos/listas de distribución ni fusión de duplicados.
 - Tareas: título, vencimiento (sin hora), prioridad (alta/normal/baja), notas, categorías y completada; sin tareas periódicas ni subtareas. Se importan y exportan como `VTODO` en el mismo `.ics` del calendario. La lista muestra además los **mensajes con seguimiento**, que no se exportan en ese `.ics`.
 
 ### Conexión con servidores: qué se ha comprobado y qué no
-- **Con servidores falsos en este equipo (56 pruebas de Rust del correo, `cargo test`; entre ellas renombrar y mover carpetas en IMAP, JMAP y Exchange):**
+- **Con servidores falsos en este equipo (58 pruebas de Rust del correo, `cargo test`; entre ellas renombrar y mover carpetas en IMAP, JMAP y Exchange, y esperar correo nuevo con IDLE):**
   - *IMAP:* inicio de sesión correcto e incorrecto (el mensaje no contiene la contraseña y esta no aparece en el diálogo con el servidor), lista de **todas** las carpetas con su ruta y atributos, estado completo de una carpeta (cada mensaje con sus marcas, de más nuevo a más antiguo), descarga de los mensajes pedidos, mensajes demasiado grandes sin descargar su cuerpo, marcas (solo `\Seen`, `\Flagged` y `\Answered`; cualquier otra o un intento de inyección se rechaza), **mover** (con `MOVE` y, si el servidor no lo tiene, copiando, marcando y expulsando solo esos mensajes sin llevarse otros ya marcados para borrar), **borrar para siempre**, añadir un mensaje a una carpeta (copia en Enviados), crear y eliminar carpetas, y **XOAUTH2** con un token bueno y uno rechazado (el token no aparece en el diálogo).
   - *SMTP:* destinatarios ocultos solo en el sobre, protección de los puntos al inicio de línea, rechazo de destinatarios, usuario/contraseña erróneos, servidor inalcanzable y XOAUTH2.
   - *POP3:* lista de números únicos, descarga con los puntos del inicio de línea restaurados, tamaño máximo, borrado que solo vale al cerrar la sesión, lo que no admite (carpetas, mover) y XOAUTH2.

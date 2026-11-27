@@ -5,6 +5,8 @@ import { messageIds } from './threads';
 import { readCategories, readNames, type Category } from './categories';
 import { readFollow, type FollowUp } from './followup';
 import { readJunk, type JunkLists } from './junk';
+import { readOutgoing, type Outgoing } from './outbox';
+import { readReminders, type ReminderState } from './reminders';
 import { readQuickSteps, readRules, type QuickStep, type Rule } from './rules';
 import { foldText, readSearchFolders, SEARCH_TEXT, type SearchFolder } from './search';
 
@@ -25,6 +27,8 @@ export const SYSTEM_FOLDERS: Folder[] = [
   { id: 'archive', name: 'Archivo', system: true },
   { id: 'junk', name: 'Correo no deseado', system: true },
   { id: 'trash', name: 'Elementos eliminados', system: true },
+  /** Lo que espera para enviarse. */
+  { id: 'outbox', name: 'Bandeja de salida', system: true },
 ];
 
 export interface MailRecord {
@@ -58,6 +62,8 @@ export interface MailRecord {
   categories?: string[];
   /** Seguimiento: vencimiento, aviso y cuándo se completó (la bandera es `flagged`). */
   follow?: FollowUp;
+  /** Un mensaje de la Bandeja de salida: con qué cuenta, a quién y cuándo se envía. */
+  outgoing?: Outgoing;
   /** Un borrador tal como se estaba escribiendo (el formato del editor, opaco aquí): el mensaje de `raw` es lo que se enviaría. */
   compose?: Record<string, unknown>;
   /** The text read from the pictures of the message (OCR), by picture (`imagePartKey`): `StoredOcr` of the shared OCR, opaque here. */
@@ -110,6 +116,8 @@ export interface MailData {
   searchFolders?: SearchFolder[];
   /** Remitentes bloqueados y seguros. */
   junk?: JunkLists;
+  /** Recordatorios de citas descartados o pospuestos. */
+  reminders?: Record<string, ReminderState>;
 }
 
 let counter = 0;
@@ -287,6 +295,13 @@ function readRecord(m: MailRecord, ids: Set<string>): MailRecord {
   const follow = readFollow(rec.follow);
   if (follow) rec.follow = follow;
   else delete rec.follow;
+  // in the Outbox only what knows how to leave; anything else goes back to Drafts
+  const outgoing = rec.folder === 'outbox' ? readOutgoing(rec.outgoing) : undefined;
+  if (outgoing) rec.outgoing = outgoing;
+  else {
+    delete rec.outgoing;
+    if (rec.folder === 'outbox') rec.folder = 'drafts';
+  }
   // the readings of the pictures: kept only when they are readings, and the search text follows them
   const ocr = m.ocr && typeof m.ocr === 'object' ? Object.entries(m.ocr).filter(([k, v]) => k.length < 300 && v && typeof (v as { text?: unknown }).text === 'string') : [];
   delete rec.ocr;
@@ -398,6 +413,7 @@ export function parseMailData(text: string): MailData {
     quickSteps: readQuickSteps(o.quickSteps),
     searchFolders: readSearchFolders(o.searchFolders),
     junk: readJunk(o.junk),
+    reminders: readReminders(o.reminders),
     sync: readSync(o.sync),
     pending: readPending(o.pending),
     servers: readServers(o.servers),

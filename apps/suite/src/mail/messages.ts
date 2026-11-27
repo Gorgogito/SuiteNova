@@ -5,6 +5,7 @@ import './messages-compose';
 import './messages-format';
 import './messages-list';
 import './messages-organize';
+import './messages-alerts';
 
 // Spanish literals are the source text; English is provided here. Missing entries fall back to Spanish.
 registerMessages('en', {

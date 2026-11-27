@@ -181,7 +181,8 @@ export class MailOrganizer {
     if (broken) return broken;
     if (step.actions.some(writes)) {
       if (ids.length > 1) return 'Un paso que escribe un mensaje se aplica a uno solo.';
-      if (this.ctl.records(ids)[0]?.folder === 'drafts') return 'Ese paso no se aplica a un borrador.';
+      const folder = this.ctl.records(ids)[0]?.folder;
+      if (folder === 'drafts' || folder === 'outbox') return 'Ese paso no se aplica a un borrador.';
     }
     return '';
   }
@@ -270,21 +271,6 @@ export class MailOrganizer {
 
   removeCategory(name: string): void {
     removeCategory(this.data, name);
-    this.ctl.touch(true);
-  }
-
-  // ---------- follow-up reminders ----------
-
-  /** Flagged messages whose reminder has come. */
-  dueReminders(now: number): { id: string; subject: string; due: number | null }[] {
-    return this.data.messages.filter((m) => m.flagged && m.follow?.remind !== undefined && m.follow.remind <= now).map((m) => ({ id: m.id, subject: m.subject, due: m.follow!.due }));
-  }
-
-  dismissReminder(id: string): void {
-    const m = this.data.messages.find((x) => x.id === id);
-    if (!m?.follow) return;
-    delete m.follow.remind;
-    if (m.follow.due === null) delete m.follow;
     this.ctl.touch(true);
   }
 
