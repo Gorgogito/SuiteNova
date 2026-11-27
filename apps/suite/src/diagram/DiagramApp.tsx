@@ -31,6 +31,7 @@ import './messages-comments';
 import { Stage } from './Stage';
 import { StencilPanel } from './StencilPanel';
 import './diagram.css';
+import { VERSION } from '../version';
 
 const DG_FILTERS = [{ name: 'Diagrama de Nova Diagram', extensions: ['novadiagram'] }];
 const OPEN_FILTERS = [{ name: 'Diagramas', extensions: ['novadiagram', 'vsdx'] }];
@@ -621,7 +622,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
           <DialogBody>
             <DialogTitle>{t('Acerca de Nova Diagram')}</DialogTitle>
             <DialogContent>
-              <p>Nova Diagram 0.0.10</p>
+              <p>Nova Diagram {VERSION}</p>
               <p>{t('Diagramas libres (MPL-2.0) de SuiteNova. Grupos, capas, contenedores y carriles, diseño automático, imágenes, vínculos y datos de forma. Guarda en .novadiagram y exporta SVG, PNG, PDF y Visio (.vsdx); consulta docs/LIMITACIONES.md para saber qué se conserva.')}</p>
             </DialogContent>
             <DialogActions>

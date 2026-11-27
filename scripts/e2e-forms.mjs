@@ -313,7 +313,11 @@ await check('quiz mode: correct answers and points are graded and summarised', a
   assert.match(await page.getByRole('status').filter({ hasText: 'Respuesta guardada' }).innerText(), /Puntuación: 3 \/ 3/);
   await page.getByRole('button', { name: 'Rellenar otra respuesta' }).click();
   assert.equal((await st()).r, 6);
-  await ev(() => window.__novaForms.ctl.undo());
+  // undoing in this mode is for the boxes: it does not take the response away
+  await page.keyboard.press('Control+z');
+  await settle();
+  assert.equal((await st()).r, 6);
+  await ev(() => { const { ctl } = window.__novaForms; ctl.deleteResponse(ctl.responses[ctl.responses.length - 1].id); });
   await mode('Diseñar');
 });
 
@@ -588,6 +592,155 @@ await check('import from Google Forms (saved page) and from the responses sheets
   await page.waitForTimeout(300);
   assert.match(dialogs.pop() ?? '', /No se encontró el formulario de Google/);
   assert.equal(await ev(() => JSON.stringify(window.__novaForms.ctl.doc)), before);
+});
+
+// ------------------------------------------------------------ what was wrong before the second round (phase 1)
+const fresh = async () => {
+  await ev(() => { window.__novaForms.ctl.dirty = false; window.__novaForms.ctl.reset(); });
+  await tab('Inicio');
+  await settle();
+};
+const option = (n, list = 'Opciones') => page.getByRole('group', { name: list, exact: true }).getByLabel(`${list} ${n}`, { exact: true });
+
+await check('options: added with their name, never repeated, and renamed with everything that named them', async () => {
+  await fresh();
+  await ev(() => window.__novaForms.ctl.setForm({ quiz: true }));
+  await addVia('Opción única');
+  await setTitle('¿Vienes?');
+  await page.getByRole('group', { name: 'Opciones', exact: true }).getByRole('button', { name: 'Añadir' }).click();
+  assert.deepEqual((await qs())[0].options, ['Opción 1', 'Opción 2', 'Opción 3']);
+  await page.getByRole('group', { name: 'Respuesta correcta' }).getByLabel('Opción 1').check();
+  await addVia('Texto corto');
+  await setTitle('¿Con quién?');
+  const when = page.getByRole('group', { name: 'Mostrar solo si…' });
+  await when.getByLabel('Pregunta de la condición').selectOption({ label: '1. ¿Vienes?' });
+  await when.getByLabel('Valor de la condición').selectOption('Opción 1');
+  await ev(() => { const { ctl } = window.__novaForms; ctl.addResponse({ [ctl.form.questions[0].id]: 'Opción 1', [ctl.form.questions[1].id]: 'Eva' }); });
+  await card(1).click();
+  // typed letter by letter, passing through the name of another option
+  await option(2).fill('');
+  await option(2).pressSequentially('Opción 1');
+  await option(2).press('Enter');
+  assert.match(await page.locator('.fm-list [role="alert"]').innerText(), /Ya hay otro igual/);
+  assert.deepEqual((await qs())[0].options, ['Opción 1', 'Opción 2', 'Opción 3']);
+  assert.equal(await option(2).inputValue(), 'Opción 2');
+  await option(2).fill('A medias');
+  await option(2).press('Escape');
+  assert.equal(await option(2).inputValue(), 'Opción 2');
+  await option(1).fill('Sí');
+  await option(1).press('Enter');
+  assert.equal(await ev(() => document.activeElement.value), 'Sí', 'the box keeps the focus');
+  const after = await qs();
+  assert.deepEqual([after[0].correct, after[1].showIf.value], [['Sí'], 'Sí']);
+  assert.equal(await ev(() => window.__novaForms.ctl.responses[0].answers[window.__novaForms.ctl.form.questions[0].id]), 'Sí');
+  await shot('renamed');
+  await page.keyboard.press('Control+z');
+  await settle();
+  assert.deepEqual([(await qs())[0].options[0], (await qs())[1].showIf.value], ['Opción 1', 'Opción 1']);
+});
+
+await check('quiz: several accepted answers can be typed, and the summary is right when not everyone sees everything', async () => {
+  await fresh();
+  await ev(() => window.__novaForms.ctl.setForm({ quiz: true }));
+  await addVia('Texto corto');
+  await setTitle('Capital del Perú');
+  const box = page.getByLabel('Respuestas aceptadas (separadas por punto y coma)');
+  await box.pressSequentially('Lima; lima metropolitana');
+  await box.press('Tab');
+  assert.deepEqual((await qs())[0].correct, ['Lima', 'lima metropolitana']);
+  await addVia('Texto corto');
+  await setTitle('Su río');
+  await page.getByRole('group', { name: 'Respuesta correcta' }).getByLabel(/Respuestas aceptadas/).fill('Rímac');
+  const when = page.getByRole('group', { name: 'Mostrar solo si…' });
+  await when.getByLabel('Pregunta de la condición').selectOption({ label: '1. Capital del Perú' });
+  await when.getByLabel('Valor de la condición').fill('Lima');
+  await ev(() => {
+    const { ctl } = window.__novaForms;
+    const [a, b] = ctl.form.questions;
+    ctl.addResponse({ [a.id]: 'Cusco' });
+    ctl.addResponse({ [a.id]: 'Lima', [b.id]: 'Rímac' });
+  });
+  await mode('Resultados');
+  const top = await page.locator('.fm-top').innerText();
+  assert.match(top, /Puntuación media:\s*1 · 50 % de lo que cada persona podía sacar \(mejor 2, peor 0\)/);
+  assert.match(top, /hasta 2/);
+  await shot('quiz-varies');
+});
+
+await check('numbers skip titles, on screen and in the exported page', async () => {
+  await fresh();
+  await addVia('Texto corto');
+  await setTitle('Primera');
+  await addVia('Título o texto');
+  await page.locator('.fm-card.is-sel').getByLabel('Título', { exact: true }).fill('Parte dos');
+  await addVia('Texto corto');
+  await setTitle('Segunda');
+  assert.equal(await card(2).count(), 1);
+  assert.equal(await page.locator('section[aria-label="Título o texto 1"]').count(), 1);
+  await mode('Vista previa');
+  assert.deepEqual(await page.locator('.fm-run .fm-qtitle').allInnerTexts(), ['1. Primera', '2. Segunda']);
+  await tab('Respuestas');
+  const [dl] = await Promise.all([page.waitForEvent('download'), press('Exportar formulario como página web…')]);
+  const file = path.join(tmp, 'numeros.html');
+  await dl.saveAs(file);
+  const p2 = await ctx.newPage();
+  await p2.goto(pathToFileURL(file).href);
+  assert.deepEqual(await p2.locator('legend').allInnerTexts(), ['1. Primera', '2. Segunda']);
+  await p2.close();
+});
+
+await check('undo takes back what was typed in a box at once', async () => {
+  await fresh();
+  await page.getByRole('region', { name: 'Título y descripción del formulario' }).click();
+  const title = page.getByRole('textbox', { name: 'Título del formulario' });
+  await title.fill('');
+  await title.pressSequentially('Encuesta larga');
+  await page.getByRole('textbox', { name: 'Descripción del formulario' }).pressSequentially('Dos minutos');
+  await page.keyboard.press('Control+z');
+  await settle();
+  assert.deepEqual(await ev(() => [window.__novaForms.ctl.form.title, window.__novaForms.ctl.form.description]), ['Encuesta larga', '']);
+  await page.keyboard.press('Control+z');
+  await settle();
+  assert.equal(await ev(() => window.__novaForms.ctl.form.title), 'Formulario sin título');
+  await page.keyboard.press('Control+y');
+  await settle();
+  assert.equal(await title.inputValue(), 'Encuesta larga');
+});
+
+await check('a half-filled response stays when looking elsewhere, and Ctrl+Z there never deletes responses', async () => {
+  await fresh();
+  await addVia('Texto corto');
+  await setTitle('Nombre');
+  await ev(() => { const { ctl } = window.__novaForms; ctl.addResponse({ [ctl.form.questions[0].id]: 'guardada' }); });
+  await mode('Rellenar y guardar respuestas');
+  await page.getByLabel('Nombre', { exact: true }).pressSequentially('a medias');
+  await mode('Resultados');
+  await mode('Diseñar');
+  await mode('Rellenar y guardar respuestas');
+  assert.equal(await page.getByLabel('Nombre', { exact: true }).inputValue(), 'a medias');
+  await page.getByLabel('Nombre', { exact: true }).click();
+  await page.keyboard.press('Control+z');
+  await settle();
+  assert.equal((await st()).r, 1);
+  await press('Enviar');
+  await press('Rellenar otra respuesta');
+  assert.equal(await page.getByLabel('Nombre', { exact: true }).inputValue(), '');
+  assert.equal((await st()).r, 2);
+});
+
+await check('what is being typed is saved with the form, and «Acerca de» says the version of the program', async () => {
+  await fresh();
+  await addVia('Opción única');
+  await option(1).fill('Escrita al guardar');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.keyboard.press('Control+s')]);
+  const file = path.join(tmp, 'borrador.novaforms');
+  await dl.saveAs(file);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).form.questions[0].options[0], 'Escrita al guardar');
+  const { version } = JSON.parse(fs.readFileSync(new globalThis.URL('../apps/suite/package.json', import.meta.url), 'utf8'));
+  await page.getByText('Archivo', { exact: true }).click();
+  await page.getByText('Acerca de Nova Forms', { exact: true }).click();
+  assert.match(await page.getByRole('dialog').innerText(), new RegExp(`Nova Forms ${version.replace(/\./g, '\\.')}`));
+  await page.getByRole('dialog').getByRole('button', { name: 'Cerrar' }).click();
 });
 
 await shot('final');

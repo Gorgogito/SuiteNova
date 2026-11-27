@@ -159,7 +159,7 @@ describe('summary', () => {
   it('quiz statistics and empty forms', () => {
     const qf = form([q('choice', { id: 'a', options: ['x', 'y'], correct: ['x'], points: 2 })], { quiz: true });
     const qs = summarize(qf, [resp({ a: 'x' }), resp({ a: 'y' })]);
-    expect(qs.quiz).toEqual({ average: 1, max: 2, best: 2, worst: 0 });
+    expect(qs.quiz).toEqual({ average: 1, max: 2, best: 2, worst: 0, varies: false, percent: 50 });
     const none = summarize(f, []);
     expect(none.total).toBe(0);
     expect(none.first).toBeNull();

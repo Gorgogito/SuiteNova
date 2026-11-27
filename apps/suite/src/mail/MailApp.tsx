@@ -38,6 +38,7 @@ import { shrinkPhotos } from './photo';
 import { TasksView } from './TasksView';
 import { mailTabs } from './ribbonDef';
 import './mail.css';
+import { VERSION } from '../version';
 
 const FILTERS = [{ name: 'Datos de Nova Mail', extensions: ['novamail'] }];
 const OPEN_FILTERS = [...FILTERS, { name: 'Archivos de Outlook', extensions: ['msg', 'pst', 'ost'] }];
@@ -724,7 +725,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
           {dialog === 'accounts' && <AccountsDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'about' && (
             <Modal title={t('Acerca de Nova Mail')} onClose={() => setDialog(null)}>
-              <p>Nova Mail 0.0.7</p>
+              <p>Nova Mail {VERSION}</p>
               <p>{t('Correo, calendario, contactos y tareas libres (MPL-2.0) de SuiteNova. Se conecta a servidores IMAP, POP3, JMAP y Exchange (EWS) con contraseña u OAuth desde la aplicación de escritorio, mantiene todas las carpetas al día y trabaja con archivos (.eml, .mbox, .ics, .vcf, .msg, .pst, .ost). Consulta docs/LIMITACIONES.md.')}</p>
             </Modal>
           )}

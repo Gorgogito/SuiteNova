@@ -24,6 +24,7 @@ import { slidesPictureHost } from './pichost';
 import { TableCellDialog, TableSizeDialog, TableSplitDialog } from './FormDialogs6';
 import { CustomShowsDialog, FindReplaceDialog, SectionsDialog, SetupShowDialog, SlideSizeDialog, SpellingDialog } from './FormDialogs2';
 import { ChartDialog, HeaderFooterDialog, HyperlinkDialog, TableDialog } from './FormDialogs';
+import { VERSION } from '../version';
 
 export function Modal({ title, onClose, children, actions, wide }: { title: string; onClose: () => void; children: ReactNode; actions?: ReactNode; wide?: boolean }) {
   // Fluent leaves aria-hidden on the page when the parent unmounts an open dialog: give it back once no dialog is left
@@ -86,7 +87,7 @@ export function Dialogs({ ui, dialog, onClose }: { ui: SlidesUI; dialog: { kind:
           <ul>{warnings.slice(0, 30).map((w) => <li key={w}>{w}</li>)}</ul>
         ) : (
           <>
-            <p>Nova Slides 0.0.9</p>
+            <p>Nova Slides {VERSION}</p>
             <p>{t('Presentaciones libres (MPL-2.0) de SuiteNova. Abre y guarda .pptx; consulta docs/LIMITACIONES.md para saber qué se conserva.')}</p>
           </>
         )}

@@ -29,6 +29,7 @@ import { DictionaryDialog, ReviewDialog, ReviewOptionsDialog } from '../spell';
 import { writerHost } from './review-host';
 import { EnvelopeDialog, FinishMergeDialog, LabelsDialog, MergeBlockDialog, MergeFieldDialog, MergeRuleDialog, RecipientsDialog } from './dlg-mail';
 import { createTable, insertBlockAfterCursor, markAttr, setLink } from './editing';
+import { VERSION } from '../version';
 
 export function Modal({ title, onClose, children, actions, width = 480 }: { title: string; onClose: () => void; children: ReactNode; actions: ReactNode; width?: number }) {
   // The dialog is unmounted by its parent while open, and then the page behind it keeps the aria-hidden the dialog put on it
@@ -382,7 +383,7 @@ export function DialogHost({ ui, kind, arg, onClose }: { ui: WriterUI; kind: Wri
     case 'about':
       return (
         <Modal title={t('Acerca de Nova Writer')} onClose={onClose} actions={<Button appearance="primary" onClick={onClose}>{t('Cerrar')}</Button>}>
-          <p>Nova Writer 0.0.4</p>
+          <p>Nova Writer {VERSION}</p>
           <p>{t('Procesador de textos libre (MPL-2.0) de SuiteNova. Abre documentos .docx, .doc, .rtf y .odt y guarda .docx, .rtf y .odt; consulta docs/LIMITACIONES.md para saber qué se conserva.')}</p>
         </Modal>
       );

@@ -159,7 +159,7 @@ Sub Mala()
 End Sub`);
   const r = await runProc('MainVarios');
   assert.equal(r.ok, true, r.error);
-  assert.deepEqual(r.out, ['14', 'Nova', 'Nova Base 0.0.13', 'Base de datos1']);
+  assert.deepEqual(r.out, ['14', 'Nova', `Nova Base ${JSON.parse(fs.readFileSync(new globalThis.URL('../apps/suite/package.json', import.meta.url), 'utf8')).version}`, 'Base de datos1']);
   const m = await runProc('Mala');
   assert.equal(m.ok, false);
   assert.match(m.error, /Eval/);

@@ -33,6 +33,7 @@ import { readImage } from './ocr';
 import { blobToBase64, imageSize, mediaDuration, startRecording, type Recording } from './recorder';
 import { notesTabs } from './ribbonDef';
 import './notes.css';
+import { VERSION } from '../version';
 
 const NB_FILTERS = [{ name: 'Libreta de Nova Notes', extensions: ['novanotes'] }];
 const AUTOSAVE_MS = 1500;
@@ -911,7 +912,7 @@ export function NotesApp({ module }: { module: ModuleInfo }) {
         )}
         {dlg === 'about' && (
           <Modal title={t('Acerca de Nova Notes')} onClose={closeDialog} actions={<Button appearance="primary" onClick={closeDialog}>{t('Cerrar')}</Button>}>
-            <p>Nova Notes 0.0.8</p>
+            <p>Nova Notes {VERSION}</p>
             <p>{t('Libretas libres (MPL-2.0) de SuiteNova. Guarda en .novanotes; consulta docs/LIMITACIONES.md para saber qué se conserva al importar y exportar.')}</p>
             <p className="nn-note">{t('El reconocimiento de texto usa Tesseract (Apache-2.0) y sus datos de idioma, incluidos en el programa: no se envía nada a Internet.')}</p>
           </Modal>

@@ -1,6 +1,7 @@
 import type { CommandDef } from '@suitenova/core-ui';
 import { QTYPES } from '@suitenova/forms-core';
 import { FORM_HEAD, type FormsCtl, type Mode } from './ctl';
+import { finishTyping } from './DraftInput';
 
 export type FormsDialog = 'about' | 'shortcuts';
 
@@ -29,7 +30,10 @@ export function formsCommands(ui: FormsUI): CommandDef[] {
   const defs: CommandDef[] = [];
   const add = (d: CommandDef) => defs.push(d);
   const q = () => c.selectedQuestion;
-  const hasQ = () => !!q();
+  // questions are changed while designing; elsewhere the keys belong to the boxes being filled in
+  const designing = () => c.mode === 'design';
+  const history = () => c.mode === 'design' || c.mode === 'results';
+  const hasQ = () => designing() && !!q();
 
   // ---- file
   add({ id: 'forms.new', label: 'Formulario nuevo', icon: 'new', shortcut: 'Ctrl+N', run: () => ui.newWindow() });
@@ -59,12 +63,12 @@ export function formsCommands(ui: FormsUI): CommandDef[] {
   add({ id: 'help.shortcuts', label: 'Atajos de teclado', icon: 'keyboard', run: () => ui.openDialog('shortcuts') });
 
   // ---- edit
-  add({ id: 'forms.undo', label: 'Deshacer', icon: 'undo', shortcut: 'Ctrl+Z', enabled: () => c.canUndo, run: () => c.undo() });
-  add({ id: 'forms.redo', label: 'Rehacer', icon: 'redo', shortcut: ['Ctrl+Y', 'Ctrl+Shift+Z'], enabled: () => c.canRedo, run: () => c.redo() });
+  add({ id: 'forms.undo', label: 'Deshacer', icon: 'undo', shortcut: 'Ctrl+Z', enabled: () => history() && c.canUndo, run: () => (finishTyping(), c.undo()) });
+  add({ id: 'forms.redo', label: 'Rehacer', icon: 'redo', shortcut: ['Ctrl+Y', 'Ctrl+Shift+Z'], enabled: () => history() && c.canRedo, run: () => (finishTyping(), c.redo()) });
 
   // ---- questions
   for (const t of QTYPES) add({ id: `forms.q.add.${t.id}`, label: t.name, icon: 'plus', run: () => { c.setMode('design'); c.addQuestion(t.id); } });
-  add({ id: 'forms.q.duplicate', label: 'Duplicar pregunta', icon: 'copy', shortcut: 'Ctrl+D', enabled: hasQ, run: () => c.duplicateQuestion() });
+  add({ id: 'forms.q.duplicate', label: 'Duplicar pregunta', icon: 'copy', shortcut: 'Ctrl+D', enabled: hasQ, run: () => (finishTyping(), c.duplicateQuestion()) });
   add({
     id: 'forms.q.delete',
     label: 'Eliminar pregunta',
@@ -77,9 +81,9 @@ export function formsCommands(ui: FormsUI): CommandDef[] {
       c.deleteQuestion();
     },
   });
-  add({ id: 'forms.q.up', label: 'Mover pregunta hacia arriba', icon: 'moveUp', shortcut: 'Alt+Shift+Up', enabled: () => c.canMove(-1), run: () => c.moveQuestion(-1) });
-  add({ id: 'forms.q.down', label: 'Mover pregunta hacia abajo', icon: 'moveDown', shortcut: 'Alt+Shift+Down', enabled: () => c.canMove(1), run: () => c.moveQuestion(1) });
-  add({ id: 'forms.q.required', label: 'Pregunta obligatoria', icon: 'star', enabled: () => !!q() && q()!.type !== 'title', checked: () => !!q()?.required, run: () => c.updateQuestion(q()!.id, { required: !q()!.required }) });
+  add({ id: 'forms.q.up', label: 'Mover pregunta hacia arriba', icon: 'moveUp', shortcut: 'Alt+Shift+Up', enabled: () => designing() && c.canMove(-1), run: () => (finishTyping(), c.moveQuestion(-1)) });
+  add({ id: 'forms.q.down', label: 'Mover pregunta hacia abajo', icon: 'moveDown', shortcut: 'Alt+Shift+Down', enabled: () => designing() && c.canMove(1), run: () => (finishTyping(), c.moveQuestion(1)) });
+  add({ id: 'forms.q.required', label: 'Pregunta obligatoria', icon: 'star', enabled: () => hasQ() && q()!.type !== 'title', checked: () => !!q()?.required, run: () => c.updateQuestion(q()!.id, { required: !q()!.required }) });
   add({ id: 'forms.q.top', label: 'Título y descripción del formulario', icon: 'file', run: () => { c.setMode('design'); c.select(FORM_HEAD); } });
 
   // ---- form

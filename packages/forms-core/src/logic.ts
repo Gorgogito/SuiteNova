@@ -158,6 +158,12 @@ export function score(form: Form, answers: Record<string, Answer>): Score {
   return s;
 }
 
+/** The response with these answers: its identifier and date, or new ones if what came is not usable. */
+function asResponse(r: { id?: unknown; at?: unknown }, answers: Record<string, Answer>): Response {
+  const at = typeof r.at === 'string' && !Number.isNaN(Date.parse(r.at)) ? r.at : new Date().toISOString();
+  return { id: typeof r.id === 'string' && r.id ? r.id.slice(0, 60) : `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at, answers };
+}
+
 /**
  * Make a response from untrusted data (a file): only known questions, answers of the right shape, nothing that fails
  * validation. Returns null when no answer survives.
@@ -181,6 +187,48 @@ export function cleanResponse(form: Form, raw: unknown): { response: Response; d
     else answers[q.id] = v;
   }
   if (!Object.keys(answers).length) return null;
-  const at = typeof r.at === 'string' && !Number.isNaN(Date.parse(r.at)) ? r.at : new Date().toISOString();
-  return { response: { id: typeof r.id === 'string' && r.id ? r.id.slice(0, 60) : `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at, answers }, dropped };
+  return { response: asResponse(r, answers), dropped };
+}
+
+const MAX_ANSWER = 20_000;
+const text = (v: unknown): string | null => (typeof v === 'string' ? v.slice(0, MAX_ANSWER) : null);
+const number = (v: unknown): number | null => {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v.replace(',', '.')) : v;
+  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+};
+
+/** An answer with the shape its question asks for, whether or not today's rules would accept it. */
+function shaped(q: Question, v: unknown): Answer {
+  switch (q.type) {
+    case 'number':
+    case 'rating':
+    case 'nps':
+      return number(v);
+    case 'multi':
+      return (Array.isArray(v) ? v : [v]).flatMap((x) => text(x) ?? []).slice(0, 200);
+    case 'likert':
+      return v && typeof v === 'object' && !Array.isArray(v)
+        ? Object.fromEntries(Object.entries(v as Record<string, unknown>).slice(0, 200).flatMap(([row, column]) => (typeof column === 'string' ? [[row, column.slice(0, MAX_ANSWER)]] : [])))
+        : null;
+    default:
+      return text(v);
+  }
+}
+
+/**
+ * A response of the file of the form itself. What was collected is kept even if the question changed afterwards (a choice
+ * taken away, other limits): saving and opening again must not take anything away. Null when no answer survives.
+ */
+export function keptResponse(form: Form, raw: unknown): Response | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as { id?: unknown; at?: unknown; answers?: unknown };
+  if (!r.answers || typeof r.answers !== 'object') return null;
+  const src = r.answers as Record<string, unknown>;
+  const answers: Record<string, Answer> = {};
+  for (const q of form.questions) {
+    if (!isInput(q) || !Object.hasOwn(src, q.id)) continue;
+    const v = shaped(q, src[q.id]);
+    if (!isEmpty(v)) answers[q.id] = v;
+  }
+  return Object.keys(answers).length ? asResponse(r, answers) : null;
 }

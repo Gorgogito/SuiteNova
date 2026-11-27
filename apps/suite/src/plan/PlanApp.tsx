@@ -21,6 +21,7 @@ import './icons';
 import './messages';
 import { planTabs } from './ribbonDef';
 import './plan.css';
+import { VERSION } from '../version';
 
 const PLAN_FILTERS = [{ name: 'Proyecto de Nova Plan', extensions: ['novaplan'] }];
 // .mpp is listed so that choosing one explains why it cannot be read instead of hiding the file
@@ -429,7 +430,7 @@ export function PlanApp({ module }: { module: ModuleInfo }) {
             <DialogBody>
               <DialogTitle>{t('Acerca de Nova Plan')}</DialogTitle>
               <DialogContent>
-                <p>Nova Plan 0.0.5</p>
+                <p>Nova Plan {VERSION}</p>
                 <p>{t('Planificador de proyectos libre (MPL-2.0) de SuiteNova. Guarda en .novaplan e importa y exporta el XML de Microsoft Project (no abre .mpp); consulta docs/LIMITACIONES.md para saber qué se conserva.')}</p>
               </DialogContent>
               <DialogActions>

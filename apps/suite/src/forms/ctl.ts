@@ -1,4 +1,4 @@
-import { newForm, newId, newQuestion, parseResponses, type Answer, type Form, type QType, type Question, type Response } from '@suitenova/forms-core';
+import { isEmpty, newForm, newId, newQuestion, parseResponses, removeItem, renameInAnswers, renameItem, type Answer, type Form, type ItemList, type QType, type Question, type Response } from '@suitenova/forms-core';
 
 export type Mode = 'design' | 'preview' | 'fill' | 'results';
 export interface Doc {
@@ -17,6 +17,10 @@ export class FormsCtl {
   filePath: string | null = null;
   dirty = false;
   message = '';
+  /** The answer being filled in: it stays while looking at the design or the results. */
+  draft: Record<string, Answer> = {};
+  /** The box being typed in: its letters count as one change. */
+  private typing: string | null = null;
   private past: Doc[] = [];
   private future: Doc[] = [];
   private version = 0;
@@ -53,15 +57,23 @@ export class FormsCtl {
 
   // ---------- history
 
-  commit(next: Doc): void {
+  /** Applies a change that can be undone. Changes with the same `typing` name, one after another, are one. */
+  commit(next: Doc, typing?: string): void {
     if (next === this.doc) return;
-    this.past.push(this.doc);
-    if (this.past.length > MAX_UNDO) this.past.shift();
+    if (!typing || typing !== this.typing) {
+      this.past.push(this.doc);
+      if (this.past.length > MAX_UNDO) this.past.shift();
+    }
+    this.typing = typing ?? null;
     this.future = [];
     this.doc = next;
     this.dirty = true;
     this.fixSelection();
     this.touch();
+  }
+  /** What is typed from now on is another change. */
+  endTyping(): void {
+    this.typing = null;
   }
   get canUndo(): boolean {
     return this.past.length > 0;
@@ -70,6 +82,7 @@ export class FormsCtl {
     return this.future.length > 0;
   }
   undo(): void {
+    this.typing = null;
     const d = this.past.pop();
     if (!d) return;
     this.future.push(this.doc);
@@ -79,6 +92,7 @@ export class FormsCtl {
     this.touch();
   }
   redo(): void {
+    this.typing = null;
     const d = this.future.pop();
     if (!d) return;
     this.past.push(this.doc);
@@ -95,6 +109,8 @@ export class FormsCtl {
     this.doc = doc;
     this.past = [];
     this.future = [];
+    this.typing = null;
+    this.draft = {};
     this.selected = FORM_HEAD;
     this.mode = 'design';
     this.fileName = name;
@@ -114,6 +130,7 @@ export class FormsCtl {
     this.load({ form: newForm(), responses: [] }, null, null);
   }
   markSaved(name: string, path: string | null): void {
+    this.typing = null;
     this.fileName = name;
     this.filePath = path;
     this.dirty = false;
@@ -121,18 +138,20 @@ export class FormsCtl {
   }
 
   setMode(m: Mode): void {
+    this.typing = null;
     this.mode = m;
     this.touch();
   }
   select(id: string | null): void {
+    this.typing = null;
     this.selected = id;
     this.touch();
   }
 
   // ---------- form and questions
 
-  setForm(patch: Partial<Form>): void {
-    this.commit({ ...this.doc, form: { ...this.form, ...patch } });
+  setForm(patch: Partial<Form>, typing = false): void {
+    this.commit({ ...this.doc, form: { ...this.form, ...patch } }, typing ? `form:${Object.keys(patch).join()}` : undefined);
   }
   private setQuestions(qs: Question[]): void {
     this.commit({ ...this.doc, form: { ...this.form, questions: qs } });
@@ -147,8 +166,27 @@ export class FormsCtl {
     this.touch();
     return q;
   }
-  updateQuestion(id: string, patch: Partial<Question>): void {
-    this.setQuestions(this.form.questions.map((q) => (q.id === id ? { ...q, ...patch } : q)));
+  updateQuestion(id: string, patch: Partial<Question>, typing = false): void {
+    this.commit({ ...this.doc, form: { ...this.form, questions: this.form.questions.map((q) => (q.id === id ? { ...q, ...patch } : q)) } }, typing ? `${id}:${Object.keys(patch).join()}` : undefined);
+  }
+  /** Gives a choice or a row another text. Returns why it was refused, or null. */
+  renameItem(id: string, list: ItemList, index: number, text: string): string | null {
+    const q = this.form.questions.find((x) => x.id === id);
+    const from = q?.[list][index];
+    try {
+      const next = renameItem(this.doc, id, list, index, text);
+      if (next !== this.doc) {
+        this.draft = renameInAnswers(q!, list, from!, text.trim(), this.draft);
+        this.commit(next);
+      }
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }
+  removeItem(id: string, list: ItemList, index: number): void {
+    const next = removeItem(this.doc, id, list, index);
+    if (next !== this.doc) this.commit(next);
   }
   duplicateQuestion(): void {
     const q = this.selectedQuestion;
@@ -199,9 +237,27 @@ export class FormsCtl {
 
   // ---------- responses
 
+  setDraft(answers: Record<string, Answer>): void {
+    this.draft = answers;
+    this.touch();
+  }
+  get hasDraft(): boolean {
+    return Object.values(this.draft).some((a) => !isEmpty(a));
+  }
+  /**
+   * Keeps a response that someone filled in here. It is not a change of the design: undoing never takes it away, so it
+   * is also added to what the undo would go back to.
+   */
   addResponse(answers: Record<string, Answer>): Response {
     const r: Response = { id: newId('r'), at: new Date().toISOString(), answers };
-    this.commit({ ...this.doc, responses: [...this.responses, r] });
+    const keep = (d: Doc): Doc => ({ ...d, responses: [...d.responses, r] });
+    this.past = this.past.map(keep);
+    this.future = this.future.map(keep);
+    this.doc = keep(this.doc);
+    this.draft = {};
+    this.typing = null;
+    this.dirty = true;
+    this.touch();
     return r;
   }
   deleteResponse(id: string): void {

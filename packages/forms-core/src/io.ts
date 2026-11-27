@@ -1,4 +1,5 @@
-import { cleanResponse, score } from './logic';
+import { uniqueTexts } from './edit';
+import { cleanResponse, keptResponse, score } from './logic';
 import { IMAGE_SIZES, QTYPES, isInput, isSafeImage, newForm, newId, newQuestion, type Answer, type Form, type QType, type Question, type Response } from './model';
 
 export interface Project {
@@ -32,8 +33,9 @@ export function readForm(raw: any): Form {
       title: str(r?.title, '', 500),
       description: str(r?.description, '', 2000),
       required: r?.required === true,
-      options: Array.isArray(r?.options) ? strs(r.options) : d.options,
-      rows: Array.isArray(r?.rows) ? strs(r.rows) : d.rows,
+      // choices and rows are told apart by their text: none may be empty or repeated
+      options: Array.isArray(r?.options) ? uniqueTexts(strs(r.options), type === 'likert' ? 'Columna' : 'Opción') : d.options,
+      rows: Array.isArray(r?.rows) ? uniqueTexts(strs(r.rows), 'Fila') : d.rows,
       allowOther: r?.allowOther === true,
       max: Math.min(10, Math.max(3, Math.round(num(r?.max, 5)!))),
       format: r?.format === 'email' || r?.format === 'url' ? r.format : 'none',
@@ -76,13 +78,13 @@ export function parseProject(text: string): { project: Project; warnings: string
   const seen = new Set<string>();
   let dropped = 0;
   for (const r of Array.isArray(raw.responses) ? raw.responses : []) {
-    const c = cleanResponse(form, r);
-    if (!c || seen.has(c.response.id)) {
+    const c = keptResponse(form, r);
+    if (!c || seen.has(c.id)) {
       dropped++;
       continue;
     }
-    seen.add(c.response.id);
-    responses.push(c.response);
+    seen.add(c.id);
+    responses.push(c);
   }
   return { project: { form, responses }, warnings: dropped ? [`Se omitieron ${dropped} respuestas dañadas o repetidas.`] : [] };
 }

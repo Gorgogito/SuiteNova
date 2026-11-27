@@ -29,6 +29,7 @@ import { RelationsView } from './RelationsView';
 import { FormView, ReportView, reportHtml } from './Views';
 import './messages';
 import './base.css';
+import { VERSION } from '../version';
 
 const DB_FILTERS = [{ name: 'Base de datos SQLite', extensions: ['sqlite', 'sqlite3', 'db'] }];
 const AUTOSAVE_MS = 1500;
@@ -595,7 +596,7 @@ export function BaseApp({ module }: { module: ModuleInfo }) {
         {(ctl.xDialog?.kind === 'wizDups' || ctl.xDialog?.kind === 'wizUnmatched') && <QueryWizardDialog ctl={ctl} kind={ctl.xDialog.kind === 'wizDups' ? 'dups' : 'unmatched'} />}
         {dialog === 'about' && (
           <Modal title={t('Acerca de Nova Base')} onClose={() => setDialog(null)}>
-            <p>Nova Base 0.0.2</p>
+            <p>Nova Base {VERSION}</p>
             <p>{t('Bases de datos libres (MPL-2.0) de SuiteNova sobre SQLite. Guarda en archivos .sqlite; no abre archivos de Access (.accdb, .mdb). Consulta docs/LIMITACIONES.md.')}</p>
           </Modal>
         )}

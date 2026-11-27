@@ -131,4 +131,8 @@ export const isInput = (q: Question): boolean => q.type !== 'title';
 export const hasOptions = (q: Question): boolean => q.type === 'choice' || q.type === 'multi' || q.type === 'dropdown' || q.type === 'likert';
 /** Question types a quiz can grade. */
 export const gradable = (q: Question): boolean => ['choice', 'multi', 'dropdown', 'text', 'number'].includes(q.type);
-export const questionLabel = (q: Question, i: number): string => `${i + 1}. ${q.title.trim() || '(sin título)'}`;
+/** The number each question shows, by its id: titles and texts are not questions and take none. */
+export function numbers(form: Pick<Form, 'questions'>): Map<string, number> {
+  let n = 0;
+  return new Map(form.questions.filter(isInput).map((q) => [q.id, ++n]));
+}

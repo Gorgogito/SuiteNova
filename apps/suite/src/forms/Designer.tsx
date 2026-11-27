@@ -1,6 +1,7 @@
 import { t } from '@suitenova/core-ui';
-import { IMAGE_SIZES, MAX_IMAGE_BYTES, QTYPES, gradable, hasOptions, isInput, isSafeImage, type ImageSize, type Question } from '@suitenova/forms-core';
+import { IMAGE_SIZES, MAX_IMAGE_BYTES, QTYPES, gradable, hasOptions, isInput, isSafeImage, nextName, numbers, type ImageSize, type ItemList, type Question } from '@suitenova/forms-core';
 import { useState } from 'react';
+import { DraftInput } from './DraftInput';
 import { QImage } from './Runner';
 import type { FormsCtl } from './ctl';
 import { FORM_HEAD } from './ctl';
@@ -8,26 +9,40 @@ import { ProofTextarea } from '../spell';
 
 const typeName = (q: Question) => QTYPES.find((x) => x.id === q.type)?.name ?? q.type;
 
-function ListEditor({ label, items, onChange, min = 1 }: { label: string; items: string[]; onChange: (v: string[]) => void; min?: number }) {
-  const set = (i: number, v: string) => onChange(items.map((x, k) => (k === i ? v : x)));
+/** The choices, rows or columns of a question: each keeps its answers when its text changes or it moves. */
+function ListEditor({ ctl, q, list, label, one, min = 1 }: { ctl: FormsCtl; q: Question; list: ItemList; label: string; one: string; min?: number }) {
+  const items = q[list];
+  const move = (i: number, by: -1 | 1) => {
+    const next = [...items];
+    [next[i], next[i + by]] = [next[i + by]!, next[i]!];
+    ctl.updateQuestion(q.id, { [list]: next });
+  };
   return (
     <div className="fm-list" role="group" aria-label={label}>
       <div className="fm-sub">{label}</div>
       {items.map((it, i) => (
         <div key={i} className="fm-listrow">
-          <input className="fm-input" aria-label={`${label} ${i + 1}`} value={it} onChange={(e) => set(i, e.target.value)} />
-          <button type="button" aria-label={`${t('Subir')} ${label} ${i + 1}`} disabled={i === 0} onClick={() => onChange(items.map((x, k) => (k === i - 1 ? items[i]! : k === i ? items[i - 1]! : x)))}>
+          <DraftInput
+            className="fm-input"
+            aria-label={`${label} ${i + 1}`}
+            value={it}
+            onCommit={(text) => {
+              const refused = ctl.renameItem(q.id, list, i, text);
+              return refused && t(refused);
+            }}
+          />
+          <button type="button" aria-label={`${t('Subir')} ${label} ${i + 1}`} disabled={i === 0} onClick={() => move(i, -1)}>
             ↑
           </button>
-          <button type="button" aria-label={`${t('Bajar')} ${label} ${i + 1}`} disabled={i === items.length - 1} onClick={() => onChange(items.map((x, k) => (k === i + 1 ? items[i]! : k === i ? items[i + 1]! : x)))}>
+          <button type="button" aria-label={`${t('Bajar')} ${label} ${i + 1}`} disabled={i === items.length - 1} onClick={() => move(i, 1)}>
             ↓
           </button>
-          <button type="button" aria-label={`${t('Quitar')} ${label} ${i + 1}`} disabled={items.length <= min} onClick={() => onChange(items.filter((_, k) => k !== i))}>
+          <button type="button" aria-label={`${t('Quitar')} ${label} ${i + 1}`} disabled={items.length <= min} onClick={() => ctl.removeItem(q.id, list, i)}>
             ✕
           </button>
         </div>
       ))}
-      <button type="button" className="fm-add" onClick={() => onChange([...items, `${label.replace(/s$/, '')} ${items.length + 1}`])}>
+      <button type="button" className="fm-add" onClick={() => ctl.updateQuestion(q.id, { [list]: [...items, nextName(items, one)] })}>
         + {t('Añadir')}
       </button>
     </div>
@@ -35,7 +50,7 @@ function ListEditor({ label, items, onChange, min = 1 }: { label: string; items:
 }
 
 /** Pick, size, describe and remove the picture of a question. */
-function PictureField({ q, up }: { q: Question; up: (patch: Partial<Question>) => void }) {
+function PictureField({ q, up }: { q: Question; up: (patch: Partial<Question>, typing?: boolean) => void }) {
   const [err, setErr] = useState('');
   const m = q.image;
   return (
@@ -79,7 +94,7 @@ function PictureField({ q, up }: { q: Question; up: (patch: Partial<Question>) =
           </label>
           <label className="fm-field">
             <span>{t('Texto alternativo')}</span>
-            <input className="fm-input" aria-label={t('Texto alternativo de la imagen')} value={m.alt} onChange={(e) => up({ image: { ...m, alt: e.target.value } })} />
+            <input className="fm-input" aria-label={t('Texto alternativo de la imagen')} value={m.alt} onChange={(e) => up({ image: { ...m, alt: e.target.value } }, true)} />
           </label>
           <button type="button" className="fm-btn" onClick={() => up({ image: undefined })}>
             {t('Quitar la imagen')}
@@ -91,7 +106,8 @@ function PictureField({ q, up }: { q: Question; up: (patch: Partial<Question>) =
 }
 
 function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
-  const up = (patch: Partial<Question>) => ctl.updateQuestion(q.id, patch);
+  const up = (patch: Partial<Question>, typing?: boolean) => ctl.updateQuestion(q.id, patch, typing);
+  const nums = numbers(ctl.form);
   const i = ctl.form.questions.indexOf(q);
   const earlier = ctl.form.questions.slice(0, i).filter(isInput);
   const src = earlier.find((x) => x.id === q.showIf?.question);
@@ -101,11 +117,11 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
     <div className="fm-editor">
       <label className="fm-field">
         <span>{q.type === 'title' ? t('Título') : t('Pregunta')}</span>
-        <input className="fm-input" value={q.title} autoFocus onChange={(e) => up({ title: e.target.value })} />
+        <input className="fm-input" value={q.title} autoFocus onChange={(e) => up({ title: e.target.value }, true)} />
       </label>
       <label className="fm-field">
         <span>{t('Descripción (opcional)')}</span>
-        <ProofTextarea className="fm-input" rows={2} value={q.description} onChange={(e) => up({ description: e.target.value })} />
+        <ProofTextarea className="fm-input" rows={2} value={q.description} onChange={(e) => up({ description: e.target.value }, true)} />
       </label>
 
       <div className="fm-field" role="group" aria-label={t('Imagen de la pregunta')}>
@@ -113,11 +129,11 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
         <PictureField q={q} up={up} />
       </div>
 
-      {(q.type === 'choice' || q.type === 'multi' || q.type === 'dropdown') && <ListEditor label={t('Opciones')} items={q.options} onChange={(v) => up({ options: v })} />}
+      {(q.type === 'choice' || q.type === 'multi' || q.type === 'dropdown') && <ListEditor ctl={ctl} q={q} list="options" label={t('Opciones')} one={t('Opción')} />}
       {q.type === 'likert' && (
         <>
-          <ListEditor label={t('Filas')} items={q.rows} onChange={(v) => up({ rows: v })} />
-          <ListEditor label={t('Columnas')} items={q.options} min={2} onChange={(v) => up({ options: v })} />
+          <ListEditor ctl={ctl} q={q} list="rows" label={t('Filas')} one={t('Fila')} />
+          <ListEditor ctl={ctl} q={q} list="options" label={t('Columnas')} one={t('Columna')} min={2} />
         </>
       )}
       {(q.type === 'choice' || q.type === 'multi') && (
@@ -149,11 +165,11 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
           </label>
           <label className="fm-field fm-inline">
             <span>{t('Mínimo de caracteres')}</span>
-            <input className="fm-input fm-narrow" type="number" min={0} value={q.min ?? ''} onChange={(e) => up({ min: numOrNull(e.target.value) })} />
+            <input className="fm-input fm-narrow" type="number" min={0} value={q.min ?? ''} onChange={(e) => up({ min: numOrNull(e.target.value) }, true)} />
           </label>
           <label className="fm-field fm-inline">
             <span>{t('Máximo de caracteres')}</span>
-            <input className="fm-input fm-narrow" type="number" min={1} value={q.maxValue ?? ''} onChange={(e) => up({ maxValue: numOrNull(e.target.value) })} />
+            <input className="fm-input fm-narrow" type="number" min={1} value={q.maxValue ?? ''} onChange={(e) => up({ maxValue: numOrNull(e.target.value) }, true)} />
           </label>
         </div>
       )}
@@ -161,11 +177,11 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
         <div className="fm-row">
           <label className="fm-field fm-inline">
             <span>{t('Valor mínimo')}</span>
-            <input className="fm-input fm-narrow" type="number" value={q.min ?? ''} onChange={(e) => up({ min: numOrNull(e.target.value) })} />
+            <input className="fm-input fm-narrow" type="number" value={q.min ?? ''} onChange={(e) => up({ min: numOrNull(e.target.value) }, true)} />
           </label>
           <label className="fm-field fm-inline">
             <span>{t('Valor máximo')}</span>
-            <input className="fm-input fm-narrow" type="number" value={q.maxValue ?? ''} onChange={(e) => up({ maxValue: numOrNull(e.target.value) })} />
+            <input className="fm-input fm-narrow" type="number" value={q.maxValue ?? ''} onChange={(e) => up({ maxValue: numOrNull(e.target.value) }, true)} />
           </label>
           <label className="fm-check">
             <input type="checkbox" checked={q.integer} onChange={(e) => up({ integer: e.target.checked })} /> {t('Solo enteros')}
@@ -197,12 +213,20 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
           {(q.type === 'text' || q.type === 'number') && (
             <label className="fm-field">
               <span>{q.type === 'text' ? t('Respuestas aceptadas (separadas por punto y coma)') : t('Valores aceptados (separados por punto y coma)')}</span>
-              <input className="fm-input" value={q.correct.join('; ')} onChange={(e) => up({ correct: e.target.value.split(';').map((x) => x.trim()).filter(Boolean) })} />
+              <DraftInput
+                className="fm-input"
+                aria-label={q.type === 'text' ? t('Respuestas aceptadas (separadas por punto y coma)') : t('Valores aceptados (separados por punto y coma)')}
+                value={q.correct.join('; ')}
+                onCommit={(text) => {
+                  up({ correct: text.split(';').map((x) => x.trim()).filter(Boolean) });
+                  return null;
+                }}
+              />
             </label>
           )}
           <label className="fm-field fm-inline">
             <span>{t('Puntos')}</span>
-            <input className="fm-input fm-narrow" type="number" min={0} value={q.points} onChange={(e) => up({ points: Math.max(0, Number(e.target.value) || 0) })} />
+            <input className="fm-input fm-narrow" type="number" min={0} value={q.points} onChange={(e) => up({ points: Math.max(0, Number(e.target.value) || 0) }, true)} />
           </label>
         </fieldset>
       )}
@@ -218,7 +242,7 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
                 <option value="">{t('Siempre')}</option>
                 {earlier.map((x) => (
                   <option key={x.id} value={x.id}>
-                    {ctl.form.questions.indexOf(x) + 1}. {x.title || t('(sin título)')}
+                    {nums.get(x.id)}. {x.title || t('(sin título)')}
                   </option>
                 ))}
               </select>
@@ -239,7 +263,7 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
                       ))}
                     </select>
                   ) : (
-                    <input className="fm-input" aria-label={t('Valor de la condición')} value={q.showIf.value} onChange={(e) => up({ showIf: { ...q.showIf!, value: e.target.value } })} />
+                    <input className="fm-input" aria-label={t('Valor de la condición')} value={q.showIf.value} onChange={(e) => up({ showIf: { ...q.showIf!, value: e.target.value } }, true)} />
                   )}
                 </>
               )}
@@ -254,22 +278,25 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
 export function Designer({ ctl }: { ctl: FormsCtl }) {
   const f = ctl.form;
   const head = ctl.selected === FORM_HEAD;
+  const nums = numbers(f);
+  let texts = 0;
   return (
-    <div className="fm-design" aria-label={t('Preguntas del formulario')}>
+    // leaving a box ends what was being typed in it: the next letters are another change
+    <div className="fm-design" aria-label={t('Preguntas del formulario')} onBlur={() => ctl.endTyping()}>
       <section className={`nv-work fm-card fm-head${head ? ' is-sel' : ''}`} style={{ borderTopColor: f.color }} onClick={() => ctl.select(FORM_HEAD)} aria-label={t('Título y descripción del formulario')}>
         {head ? (
           <div className="fm-editor">
             <label className="fm-field">
               <span>{t('Título del formulario')}</span>
-              <input className="fm-input fm-big" value={f.title} onChange={(e) => ctl.setForm({ title: e.target.value })} />
+              <input className="fm-input fm-big" value={f.title} onChange={(e) => ctl.setForm({ title: e.target.value }, true)} />
             </label>
             <label className="fm-field">
               <span>{t('Descripción del formulario')}</span>
-              <ProofTextarea className="fm-input" rows={2} value={f.description} onChange={(e) => ctl.setForm({ description: e.target.value })} />
+              <ProofTextarea className="fm-input" rows={2} value={f.description} onChange={(e) => ctl.setForm({ description: e.target.value }, true)} />
             </label>
             <label className="fm-field">
               <span>{t('Mensaje de agradecimiento')}</span>
-              <input className="fm-input" value={f.thanks} onChange={(e) => ctl.setForm({ thanks: e.target.value })} />
+              <input className="fm-input" value={f.thanks} onChange={(e) => ctl.setForm({ thanks: e.target.value }, true)} />
             </label>
           </div>
         ) : (
@@ -280,16 +307,19 @@ export function Designer({ ctl }: { ctl: FormsCtl }) {
         )}
       </section>
       {f.questions.length === 0 && <p className="fm-empty">{t('Todavía no hay preguntas. Usa "Añadir pregunta" en la cinta o el botón de abajo.')}</p>}
-      {f.questions.map((q, i) => {
+      {f.questions.map((q) => {
         const sel = ctl.selected === q.id;
+        const n = nums.get(q.id);
+        const name = n ? `${t('Pregunta')} ${n}` : `${t('Título o texto')} ${++texts}`;
         return (
-          <section key={q.id} className={`nv-work fm-card${sel ? ' is-sel' : ''}`} data-q={q.id} onClick={() => !sel && ctl.select(q.id)} aria-label={`${t('Pregunta')} ${i + 1}`}>
+          <section key={q.id} className={`nv-work fm-card${sel ? ' is-sel' : ''}`} data-q={q.id} onClick={() => !sel && ctl.select(q.id)} aria-label={name}>
             {sel ? (
               <Editor ctl={ctl} q={q} />
             ) : (
               <button type="button" className="fm-summary" onClick={() => ctl.select(q.id)}>
                 <span className="fm-qtitle">
-                  {i + 1}. {q.title || t('(sin título)')}
+                  {n ? `${n}. ` : ''}
+                  {q.title || t('(sin título)')}
                   {q.required && <span className="fm-req"> *</span>}
                 </span>
                 {q.image && <QImage q={q} />}

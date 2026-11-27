@@ -33,6 +33,8 @@ export interface DbHostApi {
   refresh(): void;
   /** Name of the open database file (`CurrentProject.Name`). */
   projectName?(): string;
+  /** Version of the program (`Application.Version`). */
+  appVersion?(): string;
   /** `DoCmd.DeleteObject`, `CopyObject`, `Rename` on saved objects (not tables). */
   deleteObject?(kind: 'table' | 'query' | 'form' | 'report' | 'macro' | 'module', name: string): void;
   copyObject?(kind: 'query' | 'form' | 'report' | 'macro' | 'module', from: string, to: string): void;
@@ -485,8 +487,7 @@ function formArgOf(api: DbHostApi, name: BVal): FormLike | null {
   return api.me();
 }
 
-const APP_VERSION = '0.0.13';
-function applicationObject(): BObject {
+function applicationObject(api: DbHostApi): BObject {
   return {
     typeName: 'Application',
     get(member) {
@@ -494,7 +495,7 @@ function applicationObject(): BObject {
         case 'name':
           return 'Nova Base';
         case 'version':
-          return APP_VERSION;
+          return api.appVersion ? api.appVersion() : '';
         case 'hourglass':
         case 'echo':
         case 'quit':
@@ -656,7 +657,7 @@ export function createHost(api: DbHostApi, tempVars = new TempVars()): { objects
   return {
     tempVars,
     objects: {
-      application: applicationObject(),
+      application: applicationObject(api),
       currentproject: projectObject(api),
       docmd: doCmd(api),
       forms: new FormsCollection(api),

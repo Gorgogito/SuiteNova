@@ -3,6 +3,13 @@ import '../notes/messages';
 
 // Spanish literals are the source text; English is provided here. Missing entries fall back to Spanish.
 registerMessages('en', {
+  'Opción': 'Option',
+  'Fila': 'Row',
+  'Columna': 'Column',
+  'No puede quedar vacío.': 'It cannot be left empty.',
+  'Ya hay otro igual en la lista.': 'The list already has one like it.',
+  '{p} % de lo que cada persona podía sacar': '{p}% of what each person could get',
+  'El máximo cambia según las preguntas que se vieron (hasta {n}).': 'The maximum depends on the questions seen (up to {n}).',
   'module.forms.purpose': 'Forms and surveys',
   // question types
   'Texto corto': 'Short text',

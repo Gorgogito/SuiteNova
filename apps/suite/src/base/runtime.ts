@@ -3,6 +3,7 @@ import { DebugRun } from '../macros/debug';
 
 type MacroDef = basic.MacroDef;
 import type { BaseCtl, FormHandle } from './ctl';
+import { VERSION } from '../version';
 
 type BVal = basic.BVal;
 
@@ -115,6 +116,7 @@ export class BaseRuntime {
     const asLike = (h: FormHandle | undefined): basic.FormLike | null => (h ? { ...h, record: h.record } : null);
     return {
       db: ctl.db!,
+      appVersion: () => VERSION,
       form: (n) => asLike(ctl.formHandles.get(n)),
       me: () => asLike(this.form ? ctl.formHandles.get(this.form) : undefined),
       openForm: (n, where) => {

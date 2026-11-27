@@ -26,6 +26,7 @@ import { PivotCreateDialog, PivotFieldDialog, PivotOptionsDialog, ValueFieldDial
 import { FindPanel } from '../find';
 import { calcFindHost } from './find-host';
 import { SlicerDialog, SparklineDialog, TableCreateDialog, TableResizeDialog } from './dlg-table';
+import { VERSION } from '../version';
 
 
 // -------------------------------------------------------------------------------------------- find / replace
@@ -511,7 +512,7 @@ function ChartDataDialog({ ui, onClose }: { ui: CalcUI; onClose: () => void }) {
 function AboutDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal title={t('Acerca de Nova Calc')} onClose={onClose} actions={<Button appearance="primary" onClick={onClose}>{t('Cerrar')}</Button>}>
-      <p><strong>Nova Calc</strong> · SuiteNova 0.1</p>
+      <p><strong>Nova Calc</strong> · SuiteNova {VERSION}</p>
       <p>{t('Hoja de cálculo libre (MPL-2.0). Lee y escribe archivos .xlsx (Office Open XML) y CSV.')}</p>
       <p style={{ color: 'var(--colorNeutralForeground3)' }}>{t('Las macros son de Nova Basic (un subconjunto de VBA): un proyecto de VBA de Excel no se importa. Las tablas dinámicas y las segmentaciones se guardan para Nova Calc; Excel muestra sus valores.')}</p>
     </Modal>

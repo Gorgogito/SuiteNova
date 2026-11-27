@@ -11,6 +11,8 @@ import { addRecent } from '../recents';
 import { formsCommands, type FormsDialog, type FormsUI } from './commands';
 import { FormsCtl } from './ctl';
 import { Designer } from './Designer';
+import { finishTyping } from './DraftInput';
+import { VERSION } from '../version';
 import { IMPORT_FILTERS, isImportName, readForeignForm } from './import';
 import './icons';
 import './messages';
@@ -43,6 +45,8 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
 
   const saveNow = useCallback(
     async (saveAs: boolean, silent = false) => {
+      // not when saving by itself: the box being typed in is left alone
+      if (!silent) finishTyping();
       try {
         const data = new TextEncoder().encode(serializeProject(ctl.doc));
         const base = (ctl.fileName ?? ctl.form.title).replace(/\.[^.]+$/, '');
@@ -95,7 +99,8 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       openDialog: (k) => setDialog(k),
       newWindow: () => void openModuleWindow('forms', module.name),
       open: async () => {
-        if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
+        finishTyping();
+        if ((ctl.dirty || ctl.hasDraft) && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
         const f = await pickAndRead([...FM_FILTERS, ...IMPORT_FILTERS]).catch((e) => {
           window.alert(String(e));
           return null;
@@ -103,7 +108,8 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
         if (f) await loadFile(f);
       },
       importForm: async () => {
-        if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
+        finishTyping();
+        if ((ctl.dirty || ctl.hasDraft) && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
         const f = await pickAndRead(IMPORT_FILTERS).catch((e) => {
           window.alert(String(e));
           return null;
@@ -112,6 +118,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       },
       save: (saveAs) => saveNow(saveAs),
       exportHtml: async () => {
+        finishTyping();
         if (!ctl.form.questions.some((q) => q.type !== 'title')) {
           window.alert(t('Añade al menos una pregunta antes de exportar.'));
           return;
@@ -160,7 +167,10 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
     (window as unknown as { __novaForms: unknown }).__novaForms = { ctl, load: (text: string, name: string) => loadFile({ name, path: null, data: new TextEncoder().encode(text) }) };
   }, [ctl, loadFile]);
 
-  useCloseGuard(() => ctl.dirty);
+  useCloseGuard(() => {
+    finishTyping();
+    return ctl.dirty || ctl.hasDraft;
+  });
 
   const tabs = useMemo(() => formsTabs(ui), [ui]);
   const backstage: BackstageEntry[] = useMemo(() => {
@@ -200,7 +210,8 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
           <span>{ctl.responses.length === 1 ? t('1 respuesta') : t('{n} respuestas', { n: ctl.responses.length })}</span>
           {ctl.form.quiz && <span>{t('Cuestionario')}</span>}
           {ctl.message && <span role="status">{ctl.message}</span>}
-          {saveState && <span aria-live="polite">{saveState}</span>}
+          {/* «Guardado» stops being true with the next change */}
+          {saveState && !(ctl.dirty && saveState === t('Guardado')) && <span aria-live="polite">{saveState}</span>}
         </>
       }
       contentFill
@@ -210,7 +221,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
           <div className="fm-page">
             {ctl.mode === 'design' && <Designer ctl={ctl} />}
             {ctl.mode === 'preview' && <Runner key={`p-${JSON.stringify(ctl.form).length}-${ctl.form.questions.length}`} form={ctl.form} onSubmit={null} />}
-            {ctl.mode === 'fill' && <Runner key="fill" form={ctl.form} onSubmit={(a) => { ctl.addResponse(a); }} />}
+            {ctl.mode === 'fill' && <Runner key="fill" form={ctl.form} draft={{ answers: ctl.draft, keep: (a) => ctl.setDraft(a) }} onSubmit={(a) => { ctl.addResponse(a); }} />}
             {ctl.mode === 'results' && <Results ctl={ctl} />}
           </div>
         </div>
@@ -220,7 +231,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
           <DialogBody>
             <DialogTitle>{t('Acerca de Nova Forms')}</DialogTitle>
             <DialogContent>
-              <p>Nova Forms 0.0.7</p>
+              <p>Nova Forms {VERSION}</p>
               <p>{t('Formularios y encuestas libres (MPL-2.0) de SuiteNova. Guarda en .novaforms; no tiene servidor: las respuestas se recogen con la página web exportada y se importan. Consulta docs/LIMITACIONES.md.')}</p>
             </DialogContent>
             <DialogActions>

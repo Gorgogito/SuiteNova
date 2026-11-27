@@ -87,7 +87,7 @@ function build(){
  if(form.description)head.appendChild(el('p',{class:'desc',text:form.description}));
  root.appendChild(head);
  var f=el('form',{novalidate:'novalidate',id:'f'});
- form.questions.forEach(function(q,i){var b=renderQ(q,i);blocks[q.id]=b;f.appendChild(b);});
+ var n=0;form.questions.forEach(function(q){if(isInput(q))n++;var b=renderQ(q,n);blocks[q.id]=b;f.appendChild(b);});
  var actions=el('div',{class:'card'},[el('button',{type:'submit',text:'Enviar'}),el('button',{type:'reset',class:'sec',text:'Borrar respuestas'})]);
  f.appendChild(actions);
  f.addEventListener('submit',function(e){e.preventDefault();submit();});
@@ -96,10 +96,10 @@ function build(){
  root.appendChild(f);
  refresh();
 }
-function renderQ(q,i){
+function renderQ(q,num){
  var card=el('div',{class:'card','data-q':q.id});
  if(q.type==='title'){card.appendChild(el('h2',{text:q.title}));if(q.description)card.appendChild(el('p',{class:'q-desc',text:q.description}));var pt=pic(q);if(pt)card.appendChild(pt);return card;}
- var fs=el('fieldset');var lg=el('legend');lg.appendChild(document.createTextNode((i+1)+'. '+q.title));
+ var fs=el('fieldset');var lg=el('legend');lg.appendChild(document.createTextNode(num+'. '+q.title));
  if(q.required){var s=el('span',{class:'req',text:' *'});s.setAttribute('aria-label','obligatoria');lg.appendChild(s);}
  fs.appendChild(lg);if(q.description)fs.appendChild(el('p',{class:'q-desc',text:q.description}));var pq=pic(q);if(pq)fs.appendChild(pq);
  var name='q_'+q.id;var t=q.type;var body;

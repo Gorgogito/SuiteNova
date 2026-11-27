@@ -1,5 +1,5 @@
 import { t } from '@suitenova/core-ui';
-import { IMAGE_SIZES, isSafeImage, isVisible, score, validateAll, visibleAnswers, type Answer, type Form, type Question } from '@suitenova/forms-core';
+import { IMAGE_SIZES, isSafeImage, isVisible, numbers, score, validateAll, visibleAnswers, type Answer, type Form, type Question } from '@suitenova/forms-core';
 import { useState } from 'react';
 import { ProofTextarea } from '../spell';
 
@@ -131,8 +131,11 @@ function Field({ q, value, error, onChange }: { q: Question; value: Answer | und
 }
 
 /** Fill in a form. With `onSubmit` the answers are handed over; without it this is only a preview. */
-export function Runner({ form, onSubmit, onAgain }: { form: Form; onSubmit: ((a: Answers) => void) | null; onAgain?: () => void }) {
-  const [answers, setAnswers] = useState<Answers>({});
+export function Runner({ form, onSubmit, onAgain, draft }: { form: Form; onSubmit: ((a: Answers) => void) | null; onAgain?: () => void; /** Where a half-filled answer is kept while this is not on screen. */ draft?: { answers: Answers; keep: (a: Answers) => void } }) {
+  const [own, setOwn] = useState<Answers>({});
+  const answers = draft ? draft.answers : own;
+  const setAnswers = (next: Answers) => (draft ? draft.keep(next) : setOwn(next));
+  const nums = numbers(form);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState<Answers | null>(null);
 
@@ -191,7 +194,7 @@ export function Runner({ form, onSubmit, onAgain }: { form: Form; onSubmit: ((a:
         <h1>{form.title}</h1>
         {form.description && <p className="fm-desc">{form.description}</p>}
       </div>
-      {form.questions.map((q, i) => {
+      {form.questions.map((q) => {
         if (!isVisible(form, q, answers)) return null;
         if (q.type === 'title')
           return (
@@ -204,12 +207,12 @@ export function Runner({ form, onSubmit, onAgain }: { form: Form; onSubmit: ((a:
         return (
           <div key={q.id} id={`fm-q-${q.id}`} className="fm-card nv-work">
             <div className="fm-qtitle">
-              {i + 1}. {q.title}
+              {nums.get(q.id)}. {q.title}
               {q.required && <span className="fm-req" aria-label={t('obligatoria')}> *</span>}
             </div>
             {q.description && <p className="fm-desc">{q.description}</p>}
             <QImage q={q} />
-            <Field q={q} value={answers[q.id]} error={errors[q.id]} onChange={(v) => setAnswers((a) => ({ ...a, [q.id]: v }))} />
+            <Field q={q} value={answers[q.id]} error={errors[q.id]} onChange={(v) => setAnswers({ ...answers, [q.id]: v })} />
             {errors[q.id] && (
               <p className="fm-err" role="alert">
                 {t(errors[q.id]!)}

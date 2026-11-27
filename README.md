@@ -39,7 +39,7 @@ Node 20+, pnpm 12, Rust estable, WebView2 y Visual Studio Build Tools (Windows).
 pnpm install
 pnpm dev            # solo frontend en http://localhost:1420  (?app=calc, writer, slides, base, notes, mail, plan, diagram, forms)
 pnpm tauri dev      # aplicación de escritorio (usa el puerto 1420; cierra antes `pnpm dev`)
-pnpm test           # pruebas unitarias (2615); cd apps/suite/src-tauri && cargo test: 63 más de Rust (4 se omiten)
+pnpm test           # pruebas unitarias (2635); cd apps/suite/src-tauri && cargo test: 63 más de Rust (4 se omiten)
 pnpm typecheck
 pnpm tauri build    # instaladores NSIS/MSI
 node scripts/e2e-calc.mjs --shots dir        # pruebas de extremo a extremo en Edge (necesita `pnpm dev`)
@@ -55,7 +55,7 @@ node scripts/e2e-notes-more.mjs --shots dir  # segunda ronda de Nova Notes hacia
 node scripts/e2e-mail.mjs --shots dir        # ídem para Nova Mail (18 comprobaciones; tarda unos 2 min)
 node scripts/e2e-plan.mjs --shots dir        # ídem para Nova Plan (42 comprobaciones)
 node scripts/e2e-diagram.mjs --shots dir     # ídem para Nova Diagram (27 comprobaciones)
-node scripts/e2e-forms.mjs --shots dir       # ídem para Nova Forms (21 comprobaciones)
+node scripts/e2e-forms.mjs --shots dir       # ídem para Nova Forms (27 comprobaciones)
 node scripts/e2e-mail-compose.mjs --shots dir # Mail: escribir en el panel, borradores, destinatarios y adjuntos (10 comprobaciones)
 node scripts/e2e-mail-format.mjs --shots dir # Mail: formato, original de las respuestas, firmas, plantillas e importancia (10)
 node scripts/e2e-mail-list.mjs --shots dir  # Mail: orden, filtros, conversaciones, selección, menús, arrastrar, deshacer, carpetas, imprimir y adjuntos (11)

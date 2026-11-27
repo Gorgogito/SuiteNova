@@ -2,6 +2,7 @@ import { Field, Select } from '@fluentui/react-components';
 import { normalizeThemePreference, SETTING_THEME, t, THEME_PREFERENCES, useCommandState, useCore, useSetting, useThemeMode, type BackstageEntry, type CommandRegistry } from '@suitenova/core-ui';
 import { closeThisWindow } from './platform';
 import './messages';
+import { VERSION } from './version';
 
 function RadioCommand({ id }: { id: string }) {
   const { def, checked } = useCommandState(id);
@@ -59,7 +60,7 @@ function InfoPage({ title }: { title: string }) {
   return (
     <div className="page">
       <h1>{title}</h1>
-      <p>{t('about.version', { version: '0.0.15' })}</p>
+      <p>{t('about.version', { version: VERSION })}</p>
       <p>{t('about.license')}</p>
     </div>
   );

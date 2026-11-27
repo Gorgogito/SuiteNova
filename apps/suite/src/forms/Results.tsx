@@ -1,5 +1,5 @@
 import { t } from '@suitenova/core-ui';
-import { QTYPES, score, summarize, type Answer, type Form, type QSummary, type Response } from '@suitenova/forms-core';
+import { QTYPES, numbers, score, summarize, type Answer, type Form, type QSummary, type Response } from '@suitenova/forms-core';
 import { useMemo, useState } from 'react';
 import type { FormsCtl } from './ctl';
 
@@ -177,6 +177,7 @@ export function Results({ ctl }: { ctl: FormsCtl }) {
   const form = ctl.form;
   const rs = ctl.responses;
   const sum = useMemo(() => summarize(form, rs), [form, rs]);
+  const nums = numbers(form);
   return (
     <div className="fm-results">
       <div className="fm-top">
@@ -191,7 +192,9 @@ export function Results({ ctl }: { ctl: FormsCtl }) {
         </div>
         {sum.quiz && (
           <div className="fm-total">
-            {t('Puntuación media')}: <b>{num(sum.quiz.average)}</b> / {sum.quiz.max} ({t('mejor')} {sum.quiz.best}, {t('peor')} {sum.quiz.worst})
+            {t('Puntuación media')}: <b>{num(sum.quiz.average)}</b>
+            {sum.quiz.varies ? ` · ${t('{p} % de lo que cada persona podía sacar', { p: num(sum.quiz.percent) })}` : ` / ${sum.quiz.max}`} ({t('mejor')} {sum.quiz.best}, {t('peor')} {sum.quiz.worst})
+            {sum.quiz.varies && <span className="fm-muted"> · {t('El máximo cambia según las preguntas que se vieron (hasta {n}).', { n: sum.quiz.max })}</span>}
           </div>
         )}
         <div role="tablist" className="fm-tabs" aria-label={t('Vista de resultados')}>
@@ -208,7 +211,7 @@ export function Results({ ctl }: { ctl: FormsCtl }) {
           {t('Todavía no hay respuestas. Rellena el formulario aquí, o comparte la página web exportada y luego usa "Importar respuestas" con los archivos que te devuelvan.')}
         </p>
       )}
-      {sum.total > 0 && view === 'summary' && sum.questions.map((s, i) => <Card key={s.question.id} s={s} n={form.questions.indexOf(s.question) + 1 || i + 1} />)}
+      {sum.total > 0 && view === 'summary' && sum.questions.map((s) => <Card key={s.question.id} s={s} n={nums.get(s.question.id)!} />)}
       {view === 'individual' && <Individual ctl={ctl} form={form} responses={rs} />}
     </div>
   );

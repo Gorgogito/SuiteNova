@@ -154,6 +154,95 @@ describe('FormsCtl', () => {
   });
 });
 
+describe('deshacer, opciones y respuestas a medias', () => {
+  it('lo escrito en un cuadro es un solo cambio, hasta que se deja', () => {
+    const { ctl } = setup();
+    const q = ctl.addQuestion('text');
+    for (const title of ['N', 'No', 'Nom', 'Nombre']) ctl.updateQuestion(q.id, { title }, true);
+    for (const title of ['E', 'En']) ctl.setForm({ title }, true);
+    ctl.endTyping();
+    ctl.setForm({ title: 'Encuesta' }, true);
+    ctl.undo();
+    expect(ctl.form.title).toBe('En');
+    ctl.undo();
+    expect(ctl.form.title).toBe('Formulario sin título');
+    expect(ctl.form.questions[0]!.title).toBe('Nombre');
+    ctl.undo();
+    expect(ctl.form.questions[0]!.title).toBe('');
+    ctl.redo();
+    // after an undo or a change of another kind, typing starts a new change
+    ctl.updateQuestion(q.id, { title: 'A' }, true);
+    ctl.updateQuestion(q.id, { required: true });
+    ctl.updateQuestion(q.id, { required: false });
+    ctl.undo();
+    expect(ctl.form.questions[0]!.required).toBe(true);
+  });
+
+  it('renombrar y quitar opciones desde la aplicación se deshace entero', () => {
+    const { ctl } = setup();
+    ctl.setForm({ quiz: true });
+    const q = ctl.addQuestion('choice');
+    ctl.updateQuestion(q.id, { correct: ['Opción 1'] });
+    ctl.addResponse({ [q.id]: 'Opción 1' });
+    ctl.setDraft({ [q.id]: 'Opción 1' });
+    expect(ctl.renameItem(q.id, 'options', 0, 'Opción 2')).toBe('Ya hay otro igual en la lista.');
+    expect(ctl.renameItem(q.id, 'options', 0, 'Sí')).toBeNull();
+    expect([ctl.form.questions[0]!.correct, ctl.responses[0]!.answers[q.id], ctl.draft[q.id]]).toEqual([['Sí'], 'Sí', 'Sí']);
+    ctl.removeItem(q.id, 'options', 0);
+    expect(ctl.form.questions[0]!.options).toEqual(['Opción 2']);
+    ctl.undo();
+    ctl.undo();
+    expect([ctl.form.questions[0]!.options[0], ctl.responses[0]!.answers[q.id]]).toEqual(['Opción 1', 'Opción 1']);
+  });
+
+  it('una respuesta recogida aquí no la quita ningún deshacer', () => {
+    const { ctl } = setup();
+    const q = ctl.addQuestion('text');
+    ctl.updateQuestion(q.id, { title: 'Uno' });
+    ctl.undo();
+    ctl.setDraft({ [q.id]: 'Ana' });
+    const r = ctl.addResponse({ [q.id]: 'Ana' });
+    expect(ctl.draft).toEqual({});
+    ctl.redo();
+    expect(ctl.responses.map((x) => x.id)).toEqual([r.id]);
+    ctl.undo();
+    ctl.undo();
+    expect(ctl.form.questions).toHaveLength(0);
+    expect(ctl.responses).toHaveLength(1);
+    ctl.redo();
+    ctl.deleteResponse(r.id);
+    ctl.undo();
+    expect(ctl.responses).toHaveLength(1);
+    ctl.redo();
+    expect(ctl.responses).toHaveLength(0);
+  });
+
+  it('cada modo tiene sus teclas: al rellenar no se deshace ni se toca el diseño', () => {
+    const { ctl, registry } = setup();
+    ctl.addQuestion('text');
+    const on = () => ['forms.undo', 'forms.q.duplicate', 'forms.q.delete', 'forms.q.required'].map((id) => registry.isEnabled(id));
+    expect(on()).toEqual([true, true, true, true]);
+    ctl.setMode('results');
+    expect(on()).toEqual([true, false, false, false]);
+    for (const mode of ['fill', 'preview'] as const) {
+      ctl.setMode(mode);
+      expect(on()).toEqual([false, false, false, false]);
+    }
+  });
+
+  it('la respuesta a medias sigue al cambiar de modo y se olvida al abrir otro', () => {
+    const { ctl } = setup();
+    ctl.setDraft({ x: '  ' });
+    expect(ctl.hasDraft).toBe(false);
+    ctl.setDraft({ x: 'algo' });
+    ctl.setMode('design');
+    ctl.setMode('fill');
+    expect(ctl.hasDraft).toBe(true);
+    ctl.reset();
+    expect(ctl.draft).toEqual({});
+  });
+});
+
 describe('Import from Microsoft Forms and Google Forms', () => {
   const rows = [
     ['Id', 'Hora de inicio', 'Hora de finalización', 'Correo electrónico', 'Nombre', 'Color', 'Edad'],
