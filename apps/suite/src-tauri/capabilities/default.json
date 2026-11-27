@@ -25,6 +25,7 @@
     "core:webview:allow-create-webview-window",
     "dialog:default",
     { "identifier": "fs:allow-read-file", "allow": [{ "path": "**" }] },
-    { "identifier": "fs:allow-write-file", "allow": [{ "path": "**" }] }
+    { "identifier": "fs:allow-write-file", "allow": [{ "path": "**" }] },
+    { "identifier": "fs:allow-exists", "allow": [{ "path": "**" }] }
   ]
 }

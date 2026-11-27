@@ -362,6 +362,30 @@ impl Backend for Ews {
         Ok(())
     }
 
+    fn rename_folder(&mut self, folder: &str, path: &str) -> Result<(), String> {
+        id_ok(folder)?;
+        let mut segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+        let Some(name) = segs.pop() else { return Err("Falta el nombre de la carpeta.".into()) };
+        let parent_path = segs.join("/");
+        let all = self.list_folders()?;
+        let old = all.iter().find(|f| f.name == folder).ok_or("La carpeta no existe en el servidor.")?.path.clone();
+        let (old_parent, old_name) = old.rsplit_once('/').unwrap_or(("", &old));
+        // el destino se busca antes de cambiar nada
+        let to = if parent_path.is_empty() {
+            "<t:DistinguishedFolderId Id=\"msgfolderroot\"/>".to_string()
+        } else {
+            let id = &all.iter().find(|f| f.path == parent_path).ok_or("La carpeta superior no existe en el servidor.")?.name;
+            format!("<t:FolderId Id=\"{}\"/>", esc(id))
+        };
+        if name != old_name {
+            self.run(&format!("<m:UpdateFolder><m:FolderChanges><t:FolderChange><t:FolderId Id=\"{}\"/><t:Updates><t:SetFolderField><t:FieldURI FieldURI=\"folder:DisplayName\"/><t:Folder><t:DisplayName>{}</t:DisplayName></t:Folder></t:SetFolderField></t:Updates></t:FolderChange></m:FolderChanges></m:UpdateFolder>", esc(folder), esc(name)))?;
+        }
+        if parent_path != old_parent {
+            self.run(&format!("<m:MoveFolder><m:ToFolderId>{to}</m:ToFolderId><m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:MoveFolder>", esc(folder)))?;
+        }
+        Ok(())
+    }
+
     fn delete_folder(&mut self, folder: &str) -> Result<(), String> {
         id_ok(folder)?;
         self.run(&format!("<m:DeleteFolder DeleteType=\"MoveToDeletedItems\"><m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:DeleteFolder>", esc(folder)))?;

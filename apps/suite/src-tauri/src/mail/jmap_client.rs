@@ -284,6 +284,23 @@ impl Backend for Jmap {
         self.check_set(&r["c"], "notCreated")
     }
 
+    fn rename_folder(&mut self, folder: &str, path: &str) -> Result<(), String> {
+        ids_ok(&[folder.to_string()])?;
+        let mut segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+        let Some(name) = segs.pop() else { return Err("Falta el nombre de la carpeta.".into()) };
+        let parent = if segs.is_empty() {
+            Value::Null
+        } else {
+            let want = segs.join("/");
+            let found = self.folder_list()?.into_iter().find(|f| f.path == want).ok_or("La carpeta superior no existe en el servidor.")?;
+            json!(found.name)
+        };
+        let mut update = serde_json::Map::new();
+        update.insert(folder.to_string(), json!({ "name": name, "parentId": parent }));
+        let r = self.call(vec![("Mailbox/set", json!({ "accountId": self.account_id, "update": update }), "r")])?;
+        self.check_set(&r["r"], "notUpdated")
+    }
+
     fn delete_folder(&mut self, folder: &str) -> Result<(), String> {
         ids_ok(&[folder.to_string()])?;
         let r = self.call(vec![("Mailbox/set", json!({ "accountId": self.account_id, "destroy": [folder] }), "d")])?;

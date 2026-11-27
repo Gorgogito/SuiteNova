@@ -210,6 +210,23 @@ fn creates_and_deletes_folders() {
 }
 
 #[test]
+fn renames_and_moves_folders_with_their_subfolders() {
+    let s = server();
+    let mut c = imap(&s);
+    c.create_folder("Trabajo/Nuevo").unwrap();
+    c.create_folder("Trabajo/Nuevo/Hija").unwrap();
+    c.rename_folder("Trabajo/Nuevo", "Año nuevo").unwrap();
+    // en el servidor, en UTF-7 modificado; en la página, con sus letras
+    assert!(s.has_folder("A&APE-o nuevo") && s.has_folder("A&APE-o nuevo/Hija") && !s.has_folder("Trabajo/Nuevo"));
+    assert!(c.list_folders().unwrap().iter().any(|f| f.path == "Año nuevo/Hija" && f.name == "A&APE-o nuevo/Hija"));
+    c.create_folder("Año nuevo/Señales").unwrap();
+    assert!(s.has_folder("A&APE-o nuevo/Se&APE-ales"));
+    assert!(c.rename_folder("NoExiste", "Otra").is_err());
+    assert!(c.rename_folder("Trabajo/Proyecto A", "A&APE-o").is_ok(), "un «&» escrito no se confunde con la codificación");
+    assert!(s.has_folder("A&-APE-o"));
+}
+
+#[test]
 fn oauth_logs_in_with_xoauth2_and_a_rejected_token_ends_cleanly() {
     let s = server();
     s.state.lock().unwrap().token = Some("TOKEN-BUENO".into());
@@ -462,6 +479,20 @@ fn jmap_creates_subfolders_and_refuses_to_delete_a_full_one() {
 }
 
 #[test]
+fn jmap_renames_and_moves_folders() {
+    let s = jmap_with_mail();
+    let mut c = jmap(&s);
+    c.create_folder("Suelta").unwrap();
+    let id = c.list_folders().unwrap().into_iter().find(|x| x.path == "Suelta").unwrap().name;
+    c.rename_folder(&id, "Trabajo/Año").unwrap();
+    assert!(c.list_folders().unwrap().iter().any(|x| x.path == "Trabajo/Año" && x.name == id));
+    c.rename_folder(&id, "Año").unwrap();
+    assert!(c.list_folders().unwrap().iter().any(|x| x.path == "Año"));
+    assert!(c.rename_folder(&id, "NoExiste/Año").is_err());
+    assert!(c.rename_folder("mb-inbox", "Otra").is_err());
+}
+
+#[test]
 fn jmap_credentials_bearer_tokens_and_unsafe_addresses() {
     let s = jmap_with_mail();
     let e = connect(&web_account(Protocol::Jmap, &s.url()), &pw("mal")).err().unwrap();
@@ -543,6 +574,22 @@ fn ews_moves_removes_appends_and_sends_with_a_saved_copy() {
     assert!(sent.contains("Bcc: oculta@ejemplo.es"));
     assert!(!sent.contains("Bcc: luis"));
     assert!(st.items.iter().any(|i| i.folder == "AAMkSENT/2=" && String::from_utf8_lossy(&i.raw).contains("Subject: Hola")), "Exchange guarda su copia en Elementos enviados");
+}
+
+#[test]
+fn ews_renames_and_moves_folders() {
+    let s = ews_with_mail();
+    let mut c = ews(&s);
+    c.create_folder("Suelta").unwrap();
+    let id = c.list_folders().unwrap().into_iter().find(|x| x.path == "Suelta").unwrap().name;
+    c.rename_folder(&id, "Año & cía").unwrap();
+    assert!(c.list_folders().unwrap().iter().any(|x| x.path == "Año & cía" && x.name == id));
+    c.rename_folder(&id, "Trabajo/Año & cía").unwrap();
+    assert!(c.list_folders().unwrap().iter().any(|x| x.path == "Trabajo/Año & cía"));
+    c.rename_folder(&id, "Otra").unwrap();
+    assert!(c.list_folders().unwrap().iter().any(|x| x.path == "Otra"));
+    assert!(c.rename_folder(&id, "NoExiste/Otra").is_err());
+    assert!(c.rename_folder("AAMkNO=", "Otra").is_err());
 }
 
 #[test]

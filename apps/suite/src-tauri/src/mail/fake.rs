@@ -201,6 +201,25 @@ fn imap_session(conn: TcpStream, st: Arc<Mutex<ImapState>>) -> std::io::Result<(
                     w.write_all(format!("{tag} OK done\r\n").as_bytes())?;
                 }
             }
+            "RENAME" => {
+                // dos nombres entre comillas
+                let (from, to) = args.trim().split_once("\" \"").unwrap_or((args.as_str(), ""));
+                let (from, to) = (unquote(from), unquote(to));
+                let mut s = st.lock().unwrap();
+                if to.is_empty() || s.folders.iter().any(|f| f.name == to) {
+                    w.write_all(format!("{tag} NO [ALREADYEXISTS] exists\r\n").as_bytes())?;
+                } else if !s.folders.iter().any(|f| f.name == from) {
+                    w.write_all(format!("{tag} NO no such mailbox\r\n").as_bytes())?;
+                } else {
+                    let below = format!("{from}/");
+                    for f in s.folders.iter_mut() {
+                        if f.name == from || f.name.starts_with(&below) {
+                            f.name = format!("{to}{}", &f.name[from.len()..]);
+                        }
+                    }
+                    w.write_all(format!("{tag} OK done\r\n").as_bytes())?;
+                }
+            }
             "DELETE" => {
                 let name = unquote(&args);
                 let mut s = st.lock().unwrap();

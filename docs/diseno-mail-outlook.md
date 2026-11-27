@@ -1,7 +1,7 @@
 # Nova Mail frente a Outlook (segunda ronda)
 
 Estado: **plan aprobado por el usuario** (2026-11-26); S/MIME y la sincronización de calendario y contactos con el
-servidor quedan para después. Fases 1 y 2 hechas (ver la bitácora al final).
+servidor quedan para después. Fases 1, 2 y 3 hechas (ver la bitácora al final).
 
 Referencia: Outlook clásico de Office 2024. La comparación sale de leer el código de Nova Mail, sus pruebas y
 `docs/LIMITACIONES.md`, y de lo que conozco de Outlook: **no se ha abierto el Outlook de este equipo** (usa cuentas reales).
@@ -109,3 +109,18 @@ Cada fase termina con pruebas, e2e con capturas, `LIMITACIONES.md` y `PROGRESO.m
   carpeta» a 1400 px (pasó a «Enviar y recibir»).
 - **Se quitaron** las marcas `[Imagen: …]` y `[Tabla: …]` del texto y el panel de tablas.
 - **Pruebas:** `rich.test.ts` (11), `e2e-mail-format.mjs` (10); adaptadas las e2e que usaban el cuadro de texto.
+
+### Fase 3 (hecha, 2026-11-26): lista y lectura
+- **Núcleo** (`mail-core`): `view.ts` (orden, filtros, grupos por fecha, filas), `threads.ts` (conversaciones),
+  `tnef.ts` (`winmail.dat`), `folders.ts` (renombrar, mover, favoritos, retirar cambios sin enviar).
+- **Lista** (`MessageList.tsx`): filas de alturas distintas virtualizadas, selección múltiple, menú contextual
+  (`ContextMenu.tsx`), arrastrar, teclado. **Carpetas** (`FolderTree.tsx`): menú, arrastrar, cambiar nombre, Favoritos.
+  Pestaña «Carpeta», grupo «Organización» en Vista y «Mensaje» en Datos.
+- **Deshacer**, también en el servidor. **Servidor:** orden nueva `mail_rename_folder` (IMAP RENAME, JMAP
+  `Mailbox/set`, Exchange `UpdateFolder` y `MoveFolder`) y permiso `fs:allow-exists` para no sobrescribir adjuntos.
+- **Fallos previos corregidos:** un mensaje movido quedaba desvinculado del servidor hasta la siguiente sincronización
+  (borrarlo entretanto no llegaba allí); las carpetas IMAP con tildes se veían codificadas.
+- **Fallos hallados y corregidos al probar y repasar:** abrir una conversación no mostraba ningún mensaje; deshacer un
+  movimiento revertía «leído»; Esc al renombrar podía aplicar el nombre y F2 no lo dejaba seleccionado; un submenú dejaba
+  sin teclado al menú.
+- **Pruebas:** `list.test.ts` (17), `list-actions.test.ts`, 5 de Rust, `e2e-mail-list.mjs` (11).

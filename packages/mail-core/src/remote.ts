@@ -352,8 +352,11 @@ export function applyFetched(d: MailData, account: string, plan: FolderPlan, f: 
     }
     if (m.mid && !unattached.has(m.mid)) unattached.set(m.mid, m);
   }
+  // dos lecturas de la misma carpeta pueden cruzarse: lo que ya está no se añade otra vez
+  const known = new Set(d.messages.filter((m) => m.remote?.account === account && m.remote.folder === plan.remote).map((m) => m.remote!.key));
   let added = 0;
   for (const m of f.messages) {
+    if (known.has(m.key)) continue;
     let parsedId = '';
     try {
       parsedId = parseMessage(decodeBase64(m.raw)).messageId;

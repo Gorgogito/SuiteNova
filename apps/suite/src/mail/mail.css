@@ -1213,3 +1213,262 @@
 .ml-templates__save input {
   flex: 1;
 }
+
+/* ---------- list: filter, order, groups, conversations ---------- */
+.ml-list__view {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 4px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  font-size: 12px;
+}
+.ml-list__view button {
+  padding: 2px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--colorNeutralForeground3);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ml-list__view button:hover {
+  background: var(--colorNeutralBackground1Hover);
+  color: var(--colorNeutralForeground1);
+}
+.ml-list__view button[aria-pressed='true'] {
+  border-bottom-color: var(--nv-accent, #0f6cbd);
+  color: var(--colorNeutralForeground1);
+  font-weight: 600;
+}
+.ml-group {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground2);
+}
+.ml-group button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--colorNeutralForeground1);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: start;
+}
+.ml-group button span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ml-group em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--colorNeutralForeground3);
+}
+.ml-item {
+  user-select: none;
+}
+.ml-item__top .ml-item__from {
+  flex: 1;
+}
+.ml-item__subject > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ml-item__caret {
+  display: inline-flex;
+  flex: none;
+  margin-inline-start: -12px;
+  margin-inline-end: -4px;
+  padding: 1px;
+  border: 0;
+  background: none;
+  color: var(--colorNeutralForeground2);
+  cursor: pointer;
+}
+.ml-item__count {
+  flex: none;
+  min-width: 16px;
+  padding: 0 4px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 8px;
+  font-size: 10px;
+  text-align: center;
+  color: var(--colorNeutralForeground2);
+}
+.ml-item__folder {
+  flex: none;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--colorNeutralForeground3);
+}
+.ml-item.is-child {
+  padding-inline-start: 30px;
+}
+.ml-item.is-selected .ml-item__date,
+.ml-item.is-selected .ml-item__folder,
+.ml-item.is-selected .ml-item__preview,
+.ml-item.is-selected .ml-flag:not(.is-on) {
+  color: var(--colorNeutralForeground2);
+}
+
+/* ---------- folders: favourites, renaming, dropping ---------- */
+.ml-favorites h3 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--colorNeutralForeground3);
+}
+.ml-favorites {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.ml-folders .ml-folder-name.is-drop {
+  outline: 2px solid var(--nv-accent, #0f6cbd);
+  outline-offset: -2px;
+  background: var(--colorNeutralBackground1Hover);
+}
+.ml-folders.is-drop {
+  box-shadow: inset 0 0 0 2px var(--nv-accent, #0f6cbd);
+}
+.ml-folder-edit {
+  flex: 1;
+  min-width: 0;
+}
+.ml-folders .ml-folder-rename {
+  min-width: 0;
+  margin: 1px 0;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  border: 1px solid var(--nv-accent, #0f6cbd);
+}
+.ml-folder-note {
+  padding: 2px 4px 4px;
+  font-size: 11px;
+  color: var(--colorNeutralForeground2);
+}
+
+/* ---------- context menu ---------- */
+.ml-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 190px;
+  max-width: 320px;
+  max-height: calc(100vh - 8px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 4px;
+  box-shadow: var(--shadow16, 0 8px 16px rgba(0, 0, 0, 0.2));
+  font-size: 13px;
+}
+.ml-menu li[role='separator'] {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--colorNeutralStroke2);
+}
+.ml-menu button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px 5px 2px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.ml-menu button:hover:not(:disabled),
+.ml-menu button:focus-visible,
+.ml-menu button[aria-expanded='true'] {
+  background: var(--colorNeutralBackground1Hover);
+}
+.ml-menu button:disabled {
+  color: var(--colorNeutralForegroundDisabled);
+  cursor: default;
+}
+.ml-menu__check {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  justify-content: center;
+}
+.ml-menu__label {
+  flex: 1;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ml-menu__hint {
+  font-size: 11px;
+  color: var(--colorNeutralForeground3);
+}
+
+/* ---------- several messages, headers, view selects ---------- */
+.ml-several {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 16px;
+  color: var(--colorNeutralForeground1);
+}
+.ml-several [role='toolbar'] {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.ml-headers {
+  box-sizing: border-box;
+  width: 100%;
+  height: 360px;
+  padding: 8px;
+  resize: vertical;
+  white-space: pre;
+  font: 12px Consolas, 'Courier New', monospace;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  border: 1px solid var(--colorNeutralStroke1);
+}
+.ml-ribbon-view {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.ml-ribbon-view label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+}
+.ml-ribbon-view select {
+  width: 120px;
+}

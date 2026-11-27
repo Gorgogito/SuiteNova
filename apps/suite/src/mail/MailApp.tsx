@@ -1,6 +1,6 @@
 import { Button, DialogActions, DialogContent, DialogTitle, Input } from '@fluentui/react-components';
 import { AppFrame, CommandRegistry, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { contactsFromCsv, contactsToCsv, occurrencesBetween, parseIcs, parseMailData, parseMbox, parseVcf, rawOf, serializeMail, writeIcs, writeMbox, writeVcf } from '@suitenova/mail-core';
+import { contactsFromCsv, contactsToCsv, occurrencesBetween, parseIcs, parseMailData, parseMbox, parseVcf, rawHeaders, rawOf, serializeMail, writeIcs, writeMbox, writeVcf } from '@suitenova/mail-core';
 import { Calendar, CheckSquare, Mail, Users } from 'lucide-react';
 import { parseCsv, toCsv } from '@suitenova/base-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -17,7 +17,11 @@ import { MailCtl } from './ctl';
 import './messages';
 import { setTransport } from './remote';
 import { ComposeBody } from './Composer';
-import { FolderTree, LinkConfirm, MessageList, ReadingPane } from './MailViews';
+import { FolderTree } from './FolderTree';
+import { LinkConfirm, ReadingPane } from './MailViews';
+import { MessageList } from './MessageList';
+import { removeSelected, saveAttachmentsOf } from './actions';
+import { printMessage } from './print';
 import { MessageImagesForm } from './dlg-ocr';
 import { ReadAloudBar } from '../voice/ReadAloudBar';
 import { StickyDialog } from './StickyDialog';
@@ -66,7 +70,15 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+Intro / Esc', 'Enviar / cerrar el mensaje que escribes'],
   ['Ctrl+R / Ctrl+Mayús+R', 'Responder / Responder a todos'],
   ['Ctrl+F', 'Reenviar'],
-  ['Supr', 'Eliminar el mensaje'],
+  ['Supr / Mayús+Supr', 'Eliminar el mensaje / eliminarlo para siempre'],
+  ['Ctrl+Z', 'Deshacer: eliminar, mover y marcas'],
+  ['Mayús / Ctrl + clic · Mayús+flechas', 'Seleccionar varios mensajes'],
+  ['Ctrl+A', 'Seleccionar todos los mensajes de la lista'],
+  ['Flecha derecha / izquierda', 'Abrir o cerrar una conversación'],
+  ['Insert', 'Poner o quitar la bandera'],
+  ['Mayús+F10', 'Menú del mensaje o de la carpeta'],
+  ['F2', 'Cambiar el nombre de la carpeta'],
+  ['Ctrl+P', 'Imprimir el mensaje'],
   ['Ctrl+Q / Ctrl+U', 'Marcar como leído / no leído'],
   ['Ctrl+E', 'Buscar'],
   ['F4', 'Buscar en el mensaje (al leer y al escribir); Ctrl+H reemplaza al escribir'],
@@ -283,6 +295,8 @@ export function MailApp({ module }: { module: ModuleInfo }) {
           searchRef.current?.select();
         }, 30);
       },
+      print: () => ctl.selected && printMessage(ctl.selected),
+      saveAttachments: () => ctl.selected && void saveAttachmentsOf(ctl.selected, setStatus),
       // the close guard asks about unsaved changes, here and from the title bar
       close: () => void closeThisWindow(),
     }),
@@ -337,6 +351,28 @@ export function MailApp({ module }: { module: ModuleInfo }) {
     return () => clearInterval(id);
   }, [checkReminders, ctl.data.events]);
 
+  const listActions = useMemo(
+    () => ({
+      print: printMessage,
+      headers: () => setDialog('headers'),
+      saveAttachments: (rec: Parameters<typeof printMessage>[0]) => void saveAttachmentsOf(rec, setStatus),
+    }),
+    [ctl],
+  );
+
+  // Ctrl+Z takes back what was done to the messages; in a field or in the message being written it undoes the typing
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+      const el = e.target as HTMLElement;
+      if (ctl.section !== 'mail' || ctl.compose || el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.closest('[role="dialog"]')) return;
+      e.preventDefault();
+      ctl.undo();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [ctl]);
+
   useCloseGuard(() => {
     ctl.autosaveCompose();
     return ctl.dirty;
@@ -351,6 +387,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
       { kind: 'separator' },
       { kind: 'command', command: 'mail.save' },
       { kind: 'command', command: 'mail.saveAs' },
+      { kind: 'command', command: 'mail.print' },
       { kind: 'separator' },
       ...pages,
       { kind: 'command', command: 'mail.about' },
@@ -359,6 +396,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
   }, [module.name]);
 
   const sel = ctl.selected;
+  const several = ctl.selectedIds().length;
   // the message is written in the reading pane when there is one to be seen
   const canWriteInPane = ctl.section === 'mail' && ctl.showReadingPane;
   const inPane = !!ctl.compose && canWriteInPane && !ctl.composePopped;
@@ -372,7 +410,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
       appName={module.name}
       registry={registry}
       tabs={tabs}
-      qat={['mail.save', 'mail.compose']}
+      qat={['mail.save', 'mail.undo', 'mail.compose']}
       docTitle={ctl.docTitle}
       backstage={backstage}
       statusLeft={
@@ -419,17 +457,38 @@ export function MailApp({ module }: { module: ModuleInfo }) {
                   }}
                 />
               </div>
-              <MessageList ctl={ctl} />
+              <MessageList ctl={ctl} actions={listActions} />
             </div>
             {ctl.showReadingPane && (
               <div className="ml-mail__pane">
                 {ctl.readAloud.visible && <ReadAloudBar ctrl={ctl.readAloud.voice} onClose={() => ctl.readAloud.stop()} />}
                 {inPane ? (
                   composer('pane')
+                ) : sel && !ctl.single ? (
+                  <div className="ml-several" role="region" aria-label={t('Varios mensajes')}>
+                    <p role="status">{t('{n} mensajes seleccionados', { n: several })}</p>
+                    <div role="toolbar" aria-label={t('Acciones de la selección')}>
+                      <button type="button" className="ml-btn" onClick={() => removeSelected(ctl)}>
+                        {t('Eliminar')}
+                      </button>
+                      <button type="button" className="ml-btn" onClick={() => void ctl.moveMany(ctl.selectedIds(), 'archive')}>
+                        {t('Archivar')}
+                      </button>
+                      <button type="button" className="ml-btn" onClick={() => ctl.setReadMany(ctl.selectedIds(), true)}>
+                        {t('Marcar como leído')}
+                      </button>
+                      <button type="button" className="ml-btn" onClick={() => ctl.setReadMany(ctl.selectedIds(), false)}>
+                        {t('Marcar como no leído')}
+                      </button>
+                      <button type="button" className="ml-btn" onClick={() => ctl.setFlagMany(ctl.selectedIds(), true)}>
+                        {t('Marcar con bandera')}
+                      </button>
+                    </div>
+                  </div>
                 ) : sel ? (
                   <>
                     <div className="ml-mail__actions" role="toolbar" aria-label={t('Acciones del mensaje')}>
-                      {ctl.folder === 'drafts' ? (
+                      {sel.folder === 'drafts' ? (
                         <button type="button" className="ml-btn" onClick={() => ctl.editDraft(sel.id)}>
                           {t('Editar borrador')}
                         </button>
@@ -446,7 +505,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
                       <button type="button" className="ml-btn" onClick={() => ctl.forward(sel.id)}>
                         {t('Reenviar')}
                       </button>
-                      <button type="button" className="ml-btn" onClick={() => ctl.delete(sel.id)}>
+                      <button type="button" className="ml-btn" onClick={() => removeSelected(ctl)}>
                         {t('Eliminar')}
                       </button>
                     </div>
@@ -504,7 +563,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
         {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={() => setDialog(null)} onEdit={() => setDialog('macroEditor')} />}
         {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={() => setDialog(null)} />}
         {dialog === 'macroSecurity' && <MacroSecurity ctl={ctl} onClose={() => setDialog(null)} />}
-        <StickyDialog open={dialog !== null && dialog !== 'macros' && dialog !== 'macroEditor' && dialog !== 'signatures'} onClose={() => setDialog(null)} width={dialog === 'accounts' ? 640 : undefined}>
+        <StickyDialog open={dialog !== null && dialog !== 'macros' && dialog !== 'macroEditor' && dialog !== 'signatures'} onClose={() => setDialog(null)} width={dialog === 'accounts' ? 640 : dialog === 'headers' ? 760 : undefined}>
           {dialog === 'imageText' && <MessageImagesForm ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'settings' && <SettingsDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'accounts' && <AccountsDialog ctl={ctl} onClose={() => setDialog(null)} />}
@@ -512,6 +571,22 @@ export function MailApp({ module }: { module: ModuleInfo }) {
             <Modal title={t('Acerca de Nova Mail')} onClose={() => setDialog(null)}>
               <p>Nova Mail 0.0.7</p>
               <p>{t('Correo, calendario, contactos y tareas libres (MPL-2.0) de SuiteNova. Se conecta a servidores IMAP, POP3, JMAP y Exchange (EWS) con contraseña u OAuth desde la aplicación de escritorio, mantiene todas las carpetas al día y trabaja con archivos (.eml, .mbox, .ics, .vcf, .msg, .pst, .ost). Consulta docs/LIMITACIONES.md.')}</p>
+            </Modal>
+          )}
+          {dialog === 'headers' && sel && (
+            <Modal
+              title={t('Encabezados del mensaje')}
+              onClose={() => setDialog(null)}
+              actions={
+                <>
+                  <Button onClick={() => void navigator.clipboard.writeText(rawHeaders(rawOf(sel)))}>{t('Copiar')}</Button>
+                  <Button appearance="primary" onClick={() => setDialog(null)}>
+                    {t('Cerrar')}
+                  </Button>
+                </>
+              }
+            >
+              <textarea className="ml-headers" readOnly aria-label={t('Encabezados del mensaje')} value={rawHeaders(rawOf(sel))} />
             </Modal>
           )}
           {dialog === 'shortcuts' && (

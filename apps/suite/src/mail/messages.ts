@@ -3,6 +3,7 @@ import './messages-accounts';
 import './messages-mail2';
 import './messages-compose';
 import './messages-format';
+import './messages-list';
 
 // Spanish literals are the source text; English is provided here. Missing entries fall back to Spanish.
 registerMessages('en', {

@@ -7,3 +7,7 @@ export * from './vcard';
 export * from './remote';
 export * from './outlook';
 export * from './recipients';
+export * from './threads';
+export * from './view';
+export * from './tnef';
+export * from './folders';

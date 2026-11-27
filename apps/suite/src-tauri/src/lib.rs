@@ -114,6 +114,7 @@ pub fn run() {
             mail::commands::mail_append,
             mail::commands::mail_create_folder,
             mail::commands::mail_delete_folder,
+            mail::commands::mail_rename_folder,
             mail::commands::mail_set_flag,
             mail::commands::mail_send,
         ])

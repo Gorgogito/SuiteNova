@@ -184,6 +184,19 @@ export class FakeServer {
         this.folders = this.folders.filter((f) => f.name !== args.folder);
         return null;
       }
+      case 'mail_rename_folder': {
+        const f = folder(args.folder);
+        const path = args.path as string;
+        if (this.folders.some((x) => x !== f && x.path === path)) throw new Error('El servidor rechazó la operación: ya existe');
+        const old = f.path;
+        // como IMAP: las subcarpetas cambian con ella
+        for (const x of this.folders)
+          if (x === f || x.path.startsWith(`${old}/`)) {
+            x.path = path + x.path.slice(old.length);
+            x.name = x.path;
+          }
+        return null;
+      }
       case 'mail_send': {
         this.sent.push({ id: args.id as string, recipients: args.recipients as string[], raw: atob(args.raw as string) });
         if (this.keepsSent) {

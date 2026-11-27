@@ -2,6 +2,7 @@ use super::account::{Account, Security};
 use super::backend::{check_flag, parse_keys_u32, Backend, Creds, Fetched, FolderState, RemoteFolder, RemoteMessage, Skipped, StateItem};
 use super::smtp_client;
 use super::tls::{clean, connector, tcp};
+use super::utf7;
 use base64::Engine;
 use std::cell::Cell;
 use std::net::TcpStream;
@@ -108,6 +109,15 @@ impl Imap {
     }
 }
 
+impl Imap {
+    /// El nombre que entiende el servidor para una ruta de la página: ella usa «/» entre niveles y cada servidor tiene su
+    /// propio separador.
+    fn wire_name(&mut self, path: &str) -> Result<String, String> {
+        let delim = self.list_folders()?.iter().find_map(|f| f.delimiter.clone()).unwrap_or_else(|| "/".into());
+        Ok(path.split('/').map(utf7::encode).collect::<Vec<_>>().join(&delim))
+    }
+}
+
 fn set_of(keys: &[u32]) -> String {
     keys.iter().map(|u| u.to_string()).collect::<Vec<_>>().join(",")
 }
@@ -119,9 +129,10 @@ impl Backend for Imap {
             .iter()
             .map(|n| {
                 let delim = n.delimiter().map(|d| d.to_string());
+                // cada nivel por separado: las letras que no son ASCII llegan en UTF-7 modificado
                 let path = match delim.as_deref() {
-                    Some(d) if !d.is_empty() && d != "/" => n.name().replace(d, "/"),
-                    _ => n.name().to_string(),
+                    Some(d) if !d.is_empty() => n.name().split(d).map(utf7::decode).collect::<Vec<_>>().join("/"),
+                    _ => utf7::decode(n.name()),
                 };
                 RemoteFolder { name: n.name().to_string(), path, delimiter: delim, attrs: n.attributes().iter().map(|a| format!("{a:?}")).map(|a| attr_text(&a)).collect() }
             })
@@ -227,10 +238,13 @@ impl Backend for Imap {
     }
 
     fn create_folder(&mut self, path: &str) -> Result<(), String> {
-        // la página usa «/» entre niveles; cada servidor tiene su propio separador
-        let delim = self.list_folders()?.iter().find_map(|f| f.delimiter.clone()).unwrap_or_else(|| "/".into());
-        let name = path.replace('/', &delim);
+        let name = self.wire_name(path)?;
         on!(&mut self.s, s => s.create(&name)).map_err(explain)
+    }
+
+    fn rename_folder(&mut self, folder: &str, path: &str) -> Result<(), String> {
+        let name = self.wire_name(path)?;
+        on!(&mut self.s, s => s.rename(folder, &name)).map_err(explain)
     }
 
     fn delete_folder(&mut self, folder: &str) -> Result<(), String> {

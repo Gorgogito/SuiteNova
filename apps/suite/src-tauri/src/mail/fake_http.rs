@@ -232,6 +232,28 @@ fn jmap_method(s: &mut JState, name: &str, a: &Value, created: &mut HashMap<Stri
                 }
                 out["created"] = Value::Object(ok);
             }
+            if let Some(u) = a["update"].as_object() {
+                let mut ok = serde_json::Map::new();
+                let mut bad = serde_json::Map::new();
+                for (id, v) in u {
+                    match s.boxes.iter_mut().find(|b| b.0 == *id && b.3.is_none()) {
+                        Some(b) => {
+                            if let Some(n) = v["name"].as_str() {
+                                b.1 = n.to_string();
+                            }
+                            b.2 = v["parentId"].as_str().map(|x| x.to_string());
+                            ok.insert(id.clone(), Value::Null);
+                        }
+                        None => {
+                            bad.insert(id.clone(), json!({ "type": "forbidden" }));
+                        }
+                    }
+                }
+                out["updated"] = Value::Object(ok);
+                if !bad.is_empty() {
+                    out["notUpdated"] = Value::Object(bad);
+                }
+            }
             if let Some(d) = a["destroy"].as_array() {
                 let mut bad = serde_json::Map::new();
                 for id in d.iter().filter_map(|x| x.as_str()) {
@@ -547,6 +569,28 @@ fn ews_handle(st: &Arc<Mutex<EState>>, req: &Req) -> Resp {
             s.next += 1;
             s.folders.push((id, parent, name, None));
             wrap("CreateFolder", vec![msg("Success", ok_msg(""))])
+        }
+        "UpdateFolder" => {
+            let id = ids_of(&op, "FolderChange").first().cloned().unwrap_or_default();
+            let name = find(&op, "DisplayName").first().map(|n| n.text.clone()).unwrap_or_default();
+            match s.folders.iter_mut().find(|f| f.0 == id) {
+                Some(f) => {
+                    f.2 = name;
+                    wrap("UpdateFolder", vec![msg("Success", ok_msg(""))])
+                }
+                None => wrap("UpdateFolder", vec![err_msg("ErrorFolderNotFound", "no existe")]),
+            }
+        }
+        "MoveFolder" => {
+            let id = ids_of(&op, "FolderIds").first().cloned().unwrap_or_default();
+            let parent = ids_of(&op, "ToFolderId").first().cloned().or_else(|| find(&op, "DistinguishedFolderId").first().and_then(|d| folder_by_distinguished(&s, d.attr("Id").unwrap_or("")))).unwrap_or_default();
+            match s.folders.iter_mut().find(|f| f.0 == id) {
+                Some(f) => {
+                    f.1 = parent;
+                    wrap("MoveFolder", vec![msg("Success", ok_msg(""))])
+                }
+                None => wrap("MoveFolder", vec![err_msg("ErrorFolderNotFound", "no existe")]),
+            }
         }
         "DeleteFolder" => {
             let id = ids_of(&op, "FolderIds").first().cloned().unwrap_or_default();

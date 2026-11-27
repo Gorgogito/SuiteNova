@@ -4,7 +4,7 @@
 //! Seguridad: las credenciales solo existen en el almacén seguro del sistema y en la memoria de este proceso; la página
 //! nunca las recibe. Las órdenes aceptan solo el identificador de una cuenta ya guardada y usan el servidor guardado con ella.
 
-pub mod account;
+mod account;
 pub mod auth;
 pub mod backend;
 pub mod commands;
@@ -16,6 +16,7 @@ pub mod pop3_client;
 pub mod smtp_client;
 pub mod store;
 pub mod tls;
+mod utf7;
 
 #[cfg(test)]
 mod fake;

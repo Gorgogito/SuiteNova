@@ -1,6 +1,7 @@
 import { registerIcon, t, type RibbonGroup, type RibbonTab } from '@suitenova/core-ui';
-import { folderRows } from '@suitenova/mail-core';
-import { Archive, Ban, CalendarPlus, Contact, Flag, Forward, MailOpen, MailPlus, PanelRight, Reply, ReplyAll, UserPlus } from 'lucide-react';
+import { LIST_FILTERS, SORT_KEYS, canChangeFolder, type ListFilter, type SortKey } from '@suitenova/mail-core';
+import { folderMoveItems, moveTargets } from './actions';
+import { Archive, ArrowDownUp, Ban, CalendarPlus, Contact, Flag, Forward, Group, MailOpen, MailPlus, MessagesSquare, PanelRight, Reply, ReplyAll, Star, UserPlus } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import { helpTab, viewTab } from '../common';
 import type { MailUI } from './commands';
@@ -18,6 +19,10 @@ registerIcon('panelRight', PanelRight);
 registerIcon('reply', Reply);
 registerIcon('replyAll', ReplyAll);
 registerIcon('userPlus', UserPlus);
+registerIcon('conversations', MessagesSquare);
+registerIcon('groups', Group);
+registerIcon('sortReverse', ArrowDownUp);
+registerIcon('star', Star);
 
 function MoveSelect({ ui }: { ui: MailUI }) {
   const c = ui.ctl;
@@ -32,19 +37,73 @@ function MoveSelect({ ui }: { ui: MailUI }) {
       disabled={!m || c.section !== 'mail'}
       value=""
       onChange={(e) => {
-        if (m && e.target.value) c.move(m.id, e.target.value);
+        if (m && e.target.value) c.moveMany(c.selectedIds(), e.target.value);
       }}
     >
       <option value="">{t('Mover a…')}</option>
-      {folderRows(c.data)
-        .filter(({ folder: f }) => f.id !== m?.folder && !f.id.startsWith('c:'))
-        .map(({ folder: f, depth }) => (
-          <option key={f.id} value={f.id}>
-            {'  '.repeat(depth)}
-            {t(f.name)}
-          </option>
-        ))}
+      {moveTargets(c, c.selectedIds().length > 1 ? undefined : m?.folder).map((f) => (
+        <option key={f.id} value={f.id}>
+          {f.label}
+        </option>
+      ))}
     </select>
+  );
+}
+
+function MoveFolderSelect({ ui }: { ui: MailUI }) {
+  const c = ui.ctl;
+  useSyncExternalStore(c.subscribe, c.getVersion);
+  const can = c.section === 'mail' && canChangeFolder(c.data.folders.find((f) => f.id === c.folder));
+  const items = can ? folderMoveItems(c, c.folder).filter((i) => i !== 'separator') : [];
+  return (
+    <select
+      className="nv-select"
+      style={{ width: 170 }}
+      aria-label={t('Mover la carpeta a')}
+      title={t('Mover la carpeta a')}
+      disabled={!can}
+      value=""
+      onChange={(e) => {
+        const i = Number(e.target.value);
+        if (e.target.value) items[i]?.run?.();
+      }}
+    >
+      <option value="">{t('Mover la carpeta a…')}</option>
+      {items.map((it, i) => (
+        <option key={i} value={i} disabled={it.disabled}>
+          {it.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function ViewSelects({ ui }: { ui: MailUI }) {
+  const c = ui.ctl;
+  useSyncExternalStore(c.subscribe, c.getVersion);
+  return (
+    <div className="ml-ribbon-view">
+      <label>
+        <span>{t('Ordenar por')}</span>
+        <select className="nv-select" aria-label={t('Ordenar por')} value={c.view.sort} onChange={(e) => c.setView({ sort: e.target.value as SortKey })}>
+          {SORT_KEYS.map((k) => (
+            <option key={k.id} value={k.id}>
+              {t(k.label)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>{t('Mostrar')}</span>
+        <select className="nv-select" aria-label={t('Mostrar')} value={c.view.filter} onChange={(e) => c.setView({ filter: e.target.value as ListFilter })}>
+          {LIST_FILTERS.map((f) => (
+            <option key={f.id} value={f.id}>
+              {t(f.label)}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }
 
@@ -149,6 +208,36 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
     ],
   };
 
+  // como en Outlook: una pestaña para las carpetas
+  const folder: RibbonTab = {
+    id: 'folder',
+    label: 'Carpeta',
+    keytip: 'K',
+    groups: [
+      {
+        id: 'edit',
+        label: 'Carpeta',
+        icon: 'archive',
+        items: [
+          { kind: 'button', command: 'mail.folder.new', size: 'large', keytip: 'N' },
+          { kind: 'button', command: 'mail.folder.rename', size: 'large', keytip: 'R' },
+          { kind: 'button', command: 'mail.deleteFolder', size: 'large', keytip: 'EC' },
+          { kind: 'custom', id: 'moveFolder', label: 'Mover la carpeta', keytip: 'MC', render: () => <MoveFolderSelect ui={ui} /> },
+        ],
+      },
+      {
+        id: 'content',
+        label: 'Contenido',
+        icon: 'mailOpen',
+        items: [
+          { kind: 'button', command: 'mail.folder.markRead', size: 'large', keytip: 'LE' },
+          { kind: 'button', command: 'mail.emptyFolder', size: 'large', keytip: 'VF' },
+          { kind: 'button', command: 'mail.folder.favorite', size: 'large', keytip: 'FA' },
+        ],
+      },
+    ],
+  };
+
   const data: RibbonTab = {
     id: 'data',
     label: 'Datos',
@@ -164,6 +253,16 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
           { kind: 'button', command: 'data.import.outlook', size: 'large', keytip: 'IO' },
           { kind: 'button', command: 'data.import.ics', size: 'large', keytip: 'IC' },
           { kind: 'button', command: 'data.import.contacts', size: 'large', keytip: 'IV' },
+        ],
+      },
+      {
+        id: 'message',
+        label: 'Mensaje',
+        icon: 'mailOpen',
+        items: [
+          { kind: 'button', command: 'mail.print', size: 'large', keytip: 'P' },
+          { kind: 'button', command: 'mail.saveAttachments', size: 'small', keytip: 'GA' },
+          { kind: 'button', command: 'mail.headers', size: 'small', keytip: 'EN' },
         ],
       },
       {
@@ -183,6 +282,17 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
 
   const view = viewTab({ zoom: false });
   view.groups.splice(1, 0, { id: 'pane', label: 'Disposición', icon: 'panelRight', items: [{ kind: 'button', command: 'mail.readingPane', size: 'large', keytip: 'PL' }] });
+  view.groups.splice(2, 0, {
+    id: 'arrange',
+    label: 'Organización',
+    icon: 'sortReverse',
+    items: [
+      { kind: 'custom', id: 'viewSelects', label: 'Ordenar y filtrar', keytip: 'OF', render: () => <ViewSelects ui={ui} /> },
+      { kind: 'button', command: 'mail.view.conversations', size: 'small', keytip: 'OC' },
+      { kind: 'button', command: 'mail.view.reverse', size: 'small', keytip: 'OI' },
+      { kind: 'button', command: 'mail.view.groups', size: 'small', keytip: 'OG' },
+    ],
+  });
   view.groups.push({
     id: 'voice',
     label: 'Voz',
@@ -222,5 +332,5 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
       },
     ],
   };
-  return [home, sync, data, developer, view, helpTab()];
+  return [home, sync, folder, data, developer, view, helpTab()];
 }

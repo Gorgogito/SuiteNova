@@ -1,9 +1,11 @@
 import type { CommandDef } from '@suitenova/core-ui';
+import { LIST_FILTERS, SORT_KEYS, canChangeFolder } from '@suitenova/mail-core';
+import { emptyFolder, removeFolder, removeSelected } from './actions';
 import type { MailCtl } from './ctl';
 import { ocrCommands } from './commands-ocr';
 import { voiceCommands } from './commands-voice';
 
-export type MailDialog = 'signatures' | 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
+export type MailDialog = 'headers' | 'signatures' | 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
 export type ImportKind = 'eml' | 'mbox' | 'ics' | 'contacts' | 'outlook';
 
 export interface MailUI {
@@ -18,6 +20,8 @@ export interface MailUI {
   exportCalendar(): Promise<void>;
   exportContacts(csv: boolean): Promise<void>;
   focusSearch(): void;
+  print(): void;
+  saveAttachments(): void;
   close(): void;
 }
 
@@ -27,6 +31,9 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   const add = (d: CommandDef) => defs.push(d);
   // while a message is being written, the commands of the selected one wait: Ctrl+R or Ctrl+F do not interrupt
   const hasMsg = () => c.section === 'mail' && !!c.selected && !c.compose;
+  // some act on one message; the others on everything selected
+  const hasOne = () => hasMsg() && !!c.single;
+  const folder = () => c.data.folders.find((f) => f.id === c.folder);
 
   add({ id: 'mail.new', label: 'Archivo de correo nuevo', icon: 'new', shortcut: 'Ctrl+N', run: () => ui.newWindow() });
   add({ id: 'mail.open', label: 'Abrir…', icon: 'open', shortcut: 'Ctrl+O', run: () => void ui.open() });
@@ -59,42 +66,42 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   // mail
   add({ id: 'mail.compose', label: 'Correo nuevo', icon: 'mailNew', shortcut: 'Ctrl+Shift+M', run: () => c.newMessage() });
   add({ id: 'mail.signatures', label: 'Firmas…', icon: 'edit', description: 'Crea firmas y elige cuál se pone sola en cada cuenta, en los mensajes nuevos y en las respuestas.', run: () => ui.openDialog('signatures') });
-  add({ id: 'mail.reply', label: 'Responder', icon: 'reply', shortcut: 'Ctrl+R', enabled: () => hasMsg() && c.folder !== 'drafts', run: () => c.reply(c.selectedId!, false) });
-  add({ id: 'mail.replyAll', label: 'Responder a todos', icon: 'replyAll', shortcut: 'Ctrl+Shift+R', enabled: () => hasMsg() && c.folder !== 'drafts', run: () => c.reply(c.selectedId!, true) });
-  add({ id: 'mail.forward', label: 'Reenviar', icon: 'forward', shortcut: 'Ctrl+F', enabled: hasMsg, run: () => c.forward(c.selectedId!) });
-  add({ id: 'mail.editDraft', label: 'Editar borrador', icon: 'edit', enabled: () => hasMsg() && c.folder === 'drafts', run: () => c.editDraft(c.selectedId!) });
-  add({ id: 'mail.delete', label: 'Eliminar mensaje', icon: 'trash', hint: 'Supr', enabled: hasMsg, run: () => c.delete(c.selectedId!) });
-  add({ id: 'mail.archive', label: 'Archivar', icon: 'archive', enabled: () => hasMsg() && c.folder !== 'archive', run: () => c.move(c.selectedId!, 'archive') });
-  add({ id: 'mail.junk', label: 'Correo no deseado', icon: 'ban', enabled: () => hasMsg() && c.folder !== 'junk', run: () => c.move(c.selectedId!, 'junk') });
-  add({ id: 'mail.markRead', label: 'Marcar como leído', icon: 'mailOpen', shortcut: 'Ctrl+Q', enabled: () => hasMsg() && !c.selected!.read, run: () => c.setRead(c.selectedId!, true) });
-  add({ id: 'mail.markUnread', label: 'Marcar como no leído', icon: 'mail', shortcut: 'Ctrl+U', enabled: () => hasMsg() && c.selected!.read, run: () => c.setRead(c.selectedId!, false) });
-  add({ id: 'mail.flag', label: 'Marcar con bandera', icon: 'flag', checked: () => !!c.selected?.flagged, enabled: hasMsg, run: () => c.toggleFlag(c.selectedId!) });
+  add({ id: 'mail.reply', label: 'Responder', icon: 'reply', shortcut: 'Ctrl+R', enabled: () => hasOne() && c.selected!.folder !== 'drafts', run: () => c.reply(c.selectedId!, false) });
+  add({ id: 'mail.replyAll', label: 'Responder a todos', icon: 'replyAll', shortcut: 'Ctrl+Shift+R', enabled: () => hasOne() && c.selected!.folder !== 'drafts', run: () => c.reply(c.selectedId!, true) });
+  add({ id: 'mail.forward', label: 'Reenviar', icon: 'forward', shortcut: 'Ctrl+F', enabled: hasOne, run: () => c.forward(c.selectedId!) });
+  add({ id: 'mail.editDraft', label: 'Editar borrador', icon: 'edit', enabled: () => hasOne() && c.selected!.folder === 'drafts', run: () => c.editDraft(c.selectedId!) });
+  add({ id: 'mail.delete', label: 'Eliminar mensaje', icon: 'trash', hint: 'Supr', enabled: hasMsg, run: () => removeSelected(c) });
+  add({ id: 'mail.deletePermanent', label: 'Eliminar para siempre', icon: 'trash', hint: 'Mayús+Supr', enabled: hasMsg, run: () => removeSelected(c, true) });
+  add({ id: 'mail.undo', label: 'Deshacer', icon: 'undo', hint: 'Ctrl+Z', description: 'Deshace lo último que se hizo con los mensajes: eliminar, mover, archivar, marcar. En el servidor también.', enabled: () => c.section === 'mail' && !c.compose && !!c.undoLabel, run: () => c.undo() });
+  add({ id: 'mail.selectAll', label: 'Seleccionar todo', icon: 'checkSquare', hint: 'Ctrl+A', enabled: () => c.section === 'mail' && !c.compose && c.list().length > 0, run: () => c.selectAll() });
+  add({ id: 'mail.archive', label: 'Archivar', icon: 'archive', enabled: () => hasMsg() && c.selectedRecords.some((m) => m.folder !== 'archive'), run: () => void c.moveMany(c.selectedIds(), 'archive') });
+  add({ id: 'mail.junk', label: 'Correo no deseado', icon: 'ban', enabled: () => hasMsg() && c.selectedRecords.some((m) => m.folder !== 'junk'), run: () => void c.moveMany(c.selectedIds(), 'junk') });
+  add({ id: 'mail.markRead', label: 'Marcar como leído', icon: 'mailOpen', shortcut: 'Ctrl+Q', enabled: () => hasMsg() && c.selectedRecords.some((m) => !m.read), run: () => c.setReadMany(c.selectedIds(), true) });
+  add({ id: 'mail.markUnread', label: 'Marcar como no leído', icon: 'mail', shortcut: 'Ctrl+U', enabled: () => hasMsg() && c.selectedRecords.some((m) => m.read), run: () => c.setReadMany(c.selectedIds(), false) });
+  const allFlagged = () => c.selectedRecords.length > 0 && c.selectedRecords.every((m) => m.flagged);
+  add({ id: 'mail.flag', label: 'Marcar con bandera', icon: 'flag', checked: allFlagged, enabled: hasMsg, run: () => c.setFlagMany(c.selectedIds(), !allFlagged()) });
+  add({ id: 'mail.print', label: 'Imprimir mensaje…', icon: 'print', shortcut: 'Ctrl+P', enabled: hasOne, run: () => ui.print() });
+  add({ id: 'mail.headers', label: 'Encabezados del mensaje…', icon: 'code', description: 'Muestra los encabezados de Internet del mensaje, tal como llegaron.', enabled: hasOne, run: () => ui.openDialog('headers') });
+  add({ id: 'mail.saveAttachments', label: 'Guardar todos los adjuntos…', icon: 'save', enabled: () => hasOne() && c.selected!.hasAttachments, run: () => ui.saveAttachments() });
   add({
     id: 'mail.emptyFolder',
     label: 'Vaciar la carpeta',
     icon: 'trash',
     enabled: () => c.section === 'mail' && c.data.messages.some((m) => m.folder === c.folder) && (c.folder === 'trash' || c.folder === 'junk'),
-    run: () => {
-      if (window.confirm('¿Eliminar para siempre todos los mensajes de esta carpeta? Esta acción no se puede deshacer.')) c.emptyFolder(c.folder);
-    },
+    run: () => emptyFolder(c, c.folder),
   });
-  add({
-    id: 'mail.deleteFolder',
-    label: 'Eliminar carpeta',
-    icon: 'trash',
-    enabled: () => c.section === 'mail' && !c.data.folders.find((f) => f.id === c.folder)?.system && !c.folder.startsWith('c:'),
-    run: () => {
-      const f = c.data.folders.find((x) => x.id === c.folder);
-      const text = f?.remote ? '¿Eliminar la carpeta? También se eliminará en el servidor, con todos sus mensajes. Esta acción no se puede deshacer.' : '¿Eliminar la carpeta? Sus mensajes pasarán a Archivo.';
-      if (!window.confirm(text)) return;
-      try {
-        c.deleteFolder(c.folder);
-      } catch (e) {
-        c.syncMessage = (e as Error).message;
-        c.touch();
-      }
-    },
-  });
+  add({ id: 'mail.deleteFolder', label: 'Eliminar carpeta', icon: 'trash', enabled: () => c.section === 'mail' && canChangeFolder(folder()), run: () => removeFolder(c, c.folder) });
+  add({ id: 'mail.folder.new', label: 'Carpeta nueva…', icon: 'new', enabled: () => c.section === 'mail', run: () => c.editFolder({ kind: 'new', inside: false }) });
+  add({ id: 'mail.folder.rename', label: 'Cambiar nombre', icon: 'edit', hint: 'F2', description: 'Cambia el nombre de la carpeta; si es de una cuenta, también en el servidor.', enabled: () => c.section === 'mail' && canChangeFolder(folder()), run: () => c.editFolder({ kind: 'rename', id: c.folder }) });
+  add({ id: 'mail.folder.markRead', label: 'Marcar todo como leído', icon: 'mailOpen', enabled: () => c.section === 'mail' && c.data.messages.some((m) => m.folder === c.folder && !m.read), run: () => c.markFolderRead(c.folder) });
+  add({ id: 'mail.folder.favorite', label: 'Favorita', icon: 'star', description: 'Pone la carpeta en Favoritos, encima del árbol de carpetas, o la quita.', checked: () => !!c.data.favorites?.includes(c.folder), enabled: () => c.section === 'mail', run: () => c.toggleFavorite(c.folder) });
+
+  // how the list is shown
+  add({ id: 'mail.view.conversations', label: 'Conversaciones', icon: 'conversations', description: 'Reúne en una sola fila los mensajes de cada conversación, también los que enviaste.', checked: () => c.view.conversations, run: () => c.setView({ conversations: !c.view.conversations }) });
+  add({ id: 'mail.view.groups', label: 'Mostrar en grupos', icon: 'groups', checked: () => c.view.groups, run: () => c.setView({ groups: !c.view.groups }) });
+  add({ id: 'mail.view.reverse', label: 'Orden inverso', icon: 'sortReverse', checked: () => c.view.reverse, run: () => c.setView({ reverse: !c.view.reverse }) });
+  for (const k of SORT_KEYS) add({ id: `mail.view.sort.${k.id}`, label: `Ordenar por: ${k.label}`, icon: 'sortReverse', checked: () => c.view.sort === k.id, run: () => c.setView({ sort: k.id }) });
+  for (const f of LIST_FILTERS) add({ id: `mail.view.filter.${f.id}`, label: `Mostrar: ${f.label}`, icon: 'search', checked: () => c.view.filter === f.id, run: () => c.setView({ filter: f.id }) });
   add({ id: 'mail.search', label: 'Buscar correo', icon: 'search', shortcut: 'Ctrl+E', run: () => ui.focusSearch() });
   add({ id: 'mail.readingPane', label: 'Panel de lectura', icon: 'panelRight', checked: () => c.showReadingPane, run: () => { c.showReadingPane = !c.showReadingPane; c.touch(); } });
 

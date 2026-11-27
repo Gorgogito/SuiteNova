@@ -230,6 +230,9 @@ impl Backend for Pop3 {
     fn delete_folder(&mut self, _folder: &str) -> Result<(), String> {
         Err(NO_FOLDERS.into())
     }
+    fn rename_folder(&mut self, _folder: &str, _path: &str) -> Result<(), String> {
+        Err(NO_FOLDERS.into())
+    }
 
     fn send(&mut self, from: &str, recipients: &[String], raw: &[u8]) -> Result<(), String> {
         smtp_client::send(&self.account, &self.creds, from, recipients, raw)

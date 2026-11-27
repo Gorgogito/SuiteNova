@@ -22,6 +22,8 @@ function setup() {
     exportCalendar: async () => undefined,
     exportContacts: async () => undefined,
     focusSearch: () => undefined,
+    print: () => undefined,
+    saveAttachments: () => undefined,
     close: () => undefined,
   };
   const registry = new CommandRegistry();

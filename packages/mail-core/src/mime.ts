@@ -1,4 +1,5 @@
 /** RFC 5322 / MIME reader. Everything works on bytes so that 8-bit and binary parts survive. */
+import { parseTnef } from './tnef';
 
 export interface Address {
   name: string;
@@ -336,12 +337,33 @@ function walk(part: RawPart, out: Collected, depth = 0): void {
   else out.attachments.push(a);
 }
 
+/** The headers of a message as they arrived, to look at them. */
+export function rawHeaders(raw: string | Uint8Array): string {
+  return headerText(splitHeadBody(bytesOf(raw)).head).replace(/\r?\n/g, '\n').trimEnd();
+}
+
+const isTnef = (a: Attachment): boolean => /^application\/(vnd\.)?ms-tnef$/.test(a.contentType) || /^winmail\.dat$/i.test(a.filename);
+
+/** What a «winmail.dat» carries takes its place; when nothing can be read from it, it stays as it came. */
+function openTnef(out: Collected): void {
+  out.attachments = out.attachments.flatMap((a) => {
+    if (!isTnef(a)) return [a];
+    const t = parseTnef(a.data);
+    if (!t) return [a];
+    if (!out.html.length && t.html) out.html.push(t.html);
+    if (!out.text.some((x) => x.trim()) && !out.html.length && t.text) out.text = [t.text];
+    const files = t.files.map((f) => ({ filename: f.filename, contentType: f.contentType, data: f.data, cid: f.cid, inline: false }));
+    return files.length ? files : [a];
+  });
+}
+
 export function parseMessage(raw: string | Uint8Array): ParsedMessage {
   const bytes = bytesOf(raw);
   const { head, body } = splitHeadBody(bytes);
   const headers = parseHeaders(head).map(([k, v]) => [k, headerText(v)] as [string, string]);
   const out: Collected = { text: [], html: [], attachments: [], inline: [], warnings: [] };
   walk({ headers, body }, out);
+  openTnef(out);
   const dateRaw = header(headers, 'date');
   const t = dateRaw ? Date.parse(dateRaw.replace(/\s*\([^)]*\)\s*$/, '')) : NaN;
   const html = out.html.length ? out.html.join('\n') : null;

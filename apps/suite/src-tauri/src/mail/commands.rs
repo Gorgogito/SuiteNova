@@ -166,6 +166,14 @@ pub async fn mail_create_folder(app: AppHandle, id: String, path: String) -> Res
 }
 
 #[tauri::command]
+pub async fn mail_rename_folder(app: AppHandle, id: String, folder: String, path: String) -> Result<(), String> {
+    if path.is_empty() || path.len() > 500 || path.chars().chain(folder.chars()).any(|c| c.is_control()) {
+        return Err("El nombre de la carpeta no es válido.".into());
+    }
+    with_backend(&app, id, move |b| b.rename_folder(&folder, &path)).await
+}
+
+#[tauri::command]
 pub async fn mail_delete_folder(app: AppHandle, id: String, folder: String) -> Result<(), String> {
     with_backend(&app, id, move |b| b.delete_folder(&folder)).await
 }

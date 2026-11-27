@@ -1,6 +1,7 @@
 import { bodyText, bytesOf, decodeBase64, encodeBase64, formatAddress, importanceOf, parseMessage, type Address, type Importance } from './mime';
 import type { CalEvent, TaskItem } from './ics';
 import type { Contact } from './vcard';
+import { messageIds } from './threads';
 
 export interface Folder {
   id: string;
@@ -45,6 +46,8 @@ export interface MailRecord {
   remote?: { account: string; folder: string; key: string };
   /** Message-ID, para reconocer la copia local de un mensaje cuando el servidor lo devuelve. */
   mid?: string;
+  /** Los Message-ID a los que contesta (References e In-Reply-To): con ellos se forman las conversaciones. */
+  refs?: string[];
   importance?: Importance;
   /** Un borrador tal como se estaba escribiendo (el formato del editor, opaco aquí): el mensaje de `raw` es lo que se enviaría. */
   compose?: Record<string, unknown>;
@@ -87,6 +90,8 @@ export interface MailData {
   pending?: PendingOp[];
   /** Estructura de cada cuenta en el servidor (clave: cuenta). */
   servers?: Record<string, ServerInfo>;
+  /** Carpetas puestas en Favoritos, en su orden. */
+  favorites?: string[];
 }
 
 let counter = 0;
@@ -122,6 +127,7 @@ export function recordFromRaw(raw: string | Uint8Array, folder: string, opts: Pa
     answered: opts.answered ?? false,
     bcc: opts.bcc,
     mid: m.messageId || undefined,
+    refs: [...new Set([...m.references, ...messageIds(m.inReplyTo)])],
     importance: importanceOf(m.headers),
   };
 }
@@ -269,6 +275,7 @@ function readRecord(m: MailRecord, ids: Set<string>): MailRecord {
     else delete rec.remote;
   } else delete rec.remote;
   if (typeof rec.mid !== 'string') delete rec.mid;
+  if (!Array.isArray(rec.refs) || rec.refs.some((x) => typeof x !== 'string')) delete rec.refs;
   if (rec.importance !== 'high' && rec.importance !== 'low') delete rec.importance;
   if (!rec.compose || typeof rec.compose !== 'object' || Array.isArray(rec.compose)) delete rec.compose;
   // the readings of the pictures: kept only when they are readings, and the search text follows them
@@ -374,5 +381,6 @@ export function parseMailData(text: string): MailData {
     sync: readSync(o.sync),
     pending: readPending(o.pending),
     servers: readServers(o.servers),
+    favorites: Array.isArray(o.favorites) ? [...new Set(o.favorites.filter((x): x is string => typeof x === 'string' && ids.has(x)))] : undefined,
   };
 }

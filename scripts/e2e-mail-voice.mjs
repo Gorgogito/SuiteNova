@@ -53,6 +53,8 @@ await check('Ctrl+Alt+Espacio lee el mensaje abierto: primero quién lo envía y
   await page.getByRole('tab', { name: 'Vista', exact: true }).click();
   await page.getByRole('button', { name: 'Leer en voz alta', exact: true }).first().click();
   await bar().waitFor();
+  // the pointer leaves the button: its tooltip would cover the bar below it
+  await page.mouse.move(5, 500);
   assert.equal((await piece()).state, 'playing');
   assert.match((await piece()).text, /^Mensaje de Ana Pérez/);
   const texts = await ev(() => { const r = window.__novaMail.ctl.readAloud.voice.reader; return r.pieces.map((u, i) => r.blockOf(i).text.slice(u.start, u.end)); });

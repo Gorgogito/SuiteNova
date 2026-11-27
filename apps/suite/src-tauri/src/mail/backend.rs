@@ -82,6 +82,8 @@ pub trait Backend {
     fn append(&mut self, folder: &str, raw: &[u8], seen: bool) -> Result<(), String>;
     fn create_folder(&mut self, path: &str) -> Result<(), String>;
     fn delete_folder(&mut self, folder: &str) -> Result<(), String>;
+    /// Cambia de nombre o de sitio una carpeta: `path` es su ruta nueva completa, con `/` entre niveles.
+    fn rename_folder(&mut self, folder: &str, path: &str) -> Result<(), String>;
     /// Envía un mensaje ya construido. `from` es siempre la dirección de la cuenta.
     fn send(&mut self, from: &str, recipients: &[String], raw: &[u8]) -> Result<(), String>;
     fn logout(self: Box<Self>);

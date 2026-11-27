@@ -79,6 +79,8 @@ export const remote = {
   append: (id: string, folder: string, raw: string, seen: boolean) => call<void>('mail_append', { id, folder, raw, seen }),
   createFolder: (id: string, path: string) => call<void>('mail_create_folder', { id, path }),
   deleteFolder: (id: string, folder: string) => call<void>('mail_delete_folder', { id, folder }),
+  /** `path` es la ruta nueva completa, con «/» entre niveles. */
+  renameFolder: (id: string, folder: string, path: string) => call<void>('mail_rename_folder', { id, folder, path }),
   send: (id: string, recipients: string[], raw: string) => call<void>('mail_send', { id, recipients, raw }),
 };
 
