@@ -219,7 +219,16 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
       { id: 'print', label: 'Imprimir', icon: 'print', items: [{ kind: 'button', command: 'cal.print', size: 'large', keytip: 'P' }] },
     ],
     contacts: [
-      { id: 'new', label: 'Nuevo', icon: 'userPlus', items: [{ kind: 'button', command: 'contact.new', size: 'large', keytip: 'N' }] },
+      {
+        id: 'new',
+        label: 'Nuevo',
+        icon: 'userPlus',
+        items: [
+          { kind: 'button', command: 'contact.new', size: 'large', keytip: 'N' },
+          { kind: 'button', command: 'contact.group.new', size: 'large', keytip: 'U' },
+        ],
+      },
+      { id: 'clean', label: 'Limpiar', icon: 'userPlus', items: [{ kind: 'button', command: 'contact.duplicates', size: 'large', keytip: 'D' }] },
     ],
     tasks: [
       { id: 'new', label: 'Nuevo', icon: 'checkSquare', items: [{ kind: 'button', command: 'task.new', size: 'large', keytip: 'N' }] },

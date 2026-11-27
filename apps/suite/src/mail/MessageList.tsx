@@ -9,6 +9,7 @@ import { ContextMenu, type MenuAt, type MenuItem } from './ContextMenu';
 import type { MailCtl } from './ctl';
 import { MAIL_DRAG } from './drag';
 import { categoryItems, followItems, junkItems, ruleItems, stepItems } from './organize-menus';
+import { contactItems } from './people-menus';
 
 const ROW = 66;
 const GROUP = 28;
@@ -90,6 +91,7 @@ function messageItems(ctl: MailCtl, actions: ListActions): MenuItem[] {
     { label: t('Pasos rápidos'), sub: stepItems(ctl, actions.openDialog) },
     { label: t('Reglas'), sub: ruleItems(ctl, actions.openDialog) },
     { label: t('Remitente'), sub: junkItems(ctl, actions.openDialog) },
+    ...(one?.fromEmail ? contactItems(ctl, { name: one.from === one.fromEmail ? '' : one.from, email: one.fromEmail }) : []),
   );
   if (one) {
     items.push('separator', { label: t('Imprimir…'), hint: 'Ctrl+P', run: () => actions.print(one) });

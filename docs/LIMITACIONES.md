@@ -285,9 +285,17 @@ Este documento se actualiza con cada fase. Lo que no está aquí listado como "s
 - **Verificado** con servidores falsos y avisos simulados en Edge (`scripts/e2e-mail-send.mjs`) y con pruebas de Rust de
   IDLE; **no con cuentas reales**.
 
-### Contactos y tareas
-- Contactos: nombre, empresa, cargo, varios correos y teléfonos con etiqueta, dirección (un solo texto), sitio web, cumpleaños y notas. Sin foto, grupos/listas de distribución ni fusión de duplicados.
-- Tareas: título, vencimiento (sin hora), prioridad (alta/normal/baja), notas, categorías y completada; sin tareas periódicas ni subtareas. Se importan y exportan como `VTODO` en el mismo `.ics` del calendario. La lista muestra además los **mensajes con seguimiento**, que no se exportan en ese `.ics`.
+### Contactos y tareas (fase 7)
+- Contactos: nombre, empresa, cargo, varios correos y teléfonos con etiqueta, dirección (un solo texto), sitio web, cumpleaños, notas, categorías y **foto**. No se sincronizan con CardDAV ni con Exchange.
+- **Foto:** se reduce a 256 puntos y se guarda como JPEG dentro del archivo. Se ve en Contactos y arriba del mensaje del remitente, no en la lista de mensajes. Las fotos de una vCard que están en Internet **no se descargan**. No se puede recortar ni encuadrar.
+- **Grupos:** son de este archivo. Cada miembro es una **dirección**: si cambias el correo de un contacto, el grupo conserva la antigua. Al escribir a un grupo, en el mensaje quedan las direcciones de todos (se ven entre sí; usa Cco si no deben). Un grupo con coma o punto y coma en el nombre solo se puede elegir de las sugerencias. En `.vcf` se escriben como los de las libretas de Apple (`X-ADDRESSBOOKSERVER-KIND`); **otros programas pueden verlos como un contacto sin datos**, y no se probó con ninguno. En CSV no salen, y los grupos de un `.pst` no se importan.
+- **Duplicados:** se buscan por dirección igual o nombre igual (sin mirar mayúsculas ni acentos); no se detectan nombres parecidos ni apellidos en otro orden. Al combinar queda el contacto más completo y lo que no coincide se anota en las notas: **no se elige campo por campo**. Solo se avisa en la ficha cuando otro contacto comparte el correo.
+- **Desde un mensaje:** pulsando una dirección del mensaje, o con el menú de la lista, se agrega, se abre su contacto o se añade la dirección a quien se llama igual. El contacto se crea en el momento (se deshace con Ctrl+Z); no se rellenan datos a partir de la firma.
+- Tareas: título, vencimiento (sin hora), prioridad (alta/normal/baja), notas, categorías, completada, **repetición** y **aviso** con fecha y hora; sin subtareas, fecha de inicio ni porcentaje. Se importan y exportan como `VTODO` en el mismo `.ics` del calendario. La lista muestra además los **mensajes con seguimiento**, que no se exportan en ese `.ics`.
+- **Repetición:** diaria, días laborables, semanal, mensual o anual, cada N, con fecha final, y opcionalmente contando desde el día en que se completa (esto último solo lo entiende Nova Mail). Al completarla queda una copia hecha y la tarea pasa **a la fecha siguiente, una cada vez**, aunque también esté vencida. Una tarea mensual del día 29 a 31 cae el último día en los meses cortos; **otros programas que lean el `.ics` se saltarán esos meses**. Las reglas más complejas de un archivo se conservan. No hay «saltar esta vez», y reabrir la copia completada no le devuelve la repetición.
+- **Aviso de tarea:** sale dentro de la aplicación y, en Windows, como aviso del sistema, **solo mientras Nova Mail está abierto**.
+- **Deshacer** (Ctrl+Z) en Contactos y en Tareas recuerda hasta 30 cambios de cada uno mientras no cierres. En Tareas no deshace el seguimiento de un mensaje (se deshace desde Correo).
+- La compatibilidad de `.vcf` y de las tareas `.ics` con Outlook, Google o Apple **no se ha probado**.
 
 ### Conexión con servidores: qué se ha comprobado y qué no
 - **Con servidores falsos en este equipo (58 pruebas de Rust del correo, `cargo test`; entre ellas renombrar y mover carpetas en IMAP, JMAP y Exchange, y esperar correo nuevo con IDLE):**

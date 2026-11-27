@@ -1,5 +1,5 @@
 import type { CommandDef } from '@suitenova/core-ui';
-import { LIST_FILTERS, SORT_KEYS, canChangeFolder, quickStepsOf, type Rule } from '@suitenova/mail-core';
+import { LIST_FILTERS, SORT_KEYS, canChangeFolder, newGroup, quickStepsOf, type Rule } from '@suitenova/mail-core';
 import { emptyFolder, removeFolder, removeSelected } from './actions';
 import type { MenuAt } from './ContextMenu';
 import type { MailCtl } from './ctl';
@@ -7,7 +7,7 @@ import { ocrCommands } from './commands-ocr';
 import { voiceCommands } from './commands-voice';
 import { ruleFrom } from './organize-menus';
 
-export type MailDialog = 'options' | 'retime' | 'categories' | 'follow' | 'rules' | 'quickSteps' | 'junk' | 'searchFolder' | 'advancedSearch' | 'headers' | 'signatures' | 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
+export type MailDialog = 'options' | 'retime' | 'categories' | 'follow' | 'rules' | 'quickSteps' | 'junk' | 'searchFolder' | 'advancedSearch' | 'headers' | 'signatures' | 'imageText' | 'duplicates' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
 export type ImportKind = 'eml' | 'mbox' | 'ics' | 'contacts' | 'outlook';
 
 /** What a dialog is opened with. */
@@ -96,7 +96,7 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   add({ id: 'mail.editDraft', label: 'Editar borrador', icon: 'edit', enabled: () => hasOne() && (c.selected!.folder === 'drafts' || !!c.selected!.outgoing), run: () => (c.selected!.outgoing ? void c.outbox.takeBack(c.selectedId!) : c.editDraft(c.selectedId!)) });
   add({ id: 'mail.delete', label: 'Eliminar mensaje', icon: 'trash', hint: 'Supr', enabled: hasMsg, run: () => removeSelected(c) });
   add({ id: 'mail.deletePermanent', label: 'Eliminar para siempre', icon: 'trash', hint: 'Mayús+Supr', enabled: hasMsg, run: () => removeSelected(c, true) });
-  add({ id: 'mail.undo', label: 'Deshacer', icon: 'undo', hint: 'Ctrl+Z', description: 'Deshace lo último que se hizo con los mensajes (también en el servidor) o, en el calendario, con las citas.', enabled: () => ((c.section === 'mail' && !c.compose) || c.section === 'calendar') && !!c.undoLabel, run: () => c.undo() });
+  add({ id: 'mail.undo', label: 'Deshacer', icon: 'undo', hint: 'Ctrl+Z', description: 'Deshace lo último que se hizo con los mensajes (también en el servidor) o, en las demás secciones, con las citas, los contactos o las tareas.', enabled: () => !(c.section === 'mail' && c.compose) && !!c.undoLabel, run: () => c.undo() });
   add({ id: 'mail.selectAll', label: 'Seleccionar todo', icon: 'checkSquare', hint: 'Ctrl+A', enabled: () => c.section === 'mail' && !c.compose && c.list().length > 0, run: () => c.selectAll() });
   add({ id: 'mail.archive', label: 'Archivar', icon: 'archive', enabled: () => hasMsg() && c.selectedRecords.some((m) => m.folder !== 'archive'), run: () => void c.moveMany(c.selectedIds(), 'archive') });
   add({ id: 'mail.junk', label: 'Correo no deseado', icon: 'ban', enabled: () => hasMsg() && c.selectedRecords.some((m) => m.folder !== 'junk'), run: () => void c.moveMany(c.selectedIds(), 'junk') });
@@ -201,6 +201,9 @@ export function mailCommands(ui: MailUI): CommandDef[] {
 
   // contacts and tasks
   add({ id: 'contact.new', label: 'Contacto nuevo', icon: 'userPlus', shortcut: 'Ctrl+Shift+C', run: () => { c.go('contacts'); c.addContact(); } });
+  add({ id: 'contact.group.new', label: 'Grupo nuevo', icon: 'contacts', shortcut: 'Ctrl+Shift+L', description: 'Un nombre para escribir a varias personas a la vez.', run: () => { c.go('contacts'); c.contactQuery = ''; c.addContact(newGroup()); } });
+  add({ id: 'contact.duplicates', label: 'Duplicados…', icon: 'userPlus', description: 'Busca contactos repetidos y los combina.', enabled: () => c.data.contacts.length > 1, run: () => { c.go('contacts'); ui.openDialog('duplicates'); } });
+  add({ id: 'contact.addSender', label: 'Agregar remitente a contactos', icon: 'userPlus', enabled: () => c.section === 'mail' && hasOne() && !!c.selected!.fromEmail, run: () => { const m = c.single!; c.people.fromAddress({ name: m.from === m.fromEmail ? '' : m.from, email: m.fromEmail }); } });
   add({ id: 'task.new', label: 'Tarea nueva', icon: 'checkSquare', shortcut: 'Ctrl+Shift+K', run: () => { c.go('tasks'); setTimeout(() => document.querySelector<HTMLInputElement>('.ml-tasks__add input')?.focus(), 30); } });
 
   // data

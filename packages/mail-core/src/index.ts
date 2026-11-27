@@ -21,3 +21,5 @@ export * from './reminders';
 export * from './calendars';
 export * from './events';
 export * from './invites';
+export * from './contacts';
+export * from './tasks';

@@ -172,3 +172,20 @@ Cada fase termina con pruebas, e2e con capturas, `LIMITACIONES.md` y `PROGRESO.m
   recordatorios pospuestos de una cita cancelada seguían saliendo; los botones del cuadro se partían en varias líneas;
   la descripción quedaba muy estrecha; los títulos decían «Junio De 2026».
 - **Pruebas:** `calendar.test.ts` (15), `calendar-actions.test.ts` (13), `e2e-mail-calendar.mjs` (10).
+
+### Fase 7 (hecha, 2026-11-27): contactos, tareas y cierre
+- **Núcleo** (`mail-core`): `contacts.ts` (grupos, duplicados, combinar, contacto desde una dirección) y `tasks.ts`
+  (repeticiones y completar). `vcard.ts` lee y escribe fotos y grupos; `ics.ts`, la repetición y el aviso de las tareas;
+  `reminders.ts` avisa también de tareas.
+- **Aplicación:** `people.ts` (cambios de contactos y tareas, cada uno con su deshacer), `ContactsView.tsx` y
+  `TasksView.tsx` (sustituyen a `PeopleViews.tsx`), `dlg-people.tsx`, `people-menus.ts` y `photo.ts`. Órdenes nuevas:
+  «Grupo nuevo» (Ctrl+Mayús+L), «Duplicados…» y «Agregar remitente a contactos».
+- **Cambios en lo que ya había:** las direcciones del mensaje abierto son botones con menú; eliminar un contacto o una
+  tarea se deshace; el nombre de un grupo escrito en «Para» se cambia por su gente.
+- **Fallos hallados y corregidos al probar y repasar:** la vista de contactos se rompía en el Edge actual
+  (`scrollIntoView` devuelve una promesa y se devolvía desde un efecto); deshacer una combinación cambiaba el orden de
+  los contactos si el más completo no era el primero; el vínculo `mailto:` no habría escrito la gente de un grupo.
+- **Pruebas:** `people.test.ts` (11), `people-actions.test.ts` (9), `e2e-mail-people.mjs` (8).
+- **Cierre:** versión 0.0.15, regresión de los guiones de navegador que usan Mail y el marco común (a
+  `e2e-proof-fields.mjs` se le añadió una espera: pulsaba el atajo antes de que Mail estuviera listo), pruebas de Rust,
+  aplicación compilada e instaladores con sus SHA256.

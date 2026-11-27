@@ -1,12 +1,14 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { encodeBase64, formatAddress, isDone, isOverdue, isSafeSender, parseMessage, rawOf, type MailRecord, type ParsedMessage } from '@suitenova/mail-core';
-import { useMemo, useRef, useState } from 'react';
+import { contactByEmail, encodeBase64, formatAddress, isDone, isOverdue, isSafeSender, parseMessage, rawOf, type Address, type MailRecord, type ParsedMessage } from '@suitenova/mail-core';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import { saveBytes } from '../fileio';
 import { FindPanel } from '../find';
 import { frameFindHost } from './find-hosts';
 import { CategoryChips } from './CategoryViews';
 import { InviteCard } from './InviteCard';
+import type { MenuAt } from './ContextMenu';
+import { addressItems } from './people-menus';
 import type { MailCtl } from './ctl';
 import { sanitizeMailHtml } from './rich/sanitize';
 
@@ -71,7 +73,7 @@ export function LinkConfirm({ link, onClose }: { link: string | null; onClose: (
   );
 }
 
-export function ReadingPane({ ctl, rec, onLink }: { ctl: MailCtl; rec: MailRecord; onLink: (href: string) => void }) {
+export function ReadingPane({ ctl, rec, onLink, showMenu }: { ctl: MailCtl; rec: MailRecord; onLink: (href: string) => void; showMenu: (menu: MenuAt) => void }) {
   const parsed = useMemo(() => parseMessage(rawOf(rec)), [rec.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [allow, setAllow] = useState<string | null>(null);
   // the pictures of a safe sender are shown without asking, except in junk mail
@@ -81,7 +83,26 @@ export function ReadingPane({ ctl, rec, onLink }: { ctl: MailCtl; rec: MailRecor
   const frame = useRef<HTMLIFrameElement>(null);
   const [finding, setFinding] = useState(false);
   const findHost = useMemo(() => frameFindHost(() => frame.current?.contentDocument ?? null), []);
-  const addr = (l: { name: string; email: string }[]) => l.map(formatAddress).join(', ');
+  /** Each address opens what can be done with that person. */
+  const addr = (l: Address[]) =>
+    l.map((a, i) => (
+      <Fragment key={`${a.email}${i}`}>
+        {i > 0 && ', '}
+        <button
+          type="button"
+          className="ml-who"
+          aria-haspopup="menu"
+          title={t('Opciones de {name}', { name: a.name || a.email })}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            showMenu({ x: r.left, y: r.bottom + 2, label: a.name || a.email, items: addressItems(ctl, a) });
+          }}
+        >
+          {formatAddress(a)}
+        </button>
+      </Fragment>
+    ));
+  const photo = contactByEmail(ctl.data.contacts, rec.fromEmail)?.photo;
 
   const onLoad = () => {
     const doc = frame.current?.contentDocument;
@@ -104,15 +125,16 @@ export function ReadingPane({ ctl, rec, onLink }: { ctl: MailCtl; rec: MailRecor
   return (
     <article className="ml-read" aria-label={t('Mensaje')} onKeyDown={(e) => e.key === 'F4' && (e.preventDefault(), setFinding(true))}>
       <header>
+        {photo && <img className="ml-avatar ml-read__photo" src={photo} alt={t('Foto del contacto')} />}
         <h2>{parsed.subject || t('(sin asunto)')}</h2>
         <button type="button" className="ml-btn" onClick={() => setFinding(true)} title="F4">
           {t('Buscar en el mensaje')}
         </button>
         <dl>
           <dt>{t('De')}</dt>
-          <dd>{addr(parsed.from) || '—'}</dd>
+          <dd>{parsed.from.length ? addr(parsed.from) : '—'}</dd>
           <dt>{t('Para')}</dt>
-          <dd>{addr(parsed.to) || '—'}</dd>
+          <dd>{parsed.to.length ? addr(parsed.to) : '—'}</dd>
           {parsed.cc.length > 0 && (
             <>
               <dt>Cc</dt>

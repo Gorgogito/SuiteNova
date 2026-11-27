@@ -1,6 +1,6 @@
 import { Button, DialogActions, DialogContent, DialogTitle } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { PARTSTATS, attendeeOf, calendarsOf, changeSeries, invitees, isMeeting, lostBy, occurrenceOf, organizes, splitRecipients, type CalEvent } from '@suitenova/mail-core';
+import { PARTSTATS, attendeeOf, calendarsOf, changeSeries, expandGroups, invitees, isMeeting, lostBy, occurrenceOf, organizes, splitRecipients, type CalEvent } from '@suitenova/mail-core';
 import { useState } from 'react';
 import { ProofTextarea } from '../spell';
 import { CategoryPicker } from './CategoryViews';
@@ -89,7 +89,7 @@ export function EventBody({ ctl, ev, occurrence, isNew, meeting, onSaveEml, onCl
     const rrule = customRule && rep === `FREQ=${/FREQ=(\w+)/.exec(ev.rrule)?.[1]}` ? ev.rrule : rep ? rep + (until ? `;UNTIL=${until.replace(/-/g, '')}` : '') : '';
     const out: CalEvent = { ...e, title: e.title.trim(), rrule };
     if (mine) {
-      const list = splitRecipients(people);
+      const list = expandGroups(splitRecipients(people), ctl.data.contacts);
       const bad = list.find((p) => !EMAIL.test(p.email));
       if (bad) return fail(t('La dirección «{email}» no es válida.', { email: bad.email }));
       const attendees = invitees(ev.attendees, list);

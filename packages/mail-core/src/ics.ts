@@ -70,6 +70,12 @@ export interface TaskItem {
   completedAt: number | null;
   priority: 'high' | 'normal' | 'low';
   categories?: string[];
+  /** How it repeats: once done, it moves to its next date. */
+  rrule?: string;
+  /** The next date counts from the day it is done, not from the day it was due. */
+  fromDone?: boolean;
+  /** When to remind of it. */
+  remind?: number;
 }
 
 let counter = 0;
@@ -310,6 +316,19 @@ export function parseIcs(text: string): { events: CalEvent[]; tasks: TaskItem[];
       const pr = Number(get('PRIORITY')?.value ?? 0);
       const completed = get('COMPLETED') ? parseTime(get('COMPLETED')!, ctx) : null;
       const id = newId('t');
+      const rrule = get('RRULE')?.value ?? '';
+      // the reminder of a task: a moment, or so long before it is due
+      const trigger = get('X-NOVA-TRIGGER');
+      let remind: number | null = null;
+      if (trigger) {
+        if (trigger.params.VALUE?.toUpperCase() === 'DATE-TIME' || /^[0-9]{8}T/.test(trigger.value)) remind = parseTime(trigger, ctx)?.t ?? null;
+        else {
+          const start = get('DTSTART') ? parseTime(get('DTSTART')!, ctx) : null;
+          const from = trigger.params.RELATED?.toUpperCase() === 'END' ? due : (start ?? due);
+          const ms = parseDuration(trigger.value);
+          if (from && ms !== null) remind = from.t + ms;
+        }
+      }
       tasks.push({
         id,
         uid,
@@ -320,6 +339,9 @@ export function parseIcs(text: string): { events: CalEvent[]; tasks: TaskItem[];
         completedAt: completed?.t ?? null,
         priority: pr >= 1 && pr <= 4 ? 'high' : pr >= 6 ? 'low' : 'normal',
         ...(categories ? { categories } : {}),
+        ...(rrule ? { rrule } : {}),
+        ...(rrule && get('X-NOVA-FROM-DONE')?.value.toUpperCase() === 'TRUE' ? { fromDone: true } : {}),
+        ...(remind !== null ? { remind } : {}),
       });
     }
   }
@@ -419,9 +441,13 @@ export function writeIcs(events: CalEvent[], tasks: TaskItem[] = [], name = 'Nov
     L.push('BEGIN:VTODO', `UID:${t.uid}`, `DTSTAMP:${stamp}`, `SUMMARY:${escapeText(t.title)}`);
     if (t.notes) L.push(`DESCRIPTION:${escapeText(t.notes)}`);
     if (t.due !== null) L.push(`DUE;VALUE=DATE:${day(t.due)}`);
+    // a task that repeats has to say from when
+    if (t.rrule && t.due !== null) L.push(`DTSTART;VALUE=DATE:${day(t.due)}`, `RRULE:${t.rrule}`);
+    if (t.rrule && t.fromDone) L.push('X-NOVA-FROM-DONE:TRUE');
     if (t.categories?.length) L.push(`CATEGORIES:${t.categories.map(escapeText).join(',')}`);
     L.push(`STATUS:${t.done ? 'COMPLETED' : 'NEEDS-ACTION'}`, `PRIORITY:${t.priority === 'high' ? 1 : t.priority === 'low' ? 9 : 5}`);
     if (t.done && t.completedAt) L.push(`COMPLETED:${utc(t.completedAt)}`);
+    if (t.remind !== undefined) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeText(t.title || 'Recordatorio')}`, `TRIGGER;VALUE=DATE-TIME:${utc(t.remind)}`, 'END:VALARM');
     L.push('END:VTODO');
   }
   L.push('END:VCALENDAR');

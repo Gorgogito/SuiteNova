@@ -2012,7 +2012,9 @@
   border: 1px solid var(--colorNeutralStroke2);
   border-radius: 4px;
 }
-.ml-form label textarea {
+.ml-form label textarea,
+.ml-contactform label textarea,
+.ml-taskform label textarea {
   width: 100%;
   resize: vertical;
 }
@@ -2028,4 +2030,123 @@
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* ---------- contacts and tasks: pictures, groups, duplicates and reminders ---------- */
+img.ml-avatar {
+  object-fit: cover;
+  background: none;
+}
+.ml-contacts__list li button .ml-avatar {
+  flex: none;
+}
+.ml-contactform__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ml-contactform__head h2 {
+  margin: 0 0 4px;
+}
+.ml-contactform__head button {
+  margin-inline-end: 6px;
+}
+.ml-avatar.ml-avatar--large {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  font-size: 26px;
+}
+.ml-members {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ml-members li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+.ml-members span {
+  display: grid;
+}
+.ml-members em,
+.ml-dups em {
+  color: var(--colorNeutralForeground2);
+  font-size: 12px;
+  font-style: normal;
+}
+.ml-members__add {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.ml-members__add .ml-recip {
+  flex: 1;
+}
+.ml-dups {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.ml-dups fieldset {
+  margin: 0;
+  padding: 4px 8px 8px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 4px;
+}
+.ml-dups ul {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ml-dups li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.ml-dups li > span:last-child {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ml-who {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.ml-who:hover,
+.ml-who:focus-visible {
+  color: var(--colorBrandForeground1);
+  text-decoration: underline;
+}
+.ml-read__photo {
+  float: right;
+  width: 48px;
+  height: 48px;
+  margin: 0 0 4px 8px;
+}
+.ml-every {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ml-taskform .ml-every input {
+  width: 72px;
+}
+.ml-taskform .ml-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ml-taskform__remind {
+  display: flex;
+  gap: 8px;
+  padding-inline-start: 22px;
 }

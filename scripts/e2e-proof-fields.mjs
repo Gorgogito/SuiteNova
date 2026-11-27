@@ -42,6 +42,9 @@ const grammar = (root) => root.locator('.nv-pt__mirror .nw-grammar').allInnerTex
 const mailText = (p = page) => p.evaluate(() => new Promise((done) => setTimeout(() => done(window.__novaMail.ctl.compose.body), 80)));
 await check('Mail: the body underlines spelling and grammar, aligned under the typed words', async () => {
   await open('mail');
+  // the shortcut only works once Mail is there, which on a busy machine takes longer than the pause
+  await page.waitForFunction(() => !!window.__novaMail && !!document.querySelector('.ml-app'), null, { timeout: 60000 });
+  await settle(500);
   await page.keyboard.press('Control+Shift+M');
   const body = page.getByLabel('Cuerpo del mensaje');
   await body.waitFor();
@@ -79,6 +82,9 @@ await check('Mail: grammar issues can be fixed from the menu', async () => {
 
 await check('AutoCorrect while typing in a field: capital after a period, smart quotes and symbols', async () => {
   await open('mail');
+  // the shortcut only works once Mail is there, which on a busy machine takes longer than the pause
+  await page.waitForFunction(() => !!window.__novaMail && !!document.querySelector('.ml-app'), null, { timeout: 60000 });
+  await settle(500);
   await page.keyboard.press('Control+Shift+M');
   const body = page.getByLabel('Cuerpo del mensaje');
   await body.click();
@@ -90,6 +96,9 @@ await check('the shared AutoCorrect list: a replacement added in Writer applies 
   await open('writer');
   await page.evaluate(() => localStorage.setItem('nova.writer.autocorrect', JSON.stringify({ custom: { bss: 'buenos días' } })));
   await open('mail');
+  // the shortcut only works once Mail is there, which on a busy machine takes longer than the pause
+  await page.waitForFunction(() => !!window.__novaMail && !!document.querySelector('.ml-app'), null, { timeout: 60000 });
+  await settle(500);
   await page.keyboard.press('Control+Shift+M');
   const body = page.getByLabel('Cuerpo del mensaje');
   await body.click();

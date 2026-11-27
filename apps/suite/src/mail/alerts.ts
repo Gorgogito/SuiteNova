@@ -149,7 +149,7 @@ export class MailAlerts {
       this.system({
         id: `rem:${r.key}`,
         title: r.title || t('(sin título)'),
-        body: r.kind === 'mail' ? t('Seguimiento') : new Date(r.at).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }),
+        body: r.kind === 'mail' ? t('Seguimiento') : r.kind === 'task' ? t('Tarea') : new Date(r.at).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }),
         actions: [
           { id: 'snooze', label: t('Posponer {n} min', { n: SNOOZE_MINUTES }) },
           { id: 'dismiss', label: t('Descartar') },

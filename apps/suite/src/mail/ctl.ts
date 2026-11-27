@@ -8,12 +8,15 @@ import { MailReader } from './read-aloud';
 import { MailOrganizer } from './organizer';
 import { MailAlerts } from './alerts';
 import { MailOutbox } from './outbox';
+import { t as translate } from '@suitenova/core-ui';
 import { MailCalendar } from './calendar';
+import { MailPeople } from './people';
 import {
   RFC_FLAGS,
   addRaw,
   addressBook,
   splitRecipients,
+  expandGroups,
   applyFetched,
   applyPlan,
   type Fetched,
@@ -302,6 +305,8 @@ export class MailCtl {
   readonly alerts = new MailAlerts(this);
   /** Appointments, calendars and meetings by mail. */
   readonly calendar = new MailCalendar(this);
+  /** Contacts and tasks, with their own undo. */
+  readonly people = new MailPeople(this);
   /** The folder being named: a new one, or another name for one there is. */
   folderEdit: { kind: 'new'; inside: boolean } | { kind: 'rename'; id: string } | null = null;
   /** An undo that has to wait for the server. */
@@ -468,6 +473,7 @@ export class MailCtl {
     this.alerts.reset();
     this.alerts.startWatch();
     this.calendar.reset();
+    this.people.reset();
     pruneReminders(d, Date.now());
     this.rowCache = null;
     this.folderEdit = null;
@@ -751,9 +757,10 @@ export class MailCtl {
     if (undoable && parts.length) this.push({ label, parts });
   }
 
-  /** What the next undo takes back; empty when there is nothing. The calendar keeps its own. */
+  /** What the next undo takes back; empty when there is nothing. Each section but the mail keeps its own. */
   get undoLabel(): string {
     if (this.section === 'calendar') return this.calendar.undoLabel;
+    if (this.section === 'contacts' || this.section === 'tasks') return this.people.undoLabel(this.section);
     return this.undoSteps[this.undoSteps.length - 1]?.label ?? '';
   }
 
@@ -1010,6 +1017,7 @@ export class MailCtl {
   /** Takes back the last action on messages. What was already done on the server is taken back there too. */
   undo(): void {
     if (this.section === 'calendar') return this.calendar.undo();
+    if (this.section === 'contacts' || this.section === 'tasks') return this.people.undo(this.section);
     const step = this.undoSteps.pop();
     if (!step) return;
     const back: Change[] = [];
@@ -1604,7 +1612,9 @@ export class MailCtl {
 
   /** Build the RFC 5322 text of the draft being composed. */
   buildRaw(c: ComposeState, sender?: Address): { raw: string; to: Address[]; cc: Address[]; bcc: Address[] } {
-    const to = splitRecipients(c.to), cc = splitRecipients(c.cc), bcc = splitRecipients(c.bcc);
+    // the name of a contact group stands for its people
+    const read = (typed: string) => expandGroups(splitRecipients(typed), this.data.contacts);
+    const to = read(c.to), cc = read(c.cc), bcc = read(c.bcc);
     const content = messageContent(c);
     const account = this.accounts.find((a) => a.id === c.from);
     const from = sender ?? (account ? { name: this.data.owner.name || account.name, email: account.email } : this.data.owner.email ? this.data.owner : { name: '', email: NO_ADDRESS });
@@ -2007,6 +2017,7 @@ export class MailCtl {
 
   openReminder(key: string): void {
     if (key.startsWith('f:')) return this.openMessage(key.slice(2));
+    if (key.startsWith('t:')) return this.openTask(key.slice(2));
     const at = key.lastIndexOf('@');
     const start = Number(key.slice(at + 1));
     this.go('calendar');
@@ -2081,47 +2092,56 @@ export class MailCtl {
   // ---------- contacts ----------
 
   addContact(c: Contact = newContact()): Contact {
-    this.data.contacts = [...this.data.contacts, c];
-    this.selectedContact = c.id;
-    this.touch(true);
+    this.people.add(c);
     return c;
   }
 
+  /** Goes to a contact (or a group). */
+  openContact(id: string): void {
+    if (!this.people.find(id)) return;
+    this.go('contacts');
+    this.contactQuery = '';
+    this.selectedContact = id;
+    this.touch();
+  }
+
   updateContact(c: Contact): void {
-    this.data.contacts = this.data.contacts.map((x) => (x.id === c.id ? c : x));
-    this.touch(true);
+    this.people.update(c);
   }
 
   deleteContact(id: string): void {
-    this.data.contacts = this.data.contacts.filter((c) => c.id !== id);
-    if (this.selectedContact === id) this.selectedContact = null;
-    this.touch(true);
+    this.people.remove(id);
   }
 
   // ---------- tasks ----------
 
   addTask(title: string): TaskItem {
     const t = newTask(title.trim());
-    this.data.tasks = [...this.data.tasks, t];
-    this.selectedTask = t.id;
-    this.touch(true);
+    this.people.addTask(t);
     return t;
   }
 
+  openTask(id: string): void {
+    const t = this.data.tasks.find((x) => x.id === id);
+    if (!t) return;
+    this.go('tasks');
+    if (this.taskFilter !== 'all') this.taskFilter = t.done ? 'done' : 'open';
+    this.selectedTask = id;
+    this.touch();
+  }
+
   updateTask(t: TaskItem): void {
-    this.data.tasks = this.data.tasks.map((x) => (x.id === t.id ? t : x));
-    this.touch(true);
+    this.people.updateTask(t);
   }
 
   toggleTask(id: string): void {
-    const t = this.data.tasks.find((x) => x.id === id);
-    if (!t) return;
-    this.updateTask({ ...t, done: !t.done, completedAt: t.done ? null : Date.now() });
+    const next = this.people.toggleTask(id);
+    if (next === null) return;
+    this.syncMessage = translate('La tarea se repite: la siguiente vence el {date}.', { date: new Date(next).toLocaleDateString() });
+    this.touch();
   }
 
   deleteTask(id: string): void {
-    this.data.tasks = this.data.tasks.filter((t) => t.id !== id);
-    if (this.selectedTask === id) this.selectedTask = null;
-    this.touch(true);
+    this.people.removeTask(id);
   }
 }

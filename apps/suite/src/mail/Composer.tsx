@@ -30,7 +30,7 @@ import { insertPictureFile, readPicture, removePicture, selectedPicture, writePi
 import { quotePreview } from './rich/quote';
 import { RichEditor } from './rich/RichEditor';
 import { LaterDialog } from './dlg-send';
-import { isRetryable } from '@suitenova/mail-core';
+import { expandGroups, isRetryable, splitRecipients } from '@suitenova/mail-core';
 
 /** The most a message can carry and still be accepted when sending. */
 const MAX_SEND_BYTES = 40 * 1024 * 1024;
@@ -195,14 +195,16 @@ export function ComposeBody({ ctl, c, variant, canPop, onExport }: { ctl: MailCt
   }, [view]);
 
   const mailto = () => {
+    // a link only carries addresses: the name of a group stands for its people
+    const list = (typed: string) => expandGroups(splitRecipients(typed), ctl.data.contacts).map((a) => a.email).join(',');
     const q = new URLSearchParams();
-    if (s.cc.trim()) q.set('cc', s.cc);
-    if (s.bcc.trim()) q.set('bcc', s.bcc);
+    if (s.cc.trim()) q.set('cc', list(s.cc));
+    if (s.bcc.trim()) q.set('bcc', list(s.bcc));
     if (s.subject) q.set('subject', s.subject);
     const text = messageContent(s).text;
     if (text) q.set('body', text);
     const a = document.createElement('a');
-    a.href = `mailto:${encodeURIComponent(s.to.replace(/\s/g, '')).replace(/%2C/g, ',').replace(/%40/g, '@')}?${q.toString().replace(/\+/g, '%20')}`;
+    a.href = `mailto:${encodeURIComponent(list(s.to).replace(/\s/g, '')).replace(/%2C/g, ',').replace(/%40/g, '@')}?${q.toString().replace(/\+/g, '%20')}`;
     a.click();
     setMsg(t('Se abrió tu aplicación de correo con el mensaje.'));
   };

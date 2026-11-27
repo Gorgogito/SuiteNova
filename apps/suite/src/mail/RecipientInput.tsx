@@ -25,7 +25,9 @@ export function RecipientInput({ label, name, value, onChange, entries, autoFocu
   const pick = (e: BookEntry) => {
     if (!typed) return;
     const head = value.slice(0, typed.from);
-    const chosen = `${head}${head && !head.endsWith(' ') ? ' ' : ''}${formatAddress({ name: e.name, email: e.email })}, `;
+    // a group writes the people in it
+    const picked = (e.group ?? [{ name: e.name, email: e.email }]).filter((a) => !others.has(a.email.toLowerCase()));
+    const chosen = `${head}${head && !head.endsWith(' ') ? ' ' : ''}${picked.map(formatAddress).join(', ')}, `;
     const rest = value.slice(typed.to).replace(/^[,;]\s*/, '');
     place.current = chosen.length;
     onChange(chosen + rest);
@@ -71,9 +73,12 @@ export function RecipientInput({ label, name, value, onChange, entries, autoFocu
         <ul id={id} role="listbox" aria-label={t('Sugerencias de destinatarios')}>
           {found.map((e, i) => (
             // the box keeps the focus: the click is taken before it leaves
-            <li key={e.email} id={`${id}-${i}`} role="option" aria-selected={i === at} onMouseDown={(ev) => (ev.preventDefault(), pick(e))} onMouseEnter={() => setActive(i)}>
-              <strong>{e.name || e.email}</strong>
-              {e.name && <span>{e.email}</span>}
+            <li key={e.group ? `g:${i}:${e.name}` : e.email} id={`${id}-${i}`} role="option" aria-selected={i === at} onMouseDown={(ev) => (ev.preventDefault(), pick(e))} onMouseEnter={() => setActive(i)}>
+              <strong>
+                {e.group && '👥 '}
+                {e.name || e.email}
+              </strong>
+              {e.group ? <span>{e.group.length === 1 ? t('1 persona') : t('{n} personas', { n: e.group.length })}</span> : e.name && <span>{e.email}</span>}
             </li>
           ))}
         </ul>

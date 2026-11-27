@@ -32,7 +32,10 @@ import { ReadAloudBar } from '../voice/ReadAloudBar';
 import { StickyDialog } from './StickyDialog';
 import { MacroEditorDialog, MacroListDialog, MacroSecurity } from './dlg-macros';
 import { SignaturesDialog } from './rich/Libraries';
-import { ContactsView, TasksView } from './PeopleViews';
+import { ContactsView } from './ContactsView';
+import { DuplicatesDialog } from './dlg-people';
+import { shrinkPhotos } from './photo';
+import { TasksView } from './TasksView';
 import { mailTabs } from './ribbonDef';
 import './mail.css';
 
@@ -92,6 +95,8 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+Mayús+Q', 'Reunión nueva'],
   ['Ctrl+flechas · Ctrl+Mayús+flechas', 'En el calendario: mover la cita elegida o cambiar su duración'],
   ['Ctrl+Mayús+C', 'Contacto nuevo'],
+  ['Ctrl+Mayús+L', 'Grupo nuevo (contactos)'],
+  ['Ctrl+Z', 'En el calendario, los contactos y las tareas, Ctrl+Z deshace sus propios cambios.'],
   ['Ctrl+Mayús+K', 'Tarea nueva'],
   ['Alt', 'Atajos de la cinta (KeyTips)'],
 ];
@@ -250,8 +255,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
           const f = files[0]!;
           const text = await f.text();
           const r = f.name.toLowerCase().endsWith('.csv') ? contactsFromCsv(parseCsv(text)) : parseVcf(text);
-          ctl.data.contacts = [...ctl.data.contacts, ...r.contacts];
-          ctl.touch(true);
+          ctl.people.import(await shrinkPhotos(r.contacts));
           setStatus(t('Se importaron {n} contactos.', { n: r.contacts.length }));
           if (r.warnings.length) window.alert(r.warnings.join('\n'));
         }
@@ -393,7 +397,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
     const key = (e: KeyboardEvent) => {
       if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
       const el = e.target as HTMLElement;
-      if ((ctl.section !== 'mail' && ctl.section !== 'calendar') || (ctl.section === 'mail' && ctl.compose) || el.isContentEditable || (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && (el as HTMLInputElement).type !== 'checkbox') || el.closest('[role="dialog"]')) return;
+      if ((ctl.section === 'mail' && ctl.compose) || el.isContentEditable || (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && (el as HTMLInputElement).type !== 'checkbox') || el.closest('[role="dialog"]')) return;
       e.preventDefault();
       ctl.undo();
     };
@@ -574,7 +578,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
                         {t('Eliminar')}
                       </button>
                     </div>
-                    <ReadingPane key={sel.id} ctl={ctl} rec={sel} onLink={setLink} />
+                    <ReadingPane key={sel.id} ctl={ctl} rec={sel} onLink={setLink} showMenu={ui.showMenu} />
                   </>
                 ) : (
                   <div className="ml-empty">{t('Selecciona un mensaje para leerlo.')}</div>
@@ -584,7 +588,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
           </div>
         )}
         {ctl.section === 'calendar' && <CalendarView ctl={ctl} ui={ui} />}
-        {ctl.section === 'contacts' && <ContactsView ctl={ctl} />}
+        {ctl.section === 'contacts' && <ContactsView ctl={ctl} ui={ui} />}
         {ctl.section === 'tasks' && <TasksView ctl={ctl} />}
 
         <UndoSend ctl={ctl} />
@@ -626,7 +630,11 @@ export function MailApp({ module }: { module: ModuleInfo }) {
               <div key={r.key} className="ml-toast">
                 <strong>{r.title || t('(sin título)')}</strong>
                 <span>
-                  {r.kind === 'mail'
+                  {r.kind === 'task'
+                    ? r.due == null
+                      ? t('Tarea')
+                      : t('Tarea: vence el {date}.', { date: new Date(r.due).toLocaleDateString() })
+                    : r.kind === 'mail'
                     ? r.due == null
                       ? t('Seguimiento')
                       : t('Seguimiento: vence el {date}.', { date: new Date(r.due).toLocaleDateString() })
@@ -701,8 +709,9 @@ export function MailApp({ module }: { module: ModuleInfo }) {
             }}
           />
         )}
-        <StickyDialog open={dialog !== null && dialog !== 'retime' && dialog !== 'macros' && dialog !== 'macroEditor' && dialog !== 'signatures'} onClose={() => setDialog(null)} width={dialog === 'accounts' || dialog === 'categories' || dialog === 'junk' ? 640 : dialog === 'headers' || dialog === 'rules' || dialog === 'quickSteps' ? 760 : undefined}>
+        <StickyDialog open={dialog !== null && dialog !== 'retime' && dialog !== 'macros' && dialog !== 'macroEditor' && dialog !== 'signatures'} onClose={() => setDialog(null)} width={dialog === 'accounts' || dialog === 'categories' || dialog === 'junk' || dialog === 'duplicates' ? 640 : dialog === 'headers' || dialog === 'rules' || dialog === 'quickSteps' ? 760 : undefined}>
           {dialog === 'options' && <OptionsForm ctl={ctl} onClose={() => setDialog(null)} />}
+          {dialog === 'duplicates' && <DuplicatesDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'categories' && <CategoriesDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'follow' && <FollowDialog ctl={ctl} ids={arg.ids ?? []} onClose={() => setDialog(null)} />}
           {dialog === 'rules' && <RulesDialog ctl={ctl} initial={arg.rule} onClose={() => setDialog(null)} />}

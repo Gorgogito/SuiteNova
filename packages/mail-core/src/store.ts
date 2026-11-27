@@ -1,6 +1,7 @@
 import { bodyText, bytesOf, decodeBase64, encodeBase64, formatAddress, importanceOf, parseMessage, type Address, type Importance } from './mime';
 import type { CalEvent, TaskItem } from './ics';
-import type { Contact } from './vcard';
+import { readContact, type Contact } from './vcard';
+import { readTask } from './tasks';
 import { messageIds } from './threads';
 import { readCalendars, type CalendarInfo } from './calendars';
 import { findInvite, type InviteMethod } from './invites';
@@ -423,8 +424,8 @@ export function parseMailData(text: string): MailData {
       .filter((m) => m && typeof m.raw === 'string' && typeof m.id === 'string')
       .map((m) => readRecord(m, ids)),
     events: arr<CalEvent>(o.events).filter((e) => e && typeof e.start === 'number' && typeof e.end === 'number').map((e) => tagged(readEvent(e))),
-    tasks: arr<TaskItem>(o.tasks).filter((t) => t && typeof t.id === 'string').map(tagged),
-    contacts: arr<Contact>(o.contacts).filter((c) => c && typeof c.id === 'string').map(tagged),
+    tasks: arr<TaskItem>(o.tasks).filter((t) => t && typeof t.id === 'string').map(readTask).map(tagged),
+    contacts: arr<Contact>(o.contacts).filter((c) => c && typeof c.id === 'string').map(readContact).map(tagged),
     categories: readCategories(o.categories),
     rules: readRules(o.rules),
     quickSteps: readQuickSteps(o.quickSteps),

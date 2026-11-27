@@ -1,5 +1,5 @@
 import { readNames } from './categories';
-import { decodeCharset, decodeQuotedPrintable } from './mime';
+import { decodeCharset, decodeQuotedPrintable, type Address } from './mime';
 
 export interface LabeledValue {
   label: string;
@@ -22,6 +22,24 @@ export interface Contact {
   birthday: string;
   note: string;
   categories?: string[];
+  /** A picture, as a `data:` URL (JPEG, PNG or GIF). */
+  photo?: string;
+  /** Only a contact group has it: the people it stands for. */
+  members?: Address[];
+}
+
+export const isGroup = (c: Pick<Contact, 'members'>): boolean => c.members !== undefined;
+
+/** The longest picture that is kept (characters of the `data:` URL). */
+export const MAX_PHOTO = 3_000_000;
+const PHOTO = /^data:image\/(jpeg|png|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+/** A contact read from a file: a picture or members that do not make sense are left out. */
+export function readContact(c: Contact): Contact {
+  const out: Contact = { ...c, emails: Array.isArray(c.emails) ? c.emails : [], phones: Array.isArray(c.phones) ? c.phones : [] };
+  if (typeof out.photo !== 'string' || out.photo.length > MAX_PHOTO || !PHOTO.test(out.photo)) delete out.photo;
+  if (out.members !== undefined) out.members = (Array.isArray(out.members) ? out.members : []).filter((m) => m && typeof m.email === 'string' && m.email).map((m) => ({ name: typeof m.name === 'string' ? m.name : '', email: m.email }));
+  return out;
 }
 
 let counter = 0;
@@ -62,6 +80,19 @@ const typeLabel = (types: string): string => {
   return t.replace(/pref|voice|internet|,/g, ' ').trim() || 'otro';
 };
 
+/** The picture of a card, written inside it (vCard 2.1, 3.0 and 4.0). */
+function readVcfPhoto(value: string, params: string[]): string | null {
+  const inline = /^data:image\/(jpeg|jpg|png|gif);base64,(.*)$/is.exec(value);
+  const encoded = params.some((p) => p === 'ENCODING=B' || p === 'ENCODING=BASE64' || p === 'BASE64');
+  if (!inline && !encoded) return null;
+  const data = (inline ? inline[2]! : value).replace(/\s+/g, '');
+  // what it is, from its first bytes: what the card says is not always true
+  const kind = data.startsWith('/9j/') ? 'jpeg' : data.startsWith('iVBOR') ? 'png' : data.startsWith('R0lGOD') ? 'gif' : null;
+  if (!kind) return null;
+  const url = `data:image/${kind};base64,${data}`;
+  return url.length <= MAX_PHOTO && PHOTO.test(url) ? url : null;
+}
+
 export function parseVcf(text: string): { contacts: Contact[]; warnings: string[] } {
   const warnings: string[] = [];
   // unfold; vCard 2.1 quoted-printable values may continue with a trailing "="
@@ -75,6 +106,9 @@ export function parseVcf(text: string): { contacts: Contact[]; warnings: string[
   }
   const contacts: Contact[] = [];
   let cur: Contact | null = null;
+  let linked = false;
+  // a group may name its people by the identifier of their card, which can come later in the file
+  const byUid: { group: Contact; uid: string }[] = [];
   for (const line of lines) {
     const u = line.toUpperCase();
     if (u === 'BEGIN:VCARD') {
@@ -121,10 +155,33 @@ export function parseVcf(text: string): { contacts: Contact[]; warnings: string[
         if (names) cur.categories = names;
         break;
       }
-      case 'PHOTO':
-      case 'LOGO': break;
+      case 'PHOTO': {
+        const photo = readVcfPhoto(value, params);
+        if (photo) cur.photo = photo;
+        else if (/^https?:/i.test(value)) linked = true;
+        break;
+      }
+      case 'KIND':
+      case 'X-ADDRESSBOOKSERVER-KIND': if (value.trim().toLowerCase() === 'group') cur.members ??= []; break;
+      case 'MEMBER':
+      case 'X-ADDRESSBOOKSERVER-MEMBER': {
+        cur.members ??= [];
+        // the name keeps its capitals: it is read from the line as it came
+        const cn = /;CN=("[^"]*"|[^;:]*)/i.exec(line)?.[1]?.replace(/^"|"$/g, '') ?? '';
+        const mail = /mailto:([^;,\s]+)\s*$/i.exec(line)?.[1];
+        const uid = /urn:uuid:([^;\s]+)\s*$/i.exec(line)?.[1];
+        if (mail) cur.members.push({ name: unescapeV(cn), email: mail });
+        else if (uid) byUid.push({ group: cur, uid });
+        break;
+      }
     }
   }
+  for (const { group, uid } of byUid) {
+    const c = contacts.find((x) => x.uid.replace(/^urn:uuid:/i, '') === uid);
+    const email = c?.emails[0]?.value;
+    if (email && !group.members!.some((m) => m.email.toLowerCase() === email.toLowerCase())) group.members!.push({ name: displayName(c!), email });
+  }
+  if (linked) warnings.push('Las fotos que están en Internet no se descargan.');
   if (!contacts.length && /BEGIN:VCARD/i.test(text) === false) warnings.push('El archivo no contiene tarjetas vCard.');
   return { contacts, warnings };
 }
@@ -160,6 +217,13 @@ export function writeVcf(contacts: Contact[]): string {
     if (c.birthday) out.push(`BDAY:${c.birthday}`);
     if (c.note) out.push(`NOTE:${escapeV(c.note)}`);
     if (c.categories?.length) out.push(`CATEGORIES:${c.categories.map(escapeV).join(',')}`);
+    const photo = c.photo && /^data:image\/(\w+);base64,(.*)$/.exec(c.photo);
+    if (photo) out.push(`PHOTO;ENCODING=b;TYPE=${photo[1]!.toUpperCase()}:${photo[2]}`);
+    if (c.members) {
+      // vCard 4.0 names it KIND and MEMBER; the address books that write 3.0, with their own prefix
+      out.push('X-ADDRESSBOOKSERVER-KIND:group');
+      for (const m of c.members) out.push(`X-ADDRESSBOOKSERVER-MEMBER${m.name ? `;CN="${m.name.replace(/["\r\n]/g, '')}"` : ''}:mailto:${m.email}`);
+    }
     out.push('END:VCARD');
   }
   return out.map(foldV).join('\r\n') + '\r\n';
@@ -214,6 +278,7 @@ export function contactsFromCsv(rows: string[][]): { contacts: Contact[]; warnin
 
 export function contactsToCsv(contacts: Contact[]): string[][] {
   const head = ['Nombre', 'Apellidos', 'Nombre completo', 'Correo electrónico', 'Correo electrónico 2', 'Teléfono móvil', 'Teléfono del trabajo', 'Empresa', 'Cargo', 'Dirección', 'Sitio web', 'Cumpleaños', 'Notas'];
-  const rows = contacts.map((c) => [c.first, c.last, displayName(c), c.emails[0]?.value ?? '', c.emails[1]?.value ?? '', c.phones.find((p) => p.label === 'móvil')?.value ?? c.phones[0]?.value ?? '', c.phones.find((p) => p.label === 'trabajo')?.value ?? '', c.org, c.title, c.address, c.url, c.birthday, c.note]);
+  // a CSV of contacts has no way to say what a group is
+  const rows = contacts.filter((c) => !isGroup(c)).map((c) => [c.first, c.last, displayName(c), c.emails[0]?.value ?? '', c.emails[1]?.value ?? '', c.phones.find((p) => p.label === 'móvil')?.value ?? c.phones[0]?.value ?? '', c.phones.find((p) => p.label === 'trabajo')?.value ?? '', c.org, c.title, c.address, c.url, c.birthday, c.note]);
   return [head, ...rows];
 }

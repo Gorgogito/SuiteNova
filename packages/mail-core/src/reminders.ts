@@ -2,8 +2,8 @@ import { occurrencesBetween } from './ics';
 import type { MailData } from './store';
 
 /*
- * Reminders: of appointments and of messages followed up. One can be dismissed, or snoozed to be told again later; what
- * was dismissed or snoozed is kept in the file.
+ * Reminders: of appointments, of tasks and of messages followed up. One can be dismissed, or snoozed to be told again
+ * later; what was dismissed or snoozed is kept in the file.
  */
 
 export interface ReminderState {
@@ -13,14 +13,14 @@ export interface ReminderState {
 }
 
 export interface DueReminder {
-  /** `eventId@start` for an appointment, `f:messageId` for a message. */
+  /** `eventId@start` for an appointment, `f:messageId` for a message, `t:taskId` for a task. */
   key: string;
-  kind: 'event' | 'mail';
+  kind: 'event' | 'mail' | 'task';
   title: string;
-  /** When the appointment starts, or when the reminder of the message was set for. */
+  /** When the appointment starts, or when the reminder of the message or the task was set for. */
   at: number;
   messageId?: string;
-  /** The due day of a message. */
+  /** The due day of a message or a task. */
   due?: number | null;
 }
 
@@ -42,6 +42,9 @@ export function dueReminders(d: MailData, now: number): DueReminder[] {
   for (const m of d.messages) {
     if (m.flagged && m.follow?.remind !== undefined && m.follow.remind <= now) out.push({ key: `f:${m.id}`, kind: 'mail', title: m.subject, at: m.follow.remind, messageId: m.id, due: m.follow.due });
   }
+  for (const t of d.tasks) {
+    if (!t.done && t.remind !== undefined && t.remind <= now) out.push({ key: `t:${t.id}`, kind: 'task', title: t.title, at: t.remind, due: t.due });
+  }
   const states = d.reminders ?? {};
   // a series is looked at whole: one of its occurrences may have a reminder of its own
   const timed = d.events.filter((e) => !e.cancelled && (e.reminder !== null || e.changes?.some((c) => c.reminder !== null)));
@@ -62,7 +65,19 @@ export function dueReminders(d: MailData, now: number): DueReminder[] {
   return out;
 }
 
+/** A task is changed as a new one, so that what was kept to undo it stays as it was. */
+const remindTask = (d: MailData, key: string, at: number | undefined): void => {
+  d.tasks = d.tasks.map((t) => {
+    if (`t:${t.id}` !== key) return t;
+    const next = { ...t };
+    if (at === undefined) delete next.remind;
+    else next.remind = at;
+    return next;
+  });
+};
+
 export function dismissReminder(d: MailData, key: string): void {
+  if (key.startsWith('t:')) return remindTask(d, key, undefined);
   if (key.startsWith('f:')) {
     const m = d.messages.find((x) => `f:${x.id}` === key);
     if (!m?.follow) return;
@@ -74,6 +89,7 @@ export function dismissReminder(d: MailData, key: string): void {
 }
 
 export function snoozeReminder(d: MailData, key: string, until: number): void {
+  if (key.startsWith('t:')) return remindTask(d, key, until);
   if (key.startsWith('f:')) {
     const m = d.messages.find((x) => `f:${x.id}` === key);
     if (m?.follow) m.follow.remind = until;

@@ -4,7 +4,7 @@
  */
 import { decodeBase64, parseMessage, type Address } from './mime';
 import type { MailData, MailRecord } from './store';
-import { displayName } from './vcard';
+import { displayName, isGroup } from './vcard';
 
 /** Index of every separator (comma or semicolon) that is not inside quotes or angle brackets. */
 function separators(text: string): number[] {
@@ -48,6 +48,8 @@ export interface BookEntry {
   email: string;
   /** Contacts first, then the people written to most, then those who have written. */
   score: number;
+  /** A contact group: choosing it writes these people. */
+  group?: Address[];
 }
 
 const CONTACT = 1_000_000;
@@ -85,7 +87,8 @@ export function addressBook(d: MailData, own: ReadonlySet<string>): BookEntry[] 
       if (m.folder !== 'drafts') for (const a of recipientsOf(m)) add(a.name, a.email, 3);
     } else add(m.from === m.fromEmail ? '' : m.from, m.fromEmail, 1);
   }
-  return [...book.values()];
+  const groups = d.contacts.filter((c) => isGroup(c) && c.members!.length).map((c): BookEntry => ({ name: displayName(c), email: '', score: CONTACT, group: c.members! }));
+  return [...groups, ...book.values()];
 }
 
 const fold = (s: string): string => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -96,11 +99,12 @@ export function suggestRecipients(book: BookEntry[], query: string, exclude: Rea
   if (!q) return [];
   const found: { e: BookEntry; rank: number }[] = [];
   for (const e of book) {
-    if (exclude.has(e.email.toLowerCase())) continue;
+    // a group is no longer suggested once everyone in it is written
+    if (e.group ? e.group.every((m) => exclude.has(m.email.toLowerCase())) : exclude.has(e.email.toLowerCase())) continue;
     const name = fold(e.name);
     const email = fold(e.email);
     const rank = name.startsWith(q) || email.startsWith(q) ? 2 : name.split(/\s+/).some((w) => w.startsWith(q)) ? 1 : name.includes(q) || email.includes(q) ? 0 : -1;
     if (rank >= 0) found.push({ e, rank });
   }
-  return found.sort((a, b) => b.rank - a.rank || b.e.score - a.e.score || a.e.email.localeCompare(b.e.email)).slice(0, limit).map((x) => x.e);
+  return found.sort((a, b) => b.rank - a.rank || b.e.score - a.e.score || a.e.email.localeCompare(b.e.email) || a.e.name.localeCompare(b.e.name)).slice(0, limit).map((x) => x.e);
 }
