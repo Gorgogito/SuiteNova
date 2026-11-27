@@ -1,7 +1,7 @@
 # Nova Forms frente a Microsoft Forms (segunda ronda)
 
 Estado: **plan aprobado por el usuario** (2026-11-27): las 7 fases en este orden, respuestas por **red local** (opción A) y
-el número de versión corregido en todos los productos dentro de la fase 1. Fases 1 y 2 hechas (ver la bitácora al final).
+el número de versión corregido en todos los productos dentro de la fase 1. Fases 1 a 3 hechas (ver la bitácora al final).
 
 Referencia: Microsoft Forms (web). La comparación sale de leer el código de Nova Forms y `docs/LIMITACIONES.md`, de
 probar en Edge los fallos de la sección 2 y de la ayuda de Microsoft sobre
@@ -120,3 +120,14 @@ que la aplicación y una prueba lo compara.
   al cerrarse; en el tema gris oscuro la línea de fechas de Resultados no se leía (venía de antes); «1 respuestas
   añadidas».
 - **Pruebas:** `types.test.ts` (14), 2 más en `forms.test.ts`, `e2e-forms.mjs` pasa de 27 a 32.
+
+### Fase 3 (hecha, 2026-11-27): secciones y ramificación
+- **Núcleo** (`forms-core`): `flow.ts` (páginas, recorrido según las respuestas, orden barajado y limpieza de
+  condiciones y ramas), `text.ts`; tipo «sección», ramificación por opción y por sección, hasta diez condiciones por
+  pregunta, y ajustes de barra de progreso, barajar preguntas y ocultar números. La página web recorre lo mismo y una
+  prueba lo compara.
+- **Aplicación:** `Flow.tsx` (condiciones, ramificación, destino de la sección y fijar posición), rellenado por páginas
+  con «Atrás» y «Siguiente» en `Runner.tsx`, grupo «Páginas y orden» en la pestaña Diseño.
+- **Cambios en lo que ya había:** las secciones de Google se importan como páginas (antes como títulos); las condiciones
+  se muestran en una línea cada una; una condición sobre una pregunta que no se ha mostrado en el recorrido no se cumple.
+- **Pruebas:** `flow.test.ts` (13), 3 más en `forms.test.ts`, `e2e-forms.mjs` pasa de 32 a 37.

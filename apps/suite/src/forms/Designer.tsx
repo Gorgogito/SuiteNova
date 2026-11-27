@@ -1,8 +1,9 @@
 import { t } from '@suitenova/core-ui';
-import { FILE_KINDS, IMAGE_SIZES, MAX_FILES, MAX_IMAGE_BYTES, NUMBER_RULES, QTYPES, RATING_SYMBOLS, SIZE_CHOICES, canDecide, gradable, hasOptions, isInput, isSafeImage, nextName, numbers, type ImageSize, type ItemList, type NumberRule, type Question, type RatingSymbol } from '@suitenova/forms-core';
+import { FILE_KINDS, IMAGE_SIZES, MAX_FILES, MAX_IMAGE_BYTES, NUMBER_RULES, QTYPES, RATING_SYMBOLS, SIZE_CHOICES, gradable, hasOptions, isInput, isSafeImage, nextName, numbers, type ImageSize, type ItemList, type NumberRule, type Question, type RatingSymbol } from '@suitenova/forms-core';
 import { useState } from 'react';
 import { DraftInput } from './DraftInput';
 import { Equation, EquationField } from './Equation';
+import { Branching, Conditions, LockField, SectionNext, sectionNumbers } from './Flow';
 import { QImage } from './Runner';
 import type { FormsCtl } from './ctl';
 import { FORM_HEAD } from './ctl';
@@ -108,9 +109,6 @@ function PictureField({ q, up }: { q: Question; up: (patch: Partial<Question>, t
 
 function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
   const up = (patch: Partial<Question>, typing?: boolean) => ctl.updateQuestion(q.id, patch, typing);
-  const nums = numbers(ctl.form);
-  const i = ctl.form.questions.indexOf(q);
-  const earlier = ctl.form.questions.slice(0, i).filter(canDecide);
   const rule = q.rule ?? 'range';
   /** A box for one of the two limits of a number or of the checkboxes. */
   const limit = (key: 'min' | 'maxValue', label: string, least?: number) => (
@@ -119,13 +117,12 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
       <input className="fm-input fm-narrow" type="number" min={least} aria-label={label} value={q[key] ?? ''} onChange={(e) => up({ [key]: numOrNull(e.target.value) }, true)} />
     </label>
   );
-  const src = earlier.find((x) => x.id === q.showIf?.question);
   const numOrNull = (v: string): number | null => (v.trim() === '' || !Number.isFinite(Number(v)) ? null : Number(v));
   const quiz = ctl.form.quiz && gradable(q);
   return (
     <div className="fm-editor">
       <label className="fm-field">
-        <span>{q.type === 'title' ? t('Título') : t('Pregunta')}</span>
+        <span>{q.type === 'title' ? t('Título') : q.type === 'section' ? t('Título de la sección') : t('Pregunta')}</span>
         <input className="fm-input" value={q.title} autoFocus onChange={(e) => up({ title: e.target.value }, true)} />
       </label>
       <label className="fm-field">
@@ -325,46 +322,9 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
         </fieldset>
       )}
 
-      {isInput(q) && i > 0 && (
-        <fieldset className="fm-fieldset">
-          <legend>{t('Mostrar solo si…')}</legend>
-          {earlier.length === 0 ? (
-            <p className="fm-muted">{t('Antes de esta pregunta no hay ninguna otra a la que referirse.')}</p>
-          ) : (
-            <div className="fm-row">
-              <select className="fm-input" aria-label={t('Pregunta de la condición')} value={q.showIf?.question ?? ''} onChange={(e) => up({ showIf: e.target.value ? { question: e.target.value, op: q.showIf?.op ?? 'eq', value: q.showIf?.value ?? '' } : null })}>
-                <option value="">{t('Siempre')}</option>
-                {earlier.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {nums.get(x.id)}. {x.title || t('(sin título)')}
-                  </option>
-                ))}
-              </select>
-              {q.showIf && (
-                <>
-                  <select className="fm-input fm-narrow" aria-label={t('Operador de la condición')} value={q.showIf.op} onChange={(e) => up({ showIf: { ...q.showIf!, op: e.target.value as 'eq' | 'neq' | 'contains' } })}>
-                    <option value="eq">{t('es')}</option>
-                    <option value="neq">{t('no es')}</option>
-                    <option value="contains">{t('contiene')}</option>
-                  </select>
-                  {src && src.options.length > 0 && src.type !== 'likert' ? (
-                    <select className="fm-input" aria-label={t('Valor de la condición')} value={q.showIf.value} onChange={(e) => up({ showIf: { ...q.showIf!, value: e.target.value } })}>
-                      <option value="">{t('Elige un valor')}</option>
-                      {src.options.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input className="fm-input" aria-label={t('Valor de la condición')} value={q.showIf.value} onChange={(e) => up({ showIf: { ...q.showIf!, value: e.target.value } }, true)} />
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </fieldset>
-      )}
+      <Branching form={ctl.form} q={q} up={up} />
+      {q.type === 'section' ? <SectionNext form={ctl.form} q={q} up={up} /> : <Conditions form={ctl.form} q={q} up={up} />}
+      <LockField form={ctl.form} q={q} up={up} />
     </div>
   );
 }
@@ -373,6 +333,7 @@ export function Designer({ ctl }: { ctl: FormsCtl }) {
   const f = ctl.form;
   const head = ctl.selected === FORM_HEAD;
   const nums = numbers(f);
+  const sections = sectionNumbers(f);
   let texts = 0;
   return (
     // leaving a box ends what was being typed in it: the next letters are another change
@@ -404,9 +365,15 @@ export function Designer({ ctl }: { ctl: FormsCtl }) {
       {f.questions.map((q) => {
         const sel = ctl.selected === q.id;
         const n = nums.get(q.id);
-        const name = n ? `${t('Pregunta')} ${n}` : `${t('Título o texto')} ${++texts}`;
+        const section = sections.get(q.id);
+        const name = n ? `${t('Pregunta')} ${n}` : section ? `${t('Sección')} ${section}` : `${t('Título o texto')} ${++texts}`;
         return (
-          <section key={q.id} className={`nv-work fm-card${sel ? ' is-sel' : ''}`} data-q={q.id} onClick={() => !sel && ctl.select(q.id)} aria-label={name}>
+          <section key={q.id} className={`nv-work fm-card${sel ? ' is-sel' : ''}${section ? ' fm-section' : ''}`} data-q={q.id} onClick={() => !sel && ctl.select(q.id)} aria-label={name}>
+            {section && (
+              <div className="fm-sectionname">
+                {t('Sección {n} de {m}', { n: section, m: sections.size })}
+              </div>
+            )}
             {sel ? (
               <Editor ctl={ctl} q={q} />
             ) : (
@@ -418,7 +385,7 @@ export function Designer({ ctl }: { ctl: FormsCtl }) {
                 </span>
                 <Equation tex={q.equation} />
                 {q.image && <QImage q={q} />}
-                <span className="fm-type">{t(typeName(q))}{q.showIf ? ` · ${t('condicional')}` : ''}{hasOptions(q) && q.type !== 'likert' ? ` · ${q.options.length} ${q.type === 'ranking' ? t('elementos') : t('opciones')}` : ''}</span>
+                <span className="fm-type">{t(typeName(q))}{q.showIf ? ` · ${t('condicional')}` : ''}{q.branch || q.next ? ` · ${t('ramifica')}` : ''}{hasOptions(q) && q.type !== 'likert' ? ` · ${q.options.length} ${q.type === 'ranking' ? t('elementos') : t('opciones')}` : ''}</span>
               </button>
             )}
             {sel && <div className="fm-type">{t(typeName(q))}</div>}

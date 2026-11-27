@@ -1,5 +1,5 @@
 import { cleanResponse, norm } from './logic';
-import { newForm, newId, newQuestion, type Answer, type Form, type QType, type Question, type Response } from './model';
+import { isInput, newForm, newId, newQuestion, type Answer, type Form, type QType, type Question, type Response } from './model';
 
 /*
  * Import of forms made elsewhere.
@@ -67,7 +67,6 @@ export function parseGoogleForm(text: string): ImportedForm {
   const skip = (what: string) => skipped.set(what, (skipped.get(what) ?? 0) + 1);
   let jumps = false;
   let validations = 0;
-  let sections = 0;
 
   for (const e of arr(raw[1]).slice(0, 500)) {
     if (!Array.isArray(e)) continue;
@@ -78,7 +77,7 @@ export function parseGoogleForm(text: string): ImportedForm {
     const e0 = arr(entries[0]);
     const required = e0[2] === 1 || e0[2] === true;
     const make = (t: QType, over: Partial<Question> = {}): void => {
-      form.questions.push({ ...newQuestion(t), id: newId('q'), title, description, required: t === 'title' ? false : required, options: [], rows: [], ...over });
+      form.questions.push({ ...newQuestion(t), id: newId('q'), title, description, required: t === 'title' || t === 'section' ? false : required, options: [], rows: [], ...over });
     };
     const options = (entry: any[]): { list: string[]; other: boolean; jump: boolean } => {
       const list: string[] = [];
@@ -138,8 +137,7 @@ export function parseGoogleForm(text: string): ImportedForm {
         break;
       }
       case 8:
-        sections++;
-        if (title || description) make('title');
+        make('section');
         break;
       case 9:
         make('date');
@@ -165,8 +163,8 @@ export function parseGoogleForm(text: string): ImportedForm {
   }
   for (const [what, n] of skipped) warnings.push(`Se omitieron ${n} elemento(s) sin equivalente (${what}).`);
   if (validations) warnings.push(`${validations} pregunta(s) de texto tenían reglas de validación de Google; no se importaron (revisa los formatos y límites).`);
-  if (jumps || sections > 1) warnings.push('Las secciones de Google se importaron como títulos y no se conserva el salto de sección según la respuesta: todas las preguntas se muestran en una página.');
-  if (!form.questions.some((q) => q.type !== 'title')) throw new Error('El formulario de Google no tiene preguntas que se puedan importar (si exige iniciar sesión, la página guardada solo contiene el aviso de acceso).');
+  if (jumps) warnings.push('Las secciones de Google se importaron como páginas, pero no se conservan los saltos según la respuesta: revisa la ramificación.');
+  if (!form.questions.some(isInput)) throw new Error('El formulario de Google no tiene preguntas que se puedan importar (si exige iniciar sesión, la página guardada solo contiene el aviso de acceso).');
   return { form, responses: [], warnings };
 }
 

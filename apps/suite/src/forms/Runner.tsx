@@ -1,6 +1,6 @@
 import { t } from '@suitenova/core-ui';
-import { IMAGE_SIZES, isFiles, isSafeImage, isVisible, newId, numbers, orderOf, score, validateAll, visibleAnswers, type Answer, type Form, type Question, type UploadedFile } from '@suitenova/forms-core';
-import { useState } from 'react';
+import { IMAGE_SIZES, isFiles, isSafeImage, newId, numbers, orderOf, score, validateAll, visibleAnswers, type Answer, type Form, type Question, type UploadedFile, displayOrder, isInput, pageAfter, pagesOf, route } from '@suitenova/forms-core';
+import { useEffect, useRef, useState } from 'react';
 import { ProofTextarea } from '../spell';
 import { Equation } from './Equation';
 import { FileField, RankField, ScaleField } from './Fields';
@@ -143,33 +143,73 @@ function Field({ q, value, error, seed, othersSize, onChange, onAddFiles, onRead
 }
 
 /** Fill in a form. With `onSubmit` the answers are handed over; without it this is only a preview. */
-export function Runner({ form, onSubmit, onAgain, draft, seed }: { form: Form; onSubmit: ((a: Answers) => void) | null; onAgain?: () => void; /** Where a half-filled answer is kept while this is not on screen. */ draft?: { answers: Answers; keep: (change: (now: Answers) => Answers) => void }; /** Starts the order of shuffled options; without it, one of its own. */ seed?: string }) {
+export function Runner({ form, onSubmit, onAgain, draft, seed }: { form: Form; onSubmit: ((a: Answers) => void) | null; onAgain?: () => void; /** Where a half-filled answer is kept while this is not on screen. */ draft?: { answers: Answers; keep: (change: (now: Answers) => Answers) => void; page: number; keepPage: (page: number) => void }; /** Starts the order of shuffled options; without it, one of its own. */ seed?: string }) {
   const [own, setOwn] = useState<Answers>({});
   const answers = draft ? draft.answers : own;
   // changes are made from what there is then: a file arrives a moment after it was chosen
   const change = (fn: (now: Answers) => Answers) => (draft ? draft.keep(fn) : setOwn(fn));
   const [ownSeed, setOwnSeed] = useState(() => newId('s'));
   const [reading, setReading] = useState(0);
-  const nums = numbers(form);
+  const [ownPage, setOwnPage] = useState(0);
+  const setPage = draft ? draft.keepPage : setOwnPage;
+  const order = displayOrder(form, seed ?? ownSeed);
+  const nums = numbers({ questions: order });
+  const pages = pagesOf(form);
+  const way = route(form, answers);
+  const asked = draft ? draft.page : ownPage;
+  // a change of mind can take the page one is on out of the way: back to the last one that is still on it
+  const page = way.pages.includes(asked) ? asked : (way.pages.filter((p) => p < asked).pop() ?? 0);
+  const next = pageAfter(pages, page, way.shown, answers);
+  const last = next >= pages.length;
+  const before = way.pages[way.pages.indexOf(page) - 1];
+  const pageOf = new Map(pages.flatMap((p, i) => [...(p.section ? [p.section] : []), ...p.items].map((q) => [q.id, i] as const)));
+  const top = useRef<HTMLFormElement>(null);
+  // after turning the page, the focus goes to its beginning
+  const turned = useRef(false);
+  useEffect(() => {
+    if (!turned.current) return;
+    turned.current = false;
+    const first = top.current?.querySelector<HTMLElement>('[data-page] h2, [data-page] input, [data-page] select, [data-page] textarea, [data-page] button');
+    top.current?.scrollIntoView({ block: 'start' });
+    first?.focus({ preventScroll: true });
+  });
+  const go = (to: number) => {
+    turned.current = true;
+    setPage(to);
+  };
   const weight = (a: Answer | undefined) => (isFiles(a) ? a.reduce((n, f) => n + f.size, 0) : 0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState<Answers | null>(null);
 
   const reset = () => {
     change(() => ({}));
+    setPage(0);
     setOwnSeed(newId('s'));
     setErrors({});
     setDone(null);
     onAgain?.();
   };
+  /** On to the next page, once this one is right. */
+  const forward = () => {
+    if (reading > 0) return;
+    const here = Object.fromEntries(Object.entries(validateAll(form, answers)).filter(([id]) => pageOf.get(id) === page));
+    setErrors(here);
+    const wrong = order.find((q) => here[q.id]);
+    if (wrong) document.getElementById(`fm-q-${wrong.id}`)?.scrollIntoView({ block: 'center' });
+    else go(next);
+  };
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (reading > 0) return;
+    if (!last) return forward();
     const errs = validateAll(form, answers);
     setErrors(errs);
     if (Object.keys(errs).length) {
-      const first = form.questions.find((q) => errs[q.id]);
-      if (first) document.getElementById(`fm-q-${first.id}`)?.scrollIntoView({ block: 'center' });
+      const first = order.find((q) => errs[q.id]);
+      if (first) {
+        setPage(pageOf.get(first.id)!);
+        setTimeout(() => document.getElementById(`fm-q-${first.id}`)?.scrollIntoView({ block: 'center' }), 0);
+      }
       return;
     }
     // the "other" box starts as a single space until something is typed
@@ -208,26 +248,48 @@ export function Runner({ form, onSubmit, onAgain, draft, seed }: { form: Form; o
   }
 
   return (
-    <form className="fm-run" noValidate onSubmit={submit} aria-label={form.title}>
+    <form
+      className="fm-run"
+      noValidate
+      onSubmit={submit}
+      aria-label={form.title}
+      ref={top}
+      // Enter in a box of a page that is not the last goes on
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !last && !e.defaultPrevented && e.target instanceof HTMLInputElement && e.target.type !== 'file') {
+          e.preventDefault();
+          forward();
+        }
+      }}
+    >
       <div className="fm-card fm-head nv-work" style={{ borderTopColor: form.color }}>
         <h1>{form.title}</h1>
         {form.description && <p className="fm-desc">{form.description}</p>}
       </div>
-      {form.questions.map((q) => {
-        if (!isVisible(form, q, answers)) return null;
-        if (q.type === 'title')
+      {form.progress && pages.length > 1 && (
+        <div className="fm-progress">
+          <span role="status">{t('Página {n} de {m}', { n: page + 1, m: pages.length })}</span>
+          <progress max={pages.length} value={page + 1} aria-label={t('Progreso')} />
+        </div>
+      )}
+      {order.map((q) => {
+        if (pageOf.get(q.id) !== page || !way.shown.has(q.id)) return null;
+        // a section that says nothing only starts a page: there is nothing to show
+        if (q.type === 'section' && !q.title.trim() && !q.description.trim() && !q.equation && !q.image) return null;
+        if (!isInput(q))
           return (
-            <div key={q.id} className="fm-card nv-work">
-              <h2>{q.title}</h2>
+            <div key={q.id} className={`fm-card nv-work${q.type === 'section' ? ' fm-section' : ''}`} data-page>
+              <h2 tabIndex={-1}>{q.title}</h2>
               {q.description && <p className="fm-desc">{q.description}</p>}
               <Equation tex={q.equation} />
               <QImage q={q} />
             </div>
           );
         return (
-          <div key={q.id} id={`fm-q-${q.id}`} className="fm-card nv-work">
+          <div key={q.id} id={`fm-q-${q.id}`} className="fm-card nv-work" data-page>
             <div className="fm-qtitle">
-              {nums.get(q.id)}. {q.title}
+              {form.hideNumbers ? '' : `${nums.get(q.id)}. `}
+              {q.title}
               {q.required && <span className="fm-req" aria-label={t('obligatoria')}> *</span>}
             </div>
             {q.description && <p className="fm-desc">{q.description}</p>}
@@ -252,9 +314,20 @@ export function Runner({ form, onSubmit, onAgain, draft, seed }: { form: Form; o
         );
       })}
       <div className="fm-card nv-work">
-        <button type="submit" className="fm-btn" disabled={reading > 0} style={{ background: form.color, borderColor: form.color }}>
-          {onSubmit ? t('Enviar') : t('Enviar (prueba)')}
-        </button>
+        {before !== undefined && (
+          <button type="button" className="fm-btn fm-btn--sec" onClick={() => (setErrors({}), go(before))}>
+            {t('Atrás')}
+          </button>
+        )}
+        {last ? (
+          <button key="send" type="submit" className="fm-btn" disabled={reading > 0} style={{ background: form.color, borderColor: form.color }}>
+            {onSubmit ? t('Enviar') : t('Enviar (prueba)')}
+          </button>
+        ) : (
+          <button key="next" type="button" className="fm-btn" disabled={reading > 0} style={{ background: form.color, borderColor: form.color }} onClick={forward}>
+            {t('Siguiente')}
+          </button>
+        )}
         <button type="button" className="fm-btn fm-btn--sec" onClick={reset}>
           {t('Borrar respuestas')}
         </button>

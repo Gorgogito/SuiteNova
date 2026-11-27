@@ -1,5 +1,5 @@
 import type { CommandDef } from '@suitenova/core-ui';
-import { QTYPES } from '@suitenova/forms-core';
+import { QTYPES, canShuffle, isInput } from '@suitenova/forms-core';
 import { FORM_HEAD, type FormsCtl, type Mode } from './ctl';
 import { finishTyping } from './DraftInput';
 
@@ -83,12 +83,18 @@ export function formsCommands(ui: FormsUI): CommandDef[] {
   });
   add({ id: 'forms.q.up', label: 'Mover pregunta hacia arriba', icon: 'moveUp', shortcut: 'Alt+Shift+Up', enabled: () => designing() && c.canMove(-1), run: () => (finishTyping(), c.moveQuestion(-1)) });
   add({ id: 'forms.q.down', label: 'Mover pregunta hacia abajo', icon: 'moveDown', shortcut: 'Alt+Shift+Down', enabled: () => designing() && c.canMove(1), run: () => (finishTyping(), c.moveQuestion(1)) });
-  add({ id: 'forms.q.required', label: 'Pregunta obligatoria', icon: 'star', enabled: () => hasQ() && q()!.type !== 'title', checked: () => !!q()?.required, run: () => c.updateQuestion(q()!.id, { required: !q()!.required }) });
+  add({ id: 'forms.q.required', label: 'Pregunta obligatoria', icon: 'star', enabled: () => hasQ() && isInput(q()!), checked: () => !!q()?.required, run: () => c.updateQuestion(q()!.id, { required: !q()!.required }) });
   add({ id: 'forms.q.top', label: 'Título y descripción del formulario', icon: 'file', run: () => { c.setMode('design'); c.select(FORM_HEAD); } });
 
   // ---- form
   add({ id: 'forms.quiz', label: 'Modo cuestionario (con puntuación)', icon: 'checkSquare', checked: () => c.form.quiz, run: () => c.setForm({ quiz: !c.form.quiz }) });
   add({ id: 'forms.showScore', label: 'Mostrar la puntuación al responder', icon: 'eye', enabled: () => c.form.quiz, checked: () => c.form.showScore, description: 'La página web exportada llevará las respuestas correctas dentro del archivo para poder puntuar.', run: () => c.setForm({ showScore: !c.form.showScore }) });
+
+  // ---- pages and order
+  const paged = () => !canShuffle(c.form);
+  add({ id: 'forms.progress', label: 'Barra de progreso', icon: 'chart', description: 'Con varias secciones, quien responde ve en qué página está.', enabled: paged, checked: () => paged() && !!c.form.progress, run: () => c.setForm({ progress: !c.form.progress || undefined }) });
+  add({ id: 'forms.shuffle', label: 'Barajar las preguntas', icon: 'moveDown', description: 'Cada persona ve las preguntas en otro orden. No se puede con secciones; las que dependen de una condición no se mueven.', enabled: () => !paged(), checked: () => !paged() && !!c.form.shuffle, run: () => c.setForm({ shuffle: !c.form.shuffle || undefined }) });
+  add({ id: 'forms.hideNumbers', label: 'Ocultar los números', icon: 'eye', description: 'Quien responde ve las preguntas sin numerar.', checked: () => !!c.form.hideNumbers, run: () => c.setForm({ hideNumbers: !c.form.hideNumbers || undefined }) });
 
   // ---- modes
   for (const [m, label, icon] of MODES) add({ id: `forms.mode.${m}`, label, icon, checked: () => c.mode === m, run: () => c.setMode(m) });

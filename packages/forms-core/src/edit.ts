@@ -3,7 +3,7 @@
  * its text, so changing that text has to change all of them.
  */
 import { norm } from './logic';
-import type { Answer, Form, Question, Response } from './model';
+import { conditionsOf, showIfOf, type Answer, type Form, type Question, type Response } from './model';
 
 /** `options`: the choices of a question, or the columns of a grid. `rows`: the rows of a grid. */
 export type ItemList = 'options' | 'rows';
@@ -79,12 +79,16 @@ export function renameItem(doc: Doc, id: string, list: ItemList, index: number, 
   const questions = doc.form.questions.map((x) => {
     if (x.id === id) {
       const out: Question = { ...x, [list]: x[list].map((v, i) => (i === index ? to : v)) };
-      if (list === 'options' && x.type !== 'likert') out.correct = x.correct.map((c) => (c === from ? to : c));
+      if (list === 'options' && x.type !== 'likert') {
+        out.correct = x.correct.map((c) => (c === from ? to : c));
+        if (x.branch) out.branch = Object.fromEntries(Object.entries(x.branch).map(([option, target]) => [option === from ? to : option, target]));
+      }
       return out;
     }
     // a condition compares with a choice (never with the name of a row), without minding capitals or accents
-    const c = x.showIf;
-    if (list === 'options' && c?.question === id && (c.value === from || (only && norm(c.value) === norm(from)))) return { ...x, showIf: { ...c, value: to } };
+    const named = (v: string) => v === from || (only && norm(v) === norm(from));
+    const conditions = conditionsOf(x);
+    if (list === 'options' && conditions.some((c) => c.question === id && named(c.value))) return { ...x, showIf: showIfOf(conditions.map((c) => (c.question === id && named(c.value) ? { ...c, value: to } : c)), x.showIf?.anyOf) };
     return x;
   });
   const responses = doc.responses.map((r) => {
@@ -105,11 +109,18 @@ export function removeItem(doc: Doc, id: string, list: ItemList, index: number):
   const questions = doc.form.questions.map((x) => {
     if (x.id === id) {
       const out: Question = { ...x, [list]: x[list].filter((_, i) => i !== index) };
-      if (list === 'options' && x.type !== 'likert') out.correct = x.correct.filter((c) => c !== gone);
+      if (list === 'options' && x.type !== 'likert') {
+        out.correct = x.correct.filter((c) => c !== gone);
+        if (x.branch && Object.hasOwn(x.branch, gone)) {
+          out.branch = Object.fromEntries(Object.entries(x.branch).filter(([option]) => option !== gone));
+          if (!Object.keys(out.branch).length) delete out.branch;
+        }
+      }
       return out;
     }
-    if (list === 'options' && x.showIf?.question === id && x.showIf.value === gone) return { ...x, showIf: null };
-    return x;
+    const conditions = conditionsOf(x);
+    const left = conditions.filter((c) => !(list === 'options' && c.question === id && c.value === gone));
+    return left.length === conditions.length ? x : { ...x, showIf: showIfOf(left, x.showIf?.anyOf) };
   });
   return { ...doc, form: { ...doc.form, questions } };
 }

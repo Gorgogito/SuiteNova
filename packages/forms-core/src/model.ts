@@ -1,6 +1,6 @@
 import type { FileKind } from './files';
 
-export type QType = 'text' | 'longtext' | 'choice' | 'multi' | 'dropdown' | 'ranking' | 'rating' | 'nps' | 'date' | 'number' | 'likert' | 'file' | 'title';
+export type QType = 'text' | 'longtext' | 'choice' | 'multi' | 'dropdown' | 'ranking' | 'rating' | 'nps' | 'date' | 'number' | 'likert' | 'file' | 'section' | 'title';
 
 export const QTYPES: { id: QType; name: string }[] = [
   { id: 'text', name: 'Texto corto' },
@@ -15,14 +15,30 @@ export const QTYPES: { id: QType; name: string }[] = [
   { id: 'number', name: 'Número' },
   { id: 'likert', name: 'Escala por filas' },
   { id: 'file', name: 'Subir archivos' },
+  { id: 'section', name: 'Sección (página nueva)' },
   { id: 'title', name: 'Título o texto' },
 ];
 
-export interface ShowIf {
+export interface Condition {
   /** Id of an earlier question. */
   question: string;
   op: 'eq' | 'neq' | 'contains';
   value: string;
+}
+
+/** When a question is shown: one condition, or several of which all (or, with `anyOf`, any one) must be met. */
+export interface ShowIf extends Condition {
+  more?: Condition[];
+  anyOf?: boolean;
+}
+
+export const MAX_CONDITIONS = 10;
+
+export const conditionsOf = (q: { showIf: ShowIf | null }): Condition[] => (q.showIf ? [{ question: q.showIf.question, op: q.showIf.op, value: q.showIf.value }, ...(q.showIf.more ?? [])] : []);
+
+export function showIfOf(list: Condition[], anyOf?: boolean): ShowIf | null {
+  const [first, ...more] = list;
+  return first ? { ...first, ...(more.length ? { more, ...(anyOf ? { anyOf: true } : {}) } : {}) } : null;
 }
 
 /** The widths a picture of a question can have (the picture keeps its proportions and never grows past the card). */
@@ -106,6 +122,12 @@ export interface Question {
   /** rating and nps: what the two ends mean. */
   lowLabel?: string;
   highLabel?: string;
+  /** choice and dropdown: where an option leads when its page is left (the id of a later section, or `end`). */
+  branch?: Record<string, string>;
+  /** section: where it leads when it is finished (without it, to the page that follows). */
+  next?: string;
+  /** Keeps its place when the questions are shuffled. */
+  locked?: boolean;
   /** file: how many files, how large each (MB) and of which kinds (none: any that is not blocked). */
   maxFiles?: number;
   maxMb?: number;
@@ -131,6 +153,12 @@ export interface Form {
   showScore: boolean;
   thanks: string;
   questions: Question[];
+  /** Each person sees the questions in another order (only without sections). */
+  shuffle?: boolean;
+  /** With several pages: says on which one the person is. */
+  progress?: boolean;
+  /** The questions show no number. */
+  hideNumbers?: boolean;
 }
 
 /**
@@ -183,10 +211,11 @@ export function newForm(title = 'Formulario sin título'): Form {
   return { id: newId('f'), version: 1, title, description: '', color: '#0f6cbd', quiz: false, showScore: true, thanks: 'Gracias por responder.', questions: [] };
 }
 
-export const isInput = (q: Question): boolean => q.type !== 'title';
+/** Whether it is a question: texts and sections are not. */
+export const isInput = (q: Question): boolean => q.type !== 'title' && q.type !== 'section';
 export const hasOptions = (q: Question): boolean => q.type === 'choice' || q.type === 'multi' || q.type === 'dropdown' || q.type === 'ranking' || q.type === 'likert';
 /** Whether another question can depend on the answer to this one. */
-export const canDecide = (q: Question): boolean => q.type !== 'title' && q.type !== 'file' && q.type !== 'ranking';
+export const canDecide = (q: Question): boolean => isInput(q) && q.type !== 'file' && q.type !== 'ranking';
 /** Question types a quiz can grade. */
 export const gradable = (q: Question): boolean => ['choice', 'multi', 'dropdown', 'text', 'number'].includes(q.type);
 /** The number each question shows, by its id: titles and texts are not questions and take none. */

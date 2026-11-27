@@ -83,6 +83,17 @@ export function formsTabs(ui: FormsUI): RibbonTab[] {
     groups: [
       { id: 'theme', label: 'Tema', icon: 'settings', items: [{ kind: 'custom', id: 'themeColor', label: 'Color del tema', keytip: 'CT', render: () => <ThemeColor ui={ui} /> }] },
       {
+        id: 'pages',
+        label: 'Páginas y orden',
+        icon: 'file',
+        items: [
+          { kind: 'button', command: 'forms.q.add.section', size: 'large', keytip: 'SE' },
+          { kind: 'button', command: 'forms.progress', size: 'small', keytip: 'BP' },
+          { kind: 'button', command: 'forms.shuffle', size: 'small', keytip: 'BA' },
+          { kind: 'button', command: 'forms.hideNumbers', size: 'small', keytip: 'ON' },
+        ],
+      },
+      {
         id: 'quiz',
         label: 'Cuestionario',
         icon: 'checkSquare',

@@ -1,4 +1,4 @@
-import { isEmpty, newForm, newId, newQuestion, parseResponses, removeItem, renameInAnswers, renameItem, type Answer, type Form, type ItemList, type QType, type Question, type Response } from '@suitenova/forms-core';
+import { isEmpty, newForm, newId, newQuestion, parseResponses, removeItem, renameInAnswers, renameItem, type Answer, type Form, type ItemList, type QType, type Question, type Response, conditionsOf, showIfOf, tidyFlow } from '@suitenova/forms-core';
 
 export type Mode = 'design' | 'preview' | 'fill' | 'results';
 export interface Doc {
@@ -21,6 +21,8 @@ export class FormsCtl {
   draft: Record<string, Answer> = {};
   /** Starts the order of the shuffled options of the answer being filled in: another one for each answer. */
   seed = newId('s');
+  /** The page the answer being filled in is on. */
+  draftPage = 0;
   /** The box being typed in: its letters count as one change. */
   private typing: string | null = null;
   private past: Doc[] = [];
@@ -113,6 +115,7 @@ export class FormsCtl {
     this.future = [];
     this.typing = null;
     this.draft = {};
+    this.draftPage = 0;
     this.seed = newId('s');
     this.selected = FORM_HEAD;
     this.mode = 'design';
@@ -164,6 +167,8 @@ export class FormsCtl {
     const qs = [...this.form.questions];
     const at = this.selectedQuestion ? qs.indexOf(this.selectedQuestion) + 1 : qs.length;
     qs.splice(at, 0, q);
+    // with the first section, what comes before it becomes a section too: every question is in one
+    if (type === 'section' && at > 0 && !this.form.questions.some((x) => x.type === 'section')) qs.unshift(newQuestion('section'));
     this.setQuestions(qs);
     this.selected = q.id;
     this.touch();
@@ -194,7 +199,7 @@ export class FormsCtl {
   duplicateQuestion(): void {
     const q = this.selectedQuestion;
     if (!q) return;
-    const copy: Question = { ...q, id: newId('q'), options: [...q.options], rows: [...q.rows], correct: [...q.correct], showIf: q.showIf ? { ...q.showIf } : null };
+    const copy: Question = { ...q, id: newId('q'), options: [...q.options], rows: [...q.rows], correct: [...q.correct], showIf: showIfOf(conditionsOf(q), q.showIf?.anyOf), ...(q.branch ? { branch: { ...q.branch } } : {}) };
     const qs = [...this.form.questions];
     qs.splice(qs.indexOf(q) + 1, 0, copy);
     this.setQuestions(qs);
@@ -207,7 +212,8 @@ export class FormsCtl {
     const qs = this.form.questions;
     const i = qs.indexOf(q);
     // answers to this question go away from the saved responses too; conditions that used it are removed
-    const rest = qs.filter((x) => x !== q).map((x) => (x.showIf?.question === q.id ? { ...x, showIf: null } : x));
+    // conditions that used it go, and so do the branches that led to it
+    const rest = tidyFlow(qs.filter((x) => x !== q));
     const responses = this.responses.map((r) => {
       if (!(q.id in r.answers)) return r;
       const answers = { ...r.answers };
@@ -233,13 +239,16 @@ export class FormsCtl {
     const qs = [...this.form.questions];
     const i = qs.indexOf(q);
     [qs[i], qs[i + dir]] = [qs[i + dir]!, qs[i]!];
-    // a condition must keep pointing at an earlier question
-    const pos = new Map(qs.map((x, k) => [x.id, k]));
-    this.setQuestions(qs.map((x, k) => (x.showIf && (pos.get(x.showIf.question) ?? Infinity) >= k ? { ...x, showIf: null } : x)));
+    // conditions must keep looking back, and branches forwards
+    this.setQuestions(tidyFlow(qs));
   }
 
   // ---------- responses
 
+  setDraftPage(page: number): void {
+    this.draftPage = page;
+    this.touch();
+  }
   setDraft(answers: Record<string, Answer>): void {
     this.draft = answers;
     this.touch();
@@ -258,6 +267,7 @@ export class FormsCtl {
     this.future = this.future.map(keep);
     this.doc = keep(this.doc);
     this.draft = {};
+    this.draftPage = 0;
     this.seed = newId('s');
     this.typing = null;
     this.dirty = true;

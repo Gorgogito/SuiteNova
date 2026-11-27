@@ -413,3 +413,49 @@
 .fm-pager .fm-muted {
   color: inherit;
 }
+
+/* ---------- sections, branching and pages ---------- */
+.fm-section {
+  border-left: 6px solid var(--fm-color, #0f6cbd);
+}
+.fm-section h2 {
+  margin: 2px 0;
+}
+.fm-sectionname {
+  margin-bottom: 4px;
+  color: var(--colorNeutralForeground2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.fm-branch {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) 2fr;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.fm-branch span {
+  overflow-wrap: anywhere;
+}
+.fm-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 4px;
+  font-size: 13px;
+}
+.fm-progress progress {
+  flex: 1;
+  height: 10px;
+  accent-color: var(--fm-color, #0f6cbd);
+}
+.fm-cond {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) 120px minmax(0, 2fr) 34px;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+.fm-cond .fm-narrow {
+  width: 100%;
+}

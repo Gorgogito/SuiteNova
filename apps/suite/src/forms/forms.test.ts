@@ -267,6 +267,58 @@ describe('preguntas nuevas', () => {
   });
 });
 
+describe('secciones y ramificación', () => {
+  it('con la primera sección, lo de antes queda también en una', () => {
+    const { ctl } = setup();
+    ctl.addQuestion('text');
+    const s = ctl.addQuestion('section');
+    expect(ctl.form.questions.map((q) => q.type)).toEqual(['section', 'text', 'section']);
+    expect(ctl.selected).toBe(s.id);
+    ctl.undo();
+    expect(ctl.form.questions.map((q) => q.type)).toEqual(['text']);
+    // a section added at the start is the only one needed
+    const other = setup().ctl;
+    other.addQuestion('section');
+    expect(other.form.questions).toHaveLength(1);
+  });
+
+  it('mover, quitar y duplicar mantienen condiciones y ramas con sentido', () => {
+    const { ctl } = setup();
+    const a = ctl.addQuestion('choice');
+    const s = ctl.addQuestion('section');
+    const b = ctl.addQuestion('text');
+    ctl.updateQuestion(a.id, { branch: { 'Opción 1': s.id, 'Opción 2': 'end' } });
+    ctl.updateQuestion(b.id, { showIf: { question: a.id, op: 'eq', value: 'Opción 1', more: [{ question: a.id, op: 'neq', value: 'x' }], anyOf: true } });
+    ctl.select(b.id);
+    ctl.duplicateQuestion();
+    expect(ctl.form.questions.at(-1)!.showIf).toEqual(ctl.form.questions.at(-2)!.showIf);
+    ctl.select(s.id);
+    ctl.deleteQuestion();
+    expect(ctl.form.questions.find((q) => q.id === a.id)!.branch).toEqual({ 'Opción 2': 'end' });
+    ctl.undo();
+    ctl.select(a.id);
+    ctl.deleteQuestion();
+    expect(ctl.form.questions.map((q) => q.showIf)).toEqual(ctl.form.questions.map(() => null));
+  });
+
+  it('lo que se puede activar depende de que haya secciones, y la página vuelve al principio', () => {
+    const { ctl, registry } = setup();
+    ctl.addQuestion('text');
+    const on = () => ['forms.shuffle', 'forms.progress'].map((id) => registry.isEnabled(id));
+    expect(on()).toEqual([true, false]);
+    registry.run('forms.shuffle');
+    expect(ctl.form.shuffle).toBe(true);
+    ctl.addQuestion('section');
+    expect(on()).toEqual([false, true]);
+    registry.run('forms.progress');
+    registry.run('forms.hideNumbers');
+    expect([ctl.form.progress, ctl.form.hideNumbers]).toEqual([true, true]);
+    ctl.setDraftPage(1);
+    ctl.addResponse({});
+    expect(ctl.draftPage).toBe(0);
+  });
+});
+
 describe('Import from Microsoft Forms and Google Forms', () => {
   const rows = [
     ['Id', 'Hora de inicio', 'Hora de finalización', 'Correo electrónico', 'Nombre', 'Color', 'Edad'],

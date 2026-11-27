@@ -1,7 +1,8 @@
 import { uniqueTexts } from './edit';
 import { FILE_KINDS, MAX_FILES, SIZE_CHOICES, isFiles } from './files';
+import { tidyFlow } from './flow';
 import { cleanResponse, keptResponse, score } from './logic';
-import { IMAGE_SIZES, NUMBER_RULES, QTYPES, RATING_SYMBOLS, canDecide, isInput, isSafeImage, newForm, newId, newQuestion, type Answer, type Form, type QType, type Question, type Response } from './model';
+import { IMAGE_SIZES, MAX_CONDITIONS, NUMBER_RULES, QTYPES, RATING_SYMBOLS, isInput, isSafeImage, newForm, newId, newQuestion, showIfOf, type Answer, type Condition, type Form, type QType, type Question, type Response } from './model';
 
 export interface Project {
   form: Form;
@@ -28,9 +29,17 @@ export function readForm(raw: any): Form {
     while (ids.has(id)) id = newId('q');
     ids.add(id);
     const sf = r?.showIf;
+    const condition = (c: any): Condition[] => (c && typeof c.question === 'string' && ['eq', 'neq', 'contains'].includes(c.op) ? [{ question: c.question, op: c.op, value: str(c.value, '', 500) }] : []);
+    const conditions = [...condition(sf), ...(sf && Array.isArray(sf.more) ? sf.more.flatMap(condition) : [])].slice(0, MAX_CONDITIONS);
     const extra: Partial<Question> = {};
     if (typeof r?.equation === 'string' && r.equation.trim()) extra.equation = r.equation.slice(0, 5000);
     if (r?.shuffle === true) extra.shuffle = true;
+    if (r?.locked === true) extra.locked = true;
+    if ((type === 'choice' || type === 'dropdown') && r?.branch && typeof r.branch === 'object' && !Array.isArray(r.branch)) {
+      const entries = Object.entries(r.branch as Record<string, unknown>).flatMap(([option, target]) => (typeof target === 'string' && target ? [[option, target.slice(0, 60)]] : []));
+      if (entries.length) extra.branch = Object.fromEntries(entries.slice(0, 200));
+    }
+    if (type === 'section' && typeof r?.next === 'string' && r.next) extra.next = r.next.slice(0, 60);
     if (type === 'number' && NUMBER_RULES.some((x) => x.id === r?.rule) && r.rule !== 'range') extra.rule = r.rule;
     for (const key of ['lowLabel', 'highLabel'] as const) if ((type === 'rating' || type === 'nps') && typeof r?.[key] === 'string' && r[key].trim()) extra[key] = r[key].slice(0, 100);
     if (type === 'file') {
@@ -57,18 +66,17 @@ export function readForm(raw: any): Form {
       min: num(r?.min),
       maxValue: num(r?.maxValue),
       integer: r?.integer === true,
-      showIf: sf && typeof sf.question === 'string' && ['eq', 'neq', 'contains'].includes(sf.op) ? { question: sf.question, op: sf.op, value: str(sf.value, '', 500) } : null,
+      showIf: showIfOf(conditions, sf?.anyOf === true),
       correct: strs(r?.correct),
       points: Math.min(1000, Math.max(0, num(r?.points, 1)!)),
       ...(isSafeImage(r?.image?.src) ? { image: { src: r.image.src, alt: str(r.image.alt, '', 500), size: IMAGE_SIZES.some((z) => z.id === r.image.size) ? r.image.size : 'medium' } } : {}),
     };
   });
-  // conditions must point at an earlier question that can decide
-  questions.forEach((q, i) => {
-    if (q.showIf && !questions.slice(0, i).some((x) => x.id === q.showIf!.question && canDecide(x))) q.showIf = null;
-  });
   return {
     ...base,
+    ...(raw?.shuffle === true ? { shuffle: true } : {}),
+    ...(raw?.progress === true ? { progress: true } : {}),
+    ...(raw?.hideNumbers === true ? { hideNumbers: true } : {}),
     id: str(raw?.id, '', 60) || base.id,
     title: str(raw?.title, base.title, 300),
     description: str(raw?.description, '', 3000),
@@ -76,7 +84,8 @@ export function readForm(raw: any): Form {
     quiz: raw?.quiz === true,
     showScore: raw?.showScore !== false,
     thanks: str(raw?.thanks, base.thanks, 1000),
-    questions,
+    // conditions must look back and branches forwards
+    questions: tidyFlow(questions),
   };
 }
 

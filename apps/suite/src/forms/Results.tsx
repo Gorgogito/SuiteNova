@@ -1,5 +1,5 @@
 import { t } from '@suitenova/core-ui';
-import { QTYPES, isFiles, numbers, score, summarize, type Answer, type Form, type QSummary, type Question, type Response, type UploadedFile } from '@suitenova/forms-core';
+import { QTYPES, isFiles, numbers, score, summarize, type Answer, type Form, type QSummary, type Question, type Response, type UploadedFile, isInput } from '@suitenova/forms-core';
 import { useMemo, useState } from 'react';
 import type { FormsCtl } from './ctl';
 import { Equation } from './Equation';
@@ -212,7 +212,7 @@ function Individual({ ctl, form, responses }: { ctl: FormsCtl; form: Form; respo
         </p>
         <dl className="fm-indiv">
           {form.questions
-            .filter((q) => q.type !== 'title')
+            .filter(isInput)
             .map((q) => (
               <div key={q.id}>
                 <dt>{q.title || t('(sin título)')}</dt>

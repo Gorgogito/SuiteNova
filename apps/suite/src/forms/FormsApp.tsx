@@ -1,6 +1,6 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, DialogTrigger } from '@fluentui/react-components';
 import { AppFrame, CommandRegistry, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { exportHtml, parseProject, responsesToCsv, serializeProject } from '@suitenova/forms-core';
+import { exportHtml, parseProject, responsesToCsv, serializeProject, isInput } from '@suitenova/forms-core';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { pickAndRead, readPath, saveBytes } from '../fileio';
 import type { ModuleInfo } from '../modules';
@@ -78,7 +78,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
           const r = await readForeignForm(file.name, file.data);
           ctl.loadImported({ form: r.form, responses: r.responses });
           setSaveState('');
-          const n = r.form.questions.filter((q) => q.type !== 'title').length;
+          const n = r.form.questions.filter(isInput).length;
           window.alert(t('Se importó «{name}»: {n} preguntas y {m} respuestas. Revisa el formulario y guárdalo como .novaforms.', { name: file.name, n, m: r.responses.length }) + (r.warnings.length ? '\n\n' + r.warnings.join('\n') : ''));
           return;
         }
@@ -119,7 +119,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       save: (saveAs) => saveNow(saveAs),
       exportHtml: async () => {
         finishTyping();
-        if (!ctl.form.questions.some((q) => q.type !== 'title')) {
+        if (!ctl.form.questions.some(isInput)) {
           window.alert(t('Añade al menos una pregunta antes de exportar.'));
           return;
         }
@@ -194,7 +194,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
   }, [module.name]);
 
   const close = () => setDialog(null);
-  const nq = ctl.form.questions.filter((q) => q.type !== 'title').length;
+  const nq = ctl.form.questions.filter(isInput).length;
 
   return (
     <AppFrame
@@ -222,7 +222,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
           <div className="fm-page">
             {ctl.mode === 'design' && <Designer ctl={ctl} />}
             {ctl.mode === 'preview' && <Runner key={`p-${JSON.stringify(ctl.form).length}-${ctl.form.questions.length}`} form={ctl.form} onSubmit={null} />}
-            {ctl.mode === 'fill' && <Runner key="fill" form={ctl.form} seed={ctl.seed} draft={{ answers: ctl.draft, keep: (change) => ctl.setDraft(change(ctl.draft)) }} onSubmit={(a) => { ctl.addResponse(a); }} />}
+            {ctl.mode === 'fill' && <Runner key="fill" form={ctl.form} seed={ctl.seed} draft={{ answers: ctl.draft, keep: (change) => ctl.setDraft(change(ctl.draft)), page: ctl.draftPage, keepPage: (page) => ctl.setDraftPage(page) }} onSubmit={(a) => { ctl.addResponse(a); }} />}
             {ctl.mode === 'results' && <Results ctl={ctl} />}
           </div>
         </div>

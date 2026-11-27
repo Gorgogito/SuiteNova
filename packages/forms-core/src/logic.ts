@@ -1,12 +1,14 @@
 import { MAX_FILES, MAX_RESPONSE_MB, MB, fileProblem, readFileItem } from './files';
+import { route } from './flow';
 import { gradable, isInput, type Answer, type Form, type Question, type Response, type UploadedFile } from './model';
+import { norm, shuffled } from './text';
 
 /*
  * Rules shared by the editor, the fill-in screen and the standalone HTML. The HTML carries its own copy of these
  * functions (see html.ts); a test runs both on the same inputs.
  */
 
-export const norm = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+export { norm, shuffled } from './text';
 
 export const isEmpty = (a: Answer | undefined): boolean => {
   if (a === null || a === undefined) return true;
@@ -16,50 +18,10 @@ export const isEmpty = (a: Answer | undefined): boolean => {
   return false;
 };
 
-/** Text that a condition compares with: the answer, or the chosen options joined. */
-function asText(a: Answer | undefined): string[] {
-  if (a === null || a === undefined) return [];
-  if (Array.isArray(a)) return (a as unknown[]).filter((x): x is string => typeof x === 'string');
-  if (typeof a === 'object') return Object.values(a);
-  return [String(a)];
-}
-
-export function isVisible(form: Form, q: Question, answers: Record<string, Answer>): boolean {
-  const c = q.showIf;
-  if (!c) return true;
-  const src = form.questions.find((x) => x.id === c.question);
-  if (!src || form.questions.indexOf(src) >= form.questions.indexOf(q)) return true; // a broken condition never hides
-  if (!isVisible(form, src, answers)) return false;
-  const got = asText(answers[c.question]).map(norm);
-  const want = norm(c.value);
-  if (c.op === 'eq') return got.includes(want);
-  if (c.op === 'neq') return !got.includes(want);
-  return got.some((g) => g.includes(want));
-}
-
-/** A number made from a text (FNV-1a), to start the order of a shuffled list. */
-const hash = (s: string): number => {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
-  return h >>> 0;
-};
-
-/** The list in an order of its own for each seed: the same seed gives the same order. */
-export function shuffled<T>(list: T[], seed: string): T[] {
-  let a = hash(seed);
-  const random = () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let x = Math.imul(a ^ (a >>> 15), 1 | a);
-    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-  };
-  const out = [...list];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [out[i], out[j]] = [out[j]!, out[i]!];
-  }
-  return out;
-}
+/** Whether a question is shown: its page is gone through and its conditions are met. */
+export const isVisible = (form: Form, q: Question, answers: Record<string, Answer>): boolean =>
+  // the question as given, which may be a changed one, in its place of the form
+  route(form.questions.includes(q) ? form : { ...form, questions: form.questions.map((x) => (x.id === q.id ? q : x)) }, answers).shown.has(q.id);
 
 /** The options of a question in the order a person sees them. */
 export const orderOf = (q: Question, seed: string): string[] => (q.shuffle ? shuffled(q.options, seed + q.id) : q.options);
@@ -156,8 +118,9 @@ export function validateAnswer(q: Question, a: Answer | undefined): string | nul
 /** Errors by question id, ignoring the questions that are hidden by their conditions. */
 export function validateAll(form: Form, answers: Record<string, Answer>): Record<string, string> {
   const out: Record<string, string> = {};
+  const { shown } = route(form, answers);
   for (const q of form.questions) {
-    if (!isVisible(form, q, answers)) continue;
+    if (!shown.has(q.id)) continue;
     const e = validateAnswer(q, answers[q.id]);
     if (e) out[q.id] = e;
   }
@@ -167,7 +130,8 @@ export function validateAll(form: Form, answers: Record<string, Answer>): Record
 /** Answers without the ones to hidden questions. */
 export function visibleAnswers(form: Form, answers: Record<string, Answer>): Record<string, Answer> {
   const out: Record<string, Answer> = {};
-  for (const q of form.questions) if (isInput(q) && isVisible(form, q, answers) && !isEmpty(answers[q.id])) out[q.id] = answers[q.id]!;
+  const { shown } = route(form, answers);
+  for (const q of form.questions) if (isInput(q) && shown.has(q.id) && !isEmpty(answers[q.id])) out[q.id] = answers[q.id]!;
   return out;
 }
 
@@ -205,8 +169,9 @@ function isRight(q: Question, a: Answer | undefined): boolean {
 export function score(form: Form, answers: Record<string, Answer>): Score {
   const s: Score = { earned: 0, total: 0, byQuestion: {} };
   if (!form.quiz) return s;
+  const { shown } = route(form, answers);
   for (const q of form.questions) {
-    if (!gradable(q) || !q.correct.length || !isVisible(form, q, answers)) continue;
+    if (!gradable(q) || !q.correct.length || !shown.has(q.id)) continue;
     s.total += q.points;
     const got = isRight(q, answers[q.id]) ? q.points : 0;
     s.byQuestion[q.id] = got;

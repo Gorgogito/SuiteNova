@@ -60,7 +60,7 @@ describe('Google Forms page', () => {
     expect(byTitle('Hora').type).toBe('text');
   });
   it('turns sections and descriptive text into titles and drops what has no equivalent, telling the user', () => {
-    expect(byTitle('Sección 2').type).toBe('title');
+    expect(byTitle('Sección 2')).toMatchObject({ type: 'section', description: 'Más datos', required: false });
     expect(byTitle('Mensaje').type).toBe('title');
     expect(byTitle('Foto')).toMatchObject({ type: 'file', maxFiles: 1 });
     const w = r.warnings.join('\n');

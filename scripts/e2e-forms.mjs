@@ -955,6 +955,230 @@ await check('the new questions and their results are readable in the four themes
   }
 });
 
+// ------------------------------------------------------------ sections, branching and order (phase 3)
+const section = (n) => page.locator(`section[aria-label="Sección ${n}"]`);
+const sectionTitle = (text) => page.locator('.fm-card.is-sel').getByLabel('Título de la sección').fill(text);
+const renameOptions = async (names) => {
+  for (const [i, name] of names.entries()) {
+    if (i >= (await page.locator('.fm-card.is-sel').getByRole('group', { name: 'Opciones', exact: true }).locator('input').count())) await page.getByRole('group', { name: 'Opciones', exact: true }).getByRole('button', { name: 'Añadir' }).click();
+    await option(i + 1).fill(name);
+    await option(i + 1).press('Enter');
+  }
+};
+const condition = () => page.getByRole('group', { name: 'Mostrar solo si…' });
+const run = () => page.getByRole('form', { name: 'Viaje' });
+const visible = async (root) => (await root.locator('.fm-qtitle, h2').allInnerTexts()).map((x) => x.trim());
+
+await check('sections: the first one wraps what came before; options and sections lead somewhere; several conditions', async () => {
+  await fresh();
+  await ev(() => window.__novaForms.ctl.setForm({ title: 'Viaje' }));
+  await addVia('Opción única');
+  await setTitle('¿Vienes?');
+  await renameOptions(['Sí', 'No', 'Tal vez']);
+  await page.getByRole('checkbox', { name: 'Obligatoria' }).check();
+  assert.equal(await page.getByRole('group', { name: /Ramificación/ }).count(), 0, 'without sections there is nowhere to go');
+  await addVia('Sección (página nueva)');
+  await sectionTitle('Transporte');
+  assert.deepEqual((await qs()).map((q) => q.type), ['section', 'choice', 'section']);
+  await addVia('Lista desplegable');
+  await setTitle('¿Cómo?');
+  await renameOptions(['A pie', 'En bus']);
+  await page.getByRole('checkbox', { name: 'Obligatoria' }).check();
+  await addVia('Texto corto');
+  await setTitle('Línea de bus');
+  await condition().getByLabel('Pregunta de la condición').selectOption({ label: '2. ¿Cómo?' });
+  await condition().getByLabel('Valor de la condición').selectOption('En bus');
+  await addVia('Sección (página nueva)');
+  await sectionTitle('Comida');
+  await addVia('Texto corto');
+  await setTitle('¿Qué comes?');
+  await page.getByRole('checkbox', { name: 'Obligatoria' }).check();
+  await addVia('Sección (página nueva)');
+  await sectionTitle('Motivo');
+  await addVia('Texto corto');
+  await setTitle('Cuéntanos');
+  await condition().getByLabel('Pregunta de la condición').selectOption({ label: '1. ¿Vienes?' });
+  await condition().getByLabel('Valor de la condición').selectOption('Tal vez');
+  await condition().getByRole('button', { name: 'Añadir condición' }).click();
+  await condition().getByLabel('Pregunta de la condición 2').selectOption({ label: '2. ¿Cómo?' });
+  await condition().getByLabel('Valor de la condición 2').selectOption('En bus');
+  await condition().getByLabel('Cuántas condiciones se deben cumplir').selectOption('any');
+  await condition().getByRole('button', { name: 'Añadir condición' }).click();
+  await condition().getByRole('button', { name: 'Quitar la condición 3' }).click();
+  assert.deepEqual(await ev(() => { const x = window.__novaForms.ctl.form.questions.at(-1).showIf; return [x.value, x.anyOf, x.more.length]; }), ['Tal vez', true, 1]);
+  await shot('conditions');
+  // where the options of the first question lead
+  await card(1).click();
+  const branch = page.getByRole('group', { name: /Ramificación/ });
+  await branch.getByLabel('Adónde lleva «No»').selectOption({ label: 'Terminar el formulario' });
+  await branch.getByLabel('Adónde lleva «Tal vez»').selectOption({ label: 'Ir a la sección 4: Motivo' });
+  assert.equal(await branch.getByLabel('Adónde lleva «Sí»').inputValue(), '');
+  await shot('branching');
+  await section(3).click();
+  await page.getByLabel('Al terminar esta sección').selectOption({ label: 'Terminar el formulario' });
+  // only later sections can be chosen
+  assert.deepEqual(await page.getByLabel('Al terminar esta sección').locator('option').allTextContents(), ['Continuar con la siguiente', 'Ir a la sección 4: Motivo', 'Terminar el formulario']);
+  assert.match(await section(1).innerText(), /Sección 1 de 4/);
+  await tab('Diseño');
+  await press('Barra de progreso');
+  await press('Ocultar los números');
+  assert.equal(await page.getByRole('button', { name: 'Barajar las preguntas', exact: true }).isDisabled(), true);
+  await tab('Inicio');
+  await shot('sections');
+});
+
+await check('filling in page by page: next and back, each page checked, the way chosen by the answers', async () => {
+  await mode('Rellenar y guardar respuestas');
+  const progress = () => run().getByRole('status').first().innerText();
+  assert.equal(await progress(), 'Página 1 de 4');
+  assert.deepEqual(await visible(run()), ['¿Vienes? *']);
+  assert.equal(await run().getByRole('button', { name: 'Atrás' }).count(), 0);
+  await run().getByRole('button', { name: 'Siguiente' }).click();
+  await run().getByText('Esta pregunta es obligatoria.').waitFor();
+  assert.equal(await progress(), 'Página 1 de 4');
+  await run().getByRole('radio', { name: 'Sí' }).check();
+  await run().getByRole('button', { name: 'Siguiente' }).click();
+  assert.equal(await progress(), 'Página 2 de 4');
+  assert.deepEqual(await visible(run()), ['Transporte', '¿Cómo? *']);
+  assert.equal(await run().getByRole('alert').count(), 0);
+  await run().getByLabel('¿Cómo?').selectOption('En bus');
+  await run().getByLabel('Línea de bus').fill('B7');
+  // Enter goes on instead of sending
+  await run().getByLabel('Línea de bus').press('Enter');
+  assert.equal(await progress(), 'Página 3 de 4');
+  assert.equal((await st()).r, 0);
+  // section 3 ends the form
+  assert.equal(await run().getByRole('button', { name: 'Siguiente' }).count(), 0);
+  await run().getByRole('button', { name: 'Atrás' }).click();
+  assert.equal(await run().getByLabel('Línea de bus').inputValue(), 'B7');
+  await run().getByRole('button', { name: 'Atrás' }).click();
+  await run().getByRole('radio', { name: 'No' }).check();
+  assert.equal(await run().getByRole('button', { name: 'Siguiente' }).count(), 0, 'No ends the form');
+  await run().getByRole('radio', { name: 'Tal vez' }).check();
+  await run().getByRole('button', { name: 'Siguiente' }).click();
+  assert.equal(await progress(), 'Página 4 de 4');
+  assert.deepEqual(await visible(run()), ['Motivo', 'Cuéntanos']);
+  // the page stays when looking elsewhere
+  await mode('Diseñar');
+  await mode('Rellenar y guardar respuestas');
+  assert.equal(await progress(), 'Página 4 de 4');
+  await run().getByLabel('Cuéntanos').fill('no sé');
+  await shot('page-four');
+  await run().getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.getByRole('button', { name: 'Rellenar otra respuesta' }).click();
+  // what was left behind on the way is not saved
+  const saved = await ev(() => { const { ctl } = window.__novaForms; return ctl.form.questions.filter((q) => q.id in ctl.responses[0].answers).map((q) => q.title); });
+  assert.deepEqual(saved, ['¿Vienes?', 'Cuéntanos']);
+  assert.equal(await progress(), 'Página 1 de 4');
+});
+
+await check('the exported page goes the same way, and what it gives is imported', async () => {
+  const f = await exportPage('viaje.html');
+  const { p, errs } = await openPage(f);
+  const progress = () => p.locator('.progress span').innerText();
+  const shown = async () => (await p.locator('[data-q]:visible h2, [data-q]:visible legend').allInnerTexts()).map((x) => x.trim());
+  assert.equal(await progress(), 'Página 1 de 4');
+  assert.deepEqual(await shown(), ['¿Vienes? *']);
+  assert.equal(await p.getByRole('button', { name: 'Atrás' }).count(), 0);
+  await p.getByRole('button', { name: 'Siguiente' }).click();
+  await p.getByText('Esta pregunta es obligatoria.').waitFor();
+  await p.getByRole('radio', { name: 'No' }).check();
+  assert.equal(await p.getByRole('button', { name: 'Siguiente' }).count(), 0);
+  assert.equal(await p.getByRole('button', { name: 'Enviar' }).isVisible(), true);
+  await p.getByRole('radio', { name: 'Sí' }).check();
+  await p.getByRole('button', { name: 'Siguiente' }).click();
+  assert.deepEqual(await shown(), ['Transporte', '¿Cómo? *']);
+  await p.getByRole('combobox', { name: '¿Cómo?' }).selectOption('En bus');
+  await p.getByRole('textbox', { name: 'Línea de bus' }).fill('C2');
+  await p.getByRole('textbox', { name: 'Línea de bus' }).press('Enter');
+  assert.equal(await progress(), 'Página 3 de 4');
+  await p.getByRole('textbox', { name: '¿Qué comes?' }).press('Enter');
+  await p.getByText('Esta pregunta es obligatoria.').waitFor();
+  assert.equal(await p.locator('#done').count(), 0);
+  await p.getByRole('textbox', { name: '¿Qué comes?' }).fill('Fruta');
+  await p.getByRole('button', { name: 'Atrás' }).click();
+  assert.equal(await progress(), 'Página 2 de 4');
+  await p.getByRole('button', { name: 'Siguiente' }).click();
+  await shot('page-sections', p);
+  await p.getByRole('button', { name: 'Enviar' }).click();
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: 'Descargar mi respuesta' }).click()]);
+  const answer = path.join(tmp, 'viaje.json');
+  await dl.saveAs(answer);
+  await p.getByRole('button', { name: 'Responder otra vez' }).click();
+  await p.getByText('Página 1 de 4').waitFor();
+  assert.deepEqual(errs, []);
+  await p.close();
+  dialogs.length = 0;
+  const [c] = await Promise.all([page.waitForEvent('filechooser'), (async () => { await tab('Respuestas'); await press('Importar respuestas…'); })()]);
+  await c.setFiles(answer);
+  await page.waitForFunction(() => window.__novaForms.ctl.responses.length === 2);
+  const saved = await ev(() => { const { ctl } = window.__novaForms; return ctl.form.questions.flatMap((q) => ctl.responses[1].answers[q.id] ?? []); });
+  assert.deepEqual(saved, ['Sí', 'En bus', 'C2', 'Fruta']);
+  await mode('Resultados');
+  assert.equal(await page.locator('[data-summary]').count(), 5);
+  await tab('Inicio');
+});
+
+await check('shuffled questions: each response sees another order, the tied and locked ones stay', async () => {
+  await fresh();
+  await ev(() => {
+    const { ctl } = window.__novaForms;
+    ctl.setForm({ title: 'Viaje' });
+    for (const t of ['Uno', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis']) ctl.updateQuestion(ctl.addQuestion('text').id, { title: t });
+  });
+  await tab('Diseño');
+  await press('Barajar las preguntas');
+  await tab('Inicio');
+  await card(1).click();
+  await page.getByRole('checkbox', { name: /No cambiar de sitio/ }).check();
+  await mode('Rellenar y guardar respuestas');
+  const orders = new Set();
+  for (let i = 0; i < 4; i++) {
+    const titles = (await run().locator('.fm-qtitle').allInnerTexts()).map((x) => x.trim());
+    assert.deepEqual(titles.map((x) => Number(x.split('.')[0])), [1, 2, 3, 4, 5, 6], 'numbered as seen');
+    assert.equal(titles[0], '1. Uno');
+    orders.add(titles.join());
+    await run().getByLabel('Dos', { exact: true }).fill(`r${i}`);
+    await run().getByRole('button', { name: 'Enviar', exact: true }).click();
+    await page.getByRole('button', { name: 'Rellenar otra respuesta' }).click();
+  }
+  assert.ok(orders.size > 1, [...orders].join(' / '));
+  const f = await exportPage('barajado.html');
+  const seen = new Set();
+  for (let i = 0; i < 4; i++) {
+    const { p, errs } = await openPage(f);
+    const titles = await p.locator('legend').allInnerTexts();
+    assert.equal(titles[0], '1. Uno');
+    assert.equal(titles.length, 6);
+    seen.add(titles.join());
+    assert.deepEqual(errs, []);
+    await p.close();
+  }
+  assert.ok(seen.size > 1);
+});
+
+await check('sections and the progress bar are readable in the four themes', async () => {
+  await ev(() => {
+    const { ctl } = window.__novaForms;
+    ctl.setForm({ title: 'Viaje', shuffle: undefined, progress: true });
+    ctl.updateQuestion(ctl.addQuestion('section').id, { title: 'Segunda parte', description: 'Con texto.' });
+    ctl.updateQuestion(ctl.addQuestion('choice').id, { title: '¿Seguimos?' });
+  });
+  for (const theme of ['colorful', 'white', 'darkgray', 'black']) {
+    await ev((t) => window.__novaSettings.set('theme', t), theme);
+    await page.waitForFunction((t) => document.querySelector('[data-app]').dataset.theme === t, theme);
+    await mode('Diseñar');
+    await ev(() => { const { ctl } = window.__novaForms; ctl.select(ctl.form.questions.at(-1).id); });
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `diseñar ${theme}`);
+    await mode('Rellenar y guardar respuestas');
+    await ev(() => window.__novaForms.ctl.setDraftPage(1));
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `rellenar ${theme}`);
+    await shot(`theme-${theme}-section`);
+  }
+});
+
 await shot('final');
 await browser.close();
 
