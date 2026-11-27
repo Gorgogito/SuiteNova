@@ -207,6 +207,7 @@ function Individual({ ctl, form, responses }: { ctl: FormsCtl; form: Form; respo
       </div>
       <section className="fm-card nv-work" aria-label={t('Respuesta individual')}>
         <p className="fm-muted">
+          {r.name ? `${r.name} · ` : ''}
           {fmtDate(r.at)}
           {form.quiz ? ` · ${t('Puntuación')}: ${s.earned} / ${s.total}` : ''}
         </p>

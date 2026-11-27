@@ -1,4 +1,5 @@
 import type { FileKind } from './files';
+import type { Lang } from './i18n';
 
 export type QType = 'text' | 'longtext' | 'choice' | 'multi' | 'dropdown' | 'ranking' | 'rating' | 'nps' | 'date' | 'number' | 'likert' | 'file' | 'section' | 'title';
 
@@ -159,7 +160,34 @@ export interface Form {
   progress?: boolean;
   /** The questions show no number. */
   hideNumbers?: boolean;
+  /** Closed by hand: it takes no answers, and says `closedMessage`. */
+  closed?: boolean;
+  closedMessage?: string;
+  /** From when and until when it takes answers (ISO date and time). */
+  start?: string;
+  end?: string;
+  /** Minutes to answer once started. */
+  timeLimit?: number;
+  /** Does not offer to answer again. */
+  noAgain?: boolean;
+  /** Offers to print the answers once given. */
+  receipt?: boolean;
+  /** Asks who is answering. */
+  askName?: boolean;
+  background?: Background;
+  /** With a picture behind: a `data:` URL like the pictures of the questions. */
+  backgroundImage?: string;
+  /** The language the form is answered in (without it, Spanish). */
+  language?: Lang;
 }
+
+export const BACKGROUNDS = [
+  { id: 'tint', name: 'Color suave' },
+  { id: 'gradient', name: 'Degradado' },
+  { id: 'image', name: 'Imagen' },
+] as const;
+export type Background = (typeof BACKGROUNDS)[number]['id'];
+export const MAX_TIME_LIMIT = 600;
 
 /**
  * A single answer: text, a number, a list (multi; ranking, in order), files, or one column per row (likert).
@@ -172,7 +200,10 @@ export interface Response {
   /** ISO date and time. */
   at: string;
   answers: Record<string, Answer>;
+  /** Who answered, when the form asks. */
+  name?: string;
 }
+export const MAX_NAME = 200;
 
 let counter = 0;
 export const newId = (p: string): string => `${p}${Date.now().toString(36)}${(counter++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;

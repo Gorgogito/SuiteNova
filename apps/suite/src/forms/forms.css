@@ -459,3 +459,68 @@
 .fm-cond .fm-narrow {
   width: 100%;
 }
+
+/* ---------- settings, background, phone preview and timer ---------- */
+.fm-settings {
+  max-height: 62vh;
+  overflow-y: auto;
+}
+.fm-bgthumb {
+  width: 96px;
+  height: 60px;
+  object-fit: cover;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 4px;
+}
+.fm-devices {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 4px;
+}
+.fm-devices button {
+  padding: 4px 16px;
+  border: 1px solid var(--colorNeutralStroke1);
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  cursor: pointer;
+  font: inherit;
+}
+.fm-devices button[aria-pressed='true'] {
+  border-color: var(--colorNeutralForeground1);
+  font-weight: 600;
+  box-shadow: inset 0 -3px 0 var(--fm-color, #0f6cbd);
+}
+/* the width of a telephone, with its edge */
+.fm-phone {
+  width: 390px;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 8px auto;
+  padding: 4px 10px;
+  border: 8px solid var(--colorNeutralStroke1);
+  border-radius: 28px;
+}
+.fm-phone .fm-card {
+  padding: 10px 12px;
+}
+.fm-wide {
+  overflow-x: auto;
+}
+/* with a background of its own, what is not on a card gets one */
+.fm-app.has-bg .fm-progress {
+  padding: 6px 12px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 8px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+}
+.fm-timer {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.fm-notice {
+  border-left: 6px solid var(--fm-color, #0f6cbd);
+}

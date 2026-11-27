@@ -1,6 +1,6 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, DialogTrigger } from '@fluentui/react-components';
 import { AppFrame, CommandRegistry, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { exportHtml, parseProject, responsesToCsv, serializeProject, isInput } from '@suitenova/forms-core';
+import { exportHtml, parseProject, responsesToCsv, serializeProject, isInput, availability, pageBackground } from '@suitenova/forms-core';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { pickAndRead, readPath, saveBytes } from '../fileio';
 import type { ModuleInfo } from '../modules';
@@ -12,6 +12,8 @@ import { formsCommands, type FormsDialog, type FormsUI } from './commands';
 import { FormsCtl } from './ctl';
 import { Designer } from './Designer';
 import { finishTyping } from './DraftInput';
+import { SettingsBody } from './SettingsDialog';
+import { StickyDialog } from '../mail/StickyDialog';
 import { VERSION } from '../version';
 import { IMPORT_FILTERS, isImportName, readForeignForm } from './import';
 import './icons';
@@ -40,8 +42,9 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
   const ctl = useMemo(() => new FormsCtl(), []);
   const [dialog, setDialog] = useState<FormsDialog | null>(null);
   const [saveState, setSaveState] = useState('');
-  useLocale();
+  const locale = useLocale();
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
+  useEffect(() => ctl.followLanguage(locale), [ctl, locale]);
 
   const saveNow = useCallback(
     async (saveAs: boolean, silent = false) => {
@@ -194,6 +197,9 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
   }, [module.name]);
 
   const close = () => setDialog(null);
+  // the background of the form is seen where it is answered
+  const answering = ctl.mode === 'preview' || ctl.mode === 'fill';
+  const background = answering ? pageBackground(ctl.form, 'var(--nv-canvas-bg)') : null;
   const nq = ctl.form.questions.filter(isInput).length;
 
   return (
@@ -210,6 +216,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
           <span>{nq === 1 ? t('1 pregunta') : t('{n} preguntas', { n: nq })}</span>
           <span>{ctl.responses.length === 1 ? t('1 respuesta') : t('{n} respuestas', { n: ctl.responses.length })}</span>
           {ctl.form.quiz && <span>{t('Cuestionario')}</span>}
+          {availability(ctl.form, Date.now()) !== 'open' && <span>{t('No admite respuestas')}</span>}
           {ctl.message && <span role="status">{ctl.message}</span>}
           {/* «Guardado» stops being true with the next change */}
           {saveState && !(ctl.dirty && saveState === t('Guardado')) && <span aria-live="polite">{saveState}</span>}
@@ -217,16 +224,32 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       }
       contentFill
     >
-      <div className="fm-app" style={{ ['--fm-color' as string]: ctl.form.color }}>
+      <div className={`fm-app${background ? ' has-bg' : ''}`} style={{ ['--fm-color' as string]: ctl.form.color, ...(background ? { background } : {}) }}>
         <div className="fm-scroll">
           <div className="fm-page">
             {ctl.mode === 'design' && <Designer ctl={ctl} />}
-            {ctl.mode === 'preview' && <Runner key={`p-${JSON.stringify(ctl.form).length}-${ctl.form.questions.length}`} form={ctl.form} onSubmit={null} />}
-            {ctl.mode === 'fill' && <Runner key="fill" form={ctl.form} seed={ctl.seed} draft={{ answers: ctl.draft, keep: (change) => ctl.setDraft(change(ctl.draft)), page: ctl.draftPage, keepPage: (page) => ctl.setDraftPage(page) }} onSubmit={(a) => { ctl.addResponse(a); }} />}
+            {ctl.mode === 'preview' && (
+              <>
+                <div className="fm-devices" role="group" aria-label={t('Ver como en')}>
+                  {(['desktop', 'phone'] as const).map((d) => (
+                    <button key={d} type="button" aria-pressed={ctl.device === d} onClick={() => ctl.setDevice(d)}>
+                      {d === 'desktop' ? t('Ordenador') : t('Móvil')}
+                    </button>
+                  ))}
+                </div>
+                <div className={ctl.device === 'phone' ? 'fm-phone' : undefined}>
+                  <Runner key={`p-${JSON.stringify(ctl.form).length}-${ctl.form.questions.length}`} form={ctl.form} onSubmit={null} />
+                </div>
+              </>
+            )}
+            {ctl.mode === 'fill' && <Runner key="fill" form={ctl.form} seed={ctl.seed} draft={{ answers: ctl.draft, keep: (change) => ctl.setDraft(change(ctl.draft)), page: ctl.draftPage, keepPage: (page) => ctl.setDraftPage(page), name: ctl.draftName, keepName: (name) => ctl.setDraftName(name), started: ctl.draftStarted, keepStarted: (at) => ctl.setDraftStarted(at) }} onSubmit={(a, name) => { ctl.addResponse(a, name); }} />}
             {ctl.mode === 'results' && <Results ctl={ctl} />}
           </div>
         </div>
       </div>
+      <StickyDialog open={dialog === 'settings'} onClose={close} width={640}>
+        {dialog === 'settings' && <SettingsBody ctl={ctl} onClose={close} />}
+      </StickyDialog>
       <Dialog open={dialog === 'about'} modalType="modal" onOpenChange={(_e, d) => !d.open && close()}>
         <DialogSurface style={{ maxWidth: 520, width: '92vw' }}>
           <DialogBody>

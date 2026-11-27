@@ -3,7 +3,7 @@ import { QTYPES, canShuffle, isInput } from '@suitenova/forms-core';
 import { FORM_HEAD, type FormsCtl, type Mode } from './ctl';
 import { finishTyping } from './DraftInput';
 
-export type FormsDialog = 'about' | 'shortcuts';
+export type FormsDialog = 'about' | 'shortcuts' | 'settings';
 
 export interface FormsUI {
   ctl: FormsCtl;
@@ -89,6 +89,8 @@ export function formsCommands(ui: FormsUI): CommandDef[] {
   // ---- form
   add({ id: 'forms.quiz', label: 'Modo cuestionario (con puntuación)', icon: 'checkSquare', checked: () => c.form.quiz, run: () => c.setForm({ quiz: !c.form.quiz }) });
   add({ id: 'forms.showScore', label: 'Mostrar la puntuación al responder', icon: 'eye', enabled: () => c.form.quiz, checked: () => c.form.showScore, description: 'La página web exportada llevará las respuestas correctas dentro del archivo para poder puntuar.', run: () => c.setForm({ showScore: !c.form.showScore }) });
+
+  add({ id: 'forms.settings', label: 'Ajustes del formulario…', icon: 'settings', description: 'Plazo, tiempo límite, nombre de quien responde, copia de las respuestas, fondo e idioma.', run: () => ui.openDialog('settings') });
 
   // ---- pages and order
   const paged = () => !canShuffle(c.form);

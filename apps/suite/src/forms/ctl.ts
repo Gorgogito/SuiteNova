@@ -1,4 +1,5 @@
-import { isEmpty, newForm, newId, newQuestion, parseResponses, removeItem, renameInAnswers, renameItem, type Answer, type Form, type ItemList, type QType, type Question, type Response, conditionsOf, showIfOf, tidyFlow } from '@suitenova/forms-core';
+import { getLocale } from '@suitenova/core-ui';
+import { isEmpty, newForm, newId, newQuestion, parseResponses, removeItem, renameInAnswers, renameItem, type Answer, type Form, type ItemList, type QType, type Question, type Response, conditionsOf, showIfOf, tidyFlow, MAX_NAME } from '@suitenova/forms-core';
 
 export type Mode = 'design' | 'preview' | 'fill' | 'results';
 export interface Doc {
@@ -9,8 +10,11 @@ const MAX_UNDO = 100;
 /** Selection id that stands for the form's own title and description. */
 export const FORM_HEAD = '__form__';
 
+/** A new form speaks the language of the program to whoever answers it. */
+const blankForm = (): Form => (getLocale().startsWith('en') ? { ...newForm(), language: 'en' } : newForm());
+
 export class FormsCtl {
-  doc: Doc = { form: newForm(), responses: [] };
+  doc: Doc = { form: blankForm(), responses: [] };
   mode: Mode = 'design';
   selected: string | null = FORM_HEAD;
   fileName: string | null = null;
@@ -23,6 +27,11 @@ export class FormsCtl {
   seed = newId('s');
   /** The page the answer being filled in is on. */
   draftPage = 0;
+  /** Who says they are answering, and when they started (with a time limit). */
+  draftName = '';
+  draftStarted: number | null = null;
+  /** How the preview shows the form. */
+  device: 'desktop' | 'phone' = 'desktop';
   /** The box being typed in: its letters count as one change. */
   private typing: string | null = null;
   private past: Doc[] = [];
@@ -53,6 +62,14 @@ export class FormsCtl {
   }
   get selectedQuestion(): Question | null {
     return this.form.questions.find((q) => q.id === this.selected) ?? null;
+  }
+  /** A new form nobody has touched takes the language of the program, which is known a moment after starting. */
+  followLanguage(locale: string): void {
+    if (this.dirty || this.fileName || this.past.length || this.future.length) return;
+    const language = locale.startsWith('en') ? ('en' as const) : undefined;
+    if (this.form.language === language) return;
+    this.doc = { ...this.doc, form: { ...this.form, language } };
+    this.touch();
   }
   say(msg: string): void {
     this.message = msg;
@@ -116,6 +133,8 @@ export class FormsCtl {
     this.typing = null;
     this.draft = {};
     this.draftPage = 0;
+    this.draftName = '';
+    this.draftStarted = null;
     this.seed = newId('s');
     this.selected = FORM_HEAD;
     this.mode = 'design';
@@ -133,7 +152,7 @@ export class FormsCtl {
     this.touch();
   }
   reset(): void {
-    this.load({ form: newForm(), responses: [] }, null, null);
+    this.load({ form: blankForm(), responses: [] }, null, null);
   }
   markSaved(name: string, path: string | null): void {
     this.typing = null;
@@ -254,20 +273,35 @@ export class FormsCtl {
     this.touch();
   }
   get hasDraft(): boolean {
-    return Object.values(this.draft).some((a) => !isEmpty(a));
+    return !!this.draftName.trim() || Object.values(this.draft).some((a) => !isEmpty(a));
+  }
+  setDraftName(name: string): void {
+    this.draftName = name;
+    this.touch();
+  }
+  setDraftStarted(at: number | null): void {
+    this.draftStarted = at;
+    this.touch();
+  }
+  setDevice(device: 'desktop' | 'phone'): void {
+    this.device = device;
+    this.touch();
   }
   /**
    * Keeps a response that someone filled in here. It is not a change of the design: undoing never takes it away, so it
    * is also added to what the undo would go back to.
    */
-  addResponse(answers: Record<string, Answer>): Response {
-    const r: Response = { id: newId('r'), at: new Date().toISOString(), answers };
+  addResponse(answers: Record<string, Answer>, name = ''): Response {
+    const who = name.trim().slice(0, MAX_NAME);
+    const r: Response = { id: newId('r'), at: new Date().toISOString(), answers, ...(who ? { name: who } : {}) };
     const keep = (d: Doc): Doc => ({ ...d, responses: [...d.responses, r] });
     this.past = this.past.map(keep);
     this.future = this.future.map(keep);
     this.doc = keep(this.doc);
     this.draft = {};
     this.draftPage = 0;
+    this.draftName = '';
+    this.draftStarted = null;
     this.seed = newId('s');
     this.typing = null;
     this.dirty = true;

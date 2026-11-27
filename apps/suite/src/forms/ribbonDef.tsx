@@ -82,6 +82,7 @@ export function formsTabs(ui: FormsUI): RibbonTab[] {
     keytip: 'D',
     groups: [
       { id: 'theme', label: 'Tema', icon: 'settings', items: [{ kind: 'custom', id: 'themeColor', label: 'Color del tema', keytip: 'CT', render: () => <ThemeColor ui={ui} /> }] },
+      { id: 'settings', label: 'Ajustes', icon: 'settings', items: [{ kind: 'button', command: 'forms.settings', size: 'large', keytip: 'AJ' }] },
       {
         id: 'pages',
         label: 'Páginas y orden',

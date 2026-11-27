@@ -85,6 +85,16 @@ describe('Nova Forms ribbon', () => {
 });
 
 describe('FormsCtl', () => {
+  it('gives an untouched new form the language of the program, and leaves any other alone', () => {
+    const { ctl } = setup();
+    ctl.followLanguage('en');
+    expect([ctl.form.language, ctl.dirty, ctl.canUndo]).toEqual(['en', false, false]);
+    ctl.followLanguage('es');
+    expect(ctl.form.language).toBeUndefined();
+    ctl.addQuestion('text');
+    ctl.followLanguage('en');
+    expect(ctl.form.language).toBeUndefined();
+  });
   it('adds questions after the selected one, with undo', () => {
     const { ctl } = setup();
     const a = ctl.addQuestion('text');

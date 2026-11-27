@@ -807,6 +807,8 @@ await check('design: ranking, files, number and checkbox limits, stars with labe
   assert.equal(await ev(() => window.__novaForms.ctl.form.questions[5].equation.includes('int')), true);
   assert.equal(await page.locator('.fm-card.is-sel .fm-eq msubsup').count() + await page.locator('.fm-card.is-sel .fm-eq munderover').count() > 0, true);
   // a ranking or a file cannot decide whether another question shows
+  // the page comes back to assistive technology a moment after the dialog closes
+  await page.getByRole('group', { name: 'Mostrar solo si…' }).waitFor();
   const sources = await page.getByRole('group', { name: 'Mostrar solo si…' }).getByLabel('Pregunta de la condición').locator('option').allInnerTexts();
   assert.deepEqual(sources, ['Siempre', '3. Horas de estudio', '4. Días que puedes', '5. ¿Qué tal fue?']);
   await shot('designed-two');
@@ -1177,6 +1179,375 @@ await check('sections and the progress bar are readable in the four themes', asy
     assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `rellenar ${theme}`);
     await shot(`theme-${theme}-section`);
   }
+});
+
+// ------------------------------------------------------------ settings and looks (phase 4)
+const settings = async () => {
+  await tab('Diseño');
+  await press('Ajustes del formulario…');
+  const d = page.getByRole('dialog');
+  await d.waitFor();
+  return d;
+};
+const closeSettings = async (d) => {
+  await d.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await d.waitFor({ state: 'detached' });
+  await tab('Inicio');
+};
+const formNow = () => ev(() => window.__novaForms.ctl.form);
+// a moment written as a box of date and time takes it, days from now
+const boxTime = (days) =>
+  ev((n) => {
+    const d = new Date(Date.now() + n * 864e5);
+    const two = (x) => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
+  }, days);
+const survey = async (over = {}) => {
+  await fresh();
+  await ev((o) => {
+    const { ctl } = window.__novaForms;
+    ctl.setForm({ title: 'Ajustes', ...o });
+    ctl.updateQuestion(ctl.addQuestion('text').id, { title: 'Color', required: true });
+    ctl.updateQuestion(ctl.addQuestion('number').id, { title: 'Horas', maxValue: 10 });
+  }, over);
+  await settle();
+};
+const ajustes = () => page.getByRole('form', { name: 'Ajustes' });
+
+await check('settings: close the form by hand or by dates; the preview warns, filling in shows only the message; undo', async () => {
+  await survey();
+  let d = await settings();
+  assert.match(await d.innerText(), /Ahora mismo admite respuestas/);
+  await d.getByLabel('Admitir respuestas', { exact: true }).uncheck();
+  await d.getByLabel('Mensaje cuando no se admiten').pressSequentially('Volvemos en julio');
+  assert.match(await d.innerText(), /Ahora mismo no admite respuestas/);
+  await shot('settings');
+  await closeSettings(d);
+  assert.match(await page.locator('body').innerText(), /No admite respuestas/);
+  await mode('Rellenar y guardar respuestas');
+  await page.getByText('Volvemos en julio').waitFor();
+  assert.equal(await page.locator('.fm-run input').count(), 0);
+  await shot('closed');
+  await mode('Vista previa');
+  await page.getByText(/así se vería al responderlo cuando las admita/).waitFor();
+  assert.equal(await ajustes().getByLabel('Color').count(), 1);
+  await mode('Diseñar');
+  // the message, typed at once, and then the closing are undone
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  await settle();
+  const f = await formNow();
+  assert.deepEqual([f.closed, f.closedMessage], [undefined, undefined]);
+  d = await settings();
+  await d.getByLabel('Empieza a admitir respuestas').fill(await boxTime(2));
+  assert.match(await d.innerText(), /todavía no admite respuestas/);
+  await d.getByLabel('Deja de admitirlas').fill(await boxTime(1));
+  await d.getByRole('alert').filter({ hasText: 'El final es anterior' }).waitFor();
+  await d.getByLabel('Empieza a admitir respuestas').fill('');
+  await d.getByLabel('Deja de admitirlas').fill(await boxTime(-1));
+  assert.match(await d.innerText(), /Ahora mismo no admite respuestas/);
+  await d.getByLabel('Deja de admitirlas').fill('');
+  await d.getByLabel('Empieza a admitir respuestas').fill(await boxTime(2));
+  await closeSettings(d);
+  await mode('Rellenar y guardar respuestas');
+  await page.getByText('Este formulario todavía no admite respuestas.').waitFor();
+  await page.getByText(/^Empieza el /).waitFor();
+});
+
+await check('it closes while someone is answering: nothing is saved', async () => {
+  await survey();
+  await mode('Rellenar y guardar respuestas');
+  await ajustes().getByLabel('Color').fill('verde');
+  await ev(() => window.__novaForms.ctl.setForm({ end: new Date(Date.now() + 700).toISOString() }));
+  await page.waitForTimeout(900);
+  // the change repaints the page, which may already show it is closed
+  const send = ajustes().getByRole('button', { name: 'Enviar', exact: true });
+  if (await send.count()) await send.click();
+  await page.getByText('Este formulario ya no admite respuestas.').waitFor();
+  assert.equal((await st()).r, 0);
+});
+
+await check('asks for the name, offers a copy of the answers and no second response', async () => {
+  await survey();
+  const d = await settings();
+  await d.getByLabel('Pedir el nombre de quien responde').check();
+  await d.getByLabel('Permitir enviar otra respuesta').uncheck();
+  await d.getByLabel('Ofrecer imprimir o guardar las respuestas al terminar').check();
+  await closeSettings(d);
+  await mode('Rellenar y guardar respuestas');
+  await ajustes().getByLabel('Color').fill('verde');
+  await ajustes().getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.getByText('Escribe tu nombre.').waitFor();
+  assert.equal((await st()).r, 0);
+  await ajustes().getByLabel(/Tu nombre/).fill('  Ana Ruiz ');
+  // the name stays when looking elsewhere
+  await mode('Diseñar');
+  await mode('Rellenar y guardar respuestas');
+  assert.equal(await ajustes().getByLabel(/Tu nombre/).inputValue(), '  Ana Ruiz ');
+  await ajustes().getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.getByText('Respuesta guardada').waitFor();
+  assert.equal(await ev(() => window.__novaForms.ctl.responses[0].name), 'Ana Ruiz');
+  assert.equal(await page.getByRole('button', { name: 'Rellenar otra respuesta' }).count(), 0);
+  await press('Imprimir o guardar mis respuestas');
+  await page.locator('iframe.ml-print').waitFor({ state: 'attached' });
+  const printed = await page.locator('iframe.ml-print').getAttribute('srcdoc');
+  assert.match(printed, /Mis respuestas[\s\S]*Nombre<\/dt><dd>Ana Ruiz[\s\S]*1\. Color<\/dt><dd>verde[\s\S]*2\. Horas<\/dt><dd>—/);
+  await shot('receipt');
+  await mode('Resultados');
+  await page.getByRole('tab', { name: 'Individuales' }).click();
+  assert.match(await page.getByRole('region', { name: 'Respuesta individual' }).innerText(), /Ana Ruiz · /);
+  await page.getByRole('tab', { name: 'Resumen' }).click();
+  const [csv] = await Promise.all([page.waitForEvent('download'), (async () => { await tab('Respuestas'); await press('Exportar respuestas a CSV…'); })()]);
+  assert.match(read(await csv.path()).toString('utf8'), /Fecha;Nombre;Color;Horas[\s\S]*;Ana Ruiz;verde;/);
+  await tab('Inicio');
+});
+
+await check('time limit: starts on request, survives looking elsewhere, and sends what is right when it ends', async () => {
+  await survey();
+  const d = await settings();
+  await d.getByLabel('Tiempo límite en minutos').fill('2');
+  await closeSettings(d);
+  await mode('Rellenar y guardar respuestas');
+  assert.equal(await page.locator('.fm-run input').count(), 0, 'no question before starting');
+  await page.getByText('Este formulario tiene un tiempo límite de 2 minutos.').waitFor();
+  await shot('timed-start');
+  await press('Empezar');
+  const clock = page.getByRole('timer');
+  assert.match(await clock.innerText(), /Tiempo restante: (2:00|1:59)/);
+  await ajustes().getByLabel('Color').fill('rojo');
+  await ajustes().getByLabel('Horas').fill('50');
+  await mode('Diseñar');
+  await mode('Rellenar y guardar respuestas');
+  assert.equal(await ajustes().getByLabel('Color').inputValue(), 'rojo');
+  // clearing the answers does not give the time back
+  await ev(() => window.__novaForms.ctl.setDraftStarted(Date.now() - 60000));
+  await press('Borrar respuestas');
+  await page.waitForTimeout(700);
+  assert.match(await clock.innerText(), /Tiempo restante: (1:00|0:5\d)/);
+  await ajustes().getByLabel('Color').fill('azul');
+  await ajustes().getByLabel('Horas').fill('50');
+  await ev(() => window.__novaForms.ctl.setDraftStarted(Date.now() - 119300));
+  await page.getByText('Se acabó el tiempo.').waitFor();
+  await page.getByText('Se envió lo que habías respondido.').waitFor();
+  await shot('time-up');
+  assert.equal((await st()).r, 1);
+  // the number above the limit was left out
+  assert.deepEqual(await ev(() => Object.values(window.__novaForms.ctl.responses[0].answers)), ['azul']);
+  // with nothing answered, nothing is kept
+  await press('Rellenar otra respuesta');
+  await press('Empezar');
+  await ev(() => window.__novaForms.ctl.setDraftStarted(Date.now() - 125000));
+  await page.getByText('No habías respondido nada.').waitFor();
+  assert.equal((await st()).r, 1);
+  await mode('Diseñar');
+  await mode('Rellenar y guardar respuestas');
+  await page.getByRole('button', { name: 'Empezar' }).waitFor();
+});
+
+await check('background and phone view: colour, gradient and a picture made smaller', async () => {
+  await survey({ color: '#107c10' });
+  const behind = () =>
+    ev(() => {
+      const s = getComputedStyle(document.querySelector('.fm-app'));
+      return `${s.backgroundImage} | ${s.backgroundColor}`;
+    });
+  const plain = await behind();
+  let d = await settings();
+  await d.getByLabel('Fondo', { exact: true }).selectOption('gradient');
+  await closeSettings(d);
+  assert.equal(await behind(), plain, 'the design view stays plain');
+  await mode('Vista previa');
+  assert.match(await behind(), /linear-gradient/);
+  await shot('gradient');
+  await mode('Diseñar');
+  d = await settings();
+  await d.getByLabel('Fondo', { exact: true }).selectOption('image');
+  const big = await ev(() => {
+    const c = document.createElement('canvas');
+    c.width = 2400;
+    c.height = 1200;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 2400, 1200);
+    grad.addColorStop(0, '#103a6b');
+    grad.addColorStop(1, '#f2b134');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 2400, 1200);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  await d.getByLabel('Elegir imagen de fondo').setInputFiles({ name: 'roto.png', mimeType: 'image/png', buffer: Buffer.from('no soy una imagen') });
+  await d.getByRole('alert').filter({ hasText: 'no es una imagen' }).waitFor();
+  await d.getByLabel('Elegir imagen de fondo').setInputFiles({ name: 'grande.png', mimeType: 'image/png', buffer: Buffer.from(big, 'base64') });
+  await d.getByRole('img', { name: 'Imagen de fondo actual' }).waitFor();
+  const size = await d.getByRole('img', { name: 'Imagen de fondo actual' }).evaluate(async (i) => {
+    await i.decode();
+    return [i.naturalWidth, i.naturalHeight, i.src.slice(0, 23)];
+  });
+  assert.deepEqual(size, [1600, 800, 'data:image/jpeg;base64,']);
+  await shot('settings-picture');
+  await closeSettings(d);
+  await mode('Vista previa');
+  assert.match(await behind(), /url\("data:image\/jpeg/);
+  await shot('picture');
+  await press('Móvil');
+  const box = await page.locator('.fm-phone').boundingBox();
+  assert.ok(Math.abs(box.width - 390) < 2, `width ${box.width}`);
+  assert.equal(await page.locator('.fm-phone').evaluate((e) => e.scrollWidth <= e.clientWidth + 1), true);
+  await shot('phone');
+  await press('Ordenador');
+  assert.equal(await page.locator('.fm-phone').count(), 0);
+  await mode('Diseñar');
+});
+
+await check('answering in English: texts and errors, in the program and in the exported page', async () => {
+  await survey({ thanks: 'Gracias por responder.' });
+  const d = await settings();
+  await d.getByLabel('Idioma para quien responde').selectOption('en');
+  await closeSettings(d);
+  await mode('Rellenar y guardar respuestas');
+  await ajustes().getByLabel('Horas').fill('50');
+  await ajustes().getByRole('button', { name: 'Submit', exact: true }).click();
+  await page.getByText('This question is required.').waitFor();
+  await page.getByText('The highest value is 10.').waitFor();
+  await ajustes().getByLabel('Color').fill('green');
+  await ajustes().getByLabel('Horas').fill('5');
+  await ajustes().getByRole('button', { name: 'Submit', exact: true }).click();
+  await page.getByText('Thanks for your response.').waitFor();
+  await page.getByRole('button', { name: 'Fill in another response' }).waitFor();
+  const { p, errs } = await openPage(await exportPage('english.html'));
+  assert.equal(await p.locator('html').getAttribute('lang'), 'en');
+  await p.getByRole('button', { name: 'Submit' }).click();
+  await p.getByText('This question is required.').waitFor();
+  assert.match(await p.locator('body').innerText(), /Clear answers[\s\S]*Form made with Nova Forms/);
+  await p.getByLabel('Color').fill('red');
+  await p.getByRole('button', { name: 'Submit' }).click();
+  assert.match(await p.locator('#done').innerText(), /Your response is ready[\s\S]*Thanks for your response\.[\s\S]*Download my response/);
+  await shot('page-english', p);
+  assert.deepEqual(errs, []);
+  await p.close();
+});
+
+await check('the exported page: closed or not yet open says only that', async () => {
+  await survey({ closed: true, closedMessage: 'Plazas agotadas' });
+  let { p, errs } = await openPage(await exportPage('cerrado.html'));
+  assert.equal(await p.locator('#closed').innerText(), 'Plazas agotadas');
+  assert.equal(await p.locator('input, button').count(), 0);
+  await shot('page-closed', p);
+  assert.deepEqual(errs, []);
+  await p.close();
+  await ev(() => window.__novaForms.ctl.setForm({ closed: undefined, start: '2999-01-01T10:00:00.000Z' }));
+  ({ p, errs } = await openPage(await exportPage('pronto.html')));
+  assert.match(await p.locator('#closed').innerText(), /todavía no admite respuestas[\s\S]*Empieza el .*2999/);
+  assert.equal(await p.locator('input, button').count(), 0);
+  assert.deepEqual(errs, []);
+  await p.close();
+});
+
+await check('the exported page: timer, name, copy to print, one response, and the name comes back', async () => {
+  await survey({ timeLimit: 3, askName: true, receipt: true, noAgain: true, background: 'tint', color: '#8764b8' });
+  const f = await exportPage('tiempo.html');
+  const { p, errs } = await openPage(f);
+  assert.equal(await p.locator('[data-q]').count(), 0);
+  await p.getByText('Este formulario tiene un tiempo límite de 3 minutos.').waitFor();
+  await p.getByRole('button', { name: 'Empezar' }).click();
+  assert.match(await p.getByRole('timer').innerText(), /Tiempo restante: (3:00|2:59)/);
+  await p.getByLabel('Color').fill('lila');
+  await p.getByRole('button', { name: 'Enviar' }).click();
+  await p.getByText('Escribe tu nombre.').waitFor();
+  await p.getByLabel(/Tu nombre/).fill('Luis <b>');
+  await shot('page-timed', p);
+  await p.getByRole('button', { name: 'Enviar' }).click();
+  await p.locator('#done').waitFor();
+  assert.equal(await p.locator('#again').count(), 0);
+  await p.evaluate(() => {
+    window.print = () => {
+      window.printed = true;
+    };
+  });
+  await p.locator('#print').click();
+  assert.equal(await p.evaluate(() => window.printed), true);
+  assert.equal(await p.locator('#receipt').isVisible(), false);
+  await p.emulateMedia({ media: 'print' });
+  assert.equal(await p.locator('#receipt').isVisible(), true);
+  assert.equal(await p.locator('#app').isVisible(), false);
+  assert.equal(await p.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(255, 255, 255)', 'printed on white');
+  assert.match(await p.locator('#receipt').innerText(), /Mis respuestas[\s\S]*Nombre[\s\S]*Luis <b>[\s\S]*1\. Color[\s\S]*lila/);
+  await shot('page-receipt', p);
+  await p.emulateMedia({ media: null });
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('#dl').click()]);
+  const answer = path.join(tmp, 'tiempo.json');
+  await dl.saveAs(answer);
+  assert.equal(JSON.parse(fs.readFileSync(answer, 'utf8')).name, 'Luis <b>');
+  // the time runs out
+  await p.reload();
+  await p.getByRole('button', { name: 'Empezar' }).click();
+  await p.getByLabel('Horas').fill('4');
+  await p.evaluate(() => {
+    const real = Date.now;
+    Date.now = () => real() + 181000;
+  });
+  await p.getByText('Se acabó el tiempo.').waitFor();
+  await p.getByText('Se envió lo que habías respondido.').waitFor();
+  assert.equal(await p.locator('#f').isVisible(), false);
+  const [dl2] = await Promise.all([p.waitForEvent('download'), p.locator('#dl').click()]);
+  const late = path.join(tmp, 'tarde.json');
+  await dl2.saveAs(late);
+  assert.deepEqual(Object.values(JSON.parse(fs.readFileSync(late, 'utf8')).answers), [4]);
+  assert.deepEqual(errs, []);
+  // a narrow screen: nothing sticks out
+  await p.setViewportSize({ width: 360, height: 740 });
+  await p.reload();
+  await p.getByRole('button', { name: 'Empezar' }).click();
+  assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  await shot('page-phone', p);
+  await p.close();
+  dialogs.length = 0;
+  const [c] = await Promise.all([page.waitForEvent('filechooser'), (async () => { await tab('Respuestas'); await press('Importar respuestas…'); })()]);
+  await c.setFiles(answer);
+  await page.waitForFunction(() => window.__novaForms.ctl.responses.length === 1);
+  assert.equal(await ev(() => window.__novaForms.ctl.responses[0].name), 'Luis <b>');
+  await tab('Inicio');
+});
+
+await check('settings, closed notice, timer and backgrounds are readable in the four themes', async () => {
+  for (const theme of ['colorful', 'white', 'darkgray', 'black']) {
+    await ev((t) => window.__novaSettings.set('theme', t), theme);
+    await page.waitForFunction((t) => document.querySelector('[data-app]').dataset.theme === t, theme);
+    await survey({ timeLimit: 5, askName: true, progress: true, background: 'tint', color: '#d13438' });
+    const d = await settings();
+    await page.waitForTimeout(600); // the dialog fades in
+    assert.deepEqual(await lowContrast(page, ['[role="dialog"]']), [], `ajustes ${theme}`);
+    await shot(`theme-${theme}-settings`);
+    await closeSettings(d);
+    await mode('Rellenar y guardar respuestas');
+    await press('Empezar');
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `tiempo ${theme}`);
+    await shot(`theme-${theme}-timer`);
+    await mode('Vista previa');
+    await press('Móvil');
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `móvil ${theme}`);
+    await shot(`theme-${theme}-phone`);
+    await press('Ordenador');
+    await ev(() => window.__novaForms.ctl.setForm({ closed: true }));
+    await mode('Rellenar y guardar respuestas');
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `cerrado ${theme}`);
+    await mode('Diseñar');
+  }
+});
+
+await check('with the program in English, a new form is answered in English', async () => {
+  const other = await browser.newContext();
+  const p = await other.newPage();
+  await p.goto(URL, { waitUntil: 'networkidle' });
+  await p.waitForSelector('.fm-app');
+  await p.evaluate(() => window.__novaSettings.set('locale', 'en'));
+  await p.reload({ waitUntil: 'networkidle' });
+  await p.waitForSelector('.fm-app');
+  await p.waitForFunction(() => window.__novaForms.ctl.form.language === 'en');
+  assert.equal(await p.evaluate(() => window.__novaForms.ctl.dirty), false);
+  await other.close();
 });
 
 await shot('final');

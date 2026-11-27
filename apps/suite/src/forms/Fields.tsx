@@ -1,16 +1,19 @@
 /* The boxes to answer the question types that need more than one control: ratings drawn with signs, putting in order and files. */
-import { t } from '@suitenova/core-ui';
 import { MAX_FILES, MAX_RESPONSE_MB, MB, RATING_SYMBOLS, allowedExtensions, fileProblem, isFiles, orderOf, type Answer, type Question, type UploadedFile } from '@suitenova/forms-core';
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { readUpload, sizeText } from './uploads';
+
+/** Says a text of the program in the language the form is answered in. */
+export const Say = createContext<(text: string) => string>((text) => text);
 
 /** A rating (or a recommendation from 0 to 10), with numbers or with signs, and what its ends mean. */
 export function ScaleField({ q, name, value, onChange }: { q: Question; name: string; value: Answer | undefined; onChange: (v: Answer) => void }) {
+  const say = useContext(Say);
   const lo = q.type === 'nps' ? 0 : 1;
   const hi = q.type === 'nps' ? 10 : q.max;
   const sign = q.type === 'rating' ? RATING_SYMBOLS.find((s) => s.id === q.symbol && s.id !== 'number') : undefined;
-  const low = q.lowLabel || (q.type === 'nps' ? t('Nada probable') : '');
-  const high = q.highLabel || (q.type === 'nps' ? t('Muy probable') : '');
+  const low = q.lowLabel || (q.type === 'nps' ? say('Nada probable') : '');
+  const high = q.highLabel || (q.type === 'nps' ? say('Muy probable') : '');
   return (
     <div>
       <div className={`fm-scale${sign ? ' fm-signs' : ''}`} role="radiogroup" aria-label={q.title}>
@@ -33,6 +36,7 @@ export function ScaleField({ q, name, value, onChange }: { q: Question; name: st
 
 /** Putting things in order: dragging them, or with the arrows. It counts once something is moved or the order is accepted. */
 export function RankField({ q, seed, value, onChange }: { q: Question; seed: string; value: Answer | undefined; onChange: (v: Answer) => void }) {
+  const say = useContext(Say);
   const given = Array.isArray(value) ? (value as string[]).filter((x) => q.options.includes(x)) : [];
   const start = orderOf(q, seed);
   const order = given.length ? [...given, ...start.filter((x) => !given.includes(x))] : start;
@@ -77,7 +81,7 @@ export function RankField({ q, seed, value, onChange }: { q: Question; seed: str
             <span className="fm-item">{item}</span>
             <button
               type="button"
-              aria-label={`${t('Subir')} ${item}`}
+              aria-label={say(`Subir ${item}`)}
               disabled={i === 0}
               onClick={() => {
                 focus.current = { at: i - 1, arrow: 0 };
@@ -88,7 +92,7 @@ export function RankField({ q, seed, value, onChange }: { q: Question; seed: str
             </button>
             <button
               type="button"
-              aria-label={`${t('Bajar')} ${item}`}
+              aria-label={say(`Bajar ${item}`)}
               disabled={i === order.length - 1}
               onClick={() => {
                 focus.current = { at: i + 1, arrow: 1 };
@@ -102,11 +106,11 @@ export function RankField({ q, seed, value, onChange }: { q: Question; seed: str
       </ol>
       {chosen ? (
         <p className="fm-muted" role="status">
-          {t('Orden elegido.')}
+          {say('Orden elegido.')}
         </p>
       ) : (
         <button type="button" className="fm-add" onClick={() => onChange(order)}>
-          {t('Dejar este orden')}
+          {say('Dejar este orden')}
         </button>
       )}
     </div>
@@ -115,6 +119,7 @@ export function RankField({ q, seed, value, onChange }: { q: Question; seed: str
 
 /** Files to send with the response. `othersSize`: what the files of the other questions weigh. */
 export function FileField({ q, value, othersSize, error, onAdd, onChange, onReading }: { q: Question; value: Answer | undefined; othersSize: number; error?: string; onAdd: (add: (now: UploadedFile[]) => UploadedFile[]) => void; onChange: (v: Answer) => void; onReading: (by: 1 | -1) => void }) {
+  const say = useContext(Say);
   const files = isFiles(value) ? value : [];
   const max = Math.min(MAX_FILES, q.maxFiles ?? 1);
   const accept = allowedExtensions(q).map((e) => `.${e}`);
@@ -151,8 +156,8 @@ export function FileField({ q, value, othersSize, error, onAdd, onChange, onRead
   return (
     <div>
       <p className="fm-muted">
-        {max === 1 ? t('Un archivo de {mb} MB como mucho.', { mb: q.maxMb ?? 10 }) : t('Hasta {n} archivos de {mb} MB como mucho cada uno.', { n: max, mb: q.maxMb ?? 10 })}
-        {accept.length > 0 && ` ${t('Tipos: {list}.', { list: accept.join(', ') })}`}
+        {say(max === 1 ? `Un archivo de ${q.maxMb ?? 10} MB como mucho.` : `Hasta ${max} archivos de ${q.maxMb ?? 10} MB como mucho cada uno.`)}
+        {accept.length > 0 && ` ${say(`Tipos: ${accept.join(', ')}.`)}`}
       </p>
       <input
         type="file"
@@ -168,13 +173,13 @@ export function FileField({ q, value, othersSize, error, onAdd, onChange, onRead
         }}
       />
       {files.length > 0 && (
-        <ul className="fm-items" aria-label={t('Archivos elegidos')}>
+        <ul className="fm-items" aria-label={say('Archivos elegidos')}>
           {files.map((f, i) => (
             <li key={`${f.name}-${i}`}>
               <span className="fm-item">
                 {f.name} <span className="fm-muted">({sizeText(f.size)})</span>
               </span>
-              <button type="button" aria-label={`${t('Quitar')} ${f.name}`} onClick={() => onChange(files.filter((_, k) => k !== i))}>
+              <button type="button" aria-label={say(`Quitar ${f.name}`)} onClick={() => onChange(files.filter((_, k) => k !== i))}>
                 ✕
               </button>
             </li>
@@ -183,7 +188,7 @@ export function FileField({ q, value, othersSize, error, onAdd, onChange, onRead
       )}
       {refused.map((r) => (
         <p key={r} className="fm-err" role="alert">
-          {t(r)}
+          {say(r)}
         </p>
       ))}
     </div>

@@ -131,3 +131,18 @@ que la aplicación y una prueba lo compara.
 - **Cambios en lo que ya había:** las secciones de Google se importan como páginas (antes como títulos); las condiciones
   se muestran en una línea cada una; una condición sobre una pregunta que no se ha mostrado en el recorrido no se cumple.
 - **Pruebas:** `flow.test.ts` (13), 3 más en `forms.test.ts`, `e2e-forms.mjs` pasa de 32 a 37.
+
+### Fase 4 (hecha, 2026-11-27): ajustes y aspecto
+- **Núcleo** (`forms-core`): `session.ts` (si admite respuestas, lo que se guarda al acabarse el tiempo, las respuestas en
+  palabras, el comprobante y el fondo) y `i18n.ts` (los textos para quien responde en español o inglés); ajustes nuevos
+  del formulario y nombre en la respuesta. La página web hace lo mismo y una prueba lo compara.
+- **Aplicación:** `SettingsDialog.tsx` (Diseño › Ajustes del formulario; cada cambio se deshace), `background.ts` (reducir
+  la imagen de fondo), aviso de cerrado, pantalla de inicio y reloj, nombre, comprobante, selector Ordenador/Móvil en la
+  vista previa e indicación «No admite respuestas» en la barra de estado.
+- **Cambios en lo que ya había:** los textos al rellenar siguen el idioma del formulario y no el de la interfaz (un
+  formulario nuevo nace en inglés si la interfaz está en inglés); el botón secundario de la página exportada oscurece o
+  aclara el color del tema para que se lea; las tablas de las escalas se desplazan en pantallas estrechas.
+- **Fallos hallados y corregidos al probar:** la página exportada no traducía por barras perdidas al generar el código
+  (lo atrapó la prueba de paridad); el comprobante de la página salía impreso sobre el fondo de color; con la interfaz en
+  inglés, el primer formulario nacía en español porque el idioma se aplica después de crearlo.
+- **Pruebas:** `session.test.ts` (14), 1 más en `forms.test.ts`, `e2e-forms.mjs` pasa de 37 a 47.

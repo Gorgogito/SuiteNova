@@ -1,8 +1,10 @@
 import { uniqueTexts } from './edit';
 import { FILE_KINDS, MAX_FILES, SIZE_CHOICES, isFiles } from './files';
 import { tidyFlow } from './flow';
+import { LANGUAGES } from './i18n';
+import { outsideDates } from './session';
 import { cleanResponse, keptResponse, score } from './logic';
-import { IMAGE_SIZES, MAX_CONDITIONS, NUMBER_RULES, QTYPES, RATING_SYMBOLS, isInput, isSafeImage, newForm, newId, newQuestion, showIfOf, type Answer, type Condition, type Form, type QType, type Question, type Response } from './model';
+import { BACKGROUNDS, IMAGE_SIZES, MAX_CONDITIONS, MAX_TIME_LIMIT, NUMBER_RULES, QTYPES, RATING_SYMBOLS, isInput, isSafeImage, newForm, newId, newQuestion, showIfOf, type Answer, type Condition, type Form, type QType, type Question, type Response } from './model';
 
 export interface Project {
   form: Form;
@@ -19,6 +21,25 @@ const strs = (v: unknown, max = 200): string[] => (Array.isArray(v) ? v.filter((
 const TYPES = new Set(QTYPES.map((t) => t.id));
 
 /** Read a Form from untrusted data (a file): every value is checked and repaired. */
+/** A moment written in a file, in one same way; nothing if it is not one. */
+const moment = (v: unknown): string | null => (typeof v === 'string' && v.length < 60 && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null);
+
+/** The settings about answering and looks that make sense; the rest are left out. */
+function settings(raw: any): Partial<Form> {
+  const out: Partial<Form> = {};
+  for (const key of ['closed', 'noAgain', 'receipt', 'askName'] as const) if (raw?.[key] === true) out[key] = true;
+  if (typeof raw?.closedMessage === 'string' && raw.closedMessage.trim()) out.closedMessage = raw.closedMessage.slice(0, 1000);
+  for (const key of ['start', 'end'] as const) {
+    const when = moment(raw?.[key]);
+    if (when) out[key] = when;
+  }
+  if (Number.isInteger(raw?.timeLimit) && raw.timeLimit >= 1) out.timeLimit = Math.min(MAX_TIME_LIMIT, raw.timeLimit);
+  if (BACKGROUNDS.some((b) => b.id === raw?.background)) out.background = raw.background;
+  if (isSafeImage(raw?.backgroundImage)) out.backgroundImage = raw.backgroundImage;
+  if (LANGUAGES.some((l) => l.id === raw?.language)) out.language = raw.language;
+  return out;
+}
+
 export function readForm(raw: any): Form {
   const base = newForm();
   const ids = new Set<string>();
@@ -77,6 +98,7 @@ export function readForm(raw: any): Form {
     ...(raw?.shuffle === true ? { shuffle: true } : {}),
     ...(raw?.progress === true ? { progress: true } : {}),
     ...(raw?.hideNumbers === true ? { hideNumbers: true } : {}),
+    ...settings(raw),
     id: str(raw?.id, '', 60) || base.id,
     title: str(raw?.title, base.title, 300),
     description: str(raw?.description, '', 3000),
@@ -116,7 +138,7 @@ export function parseProject(text: string): { project: Project; warnings: string
 // ------------------------------------------------------------ response files
 
 export function serializeResponse(form: Form, r: Response): string {
-  return JSON.stringify({ format: 'novaforms-response', formId: form.id, id: r.id, at: r.at, answers: r.answers }, null, 1);
+  return JSON.stringify({ format: 'novaforms-response', formId: form.id, id: r.id, at: r.at, ...(r.name ? { name: r.name } : {}), answers: r.answers }, null, 1);
 }
 
 export interface Imported {
@@ -167,6 +189,8 @@ export function parseResponses(text: string, form: Form, existing: Response[] = 
     dropped += c.dropped;
     responses.push(c.response);
   }
+  const late = responses.filter((r) => outsideDates(form, r.at)).length;
+  if (late) warnings.push(`${late} respuesta(s) tienen fecha fuera del plazo del formulario; se han añadido igualmente.`);
   if (dup) warnings.push(`${dup} respuesta(s) ya estaban y se omitieron.`);
   if (bad) warnings.push(`${bad} respuesta(s) vacías o dañadas se omitieron.`);
   if (dropped) warnings.push(`${dropped} respuesta(s) a preguntas se descartaron por no ser válidas (la pregunta cambió o el dato era erróneo).`);
@@ -189,6 +213,8 @@ const show = (q: Question, a: Answer | undefined): string =>
 export function responsesToCsv(form: Form, responses: Response[]): string {
   const qs = form.questions.filter(isInput);
   const head = ['Id', 'Fecha'];
+  const named = !!form.askName || responses.some((r) => r.name);
+  if (named) head.push('Nombre');
   if (form.quiz) head.push('Puntuación', 'Puntuación máxima');
   for (const q of qs) {
     if (q.type === 'likert') for (const r of q.rows) head.push(`${q.title} [${r}]`);
@@ -197,6 +223,7 @@ export function responsesToCsv(form: Form, responses: Response[]): string {
   const rows = [head.map(cell).join(';')];
   for (const r of responses) {
     const line: (string | number)[] = [r.id, r.at];
+    if (named) line.push(r.name ?? '');
     if (form.quiz) {
       const s = score(form, r.answers);
       line.push(s.earned, s.total);
