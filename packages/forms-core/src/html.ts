@@ -297,26 +297,46 @@ function submit(){
  var errs=validateAll(form,a);var nameless=form.askName&&!nameValue();if(nameless)errs.__name='Escribe tu nombre.';
  var wrong=form.questions.find(function(q){return errs[q.id];});var to=nameless?0:wrong?pageOf[wrong.id]:at;if(to!==at){at=to;refresh();}showErrors(errs);if(nameless||wrong)return;
  stopClock();document.getElementById('f').hidden=true;finish(tidyAnswers(form,a),false);}
+// back to the form after a response that was not taken: the time goes on being counted
+function review(){document.getElementById('f').hidden=false;if(form.timeLimit&&ticking===null){ticking=setInterval(tick,500);tick();}}
 function againButton(){var again=el('button',{type:'button',class:'sec',id:'again',text:L('Responder otra vez')});again.onclick=function(){window.scrollTo(0,0);location.reload();};return again;}
 function finish(answers,timed){
- lastResponse={id:uid(),at:new Date().toISOString(),answers:answers};var who=nameValue();if(form.askName&&who)lastResponse.name=who;
- var done=el('div',{class:'card done',id:'done'},[el('h2',{text:L(timed?'Se acabó el tiempo.':'Respuesta lista')})]);
+ lastResponse={id:uid(),at:new Date().toISOString(),answers:answers};var who=nameValue();if(form.askName&&who)lastResponse.name=who;if(SEND&&timed)lastResponse.timed=true;
+ if(SEND)deliver(timed);else showDone(timed);}
+function showDone(timed){
+ var answers=lastResponse.answers;
+ var done=el('div',{class:'card done',id:'done'},[el('h2',{text:L(timed?'Se acabó el tiempo.':SEND?'Respuesta enviada':'Respuesta lista')})]);
  if(timed)done.appendChild(el('p',{text:L('Se envió lo que habías respondido.')}));
  done.appendChild(el('p',{text:L(form.thanks)}));
  if(form.quiz&&form.showScore){var s=score(form,answers);done.appendChild(el('p',{class:'score',text:L('Puntuación: '+s.earned+' de '+s.total)}));}
- done.appendChild(el('p',{text:L('Este formulario no se envía solo: descarga tu respuesta y mándasela a quien te lo compartió.')}));
- var dl=el('button',{type:'button',id:'dl',text:L('Descargar mi respuesta')});dl.onclick=download;
- var cp=el('button',{type:'button',class:'sec',id:'cp',text:L('Copiar respuesta')});cp.onclick=copy;
- done.appendChild(dl);done.appendChild(cp);
+ if(!SEND){done.appendChild(el('p',{text:L('Este formulario no se envía solo: descarga tu respuesta y mándasela a quien te lo compartió.')}));
+  done.appendChild(downloadButton(''));
+  if(navigator.clipboard){var cp=el('button',{type:'button',class:'sec',id:'cp',text:L('Copiar respuesta')});cp.onclick=copy;done.appendChild(cp);}}
  if(form.receipt){var pr=el('button',{type:'button',class:'sec',id:'print',text:L('Imprimir o guardar mis respuestas')});pr.onclick=printAnswers;done.appendChild(pr);}
  if(!form.noAgain)done.appendChild(againButton());
  root.appendChild(done);done.scrollIntoView();}
+function downloadButton(cls){var dl=el('button',{type:'button',id:'dl',text:L('Descargar mi respuesta')});if(cls)dl.className=cls;dl.onclick=download;return dl;}
+// sends the response to whoever serves this page, and says what came of it
+function deliver(timed){
+ var wait=el('div',{class:'card done',id:'sending',role:'status'},[el('p',{text:L('Enviando…')})]);root.appendChild(wait);wait.scrollIntoView();
+ var stop=new AbortController();var timer=setTimeout(function(){stop.abort();},180000);
+ var end=function(){clearTimeout(timer);wait.remove();};
+ fetch(location.pathname.replace(/\\/+$/,'')+'/r',{method:'POST',headers:{'Content-Type':'application/json'},body:payload(),cache:'no-store',signal:stop.signal})
+ .then(function(r){return r.json().catch(function(){return {};}).then(function(b){end();if(r.ok&&b.ok===true)showDone(timed);
+  else showFailed(timed,b.message||(r.status===409?'Ya has enviado tu respuesta.':r.status===413?'La respuesta es demasiado grande.':r.status===429?'Hay demasiadas peticiones: espera un momento y reintenta.':r.status===503?'La aplicación que recoge las respuestas no contesta: reintenta.':'No se pudo enviar la respuesta.'),r.status);});})
+ .catch(function(){end();showFailed(timed,'No se pudo conectar con quien recoge las respuestas.',0);});}
+function showFailed(timed,message,status){
+ var card=el('div',{class:'card done',id:'failed',role:'alert'},[el('h2',{text:L('No se ha enviado')}),el('p',{text:L(message)})]);
+ if(status!==409){var retry=el('button',{type:'button',id:'retry',text:L('Reintentar')});retry.onclick=function(){card.remove();deliver(timed);};card.appendChild(retry);
+  if(!timed){var back=el('button',{type:'button',class:'sec',id:'review',text:L('Revisar mis respuestas')});back.onclick=function(){card.remove();review();};card.appendChild(back);}
+  card.appendChild(downloadButton('sec'));}
+ root.appendChild(card);card.scrollIntoView();}
 // a copy of the answers, which the printer dialog of the system can also keep as a PDF
 function printAnswers(){var old=document.getElementById('receipt');if(old)old.remove();var list=el('dl');
  answerLines(form,lastResponse.answers,lastResponse.name).forEach(function(l){list.appendChild(el('dt',{text:l.label}));list.appendChild(el('dd',{text:l.text}));});
  var when=new Date(lastResponse.at).toLocaleString(form.language||'es',{dateStyle:'long',timeStyle:'short'});
  document.body.appendChild(el('div',{id:'receipt'},[el('h1',{text:form.title}),el('h2',{text:L('Mis respuestas')}),el('p',{text:L('Enviado el '+when)}),list]));window.print();}
-function payload(){return JSON.stringify({format:'novaforms-response',formId:form.id,id:lastResponse.id,at:lastResponse.at,name:lastResponse.name,answers:lastResponse.answers},null,1);}
+function payload(){return JSON.stringify({format:'novaforms-response',formId:form.id,id:lastResponse.id,at:lastResponse.at,name:lastResponse.name,timed:lastResponse.timed,answers:lastResponse.answers},null,1);}
 function download(){var b=new Blob([payload()],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='respuesta-'+lastResponse.id+'.json';document.body.appendChild(a);a.click();a.remove();}
 function copy(){if(navigator.clipboard)navigator.clipboard.writeText(payload()).then(function(){document.getElementById('cp').textContent=L('Copiada');});}
 build();
@@ -325,10 +345,13 @@ build();
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /**
- * A single HTML file with the form inside it. Answers are never sent anywhere: the respondent downloads a response
- * file and returns it, and it is imported into Nova Forms. Correct answers are only embedded when the score is shown.
+ * A single HTML file with the form inside it. Correct answers are only embedded when the score is shown.
+ *
+ * On its own, answers are never sent anywhere: the respondent downloads a response file and returns it, and it is
+ * imported into Nova Forms. With `send`, it is the page that Nova Forms serves on the local network: it can only talk to
+ * whoever served it, and sends the response there.
  */
-export function exportHtml(form: Form): string {
+export function exportHtml(form: Form, { send = false }: { send?: boolean } = {}): string {
   const graded = form.quiz && form.showScore;
   // equations go already drawn (MathML made here, from their source): the page needs nothing to show them
   const shown = { ...form, questions: form.questions.map((q) => ({ ...q, ...(graded ? {} : { correct: [] }), ...(q.equation ? { mathml: toMathML(parseMath(q.equation), true) } : {}) })) };
@@ -337,11 +360,23 @@ export function exportHtml(form: Form): string {
   const lang = form.language ?? 'es';
   return `<!doctype html>
 <html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:${send ? "; connect-src 'self'" : ''}">
 <title>${esc(form.title)}</title><style>${CSS}${background ? `@media screen{body{background:${background};min-height:100vh}}` : ''}</style></head>
 <body${background ? ' class="bg"' : ''}><main id="app"></main><p class="foot">${localize('Formulario creado con Nova Forms', lang)}</p>
 <script type="application/json" id="form-data">${data}</script>
-<script>${LOGIC_JS}${RUNTIME}</script>
+<script>var SEND=${send};${LOGIC_JS}${RUNTIME}</script>
 </body></html>
+`;
+}
+
+/** What is served to a browser that already sent its response to a form that takes only one. */
+export function answeredHtml(form: Form): string {
+  const lang = form.language ?? 'es';
+  const color = /^#[0-9a-fA-F]{6}$/.test(form.color) ? form.color : '#0f6cbd';
+  return `<!doctype html>
+<html lang="${lang}" style="--c:${color}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>${esc(form.title)}</title><style>${CSS}</style></head>
+<body><main><div class="card head"><h1>${esc(form.title)}</h1></div><div class="card done" id="answered"><p>${localize('Ya has enviado tu respuesta.', lang)}</p></div></main><p class="foot">${localize('Formulario creado con Nova Forms', lang)}</p></body></html>
 `;
 }

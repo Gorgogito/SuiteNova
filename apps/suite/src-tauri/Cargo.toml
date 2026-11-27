@@ -29,6 +29,9 @@ sha2 = "0.10"
 getrandom = "0.2"
 webbrowser = "1"
 quick-xml = "0.37"
+# Nova Forms: recoger respuestas por la red local (direcciones de este equipo y lectura de las peticiones)
+if-addrs = "0.15"
+httparse = "1"
 
 # contraseñas en el almacén seguro del sistema
 [target.'cfg(windows)'.dependencies]

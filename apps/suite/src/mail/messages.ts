@@ -11,6 +11,12 @@ import './messages-people';
 
 // Spanish literals are the source text; English is provided here. Missing entries fall back to Spanish.
 registerMessages('en', {
+  'Este mensaje trae 1 respuesta de un formulario.': 'This message has 1 response to a form.',
+  'Este mensaje trae {n} respuestas de formularios.': 'This message has {n} responses to forms.',
+  'Lista para Nova Forms: abre allí el formulario y añádela.': 'Ready for Nova Forms: open the form there and add it.',
+  'Abrir Nova Forms': 'Open Nova Forms',
+  'Pasar a Nova Forms': 'Pass to Nova Forms',
+  'No se pudo pasar: {error}': 'Could not pass it: {error}',
   'Archivo de correo nuevo': 'New mail file',
   'Guarda correo, calendario, contactos y tareas en un archivo de Nova Mail (.novamail).': 'Saves mail, calendar, contacts and tasks in a Nova Mail file (.novamail).',
   'Abrir…': 'Open…',

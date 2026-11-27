@@ -115,6 +115,7 @@ export function formsTabs(ui: FormsUI): RibbonTab[] {
         label: 'Recoger',
         icon: 'forms',
         items: [
+          { kind: 'button', command: 'forms.collect', size: 'large', keytip: 'RD' },
           { kind: 'button', command: 'forms.export.html', size: 'large', keytip: 'WH' },
           { kind: 'button', command: 'forms.responses.import', size: 'large', keytip: 'IM' },
           { kind: 'button', command: 'forms.mode.fill', size: 'large', keytip: 'RL' },

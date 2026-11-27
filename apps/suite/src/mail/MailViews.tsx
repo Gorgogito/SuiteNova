@@ -6,6 +6,7 @@ import { saveBytes } from '../fileio';
 import { FindPanel } from '../find';
 import { frameFindHost } from './find-hosts';
 import { CategoryChips } from './CategoryViews';
+import { FormResponses } from './FormResponses';
 import { InviteCard } from './InviteCard';
 import type { MenuAt } from './ContextMenu';
 import { addressItems } from './people-menus';
@@ -161,6 +162,7 @@ export function ReadingPane({ ctl, rec, onLink, showMenu }: { ctl: MailCtl; rec:
             ))}
           </ul>
         )}
+        <FormResponses key={rec.id} attachments={parsed.attachments} from={rec.fromEmail} />
         {hasRemote && !allowRemote && (
           <div className="ml-remote" role="status">
             {t('Se bloqueó el contenido externo (imágenes remotas) para proteger tu privacidad.')}{' '}

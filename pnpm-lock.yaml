@@ -340,6 +340,9 @@ importers:
       pst-extractor:
         specifier: 1.12.0
         version: 1.12.0
+      qrcode-generator:
+        specifier: 2.0.4
+        version: 2.0.4
       react:
         specifier: ^19.2.0
         version: 19.3.1
@@ -371,6 +374,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.0
         version: 6.1.2(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2))
+      jsqr:
+        specifier: 1.4.0
+        version: 1.4.0
       playwright-core:
         specifier: ^1.64.1
         version: 1.64.1
@@ -2527,6 +2533,9 @@ packages:
       canvas:
         optional: true
 
+  jsqr@1.4.0:
+    resolution: {integrity: sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==}
+
   jszip@3.10.1:
     resolution: {integrity: sha512-xXDvecyTpGLrqFrvkrUSoxxfJI5AH7U8zxxtVclpsUtMCq4JQ290LY8AW5c7Ggnr/Y/oK+bQMbqK2qmtk3pN4g==}
 
@@ -2768,6 +2777,9 @@ packages:
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
+
+  qrcode-generator@2.0.4:
+    resolution: {integrity: sha512-mZSiP6RnbHl4xL2Ap5HfkjLnmxfKcPWpWe/c+5XxCuetEenqmNFf1FH/ftXPCtFG5/TDobjsjz6sSNL0Sr8Z9g==}
 
   react-dom@19.3.1:
     resolution: {integrity: sha512-Y0bARz53lhEC1NMCASs0/j+faB/zqt3R8hpvg1e8+61ZVJ4UL0UdC4cBbXfZMcIuhrfgeILTLe+ZeBCavQPtKQ==}
@@ -5042,6 +5054,8 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  jsqr@1.4.0: {}
+
   jszip@3.10.1:
     dependencies:
       lie: 3.3.0
@@ -5263,6 +5277,8 @@ snapshots:
       uuid-parse: 1.1.0
 
   punycode@2.3.1: {}
+
+  qrcode-generator@2.0.4: {}
 
   react-dom@19.3.1(react@19.3.1):
     dependencies:

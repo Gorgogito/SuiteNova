@@ -146,3 +146,20 @@ que la aplicación y una prueba lo compara.
   (lo atrapó la prueba de paridad); el comprobante de la página salía impreso sobre el fondo de color; con la interfaz en
   inglés, el primer formulario nacía en español porque el idioma se aplica después de crearlo.
 - **Pruebas:** `session.test.ts` (14), 1 más en `forms.test.ts`, `e2e-forms.mjs` pasa de 37 a 47.
+
+### Fase 5 (hecha, 2026-11-27): recoger respuestas
+- **Servidor** (`src-tauri/src/forms_server.rs`, Rust): solo entrega la página que está en memoria y recibe respuestas;
+  no toca archivos. Una dirección privada o 127.0.0.1, clave al azar en la ruta, solo clientes de red privada, `Host`
+  exacto, sin otro origen, límites de tamaño, tiempo, conexiones y envíos; uno por ventana y se cierra con ella.
+  Dependencias nuevas: `if-addrs` (direcciones del equipo) y `httparse`.
+- **Núcleo** (`forms-core/receive.ts`): decide si una respuesta que llega sola se toma (con la fecha de este equipo); la
+  página exportada gana la variante que envía (con reintento, revisión y descarga si falla) y la de «ya respondiste».
+- **Aplicación:** Respuestas › Recoger por la red local (`CollectDialog.tsx`, `collect.ts`, código QR con
+  `qrcode-generator`), contador en la barra de estado, aviso de Windows si la ventana no está a la vista, preguntas antes
+  de cerrar o abrir otro formulario. Cada respuesta se escribe en el archivo antes de confirmarla.
+- **Desde Nova Mail:** `FormResponses.tsx` pasa los adjuntos de respuesta a un almacén local (`inbox.ts`) y Nova Forms
+  ofrece añadirlos al formulario que corresponde (`InboxBanner.tsx`).
+- **Pruebas:** `receive.test.ts` (11), `collect.test.ts` (9), 11 de Rust, `e2e-forms-collect.mjs` (13) y
+  `e2e-forms-native.mjs` (9). **Sin probar desde otro dispositivo ni en una red real.**
+- **Hallado al probar, sin corregir (es de Nova Mail y anterior):** un `.eml`, `.mbox`, `.ics` o `.vcf` abierto desde fuera
+  no se importa (`MailApp.loadFile` solo admite archivos de Outlook y `.novamail`).

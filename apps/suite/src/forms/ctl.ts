@@ -154,11 +154,12 @@ export class FormsCtl {
   reset(): void {
     this.load({ form: blankForm(), responses: [] }, null, null);
   }
-  markSaved(name: string, path: string | null): void {
+  /** `whole`: false when something changed while it was being written, so there is still something to save. */
+  markSaved(name: string, path: string | null, whole = true): void {
     this.typing = null;
     this.fileName = name;
     this.filePath = path;
-    this.dirty = false;
+    this.dirty = !whole;
     this.touch();
   }
 
@@ -294,25 +295,50 @@ export class FormsCtl {
   addResponse(answers: Record<string, Answer>, name = ''): Response {
     const who = name.trim().slice(0, MAX_NAME);
     const r: Response = { id: newId('r'), at: new Date().toISOString(), answers, ...(who ? { name: who } : {}) };
-    const keep = (d: Doc): Doc => ({ ...d, responses: [...d.responses, r] });
-    this.past = this.past.map(keep);
-    this.future = this.future.map(keep);
-    this.doc = keep(this.doc);
+    this.keep(r);
     this.draft = {};
     this.draftPage = 0;
     this.draftName = '';
     this.draftStarted = null;
     this.seed = newId('s');
-    this.typing = null;
-    this.dirty = true;
     this.touch();
     return r;
+  }
+  /** A response that arrived by itself: like the ones filled in here, but without touching what is being filled in. */
+  addReceived(r: Response): void {
+    this.keep(r);
+    this.touch();
+  }
+  private keep(r: Response): void {
+    const add = (d: Doc): Doc => ({ ...d, responses: [...d.responses, r] });
+    this.past = this.past.map(add);
+    this.future = this.future.map(add);
+    this.doc = add(this.doc);
+    this.typing = null;
+    this.dirty = true;
   }
   deleteResponse(id: string): void {
     this.commit({ ...this.doc, responses: this.responses.filter((r) => r.id !== id) });
   }
   clearResponses(): void {
     if (this.responses.length) this.commit({ ...this.doc, responses: [] });
+  }
+  /** The responses of several files at once, as one change; a file that cannot be read is told and left out. */
+  importMany(texts: string[]): { added: number; warnings: string[] } {
+    let responses = this.responses;
+    const warnings: string[] = [];
+    for (const text of texts) {
+      try {
+        const r = parseResponses(text, this.form, responses);
+        responses = [...responses, ...r.responses];
+        warnings.push(...r.warnings);
+      } catch (e) {
+        warnings.push((e as Error).message);
+      }
+    }
+    const added = responses.length - this.responses.length;
+    if (added) this.commit({ ...this.doc, responses });
+    return { added, warnings };
   }
   /** Add responses from file text. Returns a message for the user. */
   importResponses(text: string): { added: number; warnings: string[] } {

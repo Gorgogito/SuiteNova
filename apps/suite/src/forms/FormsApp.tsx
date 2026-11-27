@@ -1,7 +1,7 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, DialogTrigger } from '@fluentui/react-components';
 import { AppFrame, CommandRegistry, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
 import { exportHtml, parseProject, responsesToCsv, serializeProject, isInput, availability, pageBackground } from '@suitenova/forms-core';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, useRef } from 'react';
 import { pickAndRead, readPath, saveBytes } from '../fileio';
 import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
@@ -13,6 +13,10 @@ import { FormsCtl } from './ctl';
 import { Designer } from './Designer';
 import { finishTyping } from './DraftInput';
 import { SettingsBody } from './SettingsDialog';
+import { Collector, collectBridge, setCollectBridge } from './collect';
+import { CollectBody } from './CollectDialog';
+import { InboxBanner } from './InboxBanner';
+import { showNotice, systemNotices } from '../mail/notify';
 import { StickyDialog } from '../mail/StickyDialog';
 import { VERSION } from '../version';
 import { IMPORT_FILTERS, isImportName, readForeignForm } from './import';
@@ -46,17 +50,30 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
   useEffect(() => ctl.followLanguage(locale), [ctl, locale]);
 
+  // writing the same file twice at once could break it: one after another
+  const writing = useRef<Promise<unknown>>(Promise.resolve());
+  const inTurn = useCallback(<T,>(work: () => Promise<T>): Promise<T> => {
+    const done = writing.current.then(work);
+    writing.current = done.catch(() => undefined);
+    return done;
+  }, []);
+
   const saveNow = useCallback(
     async (saveAs: boolean, silent = false) => {
       // not when saving by itself: the box being typed in is left alone
       if (!silent) finishTyping();
       try {
-        const data = new TextEncoder().encode(serializeProject(ctl.doc));
         const base = (ctl.fileName ?? ctl.form.title).replace(/\.[^.]+$/, '');
         const keep = !saveAs && ctl.filePath?.toLowerCase().endsWith('.novaforms') ? ctl.filePath : null;
-        const saved = await saveBytes(`${safeName(base)}.novaforms`, data, FM_FILTERS, keep);
+        const write = async () => {
+          const doc = ctl.doc;
+          const saved = await saveBytes(`${safeName(base)}.novaforms`, new TextEncoder().encode(serializeProject(doc)), FM_FILTERS, keep);
+          return saved && { ...saved, whole: ctl.doc === doc };
+        };
+        // with a dialog to choose the file nothing waits for it
+        const saved = keep ? await inTurn(write) : await write();
         if (saved) {
-          ctl.markSaved(saved.name, saved.path);
+          ctl.markSaved(saved.name, saved.path, saved.whole);
           if (!silent) addRecent({ path: saved.path, name: saved.name, app: 'forms' });
           setSaveState(t('Guardado'));
         }
@@ -65,8 +82,54 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
         else setSaveState(t('No se pudo guardar automáticamente'));
       }
     },
-    [ctl],
+    [ctl, inTurn],
   );
+
+  // a response that arrives is written into the file before whoever sent it is told
+  const persist = useCallback(async (): Promise<boolean> => {
+    if (!isTauri()) return true;
+    if (!ctl.filePath?.toLowerCase().endsWith('.novaforms')) return false;
+    try {
+      await inTurn(async () => {
+        const doc = ctl.doc;
+        const saved = await saveBytes(ctl.fileName ?? 'formulario.novaforms', new TextEncoder().encode(serializeProject(doc)), FM_FILTERS, ctl.filePath);
+        if (saved) {
+          ctl.markSaved(saved.name, saved.path, ctl.doc === doc);
+          setSaveState(t('Guardado'));
+        }
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }, [ctl, inTurn]);
+  const noticed = useRef(0);
+  const collector = useMemo(
+    () =>
+      new Collector(ctl, persist, (count) => {
+        ctl.say(t('Ha llegado una respuesta.'));
+        // not more than one notice every few seconds, and none while the window is being looked at
+        if (!document.hasFocus() && systemNotices() && Date.now() - noticed.current > 5000) {
+          noticed.current = Date.now();
+          void showNotice({ id: `forms:${ctl.form.id}`, title: ctl.form.title, body: t('Ha llegado una respuesta ({n} desde que se empezó).', { n: count }) }).catch(() => undefined);
+        }
+      }),
+    [ctl, persist],
+  );
+  useSyncExternalStore(collector.subscribe, collector.getVersion);
+  // the page that is served follows the form; another form stops the collecting
+  const shownForm = ctl.form;
+  useEffect(() => {
+    if (!collector.running) return;
+    const id = setTimeout(() => void collector.refresh(t('Se dejó de recoger porque se abrió otro formulario.')), 400);
+    return () => clearTimeout(id);
+  }, [collector, collector.running, shownForm]);
+  useEffect(() => () => void collector.stop(), [collector]);
+  // after reloading the page nothing is being listened to any more
+  useEffect(() => {
+    if (isTauri()) void collectBridge()?.stop().catch(() => undefined);
+  }, []);
+  const leaving = useCallback(() => !collector.running || window.confirm(t('Se están recogiendo respuestas. Si abres otro formulario, se dejará de recoger. ¿Continuar?')), [collector]);
 
   useEffect(() => {
     if (!isTauri() || !ctl.filePath || !ctl.dirty) return;
@@ -104,6 +167,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       open: async () => {
         finishTyping();
         if ((ctl.dirty || ctl.hasDraft) && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
+        if (!leaving()) return;
         const f = await pickAndRead([...FM_FILTERS, ...IMPORT_FILTERS]).catch((e) => {
           window.alert(String(e));
           return null;
@@ -113,6 +177,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       importForm: async () => {
         finishTyping();
         if ((ctl.dirty || ctl.hasDraft) && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
+        if (!leaving()) return;
         const f = await pickAndRead(IMPORT_FILTERS).catch((e) => {
           window.alert(String(e));
           return null;
@@ -147,7 +212,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       // the close guard asks about unsaved changes, here and from the title bar
       close: () => void closeThisWindow(),
     }),
-    [ctl, loadFile, saveNow, module.name],
+    [ctl, loadFile, saveNow, leaving, module.name],
   );
 
   useEffect(() => {
@@ -168,13 +233,16 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    (window as unknown as { __novaForms: unknown }).__novaForms = { ctl, load: (text: string, name: string) => loadFile({ name, path: null, data: new TextEncoder().encode(text) }) };
-  }, [ctl, loadFile]);
+    (window as unknown as { __novaForms: unknown }).__novaForms = { ctl, collector, setCollectBridge, load: (text: string, name: string) => loadFile({ name, path: null, data: new TextEncoder().encode(text) }) };
+  }, [ctl, collector, loadFile]);
 
-  useCloseGuard(() => {
-    finishTyping();
-    return ctl.dirty || ctl.hasDraft;
-  });
+  useCloseGuard(
+    () => {
+      finishTyping();
+      return ctl.dirty || ctl.hasDraft;
+    },
+    () => (collector.running ? t('Se están recogiendo respuestas. Si cierras, la dirección dejará de funcionar. ¿Cerrar?') : null),
+  );
 
   const tabs = useMemo(() => formsTabs(ui), [ui]);
   const backstage: BackstageEntry[] = useMemo(() => {
@@ -217,6 +285,11 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
           <span>{ctl.responses.length === 1 ? t('1 respuesta') : t('{n} respuestas', { n: ctl.responses.length })}</span>
           {ctl.form.quiz && <span>{t('Cuestionario')}</span>}
           {availability(ctl.form, Date.now()) !== 'open' && <span>{t('No admite respuestas')}</span>}
+          {collector.running && (
+            <button type="button" className="fm-collecting" onClick={() => setDialog('collect')}>
+              ● {t('Recogiendo respuestas ({n})', { n: collector.received })}
+            </button>
+          )}
           {ctl.message && <span role="status">{ctl.message}</span>}
           {/* «Guardado» stops being true with the next change */}
           {saveState && !(ctl.dirty && saveState === t('Guardado')) && <span aria-live="polite">{saveState}</span>}
@@ -227,6 +300,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       <div className={`fm-app${background ? ' has-bg' : ''}`} style={{ ['--fm-color' as string]: ctl.form.color, ...(background ? { background } : {}) }}>
         <div className="fm-scroll">
           <div className="fm-page">
+            <InboxBanner ctl={ctl} />
             {ctl.mode === 'design' && <Designer ctl={ctl} />}
             {ctl.mode === 'preview' && (
               <>
@@ -250,13 +324,16 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       <StickyDialog open={dialog === 'settings'} onClose={close} width={640}>
         {dialog === 'settings' && <SettingsBody ctl={ctl} onClose={close} />}
       </StickyDialog>
+      <StickyDialog open={dialog === 'collect'} onClose={close} width={620}>
+        {dialog === 'collect' && <CollectBody ctl={ctl} collector={collector} needsFile={isTauri()} onSave={() => void saveNow(false)} onClose={close} />}
+      </StickyDialog>
       <Dialog open={dialog === 'about'} modalType="modal" onOpenChange={(_e, d) => !d.open && close()}>
         <DialogSurface style={{ maxWidth: 520, width: '92vw' }}>
           <DialogBody>
             <DialogTitle>{t('Acerca de Nova Forms')}</DialogTitle>
             <DialogContent>
               <p>Nova Forms {VERSION}</p>
-              <p>{t('Formularios y encuestas libres (MPL-2.0) de SuiteNova. Guarda en .novaforms; no tiene servidor: las respuestas se recogen con la página web exportada y se importan. Consulta docs/LIMITACIONES.md.')}</p>
+              <p>{t('Formularios y encuestas libres (MPL-2.0) de SuiteNova. Guarda en .novaforms. No hay servicio en internet: las respuestas se recogen en tu red local o con la página web exportada. Consulta docs/LIMITACIONES.md.')}</p>
             </DialogContent>
             <DialogActions>
               <DialogTrigger disableButtonEnhancement>

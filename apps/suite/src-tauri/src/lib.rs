@@ -1,5 +1,6 @@
 mod clip;
 mod fonts;
+mod forms_server;
 mod mail;
 mod notify;
 
@@ -74,6 +75,13 @@ pub fn run() {
     tauri::Builder::default()
         .manage(clip::ClipState::default())
         .manage(notify::Notices::default())
+        .manage(forms_server::Servers::default())
+        // al cerrarse una ventana deja de escuchar lo que ella hubiera encendido
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                window.state::<forms_server::Servers>().close(window.label());
+            }
+        })
         // antes que el de diálogos: el orden de los complementos es el de sus guiones
         .plugin(tauri::plugin::Builder::<tauri::Wry>::new("nova-confirm").js_init_script(NATIVE_CONFIRM).build())
         .plugin(tauri_plugin_dialog::init())
@@ -121,6 +129,12 @@ pub fn run() {
             mail::commands::mail_send,
             mail::commands::mail_wait,
             notify::notify_show,
+            forms_server::forms_server_addresses,
+            forms_server::forms_server_start,
+            forms_server::forms_server_update,
+            forms_server::forms_server_take,
+            forms_server::forms_server_reply,
+            forms_server::forms_server_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar SuiteNova");

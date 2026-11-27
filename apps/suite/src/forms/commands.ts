@@ -3,7 +3,7 @@ import { QTYPES, canShuffle, isInput } from '@suitenova/forms-core';
 import { FORM_HEAD, type FormsCtl, type Mode } from './ctl';
 import { finishTyping } from './DraftInput';
 
-export type FormsDialog = 'about' | 'shortcuts' | 'settings';
+export type FormsDialog = 'about' | 'shortcuts' | 'settings' | 'collect';
 
 export interface FormsUI {
   ctl: FormsCtl;
@@ -49,6 +49,7 @@ export function formsCommands(ui: FormsUI): CommandDef[] {
   add({ id: 'forms.saveAs', label: 'Guardar como…', icon: 'save', shortcut: 'Ctrl+Shift+S', run: () => void ui.save(true) });
   add({ id: 'forms.export.html', label: 'Exportar formulario como página web…', icon: 'exportFile', description: 'Crea un único archivo .html que se puede rellenar en cualquier navegador. Las respuestas no se envían solas: cada persona descarga un archivo que debes importar.', run: () => void ui.exportHtml() });
   add({ id: 'forms.export.csv', label: 'Exportar respuestas a CSV…', icon: 'exportFile', enabled: () => c.responses.length > 0, run: () => void ui.exportCsv() });
+  add({ id: 'forms.collect', label: 'Recoger por la red local…', icon: 'wifi', description: 'Quienes estén en tu red responden desde su navegador y las respuestas llegan solas (aplicación de escritorio).', run: () => ui.openDialog('collect') });
   add({ id: 'forms.responses.import', label: 'Importar respuestas…', icon: 'open', description: 'Añade los archivos de respuesta que te devolvieron (.json) o las de otro archivo .novaforms del mismo formulario.', run: () => void ui.importResponses() });
   add({
     id: 'forms.responses.clear',

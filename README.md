@@ -27,7 +27,7 @@ Suite ofimática libre (MPL-2.0), sin suscripciones. Referencia funcional y visu
 | Dibujo (`packages/diagram-core`) | Modelo de páginas, formas y conectores, 64 formas propias (básicas, diagrama de flujo, UML, redes, BPMN), enrutado de conectores, exportación SVG, `.novadiagram` y lectura/escritura de `.vsdx` |
 | **Nova Diagram** (`apps/suite/src/diagram`) | Lienzo con selección, mover/redimensionar/girar, conectores pegados a puntos de conexión, texto, alinear/distribuir, páginas, cuadrícula; exportar SVG, PNG, PDF (imprimir) y Visio (`.vsdx`) Incluye grupos, capas, contenedores y carriles que se redimensionan solos, diseño automático, imágenes, hipervínculos, datos de forma, reflejar y conectores repartidos en un mismo punto. |
 | Formularios (`packages/forms-core`) | Modelo de formulario (11 tipos de pregunta, condiciones, cuestionarios con puntos), validación, resumen de resultados, CSV, archivo `.novaforms`, importación de respuestas con comprobación, y la página web autónoma (un solo `.html`) |
-| **Nova Forms** (`apps/suite/src/forms`) | Diseñador (**clasificación, subida de archivos, restricciones, opciones barajadas, estrellas y ecuaciones; **secciones, ramificación y orden aleatorio**, **cierre y fechas, tiempo límite, nombre, comprobante, fondo y respuesta en español o inglés**), vista previa (ordenador o móvil), rellenar y guardar respuestas, resultados (resumen con barras y respuestas individuales), exportar página web y CSV, importar respuestas, **importar formularios de Google Forms (página guardada) y de Microsoft/Google Forms (hoja de respuestas)**. **No tiene servidor**: las respuestas vuelven como archivos |
+| **Nova Forms** (`apps/suite/src/forms`) | Diseñador (**clasificación, subida de archivos, restricciones, opciones barajadas, estrellas y ecuaciones; **secciones, ramificación y orden aleatorio**, **cierre y fechas, tiempo límite, nombre, comprobante, fondo y respuesta en español o inglés**), vista previa (ordenador o móvil), rellenar y guardar respuestas, resultados (resumen con barras y respuestas individuales), exportar página web y CSV, importar respuestas, **importar formularios de Google Forms (página guardada) y de Microsoft/Google Forms (hoja de respuestas)**, **recoger respuestas por la red local (aplicación de escritorio, dirección y QR, sin cifrado)** y recibirlas desde Nova Mail. **No hay servicio en internet** |
 
 Consulta [docs/LIMITACIONES.md](docs/LIMITACIONES.md) para lo que está verificado, lo que no, y lo que todavía no se soporta.
 
@@ -39,7 +39,7 @@ Node 20+, pnpm 12, Rust estable, WebView2 y Visual Studio Build Tools (Windows).
 pnpm install
 pnpm dev            # solo frontend en http://localhost:1420  (?app=calc, writer, slides, base, notes, mail, plan, diagram, forms)
 pnpm tauri dev      # aplicación de escritorio (usa el puerto 1420; cierra antes `pnpm dev`)
-pnpm test           # pruebas unitarias (2682); cd apps/suite/src-tauri && cargo test: 63 más de Rust (4 se omiten)
+pnpm test           # pruebas unitarias (2702); cd apps/suite/src-tauri && cargo test: 74 más de Rust (4 se omiten)
 pnpm typecheck
 pnpm tauri build    # instaladores NSIS/MSI
 node scripts/e2e-calc.mjs --shots dir        # pruebas de extremo a extremo en Edge (necesita `pnpm dev`)
@@ -56,6 +56,8 @@ node scripts/e2e-mail.mjs --shots dir        # ídem para Nova Mail (18 comproba
 node scripts/e2e-plan.mjs --shots dir        # ídem para Nova Plan (42 comprobaciones)
 node scripts/e2e-diagram.mjs --shots dir     # ídem para Nova Diagram (27 comprobaciones)
 node scripts/e2e-forms.mjs --shots dir       # ídem para Nova Forms (47 comprobaciones)
+node scripts/e2e-forms-collect.mjs           # recoger por la red local y desde Nova Mail (13)
+node scripts/e2e-forms-native.mjs            # el servidor en la aplicación compilada, solo en 127.0.0.1 (9)
 node scripts/e2e-mail-compose.mjs --shots dir # Mail: escribir en el panel, borradores, destinatarios y adjuntos (10 comprobaciones)
 node scripts/e2e-mail-format.mjs --shots dir # Mail: formato, original de las respuestas, firmas, plantillas e importancia (10)
 node scripts/e2e-mail-list.mjs --shots dir  # Mail: orden, filtros, conversaciones, selección, menús, arrastrar, deshacer, carpetas, imprimir y adjuntos (11)
