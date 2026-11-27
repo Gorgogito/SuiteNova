@@ -1,10 +1,12 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { encodeBase64, formatAddress, parseMessage, rawOf, type MailRecord, type ParsedMessage } from '@suitenova/mail-core';
+import { encodeBase64, formatAddress, isDone, isOverdue, isSafeSender, parseMessage, rawOf, type MailRecord, type ParsedMessage } from '@suitenova/mail-core';
 import { useMemo, useRef, useState } from 'react';
 import { saveBytes } from '../fileio';
 import { FindPanel } from '../find';
 import { frameFindHost } from './find-hosts';
+import { CategoryChips } from './CategoryViews';
+import type { MailCtl } from './ctl';
 import { sanitizeMailHtml } from './rich/sanitize';
 
 // ---------------------------------------------------------------------------------------------- reading pane
@@ -68,10 +70,12 @@ export function LinkConfirm({ link, onClose }: { link: string | null; onClose: (
   );
 }
 
-export function ReadingPane({ rec, onLink }: { rec: MailRecord; onLink: (href: string) => void }) {
+export function ReadingPane({ ctl, rec, onLink }: { ctl: MailCtl; rec: MailRecord; onLink: (href: string) => void }) {
   const parsed = useMemo(() => parseMessage(rawOf(rec)), [rec.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [allow, setAllow] = useState<string | null>(null);
-  const allowRemote = allow === rec.id;
+  // the pictures of a safe sender are shown without asking, except in junk mail
+  const allowRemote = allow === rec.id || (rec.folder !== 'junk' && isSafeSender(ctl.data, rec.fromEmail));
+  const day = (t: number) => new Date(t).toLocaleDateString(undefined, { dateStyle: 'long' });
   const { html, hasRemote } = useMemo(() => safeHtml(parsed, allowRemote), [parsed, allowRemote]);
   const frame = useRef<HTMLIFrameElement>(null);
   const [finding, setFinding] = useState(false);
@@ -145,6 +149,28 @@ export function ReadingPane({ rec, onLink }: { rec: MailRecord; onLink: (href: s
         {rec.importance && (
           <div className="ml-importance" role="note">
             {rec.importance === 'high' ? `❗ ${t('Este mensaje se envió con importancia alta.')}` : `↓ ${t('Este mensaje se envió con importancia baja.')}`}
+          </div>
+        )}
+        <CategoryChips data={ctl.data} names={rec.categories} />
+        {rec.flagged && (
+          <div className={`ml-follow${isOverdue(rec, Date.now()) ? ' is-late' : ''}`} role="note">
+            <span>⚑ {rec.follow?.due != null ? t('Seguimiento: vence el {date}.', { date: day(rec.follow.due) }) : t('Marcado para seguimiento.')}</span>
+            <button type="button" onClick={() => ctl.completeMany([rec.id])}>
+              {t('Marcar como completado')}
+            </button>
+          </div>
+        )}
+        {isDone(rec) && (
+          <div className="ml-follow is-done" role="note">
+            <span>✓ {t('Seguimiento completado el {date}.', { date: day(rec.follow!.done!) })}</span>
+          </div>
+        )}
+        {rec.folder === 'junk' && (
+          <div className="ml-remote" role="note">
+            {t('Este mensaje está en Correo no deseado.')}{' '}
+            <button type="button" onClick={() => void ctl.organize.trust([rec.id])}>
+              {t('No es correo no deseado')}
+            </button>
           </div>
         )}
         {parsed.warnings.length > 0 && <div className="ml-remote">{parsed.warnings.join(' ')}</div>}

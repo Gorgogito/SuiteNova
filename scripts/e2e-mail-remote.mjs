@@ -71,7 +71,7 @@ const sync = async () => {
   await syncDone();
 };
 const noPending = () => page.waitForFunction(() => window.__novaMail.ctl.pendingCount === 0, null, { timeout: 15000 });
-const folderButtons = () => page.locator('.ml-folders .ml-folder-name');
+const folderButtons = () => page.locator('.ml-folders [role="tree"] .ml-folder-name'); // the search folders are below the tree
 const folderNames = () => folderButtons().evaluateAll((els) => els.map((e) => e.querySelector('span')?.textContent ?? ''));
 const openFolder = (name) => page.locator('.ml-folders .ml-folder-name', { has: page.locator('span', { hasText: new RegExp(`^${name}$`) }) }).click();
 const fake = (fn, arg) => ev(fn, arg);

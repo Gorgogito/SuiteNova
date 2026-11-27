@@ -11,3 +11,8 @@ export * from './threads';
 export * from './view';
 export * from './tnef';
 export * from './folders';
+export * from './categories';
+export * from './followup';
+export * from './search';
+export * from './junk';
+export * from './rules';

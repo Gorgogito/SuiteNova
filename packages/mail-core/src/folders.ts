@@ -51,6 +51,7 @@ export function remapFolder(d: MailData, account: string, from: { id: string; na
     if (op.kind === 'move' && op.to === from.name) op.to = to.name;
   }
   if (d.favorites) d.favorites = d.favorites.map((x) => (x === from.id ? to.id : x));
+  for (const r of [...(d.rules ?? []), ...(d.quickSteps ?? [])]) for (const a of r.actions) if ((a.kind === 'move' || a.kind === 'copy') && a.folder === from.id) a.folder = to.id;
 }
 
 export function toggleFavorite(d: MailData, id: string): void {

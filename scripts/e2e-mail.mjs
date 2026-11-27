@@ -455,22 +455,23 @@ await check('contacts: import vCard and CSV, search, edit, write to a contact, d
 
 await check('tasks: add, complete, filter, overdue marker, edit, imported tasks', async () => {
   await page.locator('.ml-rail button', { hasText: 'Tareas' }).click();
-  assert.equal(await page.locator('.ml-tasks__list li:not(.ml-empty)').count(), 1, 'the task from the .ics file');
+  assert.equal(await page.locator('.ml-tasks__list li:not(.ml-empty)').count(), 2, 'the task from the .ics file and the message that was flagged');
   assert.match(await page.locator('.ml-tasks__list').innerText(), /Enviar factura/);
+  assert.match(await page.locator('.ml-tasks__list').innerText(), /✉ Presupuesto/, 'a flagged message is a thing to do');
   assert.match(await page.locator('.ml-tasks__list').innerText(), /vencida/);
   await page.getByRole('textbox', { name: 'Tarea nueva' }).fill('Llamar al banco');
   await page.keyboard.press('Enter');
-  assert.equal(await page.locator('.ml-tasks__list li:not(.ml-empty)').count(), 2);
+  assert.equal(await page.locator('.ml-tasks__list li:not(.ml-empty)').count(), 3);
   await page.getByLabel('Fecha de vencimiento').fill('2031-02-03');
   await page.getByLabel('Prioridad', { exact: true }).selectOption('high');
   await page.getByRole('button', { name: 'Guardar tarea' }).click();
   await page.getByLabel('Completar Llamar al banco').click(); // it leaves the "open" list at once, so check() could not verify the state
   await settle();
-  assert.equal(await page.locator('.ml-tasks__list li:not(.ml-empty)').count(), 1);
+  assert.equal(await page.locator('.ml-tasks__list li:not(.ml-empty)').count(), 2);
   await page.getByRole('button', { name: 'Completadas' }).click();
   assert.match(await page.locator('.ml-tasks__list').innerText(), /Llamar al banco/);
   await page.getByRole('button', { name: 'Todas' }).click();
-  assert.equal(await page.locator('.ml-tasks__list li:not(.ml-empty)').count(), 2);
+  assert.equal(await page.locator('.ml-tasks__list li:not(.ml-empty)').count(), 3);
   assert.equal(await ev(() => window.__novaMail.ctl.data.tasks.find((t) => t.title === 'Llamar al banco').priority), 'high');
 });
 

@@ -215,7 +215,7 @@
   padding: 0 2px;
 }
 .ml-flag.is-on {
-  color: #c4314b;
+  color: var(--colorPaletteRedForeground1);
 }
 .ml-empty {
   margin: 24px auto;
@@ -1471,4 +1471,259 @@
 }
 .ml-ribbon-view select {
   width: 120px;
+}
+
+/* ---------- organising: categories, follow-up, search folders and their dialogs ---------- */
+.ml-ribbon-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: stretch;
+}
+.ml-ribbon-stack .nv-btn {
+  justify-content: flex-start;
+}
+.ml-swatch {
+  display: inline-block;
+  flex: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+.ml-cats {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+  max-width: 70%;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.ml-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 130px;
+  padding: 0 4px;
+  overflow: hidden;
+  border: 1px solid;
+  border-radius: 3px;
+  color: var(--colorNeutralForeground2);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 14px;
+  white-space: nowrap;
+}
+.ml-cat i {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+}
+.ml-cat--more {
+  border-color: var(--colorNeutralStroke1);
+}
+.ml-read header > .ml-cats {
+  flex-wrap: wrap;
+  max-width: 100%;
+  margin-bottom: 4px;
+}
+.ml-item__preview {
+  display: flex;
+  gap: 4px;
+}
+.ml-item__preview > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ml-flag.is-late {
+  color: var(--colorPaletteRedForeground1);
+  font-weight: 700;
+}
+.ml-flag.is-done {
+  color: var(--colorPaletteGreenForeground1);
+}
+.ml-follow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--colorNeutralBackground3);
+  font-size: 12px;
+}
+.ml-follow.is-late {
+  box-shadow: inset 3px 0 0 #c4314b;
+}
+.ml-follow button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--colorNeutralForeground1);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+.ml-searches h3 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 10px 8px 2px;
+  color: var(--colorNeutralForeground3);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ml-searches h3 button {
+  margin-inline-start: auto;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+}
+.ml-searches h3 button:hover {
+  background: var(--colorNeutralBackground1Hover);
+}
+.ml-searchbar {
+  display: flex;
+  gap: 4px;
+}
+.ml-searchbar input {
+  flex: 1;
+  min-width: 0;
+}
+.ml-searchbar input[aria-invalid='true'] {
+  border-color: #c4314b;
+}
+.ml-searcherror {
+  padding: 3px 10px;
+  color: var(--colorPaletteRedForeground1);
+  font-size: 12px;
+}
+.ml-hint {
+  margin: 4px 0;
+  color: var(--colorNeutralForeground3);
+  font-size: 12px;
+}
+.ml-hint code {
+  overflow-wrap: anywhere;
+}
+.ml-editlist {
+  max-height: 38vh;
+  margin: 0 0 8px;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.ml-editlist li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--colorNeutralStroke3);
+}
+.ml-editlist li > input,
+.ml-editlist li > span {
+  flex: 1;
+  min-width: 0;
+}
+.ml-editlist li > label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ml-editlist li > label span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ml-editlist em {
+  color: var(--colorPaletteRedForeground1);
+  font-size: 12px;
+}
+.ml-editlist kbd {
+  color: var(--colorNeutralForeground3);
+  font-size: 11px;
+}
+.ml-addrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+}
+.ml-addrow > input {
+  flex: 1;
+  min-width: 180px;
+}
+.ml-editlist input:not([type='checkbox']),
+.ml-editlist select,
+.ml-addrow input,
+.ml-addrow select,
+.ml-part input,
+.ml-part select {
+  box-sizing: border-box;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 4px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  font: inherit;
+}
+.ml-parts {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 6px 8px 8px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 4px;
+}
+.ml-parts > button {
+  justify-self: start;
+}
+.ml-part {
+  display: flex;
+  gap: 4px;
+}
+.ml-part select:first-child {
+  flex: 0 0 240px;
+  min-width: 0;
+}
+.ml-part input,
+.ml-part select:not(:first-child) {
+  flex: 1;
+  min-width: 0;
+}
+.ml-part button {
+  margin-inline-start: auto;
+}
+.ml-catpick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 6px 8px 8px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 4px;
+}
+.ml-form .ml-catpick label,
+.ml-contactform .ml-catpick label,
+.ml-taskform .ml-catpick label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ml-senders h3 {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+.ml-senders .ml-editlist {
+  max-height: 18vh;
 }

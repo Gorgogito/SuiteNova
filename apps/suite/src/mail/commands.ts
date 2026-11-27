@@ -1,16 +1,32 @@
 import type { CommandDef } from '@suitenova/core-ui';
-import { LIST_FILTERS, SORT_KEYS, canChangeFolder } from '@suitenova/mail-core';
+import { LIST_FILTERS, SORT_KEYS, canChangeFolder, quickStepsOf, type Rule } from '@suitenova/mail-core';
 import { emptyFolder, removeFolder, removeSelected } from './actions';
+import type { MenuAt } from './ContextMenu';
 import type { MailCtl } from './ctl';
 import { ocrCommands } from './commands-ocr';
 import { voiceCommands } from './commands-voice';
+import { ruleFrom } from './organize-menus';
 
-export type MailDialog = 'headers' | 'signatures' | 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
+export type MailDialog = 'categories' | 'follow' | 'rules' | 'quickSteps' | 'junk' | 'searchFolder' | 'advancedSearch' | 'headers' | 'signatures' | 'imageText' | 'settings' | 'about' | 'shortcuts' | 'accounts' | 'macros' | 'macroEditor' | 'macroSecurity';
 export type ImportKind = 'eml' | 'mbox' | 'ics' | 'contacts' | 'outlook';
+
+/** What a dialog is opened with. */
+export interface DialogArg {
+  /** The messages it acts on. */
+  ids?: string[];
+  /** A rule to start editing. */
+  rule?: Rule;
+  /** The search folder to change. */
+  folder?: string;
+  /** What a new search folder looks for. */
+  query?: string;
+}
+export type OpenDialog = (kind: MailDialog, arg?: DialogArg) => void;
 
 export interface MailUI {
   ctl: MailCtl;
-  openDialog(kind: MailDialog): void;
+  openDialog: OpenDialog;
+  showMenu(menu: MenuAt): void;
   newWindow(): void;
   open(): Promise<void>;
   save(saveAs: boolean): Promise<void>;
@@ -94,7 +110,43 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   add({ id: 'mail.folder.new', label: 'Carpeta nueva…', icon: 'new', enabled: () => c.section === 'mail', run: () => c.editFolder({ kind: 'new', inside: false }) });
   add({ id: 'mail.folder.rename', label: 'Cambiar nombre', icon: 'edit', hint: 'F2', description: 'Cambia el nombre de la carpeta; si es de una cuenta, también en el servidor.', enabled: () => c.section === 'mail' && canChangeFolder(folder()), run: () => c.editFolder({ kind: 'rename', id: c.folder }) });
   add({ id: 'mail.folder.markRead', label: 'Marcar todo como leído', icon: 'mailOpen', enabled: () => c.section === 'mail' && c.data.messages.some((m) => m.folder === c.folder && !m.read), run: () => c.markFolderRead(c.folder) });
-  add({ id: 'mail.folder.favorite', label: 'Favorita', icon: 'star', description: 'Pone la carpeta en Favoritos, encima del árbol de carpetas, o la quita.', checked: () => !!c.data.favorites?.includes(c.folder), enabled: () => c.section === 'mail', run: () => c.toggleFavorite(c.folder) });
+  add({ id: 'mail.folder.favorite', label: 'Favorita', icon: 'star', description: 'Pone la carpeta en Favoritos, encima del árbol de carpetas, o la quita.', checked: () => !!c.data.favorites?.includes(c.folder), enabled: () => c.section === 'mail' && !!folder(), run: () => c.toggleFavorite(c.folder) });
+
+  // organising
+  const organise = (d: Omit<CommandDef, 'enabled'> & { enabled?: () => boolean }) => add({ ...d, enabled: d.enabled ?? (() => c.section === 'mail') });
+  organise({ id: 'mail.categories', label: 'Administrar categorías…', icon: 'mailTag', run: () => ui.openDialog('categories') });
+  add({ id: 'mail.complete', label: 'Marcar como completado', icon: 'mailDone', description: 'Da por terminado el seguimiento de los mensajes seleccionados.', enabled: () => hasMsg() && c.selectedRecords.some((m) => m.flagged || m.follow?.done === undefined), run: () => c.completeMany(c.selectedIds()) });
+  add({ id: 'mail.followDate', label: 'Fecha y aviso…', icon: 'calendar', description: 'Pone vencimiento y aviso al seguimiento.', enabled: hasMsg, run: () => ui.openDialog('follow', { ids: c.selectedIds() }) });
+  organise({ id: 'mail.rules', label: 'Reglas…', icon: 'mailRules', description: 'Reglas que mueven, marcan o categorizan los mensajes al llegar, o cuando las ejecutas.', run: () => ui.openDialog('rules') });
+  add({ id: 'mail.ruleFromMessage', label: 'Crear una regla con este mensaje…', icon: 'mailRules', enabled: () => hasOne() && !!c.selected!.fromEmail, run: () => ui.openDialog('rules', { rule: ruleFrom(c.single!) }) });
+  organise({ id: 'mail.quickSteps', label: 'Administrar pasos rápidos…', icon: 'mailBolt', run: () => ui.openDialog('quickSteps') });
+  organise({ id: 'mail.junkOptions', label: 'Remitentes…', icon: 'ban', description: 'Remitentes bloqueados y seguros.', run: () => ui.openDialog('junk') });
+  const strangers = () => {
+    const own = c.ownAddresses();
+    return c.selectedRecords.filter((m) => m.fromEmail && !own.has(m.fromEmail.toLowerCase()));
+  };
+  add({
+    id: 'mail.block',
+    label: 'Bloquear remitente',
+    icon: 'mailUserX',
+    description: 'Manda el mensaje a Correo no deseado, y también los que lleguen de ese remitente.',
+    enabled: () => hasMsg() && strangers().length > 0,
+    run: () => {
+      const done = c.organize.block(strangers().map((m) => m.id));
+      if (done.length) c.syncMessage = `Remitentes bloqueados: ${done.join(', ')}.`;
+      c.touch();
+    },
+  });
+  add({
+    id: 'mail.notJunk',
+    label: 'No es no deseado',
+    icon: 'mailInbox',
+    description: 'Devuelve el mensaje a la Bandeja de entrada y confía en su remitente.',
+    enabled: () => hasMsg() && c.selectedRecords.some((m) => m.folder === 'junk'),
+    run: () => void c.organize.trust(c.selectedRecords.filter((m) => m.folder === 'junk').map((m) => m.id)),
+  });
+  organise({ id: 'mail.advancedSearch', label: 'Búsqueda avanzada…', icon: 'search', run: () => ui.openDialog('advancedSearch') });
+  organise({ id: 'mail.searchFolder.new', label: 'Carpeta de búsqueda nueva…', icon: 'mailSearchFolder', description: 'Guarda una búsqueda como una carpeta más.', run: () => ui.openDialog('searchFolder', { query: c.query.replace(/^\s*\*\s*/, '') }) });
 
   // how the list is shown
   add({ id: 'mail.view.conversations', label: 'Conversaciones', icon: 'conversations', description: 'Reúne en una sola fila los mensajes de cada conversación, también los que enviaste.', checked: () => c.view.conversations, run: () => c.setView({ conversations: !c.view.conversations }) });
@@ -104,6 +156,22 @@ export function mailCommands(ui: MailUI): CommandDef[] {
   for (const f of LIST_FILTERS) add({ id: `mail.view.filter.${f.id}`, label: `Mostrar: ${f.label}`, icon: 'search', checked: () => c.view.filter === f.id, run: () => c.setView({ filter: f.id }) });
   add({ id: 'mail.search', label: 'Buscar correo', icon: 'search', shortcut: 'Ctrl+E', run: () => ui.focusSearch() });
   add({ id: 'mail.readingPane', label: 'Panel de lectura', icon: 'panelRight', checked: () => c.showReadingPane, run: () => { c.showReadingPane = !c.showReadingPane; c.touch(); } });
+
+  for (let n = 1; n <= 9; n++)
+    add({
+      id: `mail.step.${n}`,
+      label: `Paso rápido ${n}`,
+      icon: 'mailBolt',
+      shortcut: `Ctrl+Shift+${n}`,
+      enabled: () => {
+        const step = quickStepsOf(c.data)[n - 1];
+        return hasMsg() && !!step && !c.organize.stepProblem(step);
+      },
+      run: () => {
+        const step = quickStepsOf(c.data)[n - 1];
+        if (step) c.organize.runStep(step.id);
+      },
+    });
 
   // calendar
   add({ id: 'cal.new', label: 'Evento nuevo', icon: 'calendarPlus', shortcut: 'Ctrl+Shift+A', run: () => { c.go('calendar'); setTimeout(() => window.dispatchEvent(new Event('nova:new-event')), 0); } });

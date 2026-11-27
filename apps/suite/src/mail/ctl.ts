@@ -5,6 +5,7 @@ import { renderMail } from './rich/html';
 import { makeQuote, type Quote } from './rich/quote';
 import { MailImageOcr } from './ocr-images';
 import { MailReader } from './read-aloud';
+import { MailOrganizer } from './organizer';
 import {
   RFC_FLAGS,
   addRaw,
@@ -12,6 +13,8 @@ import {
   splitRecipients,
   applyFetched,
   applyPlan,
+  type Fetched,
+  type FolderPlan,
   buildMessage,
   cancelPending,
   canChangeFolder,
@@ -42,7 +45,14 @@ import {
   parseMessage,
   rawOf,
   reSubject,
-  searchMessages,
+  clearFollow,
+  completeFollow,
+  parseQuery,
+  searchFolderMessages,
+  searchFoldersOf,
+  setCategory,
+  setFollow,
+  syncKey,
   type Address,
   type BookEntry,
   type CalEvent,
@@ -57,6 +67,7 @@ import {
   type OutgoingAttachment,
   type ParsedMessage,
   type PendingOp,
+  type SearchFolder,
   type SpecialFolder,
   type TaskItem,
 } from '@suitenova/mail-core';
@@ -101,24 +112,41 @@ function readSavedView(): ListView {
 }
 
 /** A message as it was before an action, to undo it. */
-interface Change {
+export interface Change {
   id: string;
   folder: string;
   remote?: MailRecord['remote'];
   read: boolean;
   flagged: boolean;
+  categories?: string[];
+  follow?: MailRecord['follow'];
   /** It was removed from the file: the message itself. */
   removed?: MailRecord;
   /** What was asked of the server. */
   sent?: { kind: 'move'; to: string } | { kind: 'remove' };
 }
+export interface UndoPart {
+  changes: Change[];
+  /** It changed «read», the flag, the follow-up or the categories; the other actions move messages and leave those as they are by then. */
+  marks?: boolean;
+  /** Messages it made: copies. */
+  created?: string[];
+}
+/** One thing done by the person: it may be several actions run together (a quick step, the rules). */
 interface UndoStep {
   label: string;
-  changes: Change[];
-  /** It changed «read» or the flag; the other actions move messages and leave the marks as they are by then. */
-  marks?: boolean;
+  parts: UndoPart[];
 }
-const snapshot = (m: MailRecord): Change => ({ id: m.id, folder: m.folder, remote: m.remote ? { ...m.remote } : undefined, read: m.read, flagged: m.flagged });
+const snapshot = (m: MailRecord): Change => ({
+  id: m.id,
+  folder: m.folder,
+  remote: m.remote ? { ...m.remote } : undefined,
+  read: m.read,
+  flagged: m.flagged,
+  categories: m.categories ? [...m.categories] : undefined,
+  follow: m.follow ? { ...m.follow } : undefined,
+});
+const sameMarks = (a: Change, m: MailRecord): boolean => a.read === m.read && a.flagged === m.flagged && JSON.stringify([a.categories ?? null, a.follow ?? null]) === JSON.stringify([m.categories ?? null, m.follow ?? null]);
 
 type OpInput = PendingOp extends infer O ? (O extends { id: string } ? Omit<O, 'id'> : never) : never;
 
@@ -247,10 +275,16 @@ export class MailCtl {
   cursorRow: string | null = null;
   closedGroups = new Set<string>();
   openThreads = new Set<string>();
-  /** Read or marked while a filter was on: they stay in sight until the filter or the folder changes. */
-  private kept = new Set<string>();
+  /** Read or marked while a filter or a search was on: they stay in sight until it changes (message → its folder then). */
+  private kept = new Map<string, string>();
   private rowCache: { key: string; rows: ListRow[] } | null = null;
   private undoSteps: UndoStep[] = [];
+  /** While several actions run as one, their parts are gathered here. */
+  private gathering: UndoPart[] | null = null;
+  /** Copies that were also asked of a server. */
+  private serverCopies = new Set<string>();
+  /** Categories, follow-up, rules, quick steps, search folders and blocked senders. */
+  readonly organize = new MailOrganizer(this);
   /** The folder being named: a new one, or another name for one there is. */
   folderEdit: { kind: 'new'; inside: boolean } | { kind: 'rename'; id: string } | null = null;
   /** An undo that has to wait for the server. */
@@ -411,6 +445,9 @@ export class MailCtl {
     this.openThreads.clear();
     this.closedGroups.clear();
     this.undoSteps = [];
+    this.gathering = null;
+    this.serverCopies.clear();
+    this.organize.reset();
     this.rowCache = null;
     this.folderEdit = null;
     this.endCompose(false);
@@ -459,6 +496,23 @@ export class MailCtl {
     this.touch();
   }
 
+  /** What is typed in the search box. */
+  setQuery(query: string): void {
+    if (query === this.query) return;
+    this.query = query;
+    this.kept.clear();
+    this.touch();
+  }
+
+  /** The search folder being seen, if the current «folder» is one. */
+  get searchFolder(): SearchFolder | undefined {
+    return this.folder.startsWith('q:') ? searchFoldersOf(this.data).find((f) => f.id === this.folder) : undefined;
+  }
+
+  folderExists(id: string): boolean {
+    return this.data.folders.some((f) => f.id === id) || searchFoldersOf(this.data).some((f) => f.id === id);
+  }
+
   setView(patch: Partial<ListView>): void {
     if (patch.filter !== undefined && patch.filter !== this.view.filter) this.kept.clear();
     if (patch.sort !== undefined && patch.sort !== this.view.sort) this.closedGroups.clear();
@@ -478,8 +532,29 @@ export class MailCtl {
 
   /** Messages shown in the list: a search runs over the current folder, or over all when prefixed with `*`. */
   list(): MailRecord[] {
-    const base = this.query.trim() ? searchMessages(this.data, this.query.replace(/^\*\s*/, ''), this.query.startsWith('*') ? null : this.folder) : inFolder(this.data, this.folder);
+    const search = this.searchFolder;
+    const typed = this.query.trim() ? parseQuery(this.query.replace(/^\s*\*\s*/, '')) : null;
+    const everywhere = this.query.startsWith('*');
+    let base: MailRecord[];
+    if (search) {
+      base = searchFolderMessages(this.data, search);
+      if (typed) base = base.filter((m) => typed.matches(m, this.data));
+    } else if (typed) base = this.data.messages.filter((m) => (everywhere || m.folder === this.folder) && typed.matches(m, this.data));
+    else base = inFolder(this.data, this.folder);
+    if (this.kept.size && (search || typed)) {
+      const have = new Set(base.map((m) => m.id));
+      base = base.concat(this.data.messages.filter((m) => !have.has(m.id) && this.kept.get(m.id) === m.folder));
+    }
     return base.filter((m) => matchesFilter(m, this.view.filter) || this.kept.has(m.id)).sort(compareMessages(this.view, this.outgoing));
+  }
+
+  /** What was typed in the search box and is not understood. */
+  get searchErrors(): string[] {
+    return this.query.trim() ? parseQuery(this.query.replace(/^\s*\*\s*/, '')).errors : [];
+  }
+
+  private keep(m: MailRecord): void {
+    if (this.view.filter !== 'all' || this.query.trim() || this.folder.startsWith('q:')) this.kept.set(m.id, m.folder);
   }
 
   /** The rows of the list: messages, headings of groups and conversations. */
@@ -542,7 +617,7 @@ export class MailCtl {
   }
 
   private read(m: MailRecord): void {
-    if (this.view.filter !== 'all') this.kept.add(m.id);
+    this.keep(m);
     if (!m.read) {
       m.read = true;
       this.pushFlag(m, RFC_FLAGS.seen, true);
@@ -591,7 +666,7 @@ export class MailCtl {
       this.selectedId = row.rec.id;
       this.selectedThread = row.thread.key;
       this.anchorRow = this.cursorRow = key;
-      if (this.view.filter !== 'all') for (const id of row.thread.ids) this.kept.add(id);
+      for (const x of this.records(row.thread.ids)) this.keep(x);
       this.read(row.rec);
       return;
     } else {
@@ -600,7 +675,7 @@ export class MailCtl {
       this.touch();
       return;
     }
-    if (this.view.filter !== 'all') for (const id of this.selection) this.kept.add(id);
+    for (const x of this.records([...this.selection])) this.keep(x);
     this.cursorRow = key;
     this.touch();
   }
@@ -614,7 +689,9 @@ export class MailCtl {
     this.touch();
   }
 
-  importRaw(raw: string | Uint8Array, folder = this.folder, opts: { read?: boolean; bcc?: string[] } = {}): MailRecord {
+  importRaw(raw: string | Uint8Array, into = this.folder, opts: { read?: boolean; bcc?: string[] } = {}): MailRecord {
+    // a search folder holds nothing of its own
+    const folder = this.data.folders.some((f) => f.id === into) ? into : 'inbox';
     const rec = addRaw(this.data, folder, raw, { read: opts.read ?? folder !== 'inbox', bcc: opts.bcc?.length ? opts.bcc : undefined });
     this.touch(true);
     return rec;
@@ -622,15 +699,33 @@ export class MailCtl {
 
   // ---------- actions on messages ----------
 
-  private records(ids: string[]): MailRecord[] {
+  records(ids: string[]): MailRecord[] {
     const want = new Set(ids);
     return this.data.messages.filter((m) => want.has(m.id));
   }
 
-  private remember(label: string, changes: Change[], marks = false): void {
-    if (!changes.length) return;
-    this.undoSteps.push({ label, changes, marks });
+  private remember(label: string, part: UndoPart): void {
+    if (!part.changes.length && !part.created?.length) return;
+    if (this.gathering) this.gathering.push(part);
+    else this.push({ label, parts: [part] });
+  }
+
+  private push(step: UndoStep): void {
+    this.undoSteps.push(step);
     if (this.undoSteps.length > UNDO_DEPTH) this.undoSteps.shift();
+  }
+
+  /** Several actions that one undo takes back together. With `undoable` false nothing is kept (what arrives by itself). */
+  together(label: string, run: () => void, undoable = true): void {
+    if (this.gathering) return run();
+    const parts: UndoPart[] = [];
+    this.gathering = parts;
+    try {
+      run();
+    } finally {
+      this.gathering = null;
+    }
+    if (undoable && parts.length) this.push({ label, parts });
   }
 
   /** What the next undo takes back; empty when there is nothing. */
@@ -645,7 +740,8 @@ export class MailCtl {
       for (const id of gone) this.selection.delete(id);
       if (!this.selectedId || !gone.has(this.selectedId)) return;
       const from = order.indexOf(this.selectedId);
-      const stays = (id: string) => !gone.has(id) && this.data.messages.some((m) => m.id === id && (this.query.startsWith('*') || m.folder === this.folder));
+      const visible = new Set(this.list().map((m) => m.id));
+      const stays = (id: string) => !gone.has(id) && visible.has(id);
       const next = from < 0 ? undefined : (order.slice(from + 1).find(stays) ?? order.slice(0, from).reverse().find(stays));
       this.selectedId = next ?? null;
       this.selection = new Set(next ? [next] : []);
@@ -654,43 +750,68 @@ export class MailCtl {
     };
   }
 
+  /** Changes read, flag, follow-up or categories of messages; the server is told what it keeps. */
+  mark(ids: string[], label: string, apply: (m: MailRecord) => void): void {
+    const changes: Change[] = [];
+    this.batch(() => {
+      for (const m of this.records(ids)) {
+        const was = snapshot(m);
+        apply(m);
+        if (sameMarks(was, m)) continue;
+        changes.push(was);
+        this.keep(m);
+        if (m.read !== was.read) this.pushFlag(m, RFC_FLAGS.seen, m.read);
+        if (m.flagged !== was.flagged) this.pushFlag(m, RFC_FLAGS.flagged, m.flagged);
+      }
+    });
+    this.remember(label, { changes, marks: true });
+    this.touch(changes.length > 0);
+  }
+
   setRead(id: string, read: boolean): void {
     this.setReadMany([id], read);
   }
 
   setReadMany(ids: string[], read: boolean): void {
-    const changes: Change[] = [];
-    this.batch(() => {
-      for (const m of this.records(ids)) {
-        if (m.read === read) continue;
-        changes.push(snapshot(m));
-        m.read = read;
-        if (this.view.filter !== 'all') this.kept.add(m.id);
-        this.pushFlag(m, RFC_FLAGS.seen, read);
-      }
+    this.mark(ids, read ? 'Marcar como leído' : 'Marcar como no leído', (m) => {
+      m.read = read;
     });
-    this.remember(read ? 'Marcar como leído' : 'Marcar como no leído', changes, true);
-    this.touch(changes.length > 0);
   }
 
+  /** The flag of the list, like Outlook's: it marks for follow-up, and on a flagged message it marks it completed. */
   toggleFlag(id: string): void {
     const m = this.data.messages.find((x) => x.id === id);
-    if (m) this.setFlagMany([id], !m.flagged);
+    if (!m) return;
+    if (m.flagged) this.completeMany([id]);
+    else this.setFlagMany([id], true);
   }
 
   setFlagMany(ids: string[], on: boolean): void {
-    const changes: Change[] = [];
-    this.batch(() => {
-      for (const m of this.records(ids)) {
-        if (m.flagged === on) continue;
-        changes.push(snapshot(m));
-        m.flagged = on;
-        if (this.view.filter !== 'all') this.kept.add(m.id);
-        this.pushFlag(m, RFC_FLAGS.flagged, on);
-      }
+    this.mark(ids, on ? 'Marcar con bandera' : 'Quitar la bandera', (m) => {
+      if (!on) clearFollow(m);
+      else if (!m.flagged) setFollow(m, null);
     });
-    this.remember(on ? 'Marcar con bandera' : 'Quitar la bandera', changes, true);
-    this.touch(changes.length > 0);
+  }
+
+  followMany(ids: string[], due: number | null, remind?: number): void {
+    this.mark(ids, 'Seguimiento', (m) => setFollow(m, due, remind));
+  }
+
+  completeMany(ids: string[]): void {
+    const now = Date.now();
+    this.mark(ids, 'Marcar como completado', (m) => {
+      if (m.flagged || m.follow?.done === undefined) completeFollow(m, now);
+    });
+  }
+
+  categorize(ids: string[], name: string, on: boolean): void {
+    this.mark(ids, on ? 'Categorizar' : 'Quitar la categoría', (m) => void setCategory(m, name, on));
+  }
+
+  clearCategories(ids: string[]): void {
+    this.mark(ids, 'Quitar las categorías', (m) => {
+      delete m.categories;
+    });
   }
 
   private accountName(id: string): string {
@@ -723,7 +844,7 @@ export class MailCtl {
         gone.add(m.id);
       }
     });
-    this.remember(folder === 'archive' ? 'Archivar' : folder === 'junk' ? 'Correo no deseado' : folder === 'trash' ? 'Eliminar' : 'Mover', changes);
+    this.remember(folder === 'archive' ? 'Archivar' : folder === 'junk' ? 'Correo no deseado' : folder === 'trash' ? 'Eliminar' : 'Mover', { changes });
     after(gone);
     this.touch(changes.length > 0);
     return all;
@@ -749,6 +870,34 @@ export class MailCtl {
     }
     m.folder = folder;
     return true;
+  }
+
+  /**
+   * Puts a copy of each message in a folder. In a folder of an account the copy is also added on the server; it is
+   * recognised there by its Message-ID.
+   */
+  copyMany(ids: string[], folder: string): void {
+    const target = this.data.folders.find((f) => f.id === folder);
+    if (!target) return;
+    const created: string[] = [];
+    this.batch(() => {
+      for (const m of this.records(ids)) {
+        const copy: MailRecord = { ...m, id: newMailId(), folder, categories: m.categories ? [...m.categories] : undefined, follow: m.follow ? { ...m.follow } : undefined, bcc: m.bcc ? [...m.bcc] : undefined };
+        delete copy.remote;
+        const account = target.remote?.account ?? (m.remote && folderTarget(this.data, m.remote.account, folder) !== undefined ? m.remote.account : undefined);
+        const to = account ? folderTarget(this.data, account, folder) : undefined;
+        this.data.messages.push(copy);
+        created.push(copy.id);
+        // a POP3 server keeps no copies: asking for it would fail every time and hold back the changes after it
+        const acc = this.accounts.find((a) => a.id === account);
+        if (account && to !== undefined && !(acc && protocolOf(acc) === 'pop3')) {
+          this.serverCopies.add(copy.id);
+          this.queue({ account, kind: 'append', folder: to, raw: copy.raw, seen: copy.read });
+        }
+      }
+    });
+    this.remember('Copiar', { changes: [], created });
+    this.touch(created.length > 0);
   }
 
   /** Whether deleting these asks first: what would be removed for good from a server (or any, with Shift+Delete). */
@@ -799,7 +948,7 @@ export class MailCtl {
         changes.push(was);
       }
     });
-    this.remember('Eliminar', changes);
+    this.remember('Eliminar', { changes });
     after(gone);
     this.touch(changes.length > 0);
   }
@@ -827,49 +976,82 @@ export class MailCtl {
     const step = this.undoSteps.pop();
     if (!step) return;
     const back: Change[] = [];
+    /** Marks of messages that first have to come back on the server. */
+    const later: Change[] = [];
     const notes = new Set<string>();
     const restored: string[] = [];
+    const parts = [...step.parts].reverse();
+    const marks = parts.filter((p) => p.marks).flatMap((p) => [...p.changes].reverse());
+    const done = new Set<Change>();
+    const unmark = (c: Change, m: MailRecord) => {
+      this.restoreMarks(m, c);
+      done.add(c);
+      restored.push(m.id);
+    };
     this.batch(() => {
-      for (const c of [...step.changes].reverse()) {
-        const folderThere = this.data.folders.some((f) => f.id === c.folder);
-        const home = folderThere ? c.folder : 'inbox';
-        let m = this.data.messages.find((x) => x.id === c.id);
-        if (step.marks) {
-          if (!m) continue;
-          this.restoreMarks(m, c);
-          restored.push(m.id);
-          continue;
-        }
-        if (!m) {
-          if (!c.removed) continue;
-          m = { ...c.removed, folder: home };
-          if (c.remote && c.sent && !cancelPending(this.data, 'remove', c.remote.account, c.remote.folder, c.remote.key, this.inflight)) {
-            delete m.remote;
-            notes.add('Ya se había borrado del servidor: se recupera solo en este equipo.');
-          }
-          this.data.messages.push(m);
-        } else if (m.folder !== home) {
-          if (c.remote && !m.remote) {
-            const r = c.remote;
-            if (c.sent && cancelPending(this.data, c.sent.kind, r.account, r.folder, r.key, this.inflight)) {
-              m.remote = { ...r };
-              m.folder = home;
-            } else if (c.sent?.kind === 'move') {
-              back.push(c);
-              continue;
-            } else {
-              m.folder = home;
-              notes.add('Ya se había borrado del servidor: se recupera solo en este equipo.');
-            }
-          } else if (!this.relocate(m, home)) continue;
-        }
-        restored.push(m.id);
+      // what is known on the server where it is now gets its marks back there before it moves again
+      for (const c of marks) {
+        const m = this.data.messages.find((x) => x.id === c.id);
+        if (m?.remote) unmark(c, m);
+      }
+      for (const part of parts) {
+        if (part.created) this.removeCopies(part.created, notes);
+        if (!part.marks) for (const c of [...part.changes].reverse()) this.restorePlace(c, back, notes, restored);
+      }
+      for (const c of marks) {
+        const m = this.data.messages.find((x) => x.id === c.id);
+        if (!m || done.has(c)) continue;
+        if (back.some((x) => x.id === c.id)) later.push(c);
+        else unmark(c, m);
       }
     });
     this.reselect(restored);
     this.syncMessage = notes.size ? [...notes].join(' ') : back.length ? 'Deshaciendo en el servidor…' : '';
     this.touch(true);
-    if (back.length) this.undoing = this.undoing.then(() => this.undoOnServer(back));
+    if (back.length) this.undoing = this.undoing.then(() => this.undoOnServer(back, later));
+  }
+
+  /** Puts a message back where it was; what the server has to do first is left in `back`. */
+  private restorePlace(c: Change, back: Change[], notes: Set<string>, restored: string[]): void {
+    const home = this.data.folders.some((f) => f.id === c.folder) ? c.folder : 'inbox';
+    let m = this.data.messages.find((x) => x.id === c.id);
+    if (!m) {
+      if (!c.removed) return;
+      m = { ...c.removed, folder: home };
+      if (c.remote && c.sent && !cancelPending(this.data, 'remove', c.remote.account, c.remote.folder, c.remote.key, this.inflight)) {
+        delete m.remote;
+        notes.add('Ya se había borrado del servidor: se recupera solo en este equipo.');
+      }
+      this.data.messages.push(m);
+    } else if (m.folder !== home) {
+      if (c.remote && !m.remote) {
+        const r = c.remote;
+        if (c.sent && cancelPending(this.data, c.sent.kind, r.account, r.folder, r.key, this.inflight)) {
+          m.remote = { ...r };
+          m.folder = home;
+        } else if (c.sent?.kind === 'move') {
+          back.push(c);
+          return;
+        } else {
+          m.folder = home;
+          notes.add('Ya se había borrado del servidor: se recupera solo en este equipo.');
+        }
+      } else if (!this.relocate(m, home)) return;
+    }
+    restored.push(m.id);
+  }
+
+  private removeCopies(ids: string[], notes: Set<string>): void {
+    for (const m of this.records(ids)) {
+      if (m.remote) this.queue({ account: m.remote.account, kind: 'remove', folder: m.remote.folder, keys: [m.remote.key] });
+      else {
+        const queued = this.data.pending?.find((o) => o.kind === 'append' && o.raw === m.raw && o.id !== this.inflight);
+        if (queued) completeOp(this.data, queued.id);
+        else if (this.serverCopies.has(m.id)) notes.add('La copia ya se había enviado al servidor: volverá al sincronizar.');
+      }
+    }
+    const gone = new Set(ids);
+    this.data.messages = this.data.messages.filter((m) => !gone.has(m.id));
   }
 
   private restoreMarks(m: MailRecord, c: Change): void {
@@ -881,11 +1063,16 @@ export class MailCtl {
       m.flagged = c.flagged;
       this.pushFlag(m, RFC_FLAGS.flagged, c.flagged);
     }
+    if (c.categories) m.categories = [...c.categories];
+    else delete m.categories;
+    if (c.follow) m.follow = { ...c.follow };
+    else delete m.follow;
   }
 
   /** What comes back is selected again, if it can be seen here. */
   private reselect(ids: string[]): void {
-    const here = ids.filter((id) => this.data.messages.some((m) => m.id === id && m.folder === this.folder));
+    const visible = new Set(this.list().map((m) => m.id));
+    const here = [...new Set(ids)].filter((id) => visible.has(id));
     if (!here.length || this.compose) return;
     this.selection = new Set(here);
     this.selectedId = here[here.length - 1]!;
@@ -897,7 +1084,7 @@ export class MailCtl {
    * A move that the server already did: the folder where the message went is read to know its new identifier there, and
    * then it is moved back.
    */
-  private async undoOnServer(changes: Change[]): Promise<void> {
+  private async undoOnServer(changes: Change[], marks: Change[] = []): Promise<void> {
     const failed: string[] = [];
     try {
       await this.relinking;
@@ -922,6 +1109,16 @@ export class MailCtl {
         restored.push(m.id);
       }
     });
+    await this.flush();
+    await this.relink();
+    // the marks go back once the message is known again on the server
+    if (marks.length)
+      this.batch(() => {
+        for (const c of marks) {
+          const m = this.data.messages.find((x) => x.id === c.id);
+          if (m) this.restoreMarks(m, c);
+        }
+      });
     this.reselect(restored);
     this.touch(true);
     await this.flush();
@@ -1027,7 +1224,7 @@ export class MailCtl {
       }
       applyPlan(this.data, account, plan);
     });
-    if (!this.data.folders.some((x) => x.id === this.folder)) this.folder = 'inbox';
+    if (!this.folderExists(this.folder)) this.folder = 'inbox';
     this.touch(true);
     await this.syncAll();
   }
@@ -1524,21 +1721,36 @@ export class MailCtl {
     return this.relinking;
   }
 
+  /**
+   * Puts in what was downloaded of a folder. Returns the messages that are new in the inbox, which the rules look at:
+   * not the first time a folder is read (all of it would be new), nor after the server renumbers it.
+   */
+  private applyNew(account: string, p: FolderPlan, res: Fetched, watch: boolean): { added: number; arrived: string[] } {
+    const before = watch && p.local === 'inbox' ? new Set(this.data.messages.map((m) => m.id)) : null;
+    const added = applyFetched(this.data, account, p, res);
+    return { added, arrived: before ? this.data.messages.filter((m) => !before.has(m.id)).map((m) => m.id) : [] };
+  }
+
   /** Brings one folder of an account up to date. */
   private async pullFolder(account: string, folder: string): Promise<void> {
     const p = planFolders(account, await remote.folders(account)).folders.find((x) => x.remote === folder);
     if (!p) return;
     const state = await remote.state(account, p.remote);
     let missing: string[] = [];
+    let watch = !!this.data.sync?.[syncKey(account, p.remote)];
     this.batch(() => {
-      missing = reconcileFolder(this.data, account, p, state, { limit: this.syncLimit, maxBytes: MAX_MESSAGE_BYTES }).missing;
+      const r = reconcileFolder(this.data, account, p, state, { limit: this.syncLimit, maxBytes: MAX_MESSAGE_BYTES });
+      watch &&= !r.reset;
+      missing = r.missing;
     });
+    const arrived: string[] = [];
     for (let i = 0; i < missing.length; i += FETCH_BATCH) {
       const res = await remote.fetch(account, p.remote, missing.slice(i, i + FETCH_BATCH), MAX_MESSAGE_BYTES);
       this.batch(() => {
-        applyFetched(this.data, account, p, res);
+        arrived.push(...this.applyNew(account, p, res, watch).arrived);
       });
     }
+    this.organize.arrive(arrived);
   }
 
   /**
@@ -1566,6 +1778,7 @@ export class MailCtl {
     let updated = 0;
     let big = 0;
     const errors: string[] = await this.flush();
+    const arrived: string[] = [];
     for (const acc of this.accounts) {
       try {
         const plan = planFolders(acc.id, await remote.folders(acc.id));
@@ -1577,8 +1790,10 @@ export class MailCtl {
           try {
             const state = await remote.state(acc.id, p.remote);
             let missing: string[] = [];
+            let watch = !!this.data.sync?.[syncKey(acc.id, p.remote)];
             this.batch(() => {
               const r = reconcileFolder(this.data, acc.id, p, state, { limit: this.syncLimit, maxBytes: MAX_MESSAGE_BYTES });
+              watch &&= !r.reset;
               removed += r.removed;
               updated += r.updated;
               big += r.tooBig;
@@ -1587,7 +1802,9 @@ export class MailCtl {
             for (let i = 0; i < missing.length; i += FETCH_BATCH) {
               const res = await remote.fetch(acc.id, p.remote, missing.slice(i, i + FETCH_BATCH), MAX_MESSAGE_BYTES);
               this.batch(() => {
-                added += applyFetched(this.data, acc.id, p, res);
+                const n = this.applyNew(acc.id, p, res, watch);
+                added += n.added;
+                arrived.push(...n.arrived);
               });
               big += res.skipped.length;
             }
@@ -1600,11 +1817,13 @@ export class MailCtl {
       }
     }
     this.syncing = false;
-    if (!this.data.folders.some((f) => f.id === this.folder)) this.folder = 'inbox';
+    const organized = this.organize.arrive(arrived);
+    if (!this.folderExists(this.folder)) this.folder = 'inbox';
     const parts = [added === 1 ? '1 mensaje nuevo' : `${added} mensajes nuevos`];
     if (removed) parts.push(removed === 1 ? '1 quitado (ya no está en el servidor)' : `${removed} quitados (ya no están en el servidor)`);
     if (updated) parts.push(updated === 1 ? '1 con marcas cambiadas' : `${updated} con marcas cambiadas`);
     if (big) parts.push(`${big} demasiado grandes (más de 25 MB) no se descargaron`);
+    parts.push(...organized);
     const at = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     this.syncMessage = errors.length ? `Error al sincronizar: ${errors.join(' · ')}${added ? ` (${parts[0]})` : ''}` : `Sincronizado a las ${at}: ${parts.join(', ')}`;
     this.touch(added + removed + updated > 0);

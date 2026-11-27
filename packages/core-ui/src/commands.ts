@@ -46,7 +46,7 @@ export function parseShortcut(spec: string): ParsedShortcut {
   return result;
 }
 
-type KeyLike = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey'>;
+type KeyLike = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey'> & Partial<Pick<KeyboardEvent, 'code'>>;
 
 export function matchesShortcut(e: KeyLike, s: ParsedShortcut): boolean {
   if ((e.ctrlKey || e.metaKey) !== s.ctrl) return false;
@@ -57,6 +57,8 @@ export function matchesShortcut(e: KeyLike, s: ParsedShortcut): boolean {
     return key === '+' || key === '=';
   }
   if (e.shiftKey !== s.shift) return false;
+  // with Shift (and on some layouts without it) a digit key types another character: the key itself says which it is
+  if (/^[0-9]$/.test(s.key) && e.code === `Digit${s.key}`) return true;
   return key === s.key;
 }
 

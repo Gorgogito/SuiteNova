@@ -1,7 +1,7 @@
 # Nova Mail frente a Outlook (segunda ronda)
 
 Estado: **plan aprobado por el usuario** (2026-11-26); S/MIME y la sincronización de calendario y contactos con el
-servidor quedan para después. Fases 1, 2 y 3 hechas (ver la bitácora al final).
+servidor quedan para después. Fases 1 a 4 hechas (ver la bitácora al final).
 
 Referencia: Outlook clásico de Office 2024. La comparación sale de leer el código de Nova Mail, sus pruebas y
 `docs/LIMITACIONES.md`, y de lo que conozco de Outlook: **no se ha abierto el Outlook de este equipo** (usa cuentas reales).
@@ -124,3 +124,19 @@ Cada fase termina con pruebas, e2e con capturas, `LIMITACIONES.md` y `PROGRESO.m
   movimiento revertía «leído»; Esc al renombrar podía aplicar el nombre y F2 no lo dejaba seleccionado; un submenú dejaba
   sin teclado al menú.
 - **Pruebas:** `list.test.ts` (17), `list-actions.test.ts`, 5 de Rust, `e2e-mail-list.mjs` (11).
+
+### Fase 4 (hecha, 2026-11-27): organizar
+- **Núcleo** (`mail-core`): `categories.ts`, `followup.ts`, `search.ts` (la búsqueda salió de `store.ts`; campos, fechas,
+  texto entero y carpetas de búsqueda), `junk.ts`, `rules.ts` (reglas y pasos rápidos). Categorías en `.ics` y `.vcf`.
+- **Aplicación:** `organizer.ts` (hace lo que piden reglas, pasos y remitentes), `dlg-organize.tsx`, `organize-menus.ts`,
+  `CategoryViews.tsx`. Deshacer admite varias acciones como una sola, también copias. Carpetas de búsqueda en el árbol,
+  seguimiento en Tareas, avisos de seguimiento y de reglas.
+- **Fallos anteriores corregidos:** al cambiar de sección la cinta podía quedarse con los grupos plegados habiendo sitio;
+  los atajos con un número y Mayús no se reconocían (ahora se miran por la tecla).
+- **Fallos hallados y corregidos al probar y repasar:** deshacer «Listo» ya enviado al servidor perdía la bandera; un
+  menú abierto desde un grupo plegado de la cinta salía desplazado o se cerraba; la cinta plegaba «Carpeta» a 1400 px;
+  copiar en una cuenta POP3 dejaba en la cola un cambio imposible que frenaba los siguientes; una regla «copiar y
+  eliminar para siempre» borraba aunque la copia fallara; reabrir en Tareas un mensaje completado perdía su fecha; la
+  bandera y «completado» se leían mal en el tema Negro.
+- **Pruebas:** `organize.test.ts` (19), `organize-actions.test.ts` (23), una de macros, una de atajos,
+  `e2e-mail-organize.mjs` (10).

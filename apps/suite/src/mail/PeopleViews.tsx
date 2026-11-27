@@ -1,7 +1,8 @@
 import { t } from '@suitenova/core-ui';
-import { displayName, type Contact, type LabeledValue, type TaskItem } from '@suitenova/mail-core';
+import { displayName, isDone, isFollowed, type Contact, type LabeledValue, type MailRecord, type TaskItem } from '@suitenova/mail-core';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { dateStr, parseLocal } from './CalendarView';
+import { CategoryChips, CategoryPicker } from './CategoryViews';
 import { startOfDay, type MailCtl } from './ctl';
 import { ProofTextarea } from '../spell';
 
@@ -74,6 +75,7 @@ function ContactForm({ ctl, c }: { ctl: MailCtl; c: Contact }) {
         <span>{t('Notas')}</span>
         <ProofTextarea aria-label={t('Notas')} rows={4} value={d.note} onChange={(e) => set({ note: e.target.value })} />
       </label>
+      <CategoryPicker data={ctl.data} value={d.categories} onChange={(categories) => set({ categories })} />
       <div className="ml-actions">
         <button type="submit" className="ml-btn ml-btn--primary" disabled={!dirty}>
           {t('Guardar contacto')}
@@ -121,6 +123,7 @@ export function ContactsView({ ctl }: { ctl: MailCtl }) {
                 <span>
                   <strong>{displayName(c)}</strong>
                   <em>{c.emails[0]?.value || c.org}</em>
+                  <CategoryChips data={ctl.data} names={c.categories} max={2} />
                 </span>
               </button>
             </li>
@@ -165,6 +168,7 @@ function TaskForm({ ctl, t0 }: { ctl: MailCtl; t0: TaskItem }) {
         <span>{t('Notas')}</span>
         <ProofTextarea aria-label={t('Notas')} rows={5} value={d.notes} onChange={(e) => setD({ ...d, notes: e.target.value })} />
       </label>
+      <CategoryPicker data={ctl.data} value={d.categories} onChange={(categories) => setD({ ...d, categories })} />
       <div className="ml-actions">
         <button type="submit" className="ml-btn ml-btn--primary" disabled={!dirty || !d.title.trim()}>
           {t('Guardar tarea')}
@@ -177,14 +181,78 @@ function TaskForm({ ctl, t0 }: { ctl: MailCtl; t0: TaskItem }) {
   );
 }
 
+/** A message followed up, seen among the tasks. */
+function FollowedMail({ ctl, m }: { ctl: MailCtl; m: MailRecord }) {
+  const done = isDone(m);
+  return (
+    <div className="ml-taskform" role="region" aria-label={t('Mensaje con seguimiento')}>
+      <h3>{m.subject || t('(sin asunto)')}</h3>
+      <p>{t('De')}: {m.from || m.fromEmail || t('(sin remitente)')} · {new Date(m.date).toLocaleDateString()}</p>
+      <CategoryChips data={ctl.data} names={m.categories} />
+      {done ? (
+        <p>✓ {t('Seguimiento completado el {date}.', { date: new Date(m.follow!.done!).toLocaleDateString() })}</p>
+      ) : (
+        <label>
+          <span>{t('Vencimiento')}</span>
+          <input type="date" aria-label={t('Fecha de vencimiento')} value={m.follow?.due != null ? dateStr(m.follow.due) : ''} onChange={(e) => ctl.followMany([m.id], e.target.value ? parseLocal(e.target.value, '00:00') : null, m.follow?.remind)} />
+        </label>
+      )}
+      <p className="ml-hint">{m.preview}</p>
+      <div className="ml-actions">
+        <button
+          type="button"
+          className="ml-btn ml-btn--primary"
+          onClick={() => {
+            ctl.go('mail');
+            ctl.setFolder(m.folder);
+            ctl.select(m.id);
+          }}
+        >
+          {t('Abrir el mensaje')}
+        </button>
+        <button type="button" className="ml-btn" onClick={() => ctl.setFlagMany([m.id], false)}>
+          {t('Quitar la marca')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** A task, or a message followed up: both are things to do. */
+interface ToDo {
+  id: string;
+  title: string;
+  due: number | null;
+  done: boolean;
+  high: boolean;
+  categories?: string[];
+  mail?: boolean;
+  toggle: () => void;
+}
+
 export function TasksView({ ctl }: { ctl: MailCtl }) {
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
   const [text, setText] = useState('');
   const today = startOfDay(Date.now());
-  const list = ctl.data.tasks
+  const all: ToDo[] = [
+    ...ctl.data.tasks.map((x): ToDo => ({ id: x.id, title: x.title, due: x.due, done: x.done, high: x.priority === 'high', categories: x.categories, toggle: () => ctl.toggleTask(x.id) })),
+    ...ctl.data.messages.filter(isFollowed).map((m): ToDo => ({
+      id: `mail:${m.id}`,
+      title: m.subject || t('(sin asunto)'),
+      due: m.follow?.due ?? null,
+      done: isDone(m),
+      high: m.importance === 'high',
+      categories: m.categories,
+      mail: true,
+      // taken back, it is due when it was
+      toggle: () => (isDone(m) ? ctl.followMany([m.id], m.follow!.due) : ctl.completeMany([m.id])),
+    })),
+  ];
+  const list = all
     .filter((x) => (ctl.taskFilter === 'all' ? true : ctl.taskFilter === 'done' ? x.done : !x.done))
     .sort((a, b) => Number(a.done) - Number(b.done) || (a.due ?? Infinity) - (b.due ?? Infinity) || a.title.localeCompare(b.title, 'es'));
   const sel = ctl.data.tasks.find((x) => x.id === ctl.selectedTask) ?? null;
+  const mail = ctl.selectedTask?.startsWith('mail:') ? (ctl.data.messages.find((m) => `mail:${m.id}` === ctl.selectedTask && isFollowed(m)) ?? null) : null;
   return (
     <div className="ml-tasks">
       <div className="ml-tasks__list">
@@ -211,17 +279,21 @@ export function TasksView({ ctl }: { ctl: MailCtl }) {
           {list.length === 0 && <li className="ml-empty">{t('No hay tareas aquí.')}</li>}
           {list.map((x) => (
             <li key={x.id} className={`${x.id === ctl.selectedTask ? 'is-current' : ''}${x.done ? ' is-done' : ''}`}>
-              <input type="checkbox" aria-label={t('Completar {name}', { name: x.title })} checked={x.done} onChange={() => ctl.toggleTask(x.id)} />
+              <input type="checkbox" aria-label={t('Completar {name}', { name: x.title })} checked={x.done} onChange={x.toggle} />
               <button type="button" onClick={() => { ctl.selectedTask = x.id; ctl.touch(); }}>
-                <strong>{x.title}</strong>
+                <strong>
+                  {x.mail && <span aria-label={t('Mensaje')} title={t('Mensaje')}>✉ </span>}
+                  {x.title}
+                </strong>
+                <CategoryChips data={ctl.data} names={x.categories} max={2} />
                 {x.due !== null && <em className={!x.done && x.due < today ? 'is-late' : ''}>{new Date(x.due).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}{!x.done && x.due < today ? ` · ${t('vencida')}` : ''}</em>}
-                {x.priority === 'high' && <span aria-label={t('Prioridad alta')} title={t('Prioridad alta')}>❗</span>}
+                {x.high && <span aria-label={t('Prioridad alta')} title={t('Prioridad alta')}>❗</span>}
               </button>
             </li>
           ))}
         </ul>
       </div>
-      <div className="ml-tasks__detail">{sel ? <TaskForm key={sel.id} ctl={ctl} t0={sel} /> : <div className="ml-empty">{t('Selecciona una tarea.')}</div>}</div>
+      <div className="ml-tasks__detail">{sel ? <TaskForm key={sel.id} ctl={ctl} t0={sel} /> : mail ? <FollowedMail key={mail.id} ctl={ctl} m={mail} /> : <div className="ml-empty">{t('Selecciona una tarea.')}</div>}</div>
     </div>
   );
 }

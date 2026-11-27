@@ -1,6 +1,6 @@
 import type { LibraryId } from '../macros/security';
 import { basic } from '@suitenova/base-core';
-import { addRaw, newContact, newEvent, newTask, parseMessage, rawOf, inFolder, type CalEvent, type Contact, type MailRecord, type TaskItem } from '@suitenova/mail-core';
+import { isDone, readNames, addRaw, newContact, newEvent, newTask, parseMessage, rawOf, inFolder, type CalEvent, type Contact, type MailRecord, type TaskItem } from '@suitenova/mail-core';
 import { msgBox } from '../base/runtime';
 import '../macros/messages';
 import { collection, makeObject, noMember, type ParamTable } from '../macros/objects';
@@ -186,7 +186,26 @@ export class MailRuntime extends MacroRuntime {
           receivedtime: { get: () => date(rec().date) },
           senton: { get: () => date(rec().date) },
           unread: { get: () => (rec().read ? 0 : -1), set: (v) => ctl.setRead(id, !toBool(v)) },
-          flagstatus: { get: () => (rec().flagged ? 2 : 0), set: (v) => { if ((toNum(v) === 2) !== rec().flagged) ctl.toggleFlag(id); } },
+          // 2 olFlagMarked, 1 olFlagComplete, 0 olNoFlag
+          flagstatus: {
+            get: () => (rec().flagged ? 2 : isDone(rec()) ? 1 : 0),
+            set: (v) => {
+              const n = toNum(v);
+              if (n === 2) ctl.setFlagMany([id], true);
+              else if (n === 1) ctl.completeMany([id]);
+              else ctl.setFlagMany([id], false);
+            },
+          },
+          categories: {
+            get: () => (rec().categories ?? []).join(", "),
+            set: (v) => {
+              const names = toStr(v).split(/[,;]/).map((x) => x.trim()).filter(Boolean);
+              ctl.mark([id], "Categorizar", (m) => {
+                if (names.length) m.categories = readNames(names);
+                else delete m.categories;
+              });
+            },
+          },
           attachments: { get: () => collection('Attachments', () => messageOf(rec()).attachments.map((a) => make({ type: 'Attachment', props: { filename: { get: () => a.filename }, displayname: { get: () => a.filename } } }))) },
           entryid: { get: () => id },
           size: { get: () => rec().size },

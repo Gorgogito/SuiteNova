@@ -29,6 +29,12 @@ describe('matchesShortcut', () => {
     expect(matchesShortcut(key({ key: '=', ctrlKey: true }), s)).toBe(true);
     expect(matchesShortcut(key({ key: '+', ctrlKey: true, shiftKey: true }), s)).toBe(true);
   });
+  it('knows a digit by its key, whatever character it types', () => {
+    const s = parseShortcut('Ctrl+Shift+1');
+    expect(matchesShortcut(key({ key: '!', code: 'Digit1', ctrlKey: true, shiftKey: true }), s)).toBe(true);
+    expect(matchesShortcut(key({ key: '"', code: 'Digit2', ctrlKey: true, shiftKey: true }), s)).toBe(false);
+    expect(matchesShortcut(key({ key: '!', code: 'Digit1', ctrlKey: true }), s)).toBe(false);
+  });
   it('treats Cmd as Ctrl', () => {
     expect(matchesShortcut(key({ key: 'z', metaKey: true }), parseShortcut('Ctrl+Z'))).toBe(true);
   });

@@ -1,9 +1,10 @@
 import { Button, DialogActions, DialogContent, DialogTitle } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { occurrencesBetween, type CalEvent, type Occurrence } from '@suitenova/mail-core';
+import { categoryHex, occurrencesBetween, type CalEvent, type Occurrence } from '@suitenova/mail-core';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { addDays, startOfDay, type MailCtl } from './ctl';
 import { StickyDialog } from './StickyDialog';
+import { CategoryPicker } from './CategoryViews';
 import { ProofTextarea } from '../spell';
 
 const HOUR_H = 44;
@@ -192,6 +193,7 @@ export function EventBody({ ctl, ev, occurrence, isNew, onClose }: { ctl: MailCt
                 <span>{t('Descripción')}</span>
                 <ProofTextarea aria-label={t('Descripción')} rows={4} value={e.description} onChange={(x) => set({ description: x.target.value })} />
               </label>
+              <CategoryPicker data={ctl.data} value={e.categories} onChange={(categories) => set({ categories })} />
               {err && (
                 <div className="ml-error" role="alert">
                   {err}
@@ -247,6 +249,11 @@ export function CalendarView({ ctl }: { ctl: MailCtl }) {
     setDlg({ ev: o.event, occ: o.start, isNew: false });
   };
   const dayName = (d: number) => new Date(d).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
+  // an appointment takes the colour of its first category
+  const tint = (e: CalEvent) => {
+    const name = e.categories?.[0];
+    return name ? { boxShadow: `inset 4px 0 0 ${categoryHex(ctl.data, name)}`, paddingInlineStart: 8 } : undefined;
+  };
 
   return (
     <div className="ml-cal" data-view={ctl.calView}>
@@ -289,7 +296,7 @@ export function CalendarView({ ctl }: { ctl: MailCtl }) {
               >
                 <span className="ml-month__n">{new Date(d).getDate()}</span>
                 {list.slice(0, 3).map((o) => (
-                  <button key={o.event.id + o.start} type="button" className={`ml-ev${o.event.allDay ? ' is-allday' : ''}`} onClick={() => open(o)} title={o.event.title}>
+                  <button key={o.event.id + o.start} type="button" className={`ml-ev${o.event.allDay ? ' is-allday' : ''}`} style={tint(o.event)} onClick={() => open(o)} title={o.event.title}>
                     {!o.event.allDay && <b>{timeStr(o.start)}</b>} {o.event.title}
                   </button>
                 ))}
@@ -319,7 +326,7 @@ export function CalendarView({ ctl }: { ctl: MailCtl }) {
                 {occ
                   .filter((o) => o.event.allDay && o.start < addDays(d, 1) && o.end > d)
                   .map((o) => (
-                    <button key={o.event.id + o.start} type="button" className="ml-ev is-allday" onClick={() => open(o)}>
+                    <button key={o.event.id + o.start} type="button" className="ml-ev is-allday" style={tint(o.event)} onClick={() => open(o)}>
                       {o.event.title}
                     </button>
                   ))}
@@ -361,7 +368,7 @@ export function CalendarView({ ctl }: { ctl: MailCtl }) {
                           key={p.o.event.id + p.o.start}
                           type="button"
                           className="ml-ev ml-ev--block"
-                          style={{ top, height, left: `${(p.col / p.cols) * 100}%`, width: `${100 / p.cols - 1}%` }}
+                          style={{ top, height, left: `${(p.col / p.cols) * 100}%`, width: `${100 / p.cols - 1}%`, ...tint(p.o.event) }}
                           onClick={() => open({ ...p.o, start: occ.find((x) => x.event.id === p.o.event.id && x.start <= p.o.start && x.end >= p.o.end)?.start ?? p.o.start })}
                           title={`${timeStr(p.o.start)}–${timeStr(p.o.end)} ${p.o.event.title}`}
                         >

@@ -142,8 +142,8 @@ Este documento se actualiza con cada fase. Lo que no está aquí listado como "s
 
 ### Correo
 - La redacción con formato se describe en «Formato, firmas y plantillas», más abajo. Los mensajes con HTML se leen con el HTML saneado: se eliminan scripts, marcos, formularios y objetos, y las imágenes remotas se bloquean salvo que se permitan por mensaje; las hojas de estilo del mensaje se conservan.
-- Sin reglas, categorías, seguimiento con fecha, cifrado S/MIME o PGP, citas `message/rfc822` incrustadas como mensaje navegable (aparecen como adjunto `.eml`), ni tamaño máximo de adjuntos.
-- La búsqueda cubre asunto, remitentes, destinatarios y los primeros 4 000 caracteres del texto, sin importar mayúsculas ni acentos; no busca en adjuntos.
+- Sin cifrado S/MIME o PGP, citas `message/rfc822` incrustadas como mensaje navegable (aparecen como adjunto `.eml`), ni tamaño máximo de adjuntos.
+- La búsqueda se describe en «Organizar», más abajo.
 - **Subcarpetas:** las carpetas de Nova Mail pueden tener subcarpetas, locales o de una cuenta (se crean con «Carpeta nueva → Dentro de…»). Eliminar una carpeta local manda sus mensajes a Archivo; para eliminar una que tenga subcarpetas hay que quitar antes estas; eliminar una del servidor la borra allí con sus mensajes.
 
 ### Escribir (segunda ronda hacia Outlook, fase 1)
@@ -211,9 +211,44 @@ Este documento se actualiza con cada fase. Lo que no está aquí listado como "s
   en RTF comprimido** ni citas o tareas. Probado con archivos `winmail.dat` creados para las pruebas, **no con uno de un
   Outlook real**.
 
+### Organizar (fase 4)
+- **Categorías:** diez colores; la lista se guarda en el archivo `.novamail` y se aplica a mensajes, citas, contactos y
+  tareas. En `.ics` y `.vcf` viaja el nombre, no el color. **No se envían al servidor** (no se ven en otro equipo ni en el
+  móvil), y si otro programa mueve un mensaje, aquí llega como nuevo, sin categorías ni seguimiento. Cambiar el nombre de
+  una categoría no cambia las carpetas de búsqueda que la nombran. En el calendario se ve el color de la primera.
+- **Seguimiento:** vencimiento sin hora ni fecha de inicio. **Al servidor solo va la bandera**; la fecha, el aviso y el
+  «completado» quedan en este equipo. **Un clic en la bandera de un mensaje marcado ahora lo da por completado**, como en
+  Outlook (antes la quitaba); «Quitar la marca» está en el menú. El aviso aparece **solo con Nova Mail abierto**, dentro
+  de la ventana y sin posponer (fase 5).
+- **Reglas:** se aplican en este equipo, **con Nova Mail abierto**, a los mensajes nuevos **sin leer** que llegan a la
+  Bandeja de entrada al sincronizar; no la primera vez que se lee una carpeta ni cuando el servidor la renumera. «Ejecutar»
+  aplica las activas a una carpeta, leídos incluidos. Las condiciones se cumplen todas (las palabras de una son
+  alternativas). **No hay reenviar ni responder automáticamente**, sonidos, ejecutar macros ni reglas en el servidor, y no
+  se importan las de Outlook (`.rwz`). Un mensaje de una cuenta no puede moverse a una carpeta solo de este equipo (se
+  avisa). Lo que las reglas hacen solas al recibir **no se deshace** con Ctrl+Z (lo ejecutado a mano, sí). Si una copia
+  no se puede hacer, la regla no borra el mensaje para siempre.
+- **Copiar a una carpeta** (reglas y pasos) la añade también en el servidor en IMAP, JMAP y Exchange; en POP3 queda en
+  este equipo. Un mensaje sin Message-ID puede aparecer dos veces tras sincronizar. Deshacer una copia ya enviada la
+  borra del servidor solo si ya se sincronizó; si no, avisa de que volverá.
+- **Pasos rápidos:** los nueve primeros con Ctrl+Mayús+1 a 9. Responder y reenviar abren el mensaje: no se envía solo.
+- **Búsqueda:** todas las palabras, frases entre comillas, `-palabra` y los campos `de:`, `para:`, `cc:`, `cco:`,
+  `asunto:`, `cuerpo:`, `adjunto:`, `adjuntos:`, `categoria:`, `es:`, `importancia:`, `tamaño:`, `carpeta:`, `fecha:`,
+  `desde:`, `hasta:`, `antes:` y `despues:` (fechas como día/mes/año). **Sin `O` ni paréntesis**, y **no busca dentro de
+  los adjuntos** (sí por su nombre con `adjunto:`). Busca solo en lo descargado, no en el servidor. En mensajes largos
+  la primera búsqueda lee cada mensaje entero: **no se ha medido en buzones muy grandes**.
+- **Carpetas de búsqueda:** de partida «Correo no leído» y «Para seguimiento». Dejan fuera Eliminados y No deseado salvo
+  que la búsqueda nombre una carpeta; el número que muestran es el de no leídos. No se anidan.
+- **Remitentes:** bloqueados y seguros (direcciones o dominios) en el archivo `.novamail`. Lo nuevo de un bloqueado va a
+  Correo no deseado **al sincronizar** (si la cuenta no tiene esa carpeta, se avisa y se queda). **No hay filtro de correo
+  no deseado propio** ni listas del servidor. De un remitente seguro se muestran las imágenes remotas sin preguntar (no en
+  No deseado): **el remitente de un correo se puede falsificar**.
+- **Cinta:** «Marcar como leído», «no leído» y «bandera» quedaron como iconos para que la pestaña Inicio quepa a 1400 px.
+- **Macros:** `MailItem.Categories` y `FlagStatus` (2 marcado, 1 completado, 0 sin marca).
+- **Verificado** con servidores falsos y en Edge (`scripts/e2e-mail-organize.mjs`); **no con cuentas reales**.
+
 ### Contactos y tareas
 - Contactos: nombre, empresa, cargo, varios correos y teléfonos con etiqueta, dirección (un solo texto), sitio web, cumpleaños y notas. Sin foto, grupos/listas de distribución ni fusión de duplicados.
-- Tareas: título, vencimiento (sin hora), prioridad (alta/normal/baja), notas y completada; sin tareas periódicas ni subtareas. Se importan y exportan como `VTODO` en el mismo `.ics` del calendario.
+- Tareas: título, vencimiento (sin hora), prioridad (alta/normal/baja), notas, categorías y completada; sin tareas periódicas ni subtareas. Se importan y exportan como `VTODO` en el mismo `.ics` del calendario. La lista muestra además los **mensajes con seguimiento**, que no se exportan en ese `.ics`.
 
 ### Conexión con servidores: qué se ha comprobado y qué no
 - **Con servidores falsos en este equipo (56 pruebas de Rust del correo, `cargo test`; entre ellas renombrar y mover carpetas en IMAP, JMAP y Exchange):**

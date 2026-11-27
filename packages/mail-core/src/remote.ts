@@ -1,4 +1,5 @@
 import { decodeBase64, parseMessage } from './mime';
+import { followFlag } from './followup';
 import { addRaw, newMailId, type Folder, type MailData, type MailRecord, type PendingOp, type ServerInfo, type SpecialFolder } from './store';
 
 /*
@@ -318,6 +319,8 @@ export function reconcileFolder(d: MailData, account: string, plan: FolderPlan, 
         m.read = f.read;
         m.flagged = f.flagged;
         m.answered = f.answered;
+        // a flag set or taken away elsewhere ends what was kept about the follow-up
+        followFlag(m);
         res.updated++;
       }
     }

@@ -201,10 +201,11 @@ export function RibbonBody({ tab }: { tab: RibbonTab }) {
     return () => ro.disconnect();
   }, []);
 
-  // Restart the collapse search whenever the available width or the tab changes.
+  // Restart the collapse search whenever the available width, the tab or the groups it holds change.
+  const groupIds = groups.map((g) => g.id).join();
   useLayoutEffect(() => {
     setCollapsedCount(0);
-  }, [width, tab.id]);
+  }, [width, tab.id, groupIds]);
 
   useLayoutEffect(() => {
     const el = ref.current;

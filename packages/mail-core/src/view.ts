@@ -1,9 +1,10 @@
+import { dueGroup, followOrder } from './followup';
 import type { MailRecord } from './store';
 import { topicOf } from './threads';
 
 /* How the list of messages is shown: filter, order, groups and conversations. */
 
-export type SortKey = 'date' | 'from' | 'subject' | 'size' | 'importance' | 'flag' | 'attachments';
+export type SortKey = 'date' | 'from' | 'subject' | 'size' | 'importance' | 'flag' | 'attachments' | 'category';
 export type ListFilter = 'all' | 'unread' | 'flagged' | 'attachments';
 export interface ListView {
   sort: SortKey;
@@ -22,6 +23,7 @@ export const SORT_KEYS: { id: SortKey; label: string }[] = [
   { id: 'importance', label: 'Importancia' },
   { id: 'flag', label: 'Bandera' },
   { id: 'attachments', label: 'Adjuntos' },
+  { id: 'category', label: 'Categorías' },
 ];
 export const LIST_FILTERS: { id: ListFilter; label: string }[] = [
   { id: 'all', label: 'Todos' },
@@ -58,8 +60,10 @@ export function compareMessages(view: Pick<ListView, 'sort' | 'reverse'>, outgoi
     subject: (a, b) => text(topicOf(a.subject), topicOf(b.subject)),
     size: (a, b) => b.size - a.size,
     importance: (a, b) => rank(b) - rank(a),
-    flag: (a, b) => Number(b.flagged) - Number(a.flagged),
+    flag: followOrder,
     attachments: (a, b) => Number(b.hasAttachments) - Number(a.hasAttachments),
+    // by the first category, those without any at the end
+    category: (a, b) => Number(!a.categories?.length) - Number(!b.categories?.length) || text(a.categories?.[0] ?? '', b.categories?.[0] ?? ''),
   };
   const main = by[view.sort];
   const sign = view.reverse ? -1 : 1;
@@ -123,8 +127,14 @@ export function groupOf(m: MailRecord, sort: SortKey, now: number, outgoing = fa
     }
     case 'importance':
       return m.importance === 'high' ? { key: 'i:high', label: 'Importancia alta' } : m.importance === 'low' ? { key: 'i:low', label: 'Importancia baja' } : { key: 'i:normal', label: 'Importancia normal' };
-    case 'flag':
-      return m.flagged ? { key: 'g:on', label: 'Con bandera' } : { key: 'g:off', label: 'Sin bandera' };
+    case 'flag': {
+      const { key, label } = dueGroup(m, now);
+      return { key, label };
+    }
+    case 'category': {
+      const name = m.categories?.[0];
+      return name ? { key: `k:${name.toLowerCase()}`, label: name, plain: true } : { key: 'k:', label: 'Sin categoría' };
+    }
     case 'attachments':
       return m.hasAttachments ? { key: 'a:on', label: 'Con adjuntos' } : { key: 'a:off', label: 'Sin adjuntos' };
   }

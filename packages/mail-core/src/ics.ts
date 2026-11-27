@@ -1,5 +1,7 @@
 /** iCalendar (RFC 5545): events and tasks. Times are kept as epoch milliseconds. */
 
+import { readNames } from './categories';
+
 export interface CalEvent {
   id: string;
   uid: string;
@@ -17,6 +19,8 @@ export interface CalEvent {
   exdates: number[];
   /** Minutes before the start, or null for no reminder. */
   reminder: number | null;
+  /** Colour categories, by name. */
+  categories?: string[];
 }
 
 export interface TaskItem {
@@ -29,6 +33,7 @@ export interface TaskItem {
   done: boolean;
   completedAt: number | null;
   priority: 'high' | 'normal' | 'low';
+  categories?: string[];
 }
 
 let counter = 0;
@@ -195,6 +200,7 @@ export function parseIcs(text: string): { events: CalEvent[]; tasks: TaskItem[];
     const all = (n: string) => props.filter((p) => p.name === n);
     const uid = get('UID')?.value ?? newId('u');
     const title = unescapeText(get('SUMMARY')?.value ?? '');
+    const categories = readNames(all('CATEGORIES').flatMap((p) => p.value.split(/(?<!\\),/).map(unescapeText)));
     if (kind === 'VEVENT') {
       const ds = get('DTSTART');
       const s = ds && parseTime(ds, ctx);
@@ -232,6 +238,7 @@ export function parseIcs(text: string): { events: CalEvent[]; tasks: TaskItem[];
         rrule: get('RRULE')?.value ?? '',
         exdates: ex,
         reminder,
+        ...(categories ? { categories } : {}),
       });
     } else {
       const due = get('DUE') ? parseTime(get('DUE')!, ctx) : null;
@@ -248,6 +255,7 @@ export function parseIcs(text: string): { events: CalEvent[]; tasks: TaskItem[];
         done: status === 'COMPLETED' || Number(get('PERCENT-COMPLETE')?.value ?? 0) === 100,
         completedAt: completed?.t ?? null,
         priority: pr >= 1 && pr <= 4 ? 'high' : pr >= 6 ? 'low' : 'normal',
+        ...(categories ? { categories } : {}),
       });
     }
   }
@@ -297,6 +305,7 @@ export function writeIcs(events: CalEvent[], tasks: TaskItem[] = [], name = 'Nov
     if (e.location) L.push(`LOCATION:${escapeText(e.location)}`);
     if (e.description) L.push(`DESCRIPTION:${escapeText(e.description)}`);
     if (e.rrule) L.push(`RRULE:${e.rrule}`);
+    if (e.categories?.length) L.push(`CATEGORIES:${e.categories.map(escapeText).join(',')}`);
     for (const x of e.exdates) L.push(e.allDay ? `EXDATE;VALUE=DATE:${day(x)}` : `EXDATE:${utc(x)}`);
     if (e.reminder !== null) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeText(e.title || 'Recordatorio')}`, `TRIGGER:-PT${e.reminder}M`, 'END:VALARM');
     L.push('END:VEVENT');
@@ -305,6 +314,7 @@ export function writeIcs(events: CalEvent[], tasks: TaskItem[] = [], name = 'Nov
     L.push('BEGIN:VTODO', `UID:${t.uid}`, `DTSTAMP:${stamp}`, `SUMMARY:${escapeText(t.title)}`);
     if (t.notes) L.push(`DESCRIPTION:${escapeText(t.notes)}`);
     if (t.due !== null) L.push(`DUE;VALUE=DATE:${day(t.due)}`);
+    if (t.categories?.length) L.push(`CATEGORIES:${t.categories.map(escapeText).join(',')}`);
     L.push(`STATUS:${t.done ? 'COMPLETED' : 'NEEDS-ACTION'}`, `PRIORITY:${t.priority === 'high' ? 1 : t.priority === 'low' ? 9 : 5}`);
     if (t.done && t.completedAt) L.push(`COMPLETED:${utc(t.completedAt)}`);
     L.push('END:VTODO');

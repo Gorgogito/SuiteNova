@@ -1,10 +1,12 @@
 import { registerIcon, t, type RibbonGroup, type RibbonTab } from '@suitenova/core-ui';
 import { LIST_FILTERS, SORT_KEYS, canChangeFolder, type ListFilter, type SortKey } from '@suitenova/mail-core';
 import { folderMoveItems, moveTargets } from './actions';
-import { Archive, ArrowDownUp, Ban, CalendarPlus, Contact, Flag, Forward, Group, MailOpen, MailPlus, MessagesSquare, PanelRight, Reply, ReplyAll, Star, UserPlus } from 'lucide-react';
+import { Archive, ArrowDownUp, Ban, CalendarPlus, CircleCheck, Contact, Flag, FolderSearch, Forward, Group, Inbox, ListChecks, MailOpen, MailPlus, MessagesSquare, PanelRight, Reply, ReplyAll, Star, Tag, UserPlus, UserX, Zap } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import { helpTab, viewTab } from '../common';
 import type { MailUI } from './commands';
+import { categoryItems, followItems, junkItems, ruleItems, stepItems } from './organize-menus';
+import { RibbonMenu } from './RibbonMenu';
 import './icons';
 
 registerIcon('archive', Archive);
@@ -23,6 +25,13 @@ registerIcon('conversations', MessagesSquare);
 registerIcon('groups', Group);
 registerIcon('sortReverse', ArrowDownUp);
 registerIcon('star', Star);
+registerIcon('mailDone', CircleCheck);
+registerIcon('mailTag', Tag);
+registerIcon('mailRules', ListChecks);
+registerIcon('mailBolt', Zap);
+registerIcon('mailUserX', UserX);
+registerIcon('mailInbox', Inbox);
+registerIcon('mailSearchFolder', FolderSearch);
 
 function MoveSelect({ ui }: { ui: MailUI }) {
   const c = ui.ctl;
@@ -107,6 +116,33 @@ function ViewSelects({ ui }: { ui: MailUI }) {
   );
 }
 
+/** Where the messages go: a folder, the rules, or what is done with their senders. */
+function MoveColumn({ ui }: { ui: MailUI }) {
+  const c = ui.ctl;
+  const inMail = () => c.section === 'mail' && !c.compose;
+  return (
+    <div className="ml-ribbon-stack">
+      <MoveSelect ui={ui} />
+      <RibbonMenu ui={ui} label="Reglas" icon="mailRules" enabled={inMail} items={() => ruleItems(c, ui.openDialog)} />
+      <RibbonMenu ui={ui} label="Remitente" icon="mailUserX" enabled={inMail} items={() => junkItems(c, ui.openDialog)} />
+    </div>
+  );
+}
+
+/** Categories, follow-up and quick steps of the selected messages. */
+function TagColumn({ ui }: { ui: MailUI }) {
+  const c = ui.ctl;
+  const inMail = () => c.section === 'mail' && !c.compose;
+  const selected = () => inMail() && !!c.selected;
+  return (
+    <div className="ml-ribbon-stack">
+      <RibbonMenu ui={ui} label="Categorizar" icon="mailTag" enabled={selected} items={() => categoryItems(c, ui.openDialog)} />
+      <RibbonMenu ui={ui} label="Seguimiento" icon="flag" enabled={selected} items={() => followItems(c, ui.openDialog)} />
+      <RibbonMenu ui={ui} label="Pasos rápidos" icon="mailBolt" enabled={inMail} items={() => stepItems(c, ui.openDialog)} />
+    </div>
+  );
+}
+
 /** The ribbon of Nova Mail; the Home tab follows the section being shown. */
 export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' | 'tasks'): RibbonTab[] {
   const groups: Record<typeof section, RibbonGroup[]> = {
@@ -134,15 +170,17 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
           { kind: 'button', command: 'mail.editDraft', size: 'large', keytip: 'ED' },
         ],
       },
-      { id: 'move', label: 'Mover', icon: 'archive', items: [{ kind: 'custom', id: 'moveSel', label: 'Mover', keytip: 'MV', render: () => <MoveSelect ui={ui} /> }] },
+      { id: 'move', label: 'Mover', icon: 'archive', items: [{ kind: 'custom', id: 'moveSel', label: 'Mover', keytip: 'MV', render: () => <MoveColumn ui={ui} /> }] },
       {
         id: 'tags',
         label: 'Etiquetas',
         icon: 'flag',
         items: [
-          { kind: 'button', command: 'mail.markRead', size: 'small', keytip: 'LE' },
-          { kind: 'button', command: 'mail.markUnread', size: 'small', keytip: 'UL' },
-          { kind: 'button', command: 'mail.flag', size: 'small', keytip: 'BA' },
+          // icons alone: with their names the tab did not fit at 1400 px
+          { kind: 'button', command: 'mail.markRead', size: 'small', iconOnly: true, keytip: 'LE' },
+          { kind: 'button', command: 'mail.markUnread', size: 'small', iconOnly: true, keytip: 'UL' },
+          { kind: 'button', command: 'mail.flag', size: 'small', iconOnly: true, keytip: 'BA' },
+          { kind: 'custom', id: 'tagMenus', label: 'Organizar', keytip: 'ET', render: () => <TagColumn ui={ui} /> },
         ],
       },
       { id: 'find', label: 'Buscar', icon: 'search', items: [{ kind: 'button', command: 'mail.search', size: 'large', keytip: 'BU' }] },
@@ -233,6 +271,15 @@ export function mailTabs(ui: MailUI, section: 'mail' | 'calendar' | 'contacts' |
           { kind: 'button', command: 'mail.folder.markRead', size: 'large', keytip: 'LE' },
           { kind: 'button', command: 'mail.emptyFolder', size: 'large', keytip: 'VF' },
           { kind: 'button', command: 'mail.folder.favorite', size: 'large', keytip: 'FA' },
+        ],
+      },
+      {
+        id: 'searches',
+        label: 'Búsqueda',
+        icon: 'mailSearchFolder',
+        items: [
+          { kind: 'button', command: 'mail.searchFolder.new', size: 'large', keytip: 'BN' },
+          { kind: 'button', command: 'mail.advancedSearch', size: 'large', keytip: 'BV' },
         ],
       },
     ],

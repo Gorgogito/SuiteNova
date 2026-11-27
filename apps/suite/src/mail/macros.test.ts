@@ -60,6 +60,32 @@ describe('macros de Mail', () => {
     expect(ctl.data.messages.find((m) => m.subject === 'Hola')?.folder).toBe('archive');
   });
 
+  it('Categories y FlagStatus se leen y se cambian', () => {
+    const { ctl, put } = make(
+      lines(
+        'Function Prueba()',
+        '  Dim inbox, m, s',
+        '  Set inbox = Application.GetNamespace("MAPI").GetDefaultFolder(olFolderInbox)',
+        '  Set m = inbox.Items.Item(1)',
+        '  m.Categories = "Categoría azul; Trabajo"',
+        '  m.FlagStatus = 2',
+        '  s = m.Categories & "|" & m.FlagStatus',
+        '  m.FlagStatus = 1',
+        '  s = s & "|" & m.FlagStatus',
+        '  m.FlagStatus = 0',
+        '  m.Categories = ""',
+        '  Prueba = s & "|" & m.FlagStatus & "|" & m.Categories',
+        'End Function',
+      ),
+    );
+    put('Ana', 'Hola', 'a');
+    const r = run(ctl);
+    expect(r.error ?? '').toBe('');
+    expect(r.value).toBe('Categoría azul, Trabajo|2|1|0|');
+    expect(ctl.data.messages[0]).toMatchObject({ flagged: false });
+    expect(ctl.data.messages[0]!.categories).toBeUndefined();
+  });
+
   it('CreateItem de un mensaje: Save lo deja en Borradores y Display lo abre para redactar', () => {
     const { ctl } = make(
       lines(

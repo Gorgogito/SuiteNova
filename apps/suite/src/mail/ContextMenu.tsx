@@ -1,7 +1,7 @@
 import { Check, ChevronRight } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-export type MenuItem = { label: string; run?: () => void; disabled?: boolean; checked?: boolean; hint?: string; sub?: MenuItem[] } | 'separator';
+export type MenuItem = { label: string; run?: () => void; disabled?: boolean; checked?: boolean; hint?: string; sub?: MenuItem[]; /** A square of this colour before the label. */ color?: string } | 'separator';
 
 export interface MenuAt {
   x: number;
@@ -77,6 +77,7 @@ function List({ x, y, flipX, label, items, onDone, onBack }: { x: number; y: num
               }}
             >
               <span className="ml-menu__check">{it.checked && <Check size={13} aria-hidden="true" />}</span>
+              {it.color && <span className="ml-swatch" style={{ background: it.color }} aria-hidden="true" />}
               <span className="ml-menu__label">{it.label}</span>
               {it.hint && <span className="ml-menu__hint">{it.hint}</span>}
               {it.sub && <ChevronRight size={13} aria-hidden="true" />}

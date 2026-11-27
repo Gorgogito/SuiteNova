@@ -13,6 +13,7 @@ function setup() {
   const ui: MailUI = {
     ctl,
     openDialog: () => undefined,
+    showMenu: () => undefined,
     newWindow: () => undefined,
     open: async () => undefined,
     save: async () => undefined,

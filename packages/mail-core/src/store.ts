@@ -2,6 +2,11 @@ import { bodyText, bytesOf, decodeBase64, encodeBase64, formatAddress, importanc
 import type { CalEvent, TaskItem } from './ics';
 import type { Contact } from './vcard';
 import { messageIds } from './threads';
+import { readCategories, readNames, type Category } from './categories';
+import { readFollow, type FollowUp } from './followup';
+import { readJunk, type JunkLists } from './junk';
+import { readQuickSteps, readRules, type QuickStep, type Rule } from './rules';
+import { foldText, readSearchFolders, SEARCH_TEXT, type SearchFolder } from './search';
 
 export interface Folder {
   id: string;
@@ -49,6 +54,10 @@ export interface MailRecord {
   /** Los Message-ID a los que contesta (References e In-Reply-To): con ellos se forman las conversaciones. */
   refs?: string[];
   importance?: Importance;
+  /** Nombres de sus categorías de color. */
+  categories?: string[];
+  /** Seguimiento: vencimiento, aviso y cuándo se completó (la bandera es `flagged`). */
+  follow?: FollowUp;
   /** Un borrador tal como se estaba escribiendo (el formato del editor, opaco aquí): el mensaje de `raw` es lo que se enviaría. */
   compose?: Record<string, unknown>;
   /** The text read from the pictures of the message (OCR), by picture (`imagePartKey`): `StoredOcr` of the shared OCR, opaque here. */
@@ -92,6 +101,15 @@ export interface MailData {
   servers?: Record<string, ServerInfo>;
   /** Carpetas puestas en Favoritos, en su orden. */
   favorites?: string[];
+  /** Lista de categorías; sin ella, las de siempre. */
+  categories?: Category[];
+  rules?: Rule[];
+  /** Pasos rápidos; sin la lista, los dos de partida. */
+  quickSteps?: QuickStep[];
+  /** Carpetas de búsqueda; sin la lista, las dos de partida. */
+  searchFolders?: SearchFolder[];
+  /** Remitentes bloqueados y seguros. */
+  junk?: JunkLists;
 }
 
 let counter = 0;
@@ -100,8 +118,6 @@ export const newMailId = (): string => `m${Date.now().toString(36)}${(counter++)
 export function newMailData(): MailData {
   return { version: 1, owner: { name: '', email: '' }, folders: SYSTEM_FOLDERS.map((f) => ({ ...f })), messages: [], events: [], tasks: [], contacts: [] };
 }
-
-const fold = (s: string): string => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 /** Build the list record of a raw message (parsed once; the raw text stays the source of truth). */
 export function recordFromRaw(raw: string | Uint8Array, folder: string, opts: Partial<Pick<MailRecord, 'read' | 'flagged' | 'answered' | 'bcc'>> = {}): MailRecord {
@@ -119,7 +135,7 @@ export function recordFromRaw(raw: string | Uint8Array, folder: string, opts: Pa
     to: m.to.map((a) => a.name || a.email).join(', '),
     date: m.date?.getTime() ?? Date.now(),
     preview: text.slice(0, 200),
-    search: fold(`${m.subject}\n${m.from.map(formatAddress).join(' ')}\n${m.to.map(formatAddress).join(' ')}\n${m.cc.map(formatAddress).join(' ')}\n${text.slice(0, 4000)}`),
+    search: foldText(`${m.subject}\n${m.from.map(formatAddress).join(' ')}\n${m.to.map(formatAddress).join(' ')}\n${m.cc.map(formatAddress).join(' ')}\n${text.slice(0, SEARCH_TEXT)}`),
     hasAttachments: m.attachments.length > 0,
     size: bytes.length,
     read: opts.read ?? false,
@@ -180,19 +196,6 @@ export const inFolder = (d: MailData, folder: string): MailRecord[] => d.message
 
 export const unreadCount = (d: MailData, folder: string): number => d.messages.filter((m) => m.folder === folder && !m.read).length;
 
-/** Messages in a folder (or everywhere) whose subject, people or text contain every word typed. */
-export function searchMessages(d: MailData, query: string, folder: string | null): MailRecord[] {
-  const words = fold(query).split(/\s+/).filter(Boolean);
-  return d.messages
-    .filter((m) => {
-      if (folder !== null && m.folder !== folder) return false;
-      const hay = m.imageText ? `${m.search}
-${m.imageText}` : m.search;
-      return words.every((w) => hay.includes(w));
-    })
-    .sort((a, b) => b.date - a.date);
-}
-
 /** The pictures of a message the OCR can read: image attachments and inline images (not drawings in SVG), each with the key its reading is kept under. */
 export interface MessageImage {
   key: string;
@@ -220,7 +223,7 @@ export function setImageReading(r: MailRecord, key: string, reading: { text?: un
     .map((x) => (x as { text?: unknown }).text)
     .filter((x): x is string => typeof x === 'string' && x.length > 0)
     .join('\n');
-  if (text) r.imageText = fold(text.replace(/\s+/g, ' ')).slice(0, 4000);
+  if (text) r.imageText = foldText(text.replace(/\s+/g, ' ')).slice(0, 4000);
   else delete r.imageText;
 }
 
@@ -278,6 +281,12 @@ function readRecord(m: MailRecord, ids: Set<string>): MailRecord {
   if (!Array.isArray(rec.refs) || rec.refs.some((x) => typeof x !== 'string')) delete rec.refs;
   if (rec.importance !== 'high' && rec.importance !== 'low') delete rec.importance;
   if (!rec.compose || typeof rec.compose !== 'object' || Array.isArray(rec.compose)) delete rec.compose;
+  const categories = readNames(rec.categories);
+  if (categories) rec.categories = categories;
+  else delete rec.categories;
+  const follow = readFollow(rec.follow);
+  if (follow) rec.follow = follow;
+  else delete rec.follow;
   // the readings of the pictures: kept only when they are readings, and the search text follows them
   const ocr = m.ocr && typeof m.ocr === 'object' ? Object.entries(m.ocr).filter(([k, v]) => k.length < 300 && v && typeof (v as { text?: unknown }).text === 'string') : [];
   delete rec.ocr;
@@ -368,6 +377,12 @@ export function parseMailData(text: string): MailData {
     }
   }
   const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+  const tagged = <T extends { categories?: string[] }>(x: T): T => {
+    const categories = readNames(x.categories);
+    if (categories) return { ...x, categories };
+    const { categories: _none, ...rest } = x;
+    return rest as T;
+  };
   return {
     version: 1,
     owner: o.owner && typeof o.owner.email === 'string' ? { name: String(o.owner.name ?? ''), email: o.owner.email } : { name: '', email: '' },
@@ -375,9 +390,14 @@ export function parseMailData(text: string): MailData {
     messages: arr<MailRecord>(o.messages)
       .filter((m) => m && typeof m.raw === 'string' && typeof m.id === 'string')
       .map((m) => readRecord(m, ids)),
-    events: arr<CalEvent>(o.events).filter((e) => e && typeof e.start === 'number' && typeof e.end === 'number'),
-    tasks: arr<TaskItem>(o.tasks).filter((t) => t && typeof t.id === 'string'),
-    contacts: arr<Contact>(o.contacts).filter((c) => c && typeof c.id === 'string'),
+    events: arr<CalEvent>(o.events).filter((e) => e && typeof e.start === 'number' && typeof e.end === 'number').map(tagged),
+    tasks: arr<TaskItem>(o.tasks).filter((t) => t && typeof t.id === 'string').map(tagged),
+    contacts: arr<Contact>(o.contacts).filter((c) => c && typeof c.id === 'string').map(tagged),
+    categories: readCategories(o.categories),
+    rules: readRules(o.rules),
+    quickSteps: readQuickSteps(o.quickSteps),
+    searchFolders: readSearchFolders(o.searchFolders),
+    junk: readJunk(o.junk),
     sync: readSync(o.sync),
     pending: readPending(o.pending),
     servers: readServers(o.servers),

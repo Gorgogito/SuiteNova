@@ -1,3 +1,4 @@
+import { readNames } from './categories';
 import { decodeCharset, decodeQuotedPrintable } from './mime';
 
 export interface LabeledValue {
@@ -20,6 +21,7 @@ export interface Contact {
   url: string;
   birthday: string;
   note: string;
+  categories?: string[];
 }
 
 let counter = 0;
@@ -114,6 +116,11 @@ export function parseVcf(text: string): { contacts: Contact[]; warnings: string[
       case 'URL': cur.url ||= value; break;
       case 'BDAY': cur.birthday = value.replace(/^(\d{4})(\d{2})(\d{2}).*$/, '$1-$2-$3'); break;
       case 'NOTE': cur.note = unescapeV(value); break;
+      case 'CATEGORIES': {
+        const names = readNames([...(cur.categories ?? []), ...splitUnescaped(value, ',').map(unescapeV)]);
+        if (names) cur.categories = names;
+        break;
+      }
       case 'PHOTO':
       case 'LOGO': break;
     }
@@ -152,6 +159,7 @@ export function writeVcf(contacts: Contact[]): string {
     if (c.url) out.push(`URL:${c.url}`);
     if (c.birthday) out.push(`BDAY:${c.birthday}`);
     if (c.note) out.push(`NOTE:${escapeV(c.note)}`);
+    if (c.categories?.length) out.push(`CATEGORIES:${c.categories.map(escapeV).join(',')}`);
     out.push('END:VCARD');
   }
   return out.map(foldV).join('\r\n') + '\r\n';

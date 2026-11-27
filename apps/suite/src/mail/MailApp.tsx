@@ -1,6 +1,6 @@
 import { Button, DialogActions, DialogContent, DialogTitle, Input } from '@fluentui/react-components';
 import { AppFrame, CommandRegistry, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { contactsFromCsv, contactsToCsv, occurrencesBetween, parseIcs, parseMailData, parseMbox, parseVcf, rawHeaders, rawOf, serializeMail, writeIcs, writeMbox, writeVcf } from '@suitenova/mail-core';
+import { contactsFromCsv, contactsToCsv, isFollowed, occurrencesBetween, parseIcs, parseMailData, parseMbox, parseVcf, rawHeaders, rawOf, serializeMail, writeIcs, writeMbox, writeVcf } from '@suitenova/mail-core';
 import { Calendar, CheckSquare, Mail, Users } from 'lucide-react';
 import { parseCsv, toCsv } from '@suitenova/base-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -12,7 +12,9 @@ import { useCloseGuard } from '../close-guard';
 import { closeThisWindow, isTauri, openModuleWindow } from '../platform';
 import { AccountsDialog } from './AccountsDialog';
 import { CalendarView } from './CalendarView';
-import { mailCommands, type ImportKind, type MailDialog, type MailUI } from './commands';
+import { ContextMenu, type MenuAt } from './ContextMenu';
+import { mailCommands, type DialogArg, type ImportKind, type MailDialog, type MailUI, type OpenDialog } from './commands';
+import { AdvancedSearchDialog, CategoriesDialog, FollowDialog, JunkDialog, QuickStepsDialog, RulesDialog, SearchFolderDialog } from './dlg-organize';
 import { MailCtl } from './ctl';
 import './messages';
 import { setTransport } from './remote';
@@ -75,7 +77,8 @@ const SHORTCUTS: [string, string][] = [
   ['Mayús / Ctrl + clic · Mayús+flechas', 'Seleccionar varios mensajes'],
   ['Ctrl+A', 'Seleccionar todos los mensajes de la lista'],
   ['Flecha derecha / izquierda', 'Abrir o cerrar una conversación'],
-  ['Insert', 'Poner o quitar la bandera'],
+  ['Insert', 'Marcar para seguimiento o completarlo'],
+  ['Ctrl+Mayús+1 … 9', 'Pasos rápidos'],
   ['Mayús+F10', 'Menú del mensaje o de la carpeta'],
   ['F2', 'Cambiar el nombre de la carpeta'],
   ['Ctrl+P', 'Imprimir el mensaje'],
@@ -139,9 +142,15 @@ export function MailApp({ module }: { module: ModuleInfo }) {
   const registry = useMemo(() => new CommandRegistry(), []);
   const ctl = useMemo(() => new MailCtl(), []);
   const [dialog, setDialog] = useState<MailDialog | null>(null);
+  const [arg, setArg] = useState<DialogArg>({});
+  const [menu, setMenu] = useState<MenuAt | null>(null);
+  const openDialog: OpenDialog = useCallback((kind, with_ = {}) => {
+    setArg(with_);
+    setDialog(kind);
+  }, []);
   const [status, setStatus] = useState('');
   const [link, setLink] = useState<string | null>(null);
-  const [reminders, setReminders] = useState<{ key: string; title: string; when: string }[]>([]);
+  const [reminders, setReminders] = useState<{ key: string; title: string; when: string; message?: string }[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const importKind = useRef<ImportKind>('eml');
@@ -253,7 +262,8 @@ export function MailApp({ module }: { module: ModuleInfo }) {
   const ui: MailUI = useMemo(
     () => ({
       ctl,
-      openDialog: (k) => setDialog(k),
+      openDialog,
+      showMenu: setMenu,
       newWindow: () => void openModuleWindow('mail', module.name),
       open: async () => {
         ctl.leaveCompose();
@@ -300,7 +310,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
       // the close guard asks about unsaved changes, here and from the title bar
       close: () => void closeThisWindow(),
     }),
-    [ctl, loadFile, saveNow, module.name],
+    [ctl, loadFile, saveNow, module.name, openDialog],
   );
 
   useEffect(() => {
@@ -337,7 +347,9 @@ export function MailApp({ module }: { module: ModuleInfo }) {
   // reminders: look for events whose reminder time has come
   const checkReminders = useCallback(() => {
     const now = Date.now();
-    const due: { key: string; title: string; when: string }[] = [];
+    const due: { key: string; title: string; when: string; message?: string }[] = ctl.organize
+      .dueReminders(now)
+      .map((m) => ({ key: `f:${m.id}`, title: m.subject, when: m.due === null ? t('Seguimiento') : t('Seguimiento: vence el {date}.', { date: new Date(m.due).toLocaleDateString() }), message: m.id }));
     for (const o of occurrencesBetween(ctl.data.events.filter((e) => e.reminder !== null), now - 3600000, now + 7 * 86400000)) {
       const at = o.start - (o.event.reminder ?? 0) * 60000;
       const key = `${o.event.id}@${o.start}`;
@@ -350,14 +362,18 @@ export function MailApp({ module }: { module: ModuleInfo }) {
     const id = setInterval(checkReminders, 30000);
     return () => clearInterval(id);
   }, [checkReminders, ctl.data.events]);
+  // a reminder just set, or one whose message changed
+  const version = ctl.getVersion();
+  useEffect(() => checkReminders(), [checkReminders, version]);
 
   const listActions = useMemo(
     () => ({
       print: printMessage,
-      headers: () => setDialog('headers'),
+      headers: () => openDialog('headers'),
       saveAttachments: (rec: Parameters<typeof printMessage>[0]) => void saveAttachmentsOf(rec, setStatus),
+      openDialog,
     }),
-    [ctl],
+    [openDialog],
   );
 
   // Ctrl+Z takes back what was done to the messages; in a field or in the message being written it undoes the typing
@@ -415,7 +431,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
       backstage={backstage}
       statusLeft={
         <>
-          <span>{ctl.section === 'mail' ? t('{n} mensajes', { n: ctl.list().length }) : ctl.section === 'calendar' ? t('{n} eventos', { n: ctl.data.events.length }) : ctl.section === 'contacts' ? t('{n} contactos', { n: ctl.data.contacts.length }) : t('{n} tareas', { n: ctl.data.tasks.length })}</span>
+          <span>{ctl.section === 'mail' ? t('{n} mensajes', { n: ctl.list().length }) : ctl.section === 'calendar' ? t('{n} eventos', { n: ctl.data.events.length }) : ctl.section === 'contacts' ? t('{n} contactos', { n: ctl.data.contacts.length }) : t('{n} tareas', { n: ctl.data.tasks.length + ctl.data.messages.filter(isFollowed).length })}</span>
           {status && <span aria-live="polite">{status}</span>}
           {ctl.composeNotice && <span aria-live="polite" data-testid="compose-status">{t(ctl.composeNotice)}</span>}
           {ctl.syncMessage && <span aria-live="polite" data-testid="sync-status">{t(ctl.syncMessage)}</span>}
@@ -436,27 +452,35 @@ export function MailApp({ module }: { module: ModuleInfo }) {
         </nav>
         {ctl.section === 'mail' && (
           <div className={`ml-mail${ctl.showReadingPane ? '' : ' no-pane'}`}>
-            <FolderTree ctl={ctl} />
+            <FolderTree ctl={ctl} openDialog={openDialog} />
             <div className="ml-mail__center">
               <div className="ml-searchbar">
                 <input
                   ref={searchRef}
                   type="search"
                   aria-label={t('Buscar correo')}
-                  placeholder={t('Buscar en esta carpeta (empieza con * para buscar en todas)')}
+                  placeholder={ctl.searchFolder ? t('Buscar en esta carpeta de búsqueda') : t('Buscar en esta carpeta (empieza con * para buscar en todas)')}
                   value={ctl.query}
-                  onChange={(e) => {
-                    ctl.query = e.target.value;
-                    ctl.touch();
-                  }}
+                  aria-invalid={ctl.searchErrors.length > 0}
+                  onChange={(e) => ctl.setQuery(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      ctl.query = '';
-                      ctl.touch();
-                    }
+                    if (e.key === 'Escape') ctl.setQuery('');
                   }}
                 />
+                <button type="button" className="ml-btn" title={t('Búsqueda avanzada…')} onClick={() => openDialog('advancedSearch')}>
+                  {t('Más…')}
+                </button>
+                {ctl.query.replace(/^\s*\*/, '').trim() && ctl.searchErrors.length === 0 && (
+                  <button type="button" className="ml-btn" title={t('Guardar como carpeta de búsqueda…')} onClick={() => openDialog('searchFolder', { query: ctl.query.replace(/^\s*\*\s*/, '') })}>
+                    {t('Guardar búsqueda')}
+                  </button>
+                )}
               </div>
+              {ctl.searchErrors.length > 0 && (
+                <div className="ml-searcherror" role="alert">
+                  {t('No se entiende: {what}', { what: ctl.searchErrors.join(', ') })}
+                </div>
+              )}
               <MessageList ctl={ctl} actions={listActions} />
             </div>
             {ctl.showReadingPane && (
@@ -509,7 +533,7 @@ export function MailApp({ module }: { module: ModuleInfo }) {
                         {t('Eliminar')}
                       </button>
                     </div>
-                    <ReadingPane key={sel.id} rec={sel} onLink={setLink} />
+                    <ReadingPane key={sel.id} ctl={ctl} rec={sel} onLink={setLink} />
                   </>
                 ) : (
                   <div className="ml-empty">{t('Selecciona un mensaje para leerlo.')}</div>
@@ -522,17 +546,42 @@ export function MailApp({ module }: { module: ModuleInfo }) {
         {ctl.section === 'contacts' && <ContactsView ctl={ctl} />}
         {ctl.section === 'tasks' && <TasksView ctl={ctl} />}
 
-        {reminders.length > 0 && (
+        {(reminders.length > 0 || ctl.organize.notices.length > 0) && (
           <div className="ml-toasts" role="region" aria-label={t('Recordatorios')} aria-live="polite">
+            {ctl.organize.notices.map((n) => (
+              <div key={n.key} className="ml-toast">
+                <strong>{n.title || t('Regla')}</strong>
+                <span>{n.text || t('(sin asunto)')}</span>
+                <button type="button" className="ml-btn" onClick={() => ctl.organize.dismissNotice(n.key)}>
+                  {t('Cerrar')}
+                </button>
+              </div>
+            ))}
             {reminders.map((r) => (
               <div key={r.key} className="ml-toast">
                 <strong>{r.title || t('(sin título)')}</strong>
                 <span>{r.when}</span>
+                {r.message && (
+                  <button
+                    type="button"
+                    className="ml-btn"
+                    onClick={() => {
+                      const m = ctl.data.messages.find((x) => x.id === r.message);
+                      if (!m) return;
+                      ctl.go('mail');
+                      ctl.setFolder(m.folder);
+                      ctl.select(m.id);
+                    }}
+                  >
+                    {t('Abrir')}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="ml-btn"
                   onClick={() => {
-                    ctl.dismissed.add(r.key);
+                    if (r.message) ctl.organize.dismissReminder(r.message);
+                    else ctl.dismissed.add(r.key);
                     checkReminders();
                   }}
                 >
@@ -559,11 +608,19 @@ export function MailApp({ module }: { module: ModuleInfo }) {
           {!inPane && composer('dialog')}
         </StickyDialog>
         <LinkConfirm link={link} onClose={() => setLink(null)} />
+        {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
         {dialog === 'signatures' && <SignaturesDialog accounts={ctl.accounts} onClose={() => setDialog(null)} />}
         {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={() => setDialog(null)} onEdit={() => setDialog('macroEditor')} />}
         {dialog === 'macroEditor' && <MacroEditorDialog ctl={ctl} onClose={() => setDialog(null)} />}
         {dialog === 'macroSecurity' && <MacroSecurity ctl={ctl} onClose={() => setDialog(null)} />}
-        <StickyDialog open={dialog !== null && dialog !== 'macros' && dialog !== 'macroEditor' && dialog !== 'signatures'} onClose={() => setDialog(null)} width={dialog === 'accounts' ? 640 : dialog === 'headers' ? 760 : undefined}>
+        <StickyDialog open={dialog !== null && dialog !== 'macros' && dialog !== 'macroEditor' && dialog !== 'signatures'} onClose={() => setDialog(null)} width={dialog === 'accounts' || dialog === 'categories' || dialog === 'junk' ? 640 : dialog === 'headers' || dialog === 'rules' || dialog === 'quickSteps' ? 760 : undefined}>
+          {dialog === 'categories' && <CategoriesDialog ctl={ctl} onClose={() => setDialog(null)} />}
+          {dialog === 'follow' && <FollowDialog ctl={ctl} ids={arg.ids ?? []} onClose={() => setDialog(null)} />}
+          {dialog === 'rules' && <RulesDialog ctl={ctl} initial={arg.rule} onClose={() => setDialog(null)} />}
+          {dialog === 'quickSteps' && <QuickStepsDialog ctl={ctl} onClose={() => setDialog(null)} />}
+          {dialog === 'junk' && <JunkDialog ctl={ctl} onClose={() => setDialog(null)} />}
+          {dialog === 'searchFolder' && <SearchFolderDialog ctl={ctl} id={arg.folder} query={arg.query} onClose={() => setDialog(null)} />}
+          {dialog === 'advancedSearch' && <AdvancedSearchDialog ctl={ctl} onClose={() => setDialog(null)} onSave={(query) => openDialog('searchFolder', { query })} />}
           {dialog === 'imageText' && <MessageImagesForm ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'settings' && <SettingsDialog ctl={ctl} onClose={() => setDialog(null)} />}
           {dialog === 'accounts' && <AccountsDialog ctl={ctl} onClose={() => setDialog(null)} />}

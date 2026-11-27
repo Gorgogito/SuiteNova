@@ -1,8 +1,9 @@
 import { t } from '@suitenova/core-ui';
-import { canChangeFolder, childrenOf, favoriteFolders, folderParents, folderRows, unreadCount, type Folder } from '@suitenova/mail-core';
-import { ChevronDown, ChevronRight, Star } from 'lucide-react';
+import { canChangeFolder, childrenOf, favoriteFolders, folderParents, folderRows, searchFolderMessages, searchFoldersOf, unreadCount, DEFAULT_SEARCH_FOLDERS, type Folder, type SearchFolder } from '@suitenova/mail-core';
+import { ChevronDown, ChevronRight, Search, Star } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
 import { emptyFolder, folderMoveItems, moveFolder, removeFolder } from './actions';
+import type { OpenDialog } from './commands';
 import { ContextMenu, type MenuAt, type MenuItem } from './ContextMenu';
 import type { MailCtl } from './ctl';
 import { MAIL_DRAG, draggedMail } from './drag';
@@ -65,7 +66,7 @@ function RenameField({ ctl, folder }: { ctl: MailCtl; folder: Folder }) {
   );
 }
 
-export function FolderTree({ ctl }: { ctl: MailCtl }) {
+export function FolderTree({ ctl, openDialog }: { ctl: MailCtl; openDialog: OpenDialog }) {
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
   const [name, setName] = useState('');
   const [where, setWhere] = useState('local');
@@ -212,6 +213,14 @@ export function FolderTree({ ctl }: { ctl: MailCtl }) {
   };
 
   const favorites = favoriteFolders(ctl.data);
+  const searches = searchFoldersOf(ctl.data);
+  const searchMenu = (s: SearchFolder): MenuItem[] => [
+    { label: t('Editar la búsqueda…'), run: () => openDialog('searchFolder', { folder: s.id }) },
+    { label: t('Quitar la carpeta de búsqueda'), run: () => ctl.organize.removeSearchFolder(s.id) },
+    'separator',
+    { label: t('Carpeta de búsqueda nueva…'), run: () => openDialog('searchFolder') },
+    { label: t('Restaurar las de partida'), disabled: DEFAULT_SEARCH_FOLDERS.every((d) => searches.some((x) => x.id === d.id)), run: () => ctl.organize.restoreSearchFolders() },
+  ];
   return (
     <nav className={`ml-folders nv-panel${over === '' ? ' is-drop' : ''}`} aria-label={t('Carpetas')} {...dropOn(null)}>
       {favorites.length > 0 && (
@@ -248,6 +257,43 @@ export function FolderTree({ ctl }: { ctl: MailCtl }) {
             );
           })}
       </ul>
+      <section className="ml-searches" aria-label={t('Carpetas de búsqueda')}>
+        <h3>
+          <Search size={12} aria-hidden="true" /> {t('Carpetas de búsqueda')}
+          <button type="button" aria-label={t('Carpeta de búsqueda nueva…')} title={t('Carpeta de búsqueda nueva…')} onClick={() => openDialog('searchFolder')}>
+            +
+          </button>
+        </h3>
+        <ul>
+          {searches.map((s) => {
+            const unread = searchFolderMessages(ctl.data, s).filter((m) => !m.read).length;
+            return (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  className={`ml-folder-name${s.id === ctl.folder ? ' is-current' : ''}`}
+                  aria-current={s.id === ctl.folder}
+                  title={s.query}
+                  onClick={() => ctl.setFolder(s.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setMenu({ x: e.clientX || r.left + 20, y: e.clientY || r.bottom, label: t('Carpeta {name}', { name: t(s.name) }), items: searchMenu(s) });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Delete') return;
+                    e.preventDefault();
+                    ctl.organize.removeSearchFolder(s.id);
+                  }}
+                >
+                  <span>{t(s.name)}</span>
+                  {unread > 0 ? <b aria-label={t('{n} sin leer', { n: unread })}>{unread}</b> : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
       {adding ? (
         <div className="ml-newfolder">
           <input

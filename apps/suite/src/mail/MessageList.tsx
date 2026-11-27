@@ -1,11 +1,14 @@
 import { t } from '@suitenova/core-ui';
-import { LIST_FILTERS, SORT_KEYS, type GroupName, type ListRow, type MailRecord } from '@suitenova/mail-core';
+import { LIST_FILTERS, SORT_KEYS, isDone, isOverdue, type GroupName, type ListRow, type MailRecord } from '@suitenova/mail-core';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react';
 import { moveTargets, removeSelected } from './actions';
+import { CategoryChips } from './CategoryViews';
+import type { OpenDialog } from './commands';
 import { ContextMenu, type MenuAt, type MenuItem } from './ContextMenu';
 import type { MailCtl } from './ctl';
 import { MAIL_DRAG } from './drag';
+import { categoryItems, followItems, junkItems, ruleItems, stepItems } from './organize-menus';
 
 const ROW = 66;
 const GROUP = 28;
@@ -41,6 +44,14 @@ export interface ListActions {
   print: (rec: MailRecord) => void;
   headers: () => void;
   saveAttachments: (rec: MailRecord) => void;
+  openDialog: OpenDialog;
+}
+
+/** What the flag of a row says when the pointer is over it. */
+function flagTitle(m: MailRecord): string {
+  if (isDone(m)) return t('Completado el {date}', { date: new Date(m.follow!.done!).toLocaleDateString() });
+  if (!m.flagged) return t('Marcar con bandera');
+  return m.follow?.due != null ? t('Vence el {date}', { date: new Date(m.follow.due).toLocaleDateString() }) : t('Con bandera, sin fecha');
 }
 
 function messageItems(ctl: MailCtl, actions: ListActions): MenuItem[] {
@@ -66,6 +77,12 @@ function messageItems(ctl: MailCtl, actions: ListActions): MenuItem[] {
     { label: t('Archivar'), disabled: records.every((m) => m.folder === 'archive'), run: () => void ctl.moveMany(ids, 'archive') },
     { label: t('Correo no deseado'), disabled: records.every((m) => m.folder === 'junk'), run: () => void ctl.moveMany(ids, 'junk') },
     { label: t('Eliminar'), hint: t('Supr'), run: () => removeSelected(ctl) },
+    'separator',
+    { label: t('Categorizar'), sub: categoryItems(ctl, actions.openDialog) },
+    { label: t('Seguimiento'), sub: followItems(ctl, actions.openDialog) },
+    { label: t('Pasos rápidos'), sub: stepItems(ctl, actions.openDialog) },
+    { label: t('Reglas'), sub: ruleItems(ctl, actions.openDialog) },
+    { label: t('Remitente'), sub: junkItems(ctl, actions.openDialog) },
   );
   if (one) {
     items.push('separator', { label: t('Imprimir…'), hint: 'Ctrl+P', run: () => actions.print(one) });
@@ -113,7 +130,9 @@ export function MessageList({ ctl, actions }: { ctl: MailCtl; actions: ListActio
   const first = Math.max(0, rowAt(top) - 5);
   const last = Math.min(rows.length - 1, rowAt(top + h) + 5);
 
-  const folderName = ctl.data.folders.find((f) => f.id === ctl.folder)?.name ?? '';
+  const folderName = ctl.searchFolder?.name ?? ctl.data.folders.find((f) => f.id === ctl.folder)?.name ?? '';
+  // in a search that is not of one folder, each row says where the message is
+  const mixed = !!ctl.searchFolder || ctl.query.startsWith('*');
   const outgoing = ctl.outgoing;
   const messages = rows.filter((r): r is MessageRow => r.type === 'message');
   /** The row the keyboard is on. */
@@ -157,7 +176,11 @@ export function MessageList({ ctl, actions }: { ctl: MailCtl; actions: ListActio
     else if (e.key === 'ArrowLeft' && row?.child) go(messages.findIndex((r) => r.thread?.key === row.child));
     else if (e.key === 'Delete') removeSelected(ctl, e.shiftKey);
     else if (ctrl && e.key.toLowerCase() === 'a') ctl.selectAll();
-    else if (e.key === 'Insert' && ctl.selectedId) ctl.setFlagMany(ctl.selectedIds(), !ctl.selectedRecords.every((m) => m.flagged));
+    else if (e.key === 'Insert' && ctl.selectedId) {
+      // like the flag: it marks for follow-up, and what is all marked is completed
+      if (ctl.selectedRecords.every((m) => m.flagged)) ctl.completeMany(ctl.selectedIds());
+      else ctl.setFlagMany(ctl.selectedIds(), true);
+    }
     else if (e.key === 'Enter' && ctl.selected?.folder === 'drafts') ctl.editDraft(ctl.selected.id);
     else if ((e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) && ctl.selectedId) {
       const el = ref.current!.querySelector('.ml-item.is-selected') ?? ref.current!;
@@ -183,7 +206,10 @@ export function MessageList({ ctl, actions }: { ctl: MailCtl; actions: ListActio
     const selected = th ? ctl.selectedThread === th.key || (!th.open && th.ids.every((id) => ctl.isSelected(id))) : ctl.isSelected(m.id);
     const unread = th ? th.unread > 0 : !m.read;
     const flagged = th ? th.members.some((x) => x.flagged) : m.flagged;
-    const folder = r.child && m.folder !== ctl.folder ? ctl.data.folders.find((f) => f.id === m.folder)?.name : undefined;
+    const folder = (r.child && m.folder !== ctl.folder) || mixed ? ctl.data.folders.find((f) => f.id === m.folder)?.name : undefined;
+    const done = th ? !flagged && th.members.some(isDone) : isDone(m);
+    const late = (th ? th.members : [m]).some((x) => isOverdue(x, Date.now()));
+    const names = th ? [...new Set(th.members.flatMap((x) => x.categories ?? []))] : m.categories;
     const has = (test: (x: MailRecord) => boolean) => (th ? th.members.some(test) : test(m));
     return (
       <div
@@ -247,20 +273,25 @@ export function MessageList({ ctl, actions }: { ctl: MailCtl; actions: ListActio
           </span>
           <button
             type="button"
-            className={`ml-flag${flagged ? ' is-on' : ''}`}
-            aria-label={flagged ? t('Quitar bandera') : t('Marcar con bandera')}
+            className={`ml-flag${flagged ? ' is-on' : ''}${late ? ' is-late' : ''}${done ? ' is-done' : ''}`}
+            aria-label={flagged ? t('Marcar como completado') : t('Marcar con bandera')}
             aria-pressed={flagged}
+            title={th ? undefined : flagTitle(m)}
             onClick={(e) => {
               e.stopPropagation();
-              if (th) ctl.setFlagMany(th.ids, !flagged);
-              else ctl.toggleFlag(m.id);
+              if (!th) ctl.toggleFlag(m.id);
+              else if (flagged) ctl.completeMany(th.members.filter((x) => x.flagged && th.ids.includes(x.id)).map((x) => x.id));
+              else ctl.setFlagMany(th.ids, true);
             }}
             onDoubleClick={(e) => e.stopPropagation()}
           >
-            {flagged ? '⚑' : '⚐'}
+            {flagged ? '⚑' : done ? '✓' : '⚐'}
           </button>
         </div>
-        <div className="ml-item__preview">{m.preview}</div>
+        <div className="ml-item__preview">
+          <CategoryChips data={ctl.data} names={names} max={2} />
+          <span>{m.preview}</span>
+        </div>
       </div>
     );
   };
@@ -299,7 +330,7 @@ export function MessageList({ ctl, actions }: { ctl: MailCtl; actions: ListActio
       </div>
       <div ref={ref} className="ml-list__scroll" role="listbox" aria-multiselectable="true" aria-label={t('Mensajes')} tabIndex={0} onScroll={(e) => setTop(e.currentTarget.scrollTop)} onKeyDown={onKeyDown}>
         <div role="presentation" style={{ height: total, position: 'relative' }}>
-          {rows.length === 0 && <div className="ml-empty">{ctl.query.trim() ? t('Sin resultados') : ctl.view.filter !== 'all' ? t('No hay mensajes con ese filtro.') : t('Esta carpeta está vacía.')}</div>}
+          {rows.length === 0 && <div className="ml-empty">{ctl.query.trim() ? t('Sin resultados') : ctl.view.filter !== 'all' ? t('No hay mensajes con ese filtro.') : ctl.searchFolder ? t('No hay mensajes que cumplan esta búsqueda.') : t('Esta carpeta está vacía.')}</div>}
           {rows.slice(first, last + 1).map((r, i) =>
             r.type === 'group' ? (
               <div key={r.key} role="presentation" className="ml-group" style={{ top: starts[first + i], height: GROUP }}>
