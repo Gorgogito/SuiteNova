@@ -191,7 +191,7 @@
   box-sizing: border-box;
   resize: none;
   border: 2px solid #0f6cbd;
-  background: rgba(255, 255, 255, 0.95);
+  background: #fff; /* opaque: the text already in the shape (saved while typing) must not show through */
   padding: 4px;
   line-height: 1.25;
   outline: none;

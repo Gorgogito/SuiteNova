@@ -1,7 +1,7 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, DialogTrigger, Input } from '@fluentui/react-components';
 import { useImageSources } from '../images/useSources';
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { PAGE_SIZES, dataToCsv, exportArea, exportVsdx, importVsdx, setShapeImage, vsdxPicturesLost, pageToSvg, parseDiagram, serializeDiagram, type Page } from '@suitenova/diagram-core';
+import { PAGE_SIZES, dataToCsv, exportArea, exportVsdx, importVsdx, setShapeImage, vsdxPicturesLost, pageToSvg, parseDiagram, printDocument, serializeDiagram, type Page } from '@suitenova/diagram-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { zoomCommands } from '../common';
 import { pickAndRead, readPath, saveBytes } from '../fileio';
@@ -37,7 +37,6 @@ const DG_FILTERS = [{ name: 'Diagrama de Nova Diagram', extensions: ['novadiagra
 const OPEN_FILTERS = [{ name: 'Diagramas', extensions: ['novadiagram', 'vsdx'] }];
 const AUTOSAVE_MS = 1500;
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Diagrama';
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const SHORTCUTS: [string, string][] = [
   ['Ctrl+N / O / S', 'Nuevo / Abrir / Guardar'],
@@ -82,18 +81,6 @@ async function svgToPng(svg: string, w: number, h: number, scale: number): Promi
   } finally {
     URL.revokeObjectURL(url);
   }
-}
-
-function printHtml(ctl: DiagramCtl): string {
-  const first = ctl.diagram.pages[0]!;
-  const a = exportArea(first);
-  const pages = ctl.diagram.pages
-    .map((p) => {
-      const area = exportArea(p);
-      return `<section style="width:${area.w}px;height:${area.h}px">${pageToSvg(p).replace(/<svg /, '<svg style="width:100%;height:100%" ')}</section>`;
-    })
-    .join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(ctl.diagram.name)}</title><style>@page{size:${Math.round(a.w)}px ${Math.round(a.h)}px;margin:0}html,body{margin:0}section{page-break-after:always;overflow:hidden}section:last-child{page-break-after:auto}</style></head><body>${pages}</body></html>`;
 }
 
 function PageSetup({ ctl, onClose }: { ctl: DiagramCtl; onClose: () => void }) {
@@ -278,7 +265,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
   const registry = useMemo(() => new CommandRegistry(), []);
   const ctl = useMemo(() => new DiagramCtl(), []);
   const [dialog, setDialog] = useState<DiagramDialog | null>(null);
-  const [saveState, setSaveState] = useState('');
+  const [saveError, setSaveError] = useState('');
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const zoomRef = useRef(ctl.zoom);
@@ -289,6 +276,8 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
   const saveNow = useCallback(
     async (saveAs: boolean, silent = false) => {
       try {
+        // what is being typed is part of what the user asks to save (the autosave leaves the editor alone)
+        if (!silent) ctl.flushTyping();
         const data = new TextEncoder().encode(serializeDiagram(ctl.saved));
         const base = (ctl.fileName ?? ctl.diagram.name).replace(/\.[^.]+$/, '');
         const keep = !saveAs && ctl.filePath?.toLowerCase().endsWith('.novadiagram') ? ctl.filePath : null;
@@ -296,11 +285,11 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         if (saved) {
           ctl.markSaved(saved.name, saved.path);
           if (!silent) addRecent({ path: saved.path, name: saved.name, app: 'diagram' });
-          setSaveState(t('Guardado'));
+          setSaveError('');
         }
       } catch (e) {
         if (!silent) window.alert(t('No se pudo guardar: {error}', { error: (e as Error).message }));
-        else setSaveState(t('No se pudo guardar automáticamente'));
+        else setSaveError(t('No se pudo guardar automáticamente'));
       }
     },
     [ctl],
@@ -314,6 +303,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
 
   const loadFile = useCallback(
     async (file: { name: string; path: string | null; data: Uint8Array }) => {
+      setSaveError('');
       try {
         const lower = file.name.toLowerCase();
         if (lower.endsWith('.vsd')) throw new Error(t('Los .vsd antiguos de Visio no se pueden abrir. En Visio usa Archivo > Guardar como > .vsdx.'));
@@ -343,7 +333,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
       openDialog: (k) => setDialog(k),
       newWindow: () => void openModuleWindow('diagram', module.name),
       open: async () => {
-        if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
+        if (ctl.unsaved && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
         const f = await pickAndRead(OPEN_FILTERS).catch((e) => {
           window.alert(String(e));
           return null;
@@ -352,16 +342,18 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
       },
       save: (saveAs) => saveNow(saveAs),
       importVsdx: async () => {
-        if (ctl.dirty && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
+        if (ctl.unsaved && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
         const f = await pickAndRead([{ name: 'Visio', extensions: ['vsdx'] }]).catch(() => null);
         if (f) await loadFile(f);
       },
       exportSvg: async () => {
+        ctl.flushTyping();
         const page = ctl.basePage;
         await saveBytes(`${safeName(page.name)}.svg`, new TextEncoder().encode(pageToSvg(page)), [{ name: 'SVG', extensions: ['svg'] }]);
       },
       exportVsdx: async () => {
         try {
+          ctl.flushTyping();
           const data = await exportVsdx(ctl.diagram);
           await saveBytes(`${safeName(ctl.diagram.name)}.vsdx`, data, [{ name: 'Visio', extensions: ['vsdx'] }]);
           const lost = vsdxPicturesLost(ctl.diagram);
@@ -375,7 +367,8 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         const frame = document.createElement('iframe');
         frame.setAttribute('aria-hidden', 'true');
         frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-        frame.srcdoc = printHtml(ctl);
+        ctl.flushTyping();
+        frame.srcdoc = printDocument(ctl.diagram);
         frame.onload = () => {
           frame.contentWindow?.focus();
           frame.contentWindow?.print();
@@ -394,6 +387,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         else if (l.url) window.open(l.url, '_blank', 'noopener,noreferrer');
       },
       exportData: async () => {
+        ctl.flushTyping();
         const page = ctl.basePage;
         if (!page.shapes.some((x) => x.data?.length)) return ctl.say('Ninguna forma tiene datos todavía.');
         await saveBytes(`${safeName(page.name)}-datos.csv`, new TextEncoder().encode('\ufeff' + dataToCsv(page)), [{ name: 'CSV', extensions: ['csv'] }]);
@@ -435,7 +429,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
     (window as unknown as { __novaDiagram: unknown }).__novaDiagram = { ctl, load: (text: string, name: string) => loadFile({ name, path: null, data: new TextEncoder().encode(text) }) };
   }, [ctl, loadFile]);
 
-  useCloseGuard(() => ctl.dirty);
+  useCloseGuard(() => ctl.unsaved);
 
   // Ctrl+click on a shape with a link follows it
   useEffect(() => {
@@ -541,7 +535,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
           {ctl.tool === 'connector' && <span role="status">{t('Herramienta Conector: arrastra de una forma a otra')}</span>}
           {ctl.recording && <RecordingStatus name={ctl.recording.name} paused={ctl.recording.paused} onPause={() => ctl.pauseRecording()} onStop={() => ctl.stopRecording()} />}
           {ctl.message && <span role="alert">{t(ctl.message)}</span>}
-          {saveState && <span aria-live="polite">{saveState}</span>}
+          <span aria-live="polite">{saveError || (ctl.justSaved && !ctl.unsaved ? t('Guardado') : '')}</span>
         </>
       }
       contentFill

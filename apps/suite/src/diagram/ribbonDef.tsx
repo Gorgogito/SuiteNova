@@ -37,7 +37,7 @@ function ColorMenu({ ui, kind }: { ui: DiagramUI; kind: 'fill' | 'stroke' | 'fon
   return (
     <div className="nv-split">
       <button type="button" className="nv-btn nv-btn--small nv-colorbtn" title={label} aria-label={label} onClick={() => apply(last)}>
-        <Icon name={kind === 'fill' ? 'paste' : kind === 'stroke' ? 'line' : 'fontColor'} />
+        <Icon name={kind === 'fill' ? 'fillColor' : kind === 'stroke' ? 'line' : 'fontColor'} />
         <span className="nv-colorbar" style={{ background: last }} />
       </button>
       <Popover open={open} onOpenChange={(_e, d) => setOpen(d.open)} positioning="below-start">

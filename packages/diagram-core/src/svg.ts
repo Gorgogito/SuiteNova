@@ -1,5 +1,5 @@
 import { unionRects, type Rect } from './geometry';
-import type { Page } from './model';
+import type { Diagram, Page } from './model';
 import { printablePage } from './layers';
 import { connectorRender, contentBounds, shapeRender, type TextRun } from './render';
 
@@ -37,6 +37,27 @@ export function exportArea(page: Page, opts: SvgOptions = {}): Rect {
   if (opts.area === 'content' && content) return { x: content.x - m, y: content.y - m, w: content.w + 2 * m, h: content.h + 2 * m };
   // content that sticks out of the page is not cut off
   return unionRects(content ? [pageRect, content] : [pageRect])!;
+}
+
+/**
+ * The HTML that prints (or saves as PDF) a whole diagram: one sheet per page, each with its own size, so that portrait
+ * and landscape pages come out as they are. The sizes are CSS named pages; what a real printer does with mixed sizes
+ * depends on its dialog.
+ */
+export function printDocument(d: Pick<Diagram, 'name' | 'pages'>): string {
+  const sizes: string[] = [];
+  const sections = d.pages
+    .map((p) => {
+      const a = exportArea(printablePage(p));
+      const size = `${Math.ceil(a.w)}px ${Math.ceil(a.h)}px`;
+      let i = sizes.indexOf(size);
+      if (i < 0) i = sizes.push(size) - 1;
+      const svg = pageToSvg(p).replace(/<svg /, '<svg style="display:block;width:100%;height:100%" ');
+      return `<section style="page:s${i};width:${Math.ceil(a.w)}px;height:${Math.ceil(a.h)}px">${svg}</section>`;
+    })
+    .join('');
+  const rules = [`@page{size:${sizes[0]};margin:0}`, ...sizes.map((s, i) => `@page s${i}{size:${s};margin:0}`)].join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escXml(d.name)}</title><style>${rules}html,body{margin:0}section{break-after:page;overflow:hidden}section:last-child{break-after:auto}</style></head><body>${sections}</body></html>`;
 }
 
 /** A standalone SVG document of one page. */

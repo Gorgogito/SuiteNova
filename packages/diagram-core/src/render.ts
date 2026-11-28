@@ -26,8 +26,12 @@ export function textWidth(s: string, size: number, bold = false): number {
   return w * size * (bold ? 1.06 : 1);
 }
 
-/** Break text into lines that fit `maxW`; explicit line breaks are kept and over-long words are split. */
-export function wrapLines(text: string, maxW: number, font: Pick<Font, 'size' | 'bold'>, wrap = true): string[] {
+/**
+ * Break text into lines that fit `maxW`; explicit line breaks are kept. A word longer than a line stays whole (on a
+ * line of its own) while it fits in `hardW`, the room there really is; only a word longer than that is split.
+ */
+export function wrapLines(text: string, maxW: number, font: Pick<Font, 'size' | 'bold'>, wrap = true, hardW = maxW): string[] {
+  const limit = Math.max(maxW, hardW);
   const out: string[] = [];
   for (const para of text.split('\n')) {
     if (!wrap || maxW <= 0) {
@@ -42,9 +46,9 @@ export function wrapLines(text: string, maxW: number, font: Pick<Font, 'size' | 
         line = '';
       }
       let rest = word;
-      while (textWidth(rest.trimEnd(), font.size, font.bold) > maxW && rest.length > 1) {
+      while (textWidth(rest.trimEnd(), font.size, font.bold) > limit && rest.length > 1) {
         let cut = rest.length - 1;
-        while (cut > 1 && textWidth(rest.slice(0, cut), font.size, font.bold) > maxW) cut--;
+        while (cut > 1 && textWidth(rest.slice(0, cut), font.size, font.bold) > limit) cut--;
         out.push(rest.slice(0, cut));
         rest = rest.slice(cut);
       }
@@ -70,14 +74,16 @@ export interface TextRun {
   rotate?: { deg: number; cx: number; cy: number };
 }
 
-function layout(text: string, rect: { x: number; y: number; w: number; h: number; wrap?: boolean }, font: Font): TextRun | null {
+/** `bounds` is the room around the text rectangle that a long word may use before it is split (the shape itself). */
+function layout(text: string, rect: { x: number; y: number; w: number; h: number; wrap?: boolean }, font: Font, bounds?: { x: number; w: number }): TextRun | null {
   if (!text.trim() || (rect.w <= 0 && rect.wrap !== false)) return null;
   const pad = 4;
-  const lines = wrapLines(text, rect.w - 2 * pad, font, rect.wrap !== false);
+  const x = font.align === 'left' ? rect.x + pad : font.align === 'right' ? rect.x + rect.w - pad : rect.x + rect.w / 2;
+  const room = !bounds ? 0 : font.align === 'left' ? bounds.x + bounds.w - x - 1 : font.align === 'right' ? x - bounds.x - 1 : 2 * Math.min(x - bounds.x, bounds.x + bounds.w - x) - 2;
+  const lines = wrapLines(text, rect.w - 2 * pad, font, rect.wrap !== false, Math.max(rect.w - 2 * pad, room));
   const lh = font.size * LINE_H;
   const total = lines.length * lh;
   const top = font.valign === 'top' ? rect.y + pad : font.valign === 'bottom' ? rect.y + rect.h - total - pad : rect.y + (rect.h - total) / 2;
-  const x = font.align === 'left' ? rect.x + pad : font.align === 'right' ? rect.x + rect.w - pad : rect.x + rect.w / 2;
   return {
     anchor: font.align === 'left' ? 'start' : font.align === 'right' ? 'end' : 'middle',
     font,
@@ -176,11 +182,11 @@ export function shapeRender(s: Shape): ShapeRender {
     ];
     parts.slice(0, 3).forEach((t, i) => {
       const f: Font = i === 0 ? { ...s.font, bold: true, align: 'center', valign: 'middle' } : { ...s.font, align: 'left', valign: 'top' };
-      const run = layout(t, rects[i]!, f);
+      const run = layout(t, rects[i]!, f, { x: 0, w: s.w });
       if (run) texts.push(run);
     });
   } else {
-    const run = layout(label, spec, s.font);
+    const run = layout(label, spec, s.font, { x: 0, w: s.w });
     if (run) texts.push(run);
   }
   if (parts && s.container!.kind === 'pool') {
@@ -241,11 +247,12 @@ export function connectorRender(c: Connector, page: Page): ConnectorRender {
   if (b) arrows.push(b);
   let label: ConnectorRender['label'] = null;
   if (c.text.trim()) {
-    const lines = wrapLines(c.text, 160, c.font);
+    const lines = wrapLines(c.text, 160, c.font, true, 320);
     const w = Math.max(...lines.map((l) => textWidth(l, c.font.size, c.font.bold))) + 8;
     const h = lines.length * c.font.size * LINE_H + 4;
     const box = { x: route.mid.x - w / 2, y: route.mid.y - h / 2, w, h };
-    const run = layout(c.text, { x: box.x, y: box.y, w: Math.max(w, 20) + 8, h, wrap: true }, { ...c.font, align: 'center', valign: 'middle' });
+    // the lines are already broken: the box is measured on them
+    const run = layout(lines.join('\n'), { x: box.x, y: box.y, w, h, wrap: false }, { ...c.font, align: 'center', valign: 'middle' });
     if (run) label = { run: { ...run, lines: run.lines.map((l) => ({ ...l, x: route.mid.x })) }, box };
   }
   return { route, stroke: c.stroke, strokeWidth: c.strokeWidth, dasharray: dashArray(c.dash, c.strokeWidth), arrows, label };

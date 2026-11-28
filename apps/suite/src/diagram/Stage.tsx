@@ -328,8 +328,7 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
     } else if (cur.k === 'endpoint') {
       const c = base.connectors.find((x) => x.id === cur.id);
       if (!c) return;
-      const other = cur.which === 'from' ? c.to : c.from;
-      const tg = targetAt(p, isGlued(other) ? undefined : undefined);
+      const tg = targetAt(p);
       const end: End = tg ? { shape: tg.shape, port: tg.port } : { x: snap(p.x, step), y: snap(p.y, step) };
       ctl.previewWith((pg) => updateConnectors(pg, [c.id], { [cur.which]: end }));
       setRubber(tg ? { a: p, b: p, target: tg } : null);
@@ -427,26 +426,60 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
     el.scrollTop = Math.max(0, (-oy - 24) * scale);
   }, [ctl.pageId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // zoom with Ctrl + wheel
+  // zoom with Ctrl + wheel, keeping the point under the pointer where it is
+  const view = useRef({ ox, oy, scale });
+  const anchor = useRef<{ at: Point; clientX: number; clientY: number } | null>(null);
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
+      // several turns of the wheel before the next drawing keep the first anchor: the canvas has not moved yet
+      if (!anchor.current) {
+        const r = svgRef.current!.getBoundingClientRect();
+        const v = view.current;
+        anchor.current = { at: { x: v.ox + (e.clientX - r.left) / v.scale, y: v.oy + (e.clientY - r.top) / v.scale }, clientX: e.clientX, clientY: e.clientY };
+      }
       ctl.setZoom(ctl.zoom + (e.deltaY < 0 ? 10 : -10));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [ctl]);
+  useLayoutEffect(() => {
+    view.current = { ox, oy, scale };
+    const a = anchor.current;
+    const el = scroller.current;
+    if (!a || !el) return;
+    anchor.current = null;
+    const r = svgRef.current!.getBoundingClientRect();
+    el.scrollLeft += r.left + (a.at.x - ox) * scale - a.clientX;
+    el.scrollTop += r.top + (a.at.y - oy) * scale - a.clientY;
+  });
 
   // text editor
   const editingShape = ctl.editing ? page.shapes.find((s) => s.id === ctl.editing) : undefined;
   const editingConn = ctl.editing ? page.connectors.find((c) => c.id === ctl.editing) : undefined;
+  const typed = useRef<{ type: (v: string) => void } | null>(null);
   useLayoutEffect(() => {
-    if (editingShape) setDraft(editingShape.text);
-    else if (editingConn) setDraft(editingConn.text);
+    const id = ctl.editing;
+    const item = editingShape ?? editingConn;
+    if (!id || !item) return;
+    setDraft(item.text);
+    const y = ctl.startTyping(item.text, (v) => ctl.setText(id, v));
+    typed.current = y;
+    return y.done;
   }, [ctl.editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  const typedLane = useRef<{ type: (v: string) => void } | null>(null);
+  useLayoutEffect(() => {
+    const le = ctl.editingLane;
+    const pool = le && ctl.basePage.shapes.find((s) => s.id === le.pool);
+    const lane = pool?.container?.lanes?.find((l) => l.id === le!.lane);
+    if (!le || !lane) return;
+    const y = ctl.startTyping(lane.title, (v) => v.trim() && ctl.renameLaneTo(le.pool, le.lane, v.trim()));
+    typedLane.current = y;
+    return y.done;
+  }, [ctl.editingLane]); // eslint-disable-line react-hooks/exhaustive-deps
   const finishEdit = (accept: boolean) => {
     const id = ctl.editing;
     if (!id) return;
@@ -528,18 +561,11 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
             {ctl.selectedShapes().map((s) => (
               <polygon key={s.id} className="dg-outline" points={cornersOf(s).map((q) => `${q.x},${q.y}`).join(' ')} data-selected={s.id} />
             ))}
-            {ctl.selectedConnectors().map((c) => {
-              const route = connectorRender(c, page).route;
-              return (
-                <g key={c.id} data-selected-connector={c.id}>
-                  <path d={route.d} className="dg-connsel" fill="none" />
-                  {(['from', 'to'] as const).map((w) => {
-                    const pt = w === 'from' ? route.points[0]! : route.points[route.points.length - 1]!;
-                    return <circle key={w} className="dg-endpoint" cx={pt.x} cy={pt.y} r={5 / scale} data-endpoint={w} data-endpoint-for={c.id} />;
-                  })}
-                </g>
-              );
-            })}
+            {ctl.selectedConnectors().map((c) => (
+              <g key={c.id} data-selected-connector={c.id}>
+                <path d={connectorRender(c, page).route.d} className="dg-connsel" fill="none" />
+              </g>
+            ))}
             {single && !single.locked && (
               <g data-testid="handles">
                 {HANDLES.map(([h, fx, fy]) => {
@@ -615,6 +641,16 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
               ))}
             </g>
           )}
+          {/* the ends of the selected connectors go above the connection points: a glued end sits on one and must be the one that is dragged */}
+          <g className="dg-endpoints">
+            {ctl.selectedConnectors().map((c) => {
+              const route = connectorRender(c, page).route;
+              return (['from', 'to'] as const).map((w) => {
+                const pt = w === 'from' ? route.points[0]! : route.points[route.points.length - 1]!;
+                return <circle key={`${c.id}-${w}`} className="dg-endpoint" cx={pt.x} cy={pt.y} r={5 / scale} data-endpoint={w} data-endpoint-for={c.id} />;
+              });
+            })}
+          </g>
           {rubber && <line className="dg-rubber" x1={rubber.a.x} y1={rubber.a.y} x2={rubber.b.x} y2={rubber.b.y} />}
           {rubber?.target && (() => {
             const s = page.shapes.find((x) => x.id === rubber.target!.shape);
@@ -671,6 +707,7 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
               defaultValue={lb.lane.title}
               style={{ left: (lb.title.x + (horizontal ? lb.title.w : 0) - ox) * scale + 4, top: (lb.title.y + lb.title.h / 2 - oy) * scale - 14, width: 180 }}
               onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => typedLane.current?.type(e.target.value)}
               onBlur={(e) => {
                 const v = e.target.value.trim();
                 const le = ctl.editingLane!;
@@ -717,7 +754,10 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
                   textAlign: font.align,
                 }}
                 onFocus={(e) => e.currentTarget.select()}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  typed.current?.type(e.target.value);
+                }}
                 onBlur={() => finishEdit(true)}
                 onKeyDown={(e) => {
                   e.stopPropagation();

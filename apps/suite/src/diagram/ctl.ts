@@ -42,6 +42,43 @@ export class DiagramCtl {
   fileName: string | null = null;
   filePath: string | null = null;
   dirty = false;
+  /** True right after saving, until something changes (the status bar says «Guardado»). */
+  justSaved = false;
+  /** The inline editor that is open (text of a shape, lane title, layer name) and what has been typed in it. */
+  private typing: { value: string; original: string; apply: (v: string) => void } | null = null;
+  /** True when an open inline editor holds text that is not in the diagram yet. */
+  get hasPendingText(): boolean {
+    return !!this.typing && this.typing.value !== this.typing.original;
+  }
+  /** Something would be lost by closing: unsaved changes, or text still being typed. */
+  get unsaved(): boolean {
+    return this.dirty || this.hasPendingText;
+  }
+  /** An inline editor opens. It reports what is typed (`type`) and says when it closes (`done`). */
+  startTyping(original: string, apply: (v: string) => void): { type: (v: string) => void; done: () => void } {
+    const mine = { value: original, original, apply };
+    this.typing = mine;
+    return {
+      type: (v) => {
+        const was = this.hasPendingText;
+        mine.value = v;
+        if (this.typing === mine && was !== this.hasPendingText) this.touch();
+      },
+      done: () => {
+        if (this.typing !== mine) return;
+        const was = this.hasPendingText;
+        this.typing = null;
+        if (was) this.touch();
+      },
+    };
+  }
+  /** Puts the text being typed into the diagram (before saving, printing or exporting); the editor stays open. */
+  flushTyping(): void {
+    const y = this.typing;
+    if (!y || y.value === y.original) return;
+    y.original = y.value;
+    y.apply(y.value);
+  }
   message = '';
   /** Page shown while a gesture is in progress; the diagram changes once, when it ends. */
   preview: Page | null = null;
@@ -143,7 +180,7 @@ export class DiagramCtl {
     return this.preview ?? this.basePage;
   }
   get docTitle(): string {
-    return `${this.fileName ?? this.diagram.name}${this.dirty ? ' •' : ''}`;
+    return `${this.fileName ?? this.diagram.name}${this.unsaved ? ' •' : ''}`;
   }
   get hasSelection(): boolean {
     return this.selShapes.length + this.selConnectors.length > 0;
@@ -241,6 +278,8 @@ export class DiagramCtl {
     this.fileName = name;
     this.filePath = path;
     this.dirty = false;
+    this.justSaved = false;
+    this.typing = null;
     this.message = '';
     this.imageOcr.resetBaseline();
     this.touch();
@@ -252,6 +291,7 @@ export class DiagramCtl {
     this.fileName = name;
     this.filePath = path;
     this.dirty = false;
+    this.justSaved = true;
     this.touch();
   }
 

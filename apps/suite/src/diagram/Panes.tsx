@@ -1,6 +1,6 @@
 import { Button, DialogActions, DialogContent, DialogTitle } from '@fluentui/react-components';
 import { t } from '@suitenova/core-ui';
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { DataField } from '@suitenova/diagram-core';
 import type { DiagramCtl } from './ctl';
 
@@ -118,6 +118,14 @@ export function LayersPane({ ctl }: { ctl: DiagramCtl }) {
   const layers = ctl.layers;
   const active = page.activeLayer && layers.some((l) => l.id === page.activeLayer) ? page.activeLayer : layers[0]!.id;
   const [renaming, setRenaming] = useState<string | null>(null);
+  const typed = useRef<{ type: (v: string) => void } | null>(null);
+  useEffect(() => {
+    const l = ctl.layers.find((x) => x.id === renaming);
+    if (!l) return;
+    const y = ctl.startTyping(l.name, (v) => ctl.setLayerProps(l.id, { name: v }));
+    typed.current = y;
+    return y.done;
+  }, [ctl, renaming]);
   const count = (id: string) => page.shapes.filter((s) => (s.layer && layers.some((l) => l.id === s.layer) ? s.layer : layers[0]!.id) === id).length + page.connectors.filter((c) => (c.layer && layers.some((l) => l.id === c.layer) ? c.layer : layers[0]!.id) === id).length;
   return (
     <aside className="dg-side nv-panel" aria-label={t('Capas')} data-testid="layers-pane">
@@ -141,6 +149,7 @@ export function LayersPane({ ctl }: { ctl: DiagramCtl }) {
                   aria-label={t('Nombre de la capa')}
                   defaultValue={l.name}
                   onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => typed.current?.type(e.target.value)}
                   onBlur={(e) => {
                     ctl.setLayerProps(l.id, { name: e.target.value });
                     setRenaming(null);

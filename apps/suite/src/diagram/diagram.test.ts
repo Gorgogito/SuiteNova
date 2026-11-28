@@ -240,3 +240,34 @@ describe('DiagramCtl', () => {
     expect(newConnector({ x: 0, y: 0 }, { x: 5, y: 5 }).endArrow).toBe('arrow');
   });
 });
+
+describe('DiagramCtl: text being typed', () => {
+  it('counts as unsaved, reaches the diagram when flushed and is forgotten when the editor closes', () => {
+    const { ctl } = setup();
+    const a = ctl.addStencil('process', { x: 200, y: 200 });
+    ctl.markSaved('a.novadiagram', null);
+    expect([ctl.unsaved, ctl.justSaved]).toEqual([false, true]);
+    ctl.editing = a.id;
+    const y = ctl.startTyping(ctl.basePage.shapes[0]!.text, (v) => ctl.setText(a.id, v));
+    y.type('Pedido');
+    expect([ctl.dirty, ctl.unsaved, ctl.docTitle.endsWith('•')]).toEqual([false, true, true]);
+    ctl.flushTyping();
+    expect(ctl.saved.pages[0]!.shapes[0]!.text).toBe('Pedido');
+    expect(ctl.editing).toBe(a.id);
+    expect(ctl.hasPendingText).toBe(false);
+    ctl.markSaved('a.novadiagram', null);
+    y.type('Pedido nuevo');
+    y.done();
+    expect(ctl.unsaved).toBe(false);
+  });
+  it('ignores an editor that was replaced by another one', () => {
+    const { ctl } = setup();
+    const seen: string[] = [];
+    const first = ctl.startTyping('a', (v) => seen.push(v));
+    const second = ctl.startTyping('b', (v) => seen.push(v));
+    first.done();
+    second.type('c');
+    ctl.flushTyping();
+    expect(seen).toEqual(['c']);
+  });
+});

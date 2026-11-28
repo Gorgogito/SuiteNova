@@ -350,7 +350,9 @@ export function updatePage(d: Diagram, id: string, fn: (p: Page) => Page): Diagr
 }
 
 export function addPage(d: Diagram, afterId?: string): { diagram: Diagram; page: Page } {
-  const page = newPage(`Página ${d.pages.length + 1}`);
+  // as in Visio, a new page takes the page setup of the one it comes after (or of the last one)
+  const ref = d.pages.find((p) => p.id === afterId) ?? d.pages[d.pages.length - 1];
+  const page: Page = { ...newPage(`Página ${d.pages.length + 1}`), ...(ref ? { width: ref.width, height: ref.height, grid: ref.grid, ...(ref.spread !== undefined ? { spread: ref.spread } : {}) } : {}) };
   const i = afterId ? d.pages.findIndex((p) => p.id === afterId) + 1 : d.pages.length;
   const pages = [...d.pages];
   pages.splice(i, 0, page);
