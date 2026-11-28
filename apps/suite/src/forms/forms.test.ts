@@ -85,6 +85,39 @@ describe('Nova Forms ribbon', () => {
 });
 
 describe('FormsCtl', () => {
+  it('marks a response by hand, keeps nothing empty, undoes typing at once and forgets deleted questions', () => {
+    const { ctl } = setup();
+    ctl.setForm({ quiz: true });
+    const a = ctl.addQuestion('longtext');
+    ctl.updateQuestion(a.id, { manual: true, points: 3, feedback: { x: 'y' } });
+    const b = ctl.addQuestion('text');
+    const r = ctl.addResponse({ [a.id]: 'texto', [b.id]: 'otro' });
+    const review = () => ctl.responses[0]!.review;
+    ctl.setPoints(r.id, a.id, 2);
+    for (const text of ['M', 'Mu', 'Muy']) ctl.setComment(r.id, a.id, text);
+    ctl.setGeneralComment(r.id, 'Bien');
+    ctl.setReviewed(r.id, true);
+    expect(review()).toEqual({ points: { [a.id]: 2 }, comments: { [a.id]: 'Muy' }, comment: 'Bien', done: true });
+    ctl.undo();
+    ctl.undo();
+    ctl.undo();
+    expect(review()).toEqual({ points: { [a.id]: 2 } });
+    ctl.redo();
+    expect(review()!.comments).toEqual({ [a.id]: 'Muy' });
+    ctl.setComment(r.id, a.id, '');
+    ctl.setPoints(r.id, a.id, undefined);
+    expect('review' in ctl.responses[0]!).toBe(false);
+    ctl.setPoints(r.id, a.id, 1);
+    ctl.setComment(r.id, b.id, 'se queda');
+    ctl.select(a.id);
+    ctl.duplicateQuestion();
+    expect(ctl.selectedQuestion!.feedback).toEqual({ x: 'y' });
+    expect(ctl.selectedQuestion!.feedback).not.toBe(ctl.form.questions[0]!.feedback);
+    ctl.select(a.id);
+    ctl.deleteQuestion();
+    expect(review()!.points ?? {}).toEqual({});
+    expect(review()!.comments).toEqual({ [b.id]: 'se queda' });
+  });
   it('gives an untouched new form the language of the program, and leaves any other alone', () => {
     const { ctl } = setup();
     ctl.followLanguage('en');

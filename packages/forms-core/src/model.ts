@@ -110,6 +110,12 @@ export interface Question {
   /** Quiz: the right answer(s) and their points. */
   correct: string[];
   points: number;
+  /** Quiz: a comment for whoever chooses an option, by option. */
+  feedback?: Record<string, string>;
+  /** Quiz: shown with the right answer. */
+  explanation?: string;
+  /** Quiz: its points are given by hand. */
+  manual?: boolean;
   /** A picture shown under the title of the question. */
   image?: QuestionImage;
   /** An equation shown under the title, written as in LaTeX. */
@@ -152,6 +158,10 @@ export interface Form {
   color: string;
   quiz: boolean;
   showScore: boolean;
+  /** Quiz: once sent, shows each answer with the right one, the comments and the explanations. */
+  showAnswers?: boolean;
+  /** Quiz: each answer can be checked while answering, and tried again. */
+  practice?: boolean;
   thanks: string;
   questions: Question[];
   /** Each person sees the questions in another order (only without sections). */
@@ -202,7 +212,19 @@ export interface Response {
   answers: Record<string, Answer>;
   /** Who answered, when the form asks. */
   name?: string;
+  /** What whoever marks the quiz wrote. It never comes with a response sent by someone else. */
+  review?: Review;
 }
+export interface Review {
+  /** Points given by hand, by question: they take the place of the automatic ones. */
+  points?: Record<string, number>;
+  comments?: Record<string, string>;
+  comment?: string;
+  /** Marked as looked at. */
+  done?: boolean;
+}
+export const MAX_COMMENT = 2000;
+export const MAX_FEEDBACK = 1000;
 export const MAX_NAME = 200;
 
 let counter = 0;
@@ -249,6 +271,12 @@ export const hasOptions = (q: Question): boolean => q.type === 'choice' || q.typ
 export const canDecide = (q: Question): boolean => isInput(q) && q.type !== 'file' && q.type !== 'ranking';
 /** Question types a quiz can grade. */
 export const gradable = (q: Question): boolean => ['choice', 'multi', 'dropdown', 'text', 'number'].includes(q.type);
+/** Question types whose points can be given by hand. */
+export const canBeManual = (q: Pick<Question, 'type'>): boolean => ['text', 'longtext', 'number', 'date', 'file', 'ranking'].includes(q.type);
+export const manualGraded = (q: Question): boolean => !!q.manual && canBeManual(q);
+/** Marked by itself against the right answer. */
+export const autoGraded = (q: Question): boolean => gradable(q) && !manualGraded(q) && q.correct.length > 0;
+export const countsPoints = (q: Question): boolean => autoGraded(q) || manualGraded(q);
 /** The number each question shows, by its id: titles and texts are not questions and take none. */
 export function numbers(form: Pick<Form, 'questions'>): Map<string, number> {
   let n = 0;

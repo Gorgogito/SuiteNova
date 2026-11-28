@@ -1,5 +1,5 @@
 import { t } from '@suitenova/core-ui';
-import { FILE_KINDS, IMAGE_SIZES, MAX_FILES, MAX_IMAGE_BYTES, NUMBER_RULES, QTYPES, RATING_SYMBOLS, SIZE_CHOICES, gradable, hasOptions, isInput, isSafeImage, nextName, numbers, type ImageSize, type ItemList, type NumberRule, type Question, type RatingSymbol } from '@suitenova/forms-core';
+import { FILE_KINDS, IMAGE_SIZES, MAX_FILES, MAX_IMAGE_BYTES, NUMBER_RULES, QTYPES, RATING_SYMBOLS, SIZE_CHOICES, hasOptions, isInput, isSafeImage, nextName, numbers, type ImageSize, type ItemList, type NumberRule, type Question, type RatingSymbol } from '@suitenova/forms-core';
 import { useState } from 'react';
 import { DraftInput } from './DraftInput';
 import { Equation, EquationField } from './Equation';
@@ -7,6 +7,7 @@ import { Branching, Conditions, LockField, SectionNext, sectionNumbers } from '.
 import { QImage } from './Runner';
 import type { FormsCtl } from './ctl';
 import { FORM_HEAD } from './ctl';
+import { QuizFields, quizzable } from './QuizFields';
 import { ProofTextarea } from '../spell';
 
 const typeName = (q: Question) => QTYPES.find((x) => x.id === q.type)?.name ?? q.type;
@@ -118,7 +119,6 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
     </label>
   );
   const numOrNull = (v: string): number | null => (v.trim() === '' || !Number.isFinite(Number(v)) ? null : Number(v));
-  const quiz = ctl.form.quiz && gradable(q);
   return (
     <div className="fm-editor">
       <label className="fm-field">
@@ -286,41 +286,7 @@ function Editor({ ctl, q }: { ctl: FormsCtl; q: Question }) {
         </label>
       )}
 
-      {quiz && (
-        <fieldset className="fm-fieldset">
-          <legend>{t('Respuesta correcta')}</legend>
-          {(q.type === 'choice' || q.type === 'dropdown') &&
-            q.options.map((o) => (
-              <label key={o} className="fm-check">
-                <input type="radio" name={`ok-${q.id}`} checked={q.correct[0] === o} onChange={() => up({ correct: [o] })} /> {o}
-              </label>
-            ))}
-          {q.type === 'multi' &&
-            q.options.map((o) => (
-              <label key={o} className="fm-check">
-                <input type="checkbox" checked={q.correct.includes(o)} onChange={(e) => up({ correct: e.target.checked ? [...q.correct, o] : q.correct.filter((x) => x !== o) })} /> {o}
-              </label>
-            ))}
-          {(q.type === 'text' || q.type === 'number') && (
-            <label className="fm-field">
-              <span>{q.type === 'text' ? t('Respuestas aceptadas (separadas por punto y coma)') : t('Valores aceptados (separados por punto y coma)')}</span>
-              <DraftInput
-                className="fm-input"
-                aria-label={q.type === 'text' ? t('Respuestas aceptadas (separadas por punto y coma)') : t('Valores aceptados (separados por punto y coma)')}
-                value={q.correct.join('; ')}
-                onCommit={(text) => {
-                  up({ correct: text.split(';').map((x) => x.trim()).filter(Boolean) });
-                  return null;
-                }}
-              />
-            </label>
-          )}
-          <label className="fm-field fm-inline">
-            <span>{t('Puntos')}</span>
-            <input className="fm-input fm-narrow" type="number" min={0} value={q.points} onChange={(e) => up({ points: Math.max(0, Number(e.target.value) || 0) }, true)} />
-          </label>
-        </fieldset>
-      )}
+      {ctl.form.quiz && quizzable(q) && <QuizFields key={q.id} form={ctl.form} q={q} up={up} />}
 
       <Branching form={ctl.form} q={q} up={up} />
       {q.type === 'section' ? <SectionNext form={ctl.form} q={q} up={up} /> : <Conditions form={ctl.form} q={q} up={up} />}

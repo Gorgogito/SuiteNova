@@ -1,24 +1,11 @@
 import { t } from '@suitenova/core-ui';
-import { QTYPES, isFiles, numbers, score, summarize, type Answer, type Form, type QSummary, type Question, type Response, type UploadedFile, isInput } from '@suitenova/forms-core';
+import { QTYPES, isFiles, numbers, score, summarize, type Answer, type Form, type QSummary, type Question, type Response, isInput, type UploadedFile } from '@suitenova/forms-core';
 import { useMemo, useState } from 'react';
 import type { FormsCtl } from './ctl';
 import { Equation } from './Equation';
-import { saveUpload, saveUploads, sizeText } from './uploads';
-
-/** A file of a response, with the button that saves it. */
-function FileLine({ file, who }: { file: UploadedFile; who?: string }) {
-  return (
-    <li>
-      <span className="fm-item">
-        {who && <span className="fm-muted">{who} · </span>}
-        {file.name} <span className="fm-muted">({sizeText(file.size)})</span>
-      </span>
-      <button type="button" aria-label={`${t('Guardar')} ${file.name}`} onClick={() => void saveUpload(file).catch((e) => window.alert((e as Error).message))}>
-        {t('Guardar')}
-      </button>
-    </li>
-  );
-}
+import { saveUploads } from './uploads';
+import { FileLine } from './FileLine';
+import { Grading } from './Grading';
 
 const fmtDate = (iso: string): string => {
   const d = new Date(iso);
@@ -188,7 +175,7 @@ function Individual({ ctl, form, responses }: { ctl: FormsCtl; form: Form; respo
   const idx = Math.min(i, Math.max(0, responses.length - 1));
   const r = responses[idx];
   if (!r) return <p className="fm-empty">{t('Todavía no hay respuestas.')}</p>;
-  const s = score(form, r.answers);
+  const s = score(form, r.answers, r.review);
   return (
     <div>
       <div className="fm-pager">
@@ -210,6 +197,7 @@ function Individual({ ctl, form, responses }: { ctl: FormsCtl; form: Form; respo
           {r.name ? `${r.name} · ` : ''}
           {fmtDate(r.at)}
           {form.quiz ? ` · ${t('Puntuación')}: ${s.earned} / ${s.total}` : ''}
+          {s.pending ? ` · ${t('{n} puntos por corregir', { n: s.pending })}` : ''}
         </p>
         <dl className="fm-indiv">
           {form.questions
@@ -237,8 +225,8 @@ function Individual({ ctl, form, responses }: { ctl: FormsCtl; form: Form; respo
 }
 
 export function Results({ ctl }: { ctl: FormsCtl }) {
-  const [view, setView] = useState<'summary' | 'individual'>('summary');
   const form = ctl.form;
+  const view = ctl.resultsView === 'grade' && !form.quiz ? 'summary' : ctl.resultsView;
   const rs = ctl.responses;
   const sum = useMemo(() => summarize(form, rs), [form, rs]);
   const nums = numbers(form);
@@ -259,15 +247,21 @@ export function Results({ ctl }: { ctl: FormsCtl }) {
             {t('Puntuación media')}: <b>{num(sum.quiz.average)}</b>
             {sum.quiz.varies ? ` · ${t('{p} % de lo que cada persona podía sacar', { p: num(sum.quiz.percent) })}` : ` / ${sum.quiz.max}`} ({t('mejor')} {sum.quiz.best}, {t('peor')} {sum.quiz.worst})
             {sum.quiz.varies && <span className="fm-muted"> · {t('El máximo cambia según las preguntas que se vieron (hasta {n}).', { n: sum.quiz.max })}</span>}
+            {sum.quiz.pending > 0 && <span className="fm-muted"> · {sum.quiz.pending === 1 ? t('1 respuesta por corregir') : t('{n} respuestas por corregir', { n: sum.quiz.pending })}</span>}
           </div>
         )}
         <div role="tablist" className="fm-tabs" aria-label={t('Vista de resultados')}>
-          <button type="button" role="tab" aria-selected={view === 'summary'} className={view === 'summary' ? 'is-on' : ''} onClick={() => setView('summary')}>
+          <button type="button" role="tab" aria-selected={view === 'summary'} className={view === 'summary' ? 'is-on' : ''} onClick={() => ctl.setResultsView('summary')}>
             {t('Resumen')}
           </button>
-          <button type="button" role="tab" aria-selected={view === 'individual'} className={view === 'individual' ? 'is-on' : ''} onClick={() => setView('individual')}>
+          <button type="button" role="tab" aria-selected={view === 'individual'} className={view === 'individual' ? 'is-on' : ''} onClick={() => ctl.setResultsView('individual')}>
             {t('Individuales')}
           </button>
+          {form.quiz && (
+            <button type="button" role="tab" aria-selected={view === 'grade'} className={view === 'grade' ? 'is-on' : ''} onClick={() => ctl.setResultsView('grade')}>
+              {t('Corregir')}
+            </button>
+          )}
         </div>
       </div>
       {sum.total === 0 && (
@@ -277,6 +271,7 @@ export function Results({ ctl }: { ctl: FormsCtl }) {
       )}
       {sum.total > 0 && view === 'summary' && sum.questions.map((s) => <Card key={s.question.id} s={s} n={nums.get(s.question.id)!} />)}
       {view === 'individual' && <Individual ctl={ctl} form={form} responses={rs} />}
+      {view === 'grade' && <Grading ctl={ctl} />}
     </div>
   );
 }

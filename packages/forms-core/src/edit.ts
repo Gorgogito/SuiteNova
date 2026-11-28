@@ -81,6 +81,7 @@ export function renameItem(doc: Doc, id: string, list: ItemList, index: number, 
       const out: Question = { ...x, [list]: x[list].map((v, i) => (i === index ? to : v)) };
       if (list === 'options' && x.type !== 'likert') {
         out.correct = x.correct.map((c) => (c === from ? to : c));
+        if (x.feedback) out.feedback = Object.fromEntries(Object.entries(x.feedback).map(([option, said]) => [option === from ? to : option, said]));
         if (x.branch) out.branch = Object.fromEntries(Object.entries(x.branch).map(([option, target]) => [option === from ? to : option, target]));
       }
       return out;
@@ -111,6 +112,10 @@ export function removeItem(doc: Doc, id: string, list: ItemList, index: number):
       const out: Question = { ...x, [list]: x[list].filter((_, i) => i !== index) };
       if (list === 'options' && x.type !== 'likert') {
         out.correct = x.correct.filter((c) => c !== gone);
+        if (x.feedback && Object.hasOwn(x.feedback, gone)) {
+          out.feedback = Object.fromEntries(Object.entries(x.feedback).filter(([option]) => option !== gone));
+          if (!Object.keys(out.feedback).length) delete out.feedback;
+        }
         if (x.branch && Object.hasOwn(x.branch, gone)) {
           out.branch = Object.fromEntries(Object.entries(x.branch).filter(([option]) => option !== gone));
           if (!Object.keys(out.branch).length) delete out.branch;

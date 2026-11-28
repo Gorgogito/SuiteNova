@@ -1,5 +1,5 @@
 import { getLocale } from '@suitenova/core-ui';
-import { isEmpty, newForm, newId, newQuestion, parseResponses, removeItem, renameInAnswers, renameItem, type Answer, type Form, type ItemList, type QType, type Question, type Response, conditionsOf, showIfOf, tidyFlow, MAX_NAME } from '@suitenova/forms-core';
+import { isEmpty, newForm, newId, newQuestion, parseResponses, removeItem, renameInAnswers, renameItem, type Answer, type Form, type ItemList, type QType, type Question, type Response, conditionsOf, showIfOf, tidyFlow, MAX_NAME, type Review } from '@suitenova/forms-core';
 
 export type Mode = 'design' | 'preview' | 'fill' | 'results';
 export interface Doc {
@@ -16,6 +16,8 @@ const blankForm = (): Form => (getLocale().startsWith('en') ? { ...newForm(), la
 export class FormsCtl {
   doc: Doc = { form: blankForm(), responses: [] };
   mode: Mode = 'design';
+  /** What is looked at among the results. */
+  resultsView: 'summary' | 'individual' | 'grade' = 'summary';
   selected: string | null = FORM_HEAD;
   fileName: string | null = null;
   filePath: string | null = null;
@@ -138,6 +140,7 @@ export class FormsCtl {
     this.seed = newId('s');
     this.selected = FORM_HEAD;
     this.mode = 'design';
+    this.resultsView = 'summary';
     this.fileName = name;
     this.filePath = path;
     this.dirty = false;
@@ -168,6 +171,53 @@ export class FormsCtl {
     this.mode = m;
     this.touch();
   }
+  setResultsView(view: 'summary' | 'individual' | 'grade'): void {
+    this.typing = null;
+    this.resultsView = view;
+    this.touch();
+  }
+
+  // ---------- marking: it changes a response and can be undone
+
+  private setReview(id: string, change: (now: Review) => Review, typing?: string): void {
+    const responses = this.responses.map((r) => {
+      if (r.id !== id) return r;
+      const next = change(r.review ?? {});
+      // nothing empty is kept
+      for (const key of ['points', 'comments'] as const) if (next[key] && !Object.keys(next[key]!).length) delete next[key];
+      if (!next.comment) delete next.comment;
+      if (!next.done) delete next.done;
+      const { review: _before, ...bare } = r;
+      return Object.keys(next).length ? { ...bare, review: next } : bare;
+    });
+    this.commit({ ...this.doc, responses }, typing);
+  }
+  setPoints(id: string, question: string, points: number | undefined): void {
+    this.setReview(id, (now) => {
+      const all = { ...now.points };
+      if (points === undefined) delete all[question];
+      else all[question] = points;
+      return { ...now, points: all };
+    });
+  }
+  setComment(id: string, question: string, text: string): void {
+    this.setReview(
+      id,
+      (now) => {
+        const all = { ...now.comments, [question]: text };
+        if (!text) delete all[question];
+        return { ...now, comments: all };
+      },
+      `comment:${id}:${question}`,
+    );
+  }
+  setGeneralComment(id: string, comment: string): void {
+    this.setReview(id, (now) => ({ ...now, comment }), `comment:${id}`);
+  }
+  setReviewed(id: string, done: boolean): void {
+    this.setReview(id, (now) => ({ ...now, done }));
+  }
+
   select(id: string | null): void {
     this.typing = null;
     this.selected = id;
@@ -219,7 +269,7 @@ export class FormsCtl {
   duplicateQuestion(): void {
     const q = this.selectedQuestion;
     if (!q) return;
-    const copy: Question = { ...q, id: newId('q'), options: [...q.options], rows: [...q.rows], correct: [...q.correct], showIf: showIfOf(conditionsOf(q), q.showIf?.anyOf), ...(q.branch ? { branch: { ...q.branch } } : {}) };
+    const copy: Question = { ...q, id: newId('q'), options: [...q.options], rows: [...q.rows], correct: [...q.correct], showIf: showIfOf(conditionsOf(q), q.showIf?.anyOf), ...(q.branch ? { branch: { ...q.branch } } : {}), ...(q.feedback ? { feedback: { ...q.feedback } } : {}) };
     const qs = [...this.form.questions];
     qs.splice(qs.indexOf(q) + 1, 0, copy);
     this.setQuestions(qs);
@@ -238,6 +288,11 @@ export class FormsCtl {
       if (!(q.id in r.answers)) return r;
       const answers = { ...r.answers };
       delete answers[q.id];
+      // its marks go with it
+      if (r.review?.points || r.review?.comments) {
+        const without = <T,>(o: Record<string, T> | undefined) => o && Object.fromEntries(Object.entries(o).filter(([id]) => id !== q.id));
+        return { ...r, answers, review: { ...r.review, points: without(r.review.points), comments: without(r.review.comments) } };
+      }
       return { ...r, answers };
     });
     this.commit({ form: { ...this.form, questions: rest }, responses });

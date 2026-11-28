@@ -163,3 +163,15 @@ que la aplicación y una prueba lo compara.
   `e2e-forms-native.mjs` (9). **Sin probar desde otro dispositivo ni en una red real.**
 - **Hallado al probar, sin corregir (es de Nova Mail y anterior):** un `.eml`, `.mbox`, `.ics` o `.vcf` abierto desde fuera
   no se importa (`MailApp.loadFile` solo admite archivos de Outlook y `.novamail`).
+
+### Fase 6 (hecha, 2026-11-27): cuestionarios
+- **Núcleo** (`forms-core`): `quiz.ts` (cómo fue cada pregunta, comprobar en práctica y hoja de devolución); comentarios
+  por opción, explicación y corrección a mano en la pregunta; `review` en la respuesta (puntos, comentarios y revisada),
+  que **solo se lee del archivo propio**; puntuación con correcciones y puntos pendientes. La página web juzga igual y una
+  prueba lo compara.
+- **Aplicación:** `QuizFields.tsx` (editor), `QuizShown.tsx` (práctica y respuestas al terminar), `Grading.tsx`
+  (Resultados › Corregir: por persona y por pregunta, hojas), órdenes «Mostrar las respuestas al terminar», «Modo
+  práctica» y «Corregir y devolver…».
+- **Cambios en lo que ya había:** la vista de resultados elegida se conserva al cambiar de modo (antes volvía al resumen);
+  una pregunta de párrafo, fecha, clasificación o archivos puede dar puntos.
+- **Pruebas:** `quiz.test.ts` (14), 1 más en `forms.test.ts`, `e2e-forms.mjs` pasa de 47 a 56.

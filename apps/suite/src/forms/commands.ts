@@ -91,6 +91,10 @@ export function formsCommands(ui: FormsUI): CommandDef[] {
   add({ id: 'forms.quiz', label: 'Modo cuestionario (con puntuación)', icon: 'checkSquare', checked: () => c.form.quiz, run: () => c.setForm({ quiz: !c.form.quiz }) });
   add({ id: 'forms.showScore', label: 'Mostrar la puntuación al responder', icon: 'eye', enabled: () => c.form.quiz, checked: () => c.form.showScore, description: 'La página web exportada llevará las respuestas correctas dentro del archivo para poder puntuar.', run: () => c.setForm({ showScore: !c.form.showScore }) });
 
+  add({ id: 'forms.showAnswers', label: 'Mostrar las respuestas al terminar', icon: 'eye', enabled: () => c.form.quiz, checked: () => c.form.quiz && !!c.form.showAnswers, description: 'Quien responde ve cada respuesta con la correcta, los comentarios y las explicaciones. La página llevará las respuestas correctas dentro.', run: () => c.setForm({ showAnswers: !c.form.showAnswers || undefined }) });
+  add({ id: 'forms.practice', label: 'Modo práctica', icon: 'checkSquare', enabled: () => c.form.quiz, checked: () => c.form.quiz && !!c.form.practice, description: 'Cada respuesta se puede comprobar mientras se responde y volver a intentar. La página llevará las respuestas correctas dentro.', run: () => c.setForm({ practice: !c.form.practice || undefined }) });
+  add({ id: 'forms.grade', label: 'Corregir y devolver…', icon: 'edit', description: 'Puntos y comentarios a mano, por persona o por pregunta, y la hoja de devolución de cada persona.', enabled: () => c.form.quiz, run: () => { finishTyping(); c.setResultsView('grade'); c.setMode('results'); } });
+
   add({ id: 'forms.settings', label: 'Ajustes del formulario…', icon: 'settings', description: 'Plazo, tiempo límite, nombre de quien responde, copia de las respuestas, fondo e idioma.', run: () => ui.openDialog('settings') });
 
   // ---- pages and order

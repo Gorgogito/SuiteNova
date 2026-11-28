@@ -10,3 +10,4 @@ export * from './flow';
 export * from './i18n';
 export * from './session';
 export * from './receive';
+export * from './quiz';

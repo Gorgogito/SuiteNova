@@ -91,7 +91,23 @@ if(t==='multi'){if(!Array.isArray(a))return false;var got=a.map(norm);return got
 if(t==='text')return typeof a==='string'&&right.indexOf(norm(a))>=0;
 if(t==='number'){var n=typeof a==='number'?a:Number(String(a).replace(',','.'));return isFinite(n)&&right.some(function(r){return Number(r.replace(',','.'))===n;});}
 return false;}
-function score(form,answers){var s={earned:0,total:0,byQuestion:{}};if(!form.quiz)return s;var shown=route(form,answers).shown;form.questions.forEach(function(q){if(['choice','multi','dropdown','text','number'].indexOf(q.type)<0||!q.correct.length||!shown.has(q.id))return;s.total+=q.points;var got=isRight(q,answers[q.id])?q.points:0;s.byQuestion[q.id]=got;s.earned+=got;});return s;}
+function manualGraded(q){return !!q.manual&&['text','longtext','number','date','file','ranking'].indexOf(q.type)>=0;}
+function autoGraded(q){return ['choice','multi','dropdown','text','number'].indexOf(q.type)>=0&&!manualGraded(q)&&q.correct.length>0;}
+function countsPoints(q){return autoGraded(q)||manualGraded(q);}
+function round(n){return Math.round(n*100)/100;}
+function own(o,k){return !!o&&Object.prototype.hasOwnProperty.call(o,k);}
+function score(form,answers,review){var s={earned:0,total:0,byQuestion:{}};if(!form.quiz)return s;var shown=route(form,answers).shown;form.questions.forEach(function(q){if(!countsPoints(q)||!shown.has(q.id))return;s.total=round(s.total+q.points);
+var given=review&&own(review.points,q.id)?review.points[q.id]:undefined,got;if(given!==undefined)got=Math.min(q.points,Math.max(0,given));else if(autoGraded(q))got=isRight(q,answers[q.id])?q.points:0;else if(isEmpty(answers[q.id]))got=0;else{if(q.points)s.pending=round((s.pending||0)+q.points);return;}
+s.byQuestion[q.id]=got;s.earned=round(s.earned+got);});return s;}
+function correctText(q){return autoGraded(q)?q.correct.join(q.type==='multi'?', ':' / '):'';}
+function optionFeedback(q,a){if(q.type!=='choice'&&q.type!=='dropdown'&&q.type!=='multi')return [];var chosen=Array.isArray(a)?a:typeof a==='string'?[a]:[];var out=[];chosen.forEach(function(o){if(own(q.feedback,o))out.push(q.type==='multi'?o+': '+q.feedback[o]:q.feedback[o]);});return out;}
+function reviewLines(form,answers,review){var shown=route(form,answers).shown,s=score(form,answers,review),n=0,lines=[];form.questions.forEach(function(q){if(!isInput(q))return;n++;if(!shown.has(q.id))return;
+var counts=form.quiz&&countsPoints(q),earned=counts&&own(s.byQuestion,q.id)?s.byQuestion[q.id]:null,mark='none';
+if(counts){if(earned===null)mark=q.points>0?'pending':'none';else if(q.points>0)mark=earned>=q.points?'right':earned<=0?'wrong':'partial';else if(autoGraded(q))mark=isRight(q,answers[q.id])?'right':'wrong';}
+lines.push({id:q.id,label:(form.hideNumbers?'':n+'. ')+q.title,answer:answerText(q,answers[q.id]),mark:mark,points:counts?q.points:null,earned:earned,correct:form.quiz?correctText(q):'',feedback:form.quiz?optionFeedback(q,answers[q.id]):[],explanation:form.quiz?(q.explanation||''):'',comment:review&&own(review.comments,q.id)?review.comments[q.id]:''});});return lines;}
+function worthShowing(lines){return lines.filter(function(l){return l.points!==null||l.feedback.length>0||l.explanation!==''||l.comment!=='';});}
+function checkAnswer(q,a){if(isEmpty(a))return {problem:'Responde antes de comprobar.'};var p=validateAnswer(Object.assign({},q,{required:false}),a);if(p)return {problem:p};return {right:isRight(q,a),feedback:optionFeedback(q,a),correct:correctText(q),explanation:q.explanation||''};}
+function pendingText(n){return n===1?'Queda 1 punto por corregir a mano.':'Quedan '+n+' puntos por corregir a mano.';}
 `;
 
 const CSS = `
@@ -137,6 +153,11 @@ button:disabled{opacity:.5}
 /* with a background of its own, what is not on a card gets one */
 body.bg .progress,body.bg .foot{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px}
 body.bg .foot{max-width:720px;margin:16px auto}
+.check{margin-top:8px}.verdict{margin-top:6px;border-left:4px solid var(--line);padding:2px 0 2px 10px}.verdict p,.review p{margin:3px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.verdict.right{border-color:#2e9e44}.verdict.wrong{border-color:var(--err)}
+.review{text-align:left}.review .line{border-top:1px solid var(--line);padding:10px 0}.review h3{font-size:1em;margin:0 0 4px}.mark{font-weight:700}
+.mark.right{color:#17692c}.mark.wrong{color:var(--err)}.mark.partial,.mark.pending{color:#7a4f01}
+@media(prefers-color-scheme:dark){.mark.right{color:#8fd99f}.mark.partial,.mark.pending{color:#ffcf70}}
 #receipt{display:none}
 @media print{body{background:#fff;color:#000}main,.foot{display:none}#receipt{display:block;padding:0 12px}#receipt dt{font-weight:700;margin-top:10px}#receipt dd{margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}}
 @media(max-width:520px){main{padding:8px}.card{padding:12px}.scale label{min-width:34px;padding:6px}}
@@ -147,7 +168,7 @@ var form=JSON.parse(document.getElementById('form-data').textContent);
 function L(text){return localize(text,form.language);}
 var SIGNS=${JSON.stringify(Object.fromEntries(RATING_SYMBOLS.map((s) => [s.id, [s.on, s.off]])))};
 var root=document.getElementById('app');
-var blocks={},redraw=[],reading=0,ticking=null,deadline=0;
+var blocks={},redraw=[],checks=[],reading=0,ticking=null,deadline=0;
 var ranks={},files={},seed=uid();
 var pages=pagesOf(form),pageOf={},at=0,nav={};
 pages.forEach(function(p,i){(p.section?[p.section]:[]).concat(p.items).forEach(function(q){pageOf[q.id]=i;});});
@@ -255,7 +276,7 @@ function renderQ(q,num){
   redraw.push(show);}
  else if(t==='likert'){var tb=el('table');var hr=el('tr',{},[el('th',{scope:'col'})]);q.options.forEach(function(o){hr.appendChild(el('th',{scope:'col',text:o}));});tb.appendChild(hr);
   q.rows.forEach(function(r,ri){var tr=el('tr',{},[el('th',{scope:'row',text:r})]);q.options.forEach(function(o){tr.appendChild(el('td',{},[el('input',{type:'radio',name:name+'__'+ri,value:o,'aria-label':r+': '+o})]));});tb.appendChild(tr);});body=el('div',{class:'wrap'},[tb]);}
- fs.appendChild(body);fs.appendChild(err);card.appendChild(fs);return card;}
+ fs.appendChild(body);fs.appendChild(err);card.appendChild(fs);if(form.quiz&&form.practice&&autoGraded(q))card.appendChild(practiceBox(q));return card;}
 function collect(){
  var a={};var data=new FormData(document.getElementById('f'));
  form.questions.forEach(function(q){if(!isInput(q))return;var name='q_'+q.id;var t=q.type;var v=null;
@@ -274,6 +295,7 @@ function refresh(){var a=collect();var r=route(form,a);
  // a change of mind can take the page one is on out of the way: back to the last one that is still on it
  if(r.pages.indexOf(at)<0){var before=r.pages.filter(function(p){return p<at;});at=before.length?before[before.length-1]:0;}
  form.questions.forEach(function(q){blocks[q.id].hidden=!(pageOf[q.id]===at&&r.shown.has(q.id));});
+ if(checks.length){var now=collect();checks.forEach(function(c){c(now);});}
  if(nav.who)nav.who.hidden=at!==0;
  var last=pageAfter(pages,at,r.shown,a)>=pages.length;nav.send.hidden=!last;nav.next.hidden=last;nav.back.hidden=r.pages.indexOf(at)<=0;
  if(nav.bar){nav.bar.value=at+1;var said=L('Página '+(at+1)+' de '+pages.length);if(nav.text.textContent!==said)nav.text.textContent=said;}}
@@ -308,13 +330,43 @@ function showDone(timed){
  var done=el('div',{class:'card done',id:'done'},[el('h2',{text:L(timed?'Se acabó el tiempo.':SEND?'Respuesta enviada':'Respuesta lista')})]);
  if(timed)done.appendChild(el('p',{text:L('Se envió lo que habías respondido.')}));
  done.appendChild(el('p',{text:L(form.thanks)}));
- if(form.quiz&&form.showScore){var s=score(form,answers);done.appendChild(el('p',{class:'score',text:L('Puntuación: '+s.earned+' de '+s.total)}));}
+ if(form.quiz&&form.showScore){var s=score(form,answers);done.appendChild(el('p',{class:'score',text:L('Puntuación: '+s.earned+' de '+s.total)}));if(s.pending)done.appendChild(el('p',{text:L(pendingText(s.pending))}));}
  if(!SEND){done.appendChild(el('p',{text:L('Este formulario no se envía solo: descarga tu respuesta y mándasela a quien te lo compartió.')}));
   done.appendChild(downloadButton(''));
   if(navigator.clipboard){var cp=el('button',{type:'button',class:'sec',id:'cp',text:L('Copiar respuesta')});cp.onclick=copy;done.appendChild(cp);}}
  if(form.receipt){var pr=el('button',{type:'button',class:'sec',id:'print',text:L('Imprimir o guardar mis respuestas')});pr.onclick=printAnswers;done.appendChild(pr);}
  if(!form.noAgain)done.appendChild(againButton());
- root.appendChild(done);done.scrollIntoView();}
+ root.appendChild(done);
+ if(form.quiz&&(form.showAnswers||form.practice))root.appendChild(reviewCard(answers));
+ done.scrollIntoView();}
+var MARKS={right:'Correcta',wrong:'Incorrecta',partial:'En parte',pending:'Por corregir'};
+function reviewCard(answers){var card=el('div',{class:'card review',id:'review-list'},[el('h2',{text:L('Respuestas y comentarios')})]);
+ worthShowing(reviewLines(form,answers)).forEach(function(l){var box=el('div',{class:'line'},[el('h3',{text:l.label})]);
+  var said=[];if(l.mark!=='none')said.push(el('span',{class:'mark '+l.mark,text:L(MARKS[l.mark])}));
+  if(l.points!==null)said.push(el('span',{text:(said.length?' · ':'')+L(l.earned===null?'Puntos: hasta '+l.points:'Puntos: '+l.earned+' de '+l.points)}));
+  if(said.length)box.appendChild(el('p',{},said));
+  box.appendChild(el('p',{text:L('Tu respuesta: '+l.answer)}));
+  if(l.correct)box.appendChild(el('p',{text:L('Respuesta correcta: '+l.correct)}));
+  l.feedback.forEach(function(f){box.appendChild(el('p',{text:f}));});
+  if(l.explanation)box.appendChild(el('p',{text:L('Explicación: '+l.explanation)}));
+  card.appendChild(box);});
+ return card;}
+// practice mode: checking one answer, which can be changed and checked again
+function practiceBox(q){
+ var out=el('div',{role:'status'});var seen=null;
+ var button=el('button',{type:'button',class:'sec',text:L('Comprobar')});
+ button.onclick=function(){var a=collect()[q.id];var c=checkAnswer(q,a);seen=JSON.stringify(a===undefined?null:a);out.textContent='';
+  if(c.problem){out.appendChild(el('p',{class:'err',text:L(c.problem)}));return;}
+  var v=el('div',{class:'verdict '+(c.right?'right':'wrong')},[el('p',{class:'mark '+(c.right?'right':'wrong'),text:L(c.right?'¡Correcto!':'No es correcto. Puedes cambiar la respuesta y volver a comprobar.')})]);
+  c.feedback.forEach(function(f){v.appendChild(el('p',{text:f}));});
+  var all=function(){v.appendChild(el('p',{text:L('Respuesta correcta: '+c.correct)}));if(c.explanation)v.appendChild(el('p',{text:L('Explicación: '+c.explanation)}));};
+  if(c.right){if(c.explanation)v.appendChild(el('p',{text:L('Explicación: '+c.explanation)}));}
+  else{var show=el('button',{type:'button',class:'sec',text:L('Ver la respuesta')});show.onclick=function(){show.remove();all();};v.appendChild(show);}
+  out.appendChild(v);};
+ // what was said no longer holds once the answer changes
+ redraw.push(function(){if(seen!==null){seen=null;out.textContent='';}});
+ checks.push(function(answers){if(seen!==null&&JSON.stringify(answers[q.id]===undefined?null:answers[q.id])!==seen){seen=null;out.textContent='';}});
+ return el('div',{class:'check'},[button,out]);}
 function downloadButton(cls){var dl=el('button',{type:'button',id:'dl',text:L('Descargar mi respuesta')});if(cls)dl.className=cls;dl.onclick=download;return dl;}
 // sends the response to whoever serves this page, and says what came of it
 function deliver(timed){
@@ -345,16 +397,18 @@ build();
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /**
- * A single HTML file with the form inside it. Correct answers are only embedded when the score is shown.
+ * A single HTML file with the form inside it. Right answers are only embedded when the score or the answers are shown, or
+ * in practice mode; comments and explanations, only with the last two.
  *
  * On its own, answers are never sent anywhere: the respondent downloads a response file and returns it, and it is
  * imported into Nova Forms. With `send`, it is the page that Nova Forms serves on the local network: it can only talk to
  * whoever served it, and sends the response there.
  */
 export function exportHtml(form: Form, { send = false }: { send?: boolean } = {}): string {
-  const graded = form.quiz && form.showScore;
+  const noted = form.quiz && (!!form.showAnswers || !!form.practice);
+  const graded = (form.quiz && form.showScore) || noted;
   // equations go already drawn (MathML made here, from their source): the page needs nothing to show them
-  const shown = { ...form, questions: form.questions.map((q) => ({ ...q, ...(graded ? {} : { correct: [] }), ...(q.equation ? { mathml: toMathML(parseMath(q.equation), true) } : {}) })) };
+  const shown = { ...form, questions: form.questions.map((q) => ({ ...q, ...(graded ? {} : { correct: [] }), ...(noted ? {} : { feedback: undefined, explanation: undefined }), ...(q.equation ? { mathml: toMathML(parseMath(q.equation), true) } : {}) })) };
   const data = JSON.stringify(shown).replace(/</g, '\\u003c').replace(new RegExp('\\u2028', 'g'), '\\u2028').replace(new RegExp('\\u2029', 'g'), '\\u2029');
   const background = pageBackground(form, 'var(--bg)');
   const lang = form.language ?? 'es';

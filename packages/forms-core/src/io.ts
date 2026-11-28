@@ -4,7 +4,7 @@ import { tidyFlow } from './flow';
 import { LANGUAGES } from './i18n';
 import { outsideDates } from './session';
 import { cleanResponse, keptResponse, score } from './logic';
-import { BACKGROUNDS, IMAGE_SIZES, MAX_CONDITIONS, MAX_TIME_LIMIT, NUMBER_RULES, QTYPES, RATING_SYMBOLS, isInput, isSafeImage, newForm, newId, newQuestion, showIfOf, type Answer, type Condition, type Form, type QType, type Question, type Response } from './model';
+import { BACKGROUNDS, IMAGE_SIZES, MAX_COMMENT, MAX_CONDITIONS, MAX_FEEDBACK, MAX_TIME_LIMIT, canBeManual, manualGraded, NUMBER_RULES, QTYPES, RATING_SYMBOLS, isInput, isSafeImage, newForm, newId, newQuestion, showIfOf, type Answer, type Condition, type Form, type QType, type Question, type Response } from './model';
 
 export interface Project {
   form: Form;
@@ -21,6 +21,18 @@ const strs = (v: unknown, max = 200): string[] => (Array.isArray(v) ? v.filter((
 const TYPES = new Set(QTYPES.map((t) => t.id));
 
 /** Read a Form from untrusted data (a file): every value is checked and repaired. */
+/** The comments, explanation and way of marking of a question, if they make sense for it. */
+function quizNotes(r: any, options: string[], type: QType): Partial<Question> {
+  const out: Partial<Question> = {};
+  if (r?.manual === true && canBeManual({ type })) out.manual = true;
+  if (typeof r?.explanation === 'string' && r.explanation !== '') out.explanation = r.explanation.slice(0, MAX_COMMENT);
+  if (r?.feedback && typeof r.feedback === 'object' && (type === 'choice' || type === 'dropdown' || type === 'multi')) {
+    const kept = options.flatMap((o) => (Object.hasOwn(r.feedback, o) && typeof r.feedback[o] === 'string' && r.feedback[o] !== '' ? [[o, r.feedback[o].slice(0, MAX_FEEDBACK) as string] as const] : []));
+    if (kept.length) out.feedback = Object.fromEntries(kept);
+  }
+  return out;
+}
+
 /** A moment written in a file, in one same way; nothing if it is not one. */
 const moment = (v: unknown): string | null => (typeof v === 'string' && v.length < 60 && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null);
 
@@ -90,6 +102,7 @@ export function readForm(raw: any): Form {
       showIf: showIfOf(conditions, sf?.anyOf === true),
       correct: strs(r?.correct),
       points: Math.min(1000, Math.max(0, num(r?.points, 1)!)),
+      ...quizNotes(r, Array.isArray(r?.options) ? uniqueTexts(strs(r.options), 'Opción') : d.options, type),
       ...(isSafeImage(r?.image?.src) ? { image: { src: r.image.src, alt: str(r.image.alt, '', 500), size: IMAGE_SIZES.some((z) => z.id === r.image.size) ? r.image.size : 'medium' } } : {}),
     };
   });
@@ -105,6 +118,8 @@ export function readForm(raw: any): Form {
     color: typeof raw?.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(raw.color) ? raw.color : base.color,
     quiz: raw?.quiz === true,
     showScore: raw?.showScore !== false,
+    ...(raw?.showAnswers === true ? { showAnswers: true } : {}),
+    ...(raw?.practice === true ? { practice: true } : {}),
     thanks: str(raw?.thanks, base.thanks, 1000),
     // conditions must look back and branches forwards
     questions: tidyFlow(questions),
@@ -216,6 +231,10 @@ export function responsesToCsv(form: Form, responses: Response[]): string {
   const named = !!form.askName || responses.some((r) => r.name);
   if (named) head.push('Nombre');
   if (form.quiz) head.push('Puntuación', 'Puntuación máxima');
+  const byHand = form.quiz && form.questions.some(manualGraded);
+  const remarked = form.quiz && responses.some((r) => r.review?.comment);
+  if (byHand) head.push('Puntos por corregir');
+  if (remarked) head.push('Comentario general');
   for (const q of qs) {
     if (q.type === 'likert') for (const r of q.rows) head.push(`${q.title} [${r}]`);
     else head.push(q.title || '(sin título)');
@@ -225,8 +244,10 @@ export function responsesToCsv(form: Form, responses: Response[]): string {
     const line: (string | number)[] = [r.id, r.at];
     if (named) line.push(r.name ?? '');
     if (form.quiz) {
-      const s = score(form, r.answers);
+      const s = score(form, r.answers, r.review);
       line.push(s.earned, s.total);
+      if (byHand) line.push(s.pending ?? 0);
+      if (remarked) line.push(r.review?.comment ?? '');
     }
     for (const q of qs) {
       const a = r.answers[q.id];

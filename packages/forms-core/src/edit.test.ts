@@ -118,7 +118,7 @@ describe('numeración y puntuación', () => {
   it('el resumen dice la verdad cuando cada persona tiene su máximo', () => {
     const form = { ...newForm(), quiz: true, questions: [q('a', 'choice', { options: ['1', '2'], correct: ['1'] }), q('b', 'choice', { options: ['1', '2'], correct: ['1'], showIf: { question: 'a', op: 'eq', value: '1' } })] };
     const s = summarize(form, [response('1', { a: '2' }), response('2', { a: '1', b: '1' })]);
-    expect(s.quiz).toEqual({ average: 1, max: 2, best: 2, worst: 0, varies: true, percent: 50 });
+    expect(s.quiz).toEqual({ average: 1, max: 2, best: 2, worst: 0, varies: true, percent: 50, pending: 0 });
     expect(summarize(form, [response('2', { a: '1', b: '2' })]).quiz).toMatchObject({ max: 2, varies: false, percent: 50 });
   });
 });

@@ -1,6 +1,6 @@
 import { MAX_FILES, MAX_RESPONSE_MB, MB, fileProblem, readFileItem } from './files';
 import { route } from './flow';
-import { MAX_NAME, gradable, isInput, type Answer, type Form, type Question, type Response, type UploadedFile } from './model';
+import { MAX_COMMENT, MAX_NAME, autoGraded, countsPoints, isInput, type Answer, type Form, type Question, type Response, type Review, type UploadedFile } from './model';
 import { norm, shuffled } from './text';
 
 /*
@@ -138,11 +138,16 @@ export function visibleAnswers(form: Form, answers: Record<string, Answer>): Rec
 export interface Score {
   earned: number;
   total: number;
-  /** Per question: points earned (graded questions only). */
+  /** Per question: points earned (the ones already marked). */
   byQuestion: Record<string, number>;
+  /** Points that are given by hand and nobody has given yet. */
+  pending?: number;
 }
 
-function isRight(q: Question, a: Answer | undefined): boolean {
+/** Sums of halves and tenths without the tail that binary numbers leave. */
+const round = (n: number): number => Math.round(n * 100) / 100;
+
+export function isRight(q: Question, a: Answer | undefined): boolean {
   if (isEmpty(a)) return false;
   const right = q.correct.map(norm);
   if (!right.length) return false;
@@ -166,18 +171,44 @@ function isRight(q: Question, a: Answer | undefined): boolean {
   }
 }
 
-export function score(form: Form, answers: Record<string, Answer>): Score {
+export function score(form: Form, answers: Record<string, Answer>, review?: Review): Score {
   const s: Score = { earned: 0, total: 0, byQuestion: {} };
   if (!form.quiz) return s;
   const { shown } = route(form, answers);
   for (const q of form.questions) {
-    if (!gradable(q) || !q.correct.length || !shown.has(q.id)) continue;
-    s.total += q.points;
-    const got = isRight(q, answers[q.id]) ? q.points : 0;
+    if (!countsPoints(q) || !shown.has(q.id)) continue;
+    s.total = round(s.total + q.points);
+    const given = review?.points && Object.hasOwn(review.points, q.id) ? review.points[q.id] : undefined;
+    let got: number;
+    if (given !== undefined) got = Math.min(q.points, Math.max(0, given));
+    else if (autoGraded(q)) got = isRight(q, answers[q.id]) ? q.points : 0;
+    // by hand: nothing to look at is worth nothing
+    else if (isEmpty(answers[q.id])) got = 0;
+    else {
+      if (q.points) s.pending = round((s.pending ?? 0) + q.points);
+      continue;
+    }
     s.byQuestion[q.id] = got;
-    s.earned += got;
+    s.earned = round(s.earned + got);
   }
   return s;
+}
+
+/** The corrections of a response as read from the file of the form: only what makes sense for it. */
+export function readReview(form: Form, raw: unknown): Review | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as { points?: unknown; comments?: unknown; comment?: unknown; done?: unknown };
+  const ids = new Set(form.questions.filter(isInput).map((q) => q.id));
+  const entries = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.entries(v as Record<string, unknown>).filter(([id]) => ids.has(id)) : []);
+  const points = entries(r.points).flatMap(([id, n]) => (typeof n === 'number' && Number.isFinite(n) && n >= 0 ? [[id, Math.min(1000, n)] as const] : []));
+  const comments = entries(r.comments).flatMap(([id, c]) => (typeof c === 'string' && c !== '' ? [[id, c.slice(0, MAX_COMMENT)] as const] : []));
+  const out: Review = {
+    ...(points.length ? { points: Object.fromEntries(points) } : {}),
+    ...(comments.length ? { comments: Object.fromEntries(comments) } : {}),
+    ...(typeof r.comment === 'string' && r.comment !== '' ? { comment: r.comment.slice(0, MAX_COMMENT * 2) } : {}),
+    ...(r.done === true ? { done: true } : {}),
+  };
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** The response with these answers: its identifier and date, or new ones if what came is not usable. */
@@ -257,5 +288,7 @@ export function keptResponse(form: Form, raw: unknown): Response | null {
     const v = shaped(q, src[q.id]);
     if (!isEmpty(v)) answers[q.id] = v;
   }
-  return Object.keys(answers).length ? asResponse(r, answers) : null;
+  if (!Object.keys(answers).length) return null;
+  const review = readReview(form, (raw as { review?: unknown }).review);
+  return { ...asResponse(r, answers), ...(review ? { review } : {}) };
 }

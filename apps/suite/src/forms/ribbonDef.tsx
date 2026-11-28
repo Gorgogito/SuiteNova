@@ -101,6 +101,8 @@ export function formsTabs(ui: FormsUI): RibbonTab[] {
         items: [
           { kind: 'button', command: 'forms.quiz', size: 'large', keytip: 'MC' },
           { kind: 'button', command: 'forms.showScore', size: 'large', keytip: 'MP' },
+          { kind: 'button', command: 'forms.showAnswers', size: 'large', keytip: 'MS' },
+          { kind: 'button', command: 'forms.practice', size: 'large', keytip: 'PR' },
         ],
       },
     ],
@@ -126,6 +128,7 @@ export function formsTabs(ui: FormsUI): RibbonTab[] {
         label: 'Datos',
         icon: 'exportFile',
         items: [
+          { kind: 'button', command: 'forms.grade', size: 'large', keytip: 'CO' },
           { kind: 'button', command: 'forms.export.csv', size: 'large', keytip: 'CS' },
           { kind: 'button', command: 'forms.responses.clear', size: 'large', keytip: 'EA' },
         ],

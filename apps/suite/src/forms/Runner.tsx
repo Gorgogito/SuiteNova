@@ -1,10 +1,11 @@
 import { t } from '@suitenova/core-ui';
 import { printPage } from '../mail/print';
-import { IMAGE_SIZES, isFiles, isSafeImage, newId, numbers, orderOf, score, validateAll, type Answer, type Form, type Question, type UploadedFile, displayOrder, isInput, pageAfter, pagesOf, route, MAX_NAME, availability, closedText, localize, receiptHtml, tidyAnswers, timedAnswers } from '@suitenova/forms-core';
+import { IMAGE_SIZES, isFiles, isSafeImage, newId, numbers, orderOf, score, validateAll, type Answer, type Form, type Question, type UploadedFile, displayOrder, isInput, pageAfter, pagesOf, route, MAX_NAME, availability, closedText, localize, receiptHtml, tidyAnswers, timedAnswers, autoGraded, pendingText, reviewLines, worthShowing } from '@suitenova/forms-core';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { ProofTextarea } from '../spell';
 import { Equation } from './Equation';
 import { FileField, RankField, Say, ScaleField } from './Fields';
+import { PracticeCheck, QuizReview } from './QuizShown';
 
 type Answers = Record<string, Answer>;
 
@@ -294,7 +295,10 @@ export function Runner({ form, onSubmit, draft, seed }: { form: Form; onSubmit: 
   if (done) {
     const s = score(form, done.answers);
     const saved = !done.timed || Object.keys(done.answers).length > 0;
+    const shownBack = saved && form.quiz && (form.showAnswers || form.practice);
     return (
+      <Say.Provider value={say}>
+      <div className="fm-run">
       <div className="fm-card fm-done nv-work" role="status">
         <h2>{say(done.timed ? 'Se acabó el tiempo.' : onSubmit ? 'Respuesta guardada' : 'Así se vería al terminar')}</h2>
         {done.timed && <p>{say(saved ? 'Se envió lo que habías respondido.' : 'No habías respondido nada.')}</p>}
@@ -304,6 +308,7 @@ export function Runner({ form, onSubmit, draft, seed }: { form: Form; onSubmit: 
             {say('Puntuación')}: {s.earned} / {s.total}
           </p>
         )}
+        {saved && form.quiz && form.showScore && !!s.pending && <p>{say(pendingText(s.pending))}</p>}
         {!onSubmit && <p>{say('Esto es solo una vista previa: no se ha guardado nada.')}</p>}
         {saved && form.receipt && (
           <button type="button" className="fm-btn fm-btn--sec" onClick={() => printPage(receiptHtml(form, done.answers, done.name || undefined, done.at))}>
@@ -316,6 +321,9 @@ export function Runner({ form, onSubmit, draft, seed }: { form: Form; onSubmit: 
           </button>
         )}
       </div>
+      {shownBack && <QuizReview lines={worthShowing(reviewLines(form, done.answers))} />}
+      </div>
+      </Say.Provider>
     );
   }
 
@@ -442,6 +450,7 @@ export function Runner({ form, onSubmit, draft, seed }: { form: Form; onSubmit: 
                   {say(errors[q.id]!)}
                 </p>
               )}
+              {form.quiz && form.practice && autoGraded(q) && <PracticeCheck q={q} value={answers[q.id]} />}
             </div>
           );
         })}

@@ -24,7 +24,7 @@ export interface Summary {
    * `max` is the most anyone could get. With questions shown only to some, each person has their own total (`varies`):
    * `percent` is then the average share of it.
    */
-  quiz: { average: number; max: number; best: number; worst: number; varies: boolean; percent: number } | null;
+  quiz: { average: number; max: number; best: number; worst: number; varies: boolean; percent: number; /** Responses with points nobody has given yet. */ pending: number } | null;
 }
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : 0);
@@ -112,7 +112,7 @@ export function summarize(form: Form, responses: Response[]): Summary {
   }
   let quiz: Summary['quiz'] = null;
   if (form.quiz && responses.length) {
-    const scores = responses.map((r) => score(form, r.answers));
+    const scores = responses.map((r) => score(form, r.answers, r.review));
     const totals = scores.map((s) => s.total);
     const earned = scores.map((s) => s.earned);
     const shares = scores.filter((s) => s.total > 0).map((s) => s.earned / s.total);
@@ -123,6 +123,7 @@ export function summarize(form: Form, responses: Response[]): Summary {
       worst: Math.min(...earned),
       varies: new Set(totals).size > 1,
       percent: shares.length ? Math.round((shares.reduce((s, x) => s + x, 0) / shares.length) * 1000) / 10 : 0,
+      pending: scores.filter((s) => s.pending).length,
     };
   }
   return { total: responses.length, first: dates[0] ?? null, last: dates[dates.length - 1] ?? null, questions, quiz };

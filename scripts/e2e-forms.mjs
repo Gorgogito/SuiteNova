@@ -1291,6 +1291,7 @@ await check('asks for the name, offers a copy of the answers and no second respo
   await press('Imprimir o guardar mis respuestas');
   await page.locator('iframe.ml-print').waitFor({ state: 'attached' });
   const printed = await page.locator('iframe.ml-print').getAttribute('srcdoc');
+  await page.waitForTimeout(600); // the page that prints takes the focus a moment after it is there
   assert.match(printed, /Mis respuestas[\s\S]*Nombre<\/dt><dd>Ana Ruiz[\s\S]*1\. Color<\/dt><dd>verde[\s\S]*2\. Horas<\/dt><dd>—/);
   await shot('receipt');
   await mode('Resultados');
@@ -1534,6 +1535,313 @@ await check('settings, closed notice, timer and backgrounds are readable in the 
     await settle();
     assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `cerrado ${theme}`);
     await mode('Diseñar');
+  }
+});
+
+// ------------------------------------------------------------ quizzes (phase 6)
+const quizForm = () => page.getByRole('form', { name: 'Examen' });
+const scoreBox = (title, name) => page.getByRole('textbox', { name: `Puntos de ${title} — ${name}` });
+const marking = (title) => page.getByRole('region', { name: `Corrección de ${title}` });
+const toResults = async (view) => {
+  await mode('Resultados');
+  await page.getByRole('tab', { name: view, exact: true }).click();
+};
+const answersOf = (i) => ev((n) => window.__novaForms.ctl.responses[n].review ?? null, i);
+
+await check('designing a quiz: comments per option, explanations, a question marked by hand and the two new settings', async () => {
+  await fresh();
+  await ev(() => window.__novaForms.ctl.setForm({ title: 'Examen', askName: true }));
+  await tab('Diseño');
+  await press('Modo cuestionario (con puntuación)');
+  await tab('Inicio');
+  await addVia('Opción única');
+  await setTitle('Capital del Perú');
+  await renameOptions(['Cusco', 'Lima']);
+  const right = () => page.getByRole('group', { name: 'Respuesta correcta' });
+  await right().getByRole('radio', { name: 'Lima' }).check();
+  await right().getByLabel('Puntos').fill('2');
+  await right().getByRole('button', { name: 'Comentarios para quien elija cada opción' }).click();
+  await right().getByLabel('Comentario para «Cusco»').fill('Fue la capital del imperio inca.');
+  await right().getByLabel('Explicación (se ve con la respuesta)').fill('Lima es la capital desde 1535.');
+  assert.match(await right().innerText(), /Quien responde verá los comentarios/);
+  await addVia('Párrafo');
+  await setTitle('Cuenta un viaje');
+  const points = page.getByRole('group', { name: 'Puntuación' });
+  assert.equal(await points.getByLabel('Puntos').count(), 0, 'it gives no points until asked to');
+  await points.getByRole('checkbox', { name: 'Puntúa (se corrige a mano)' }).check();
+  await points.getByLabel('Puntos').fill('3');
+  await addVia('Texto corto');
+  await setTitle('Un río');
+  await right().getByLabel(/Respuestas aceptadas/).fill('Amazonas; Rímac');
+  await right().getByLabel(/Respuestas aceptadas/).press('Enter');
+  await right().getByRole('checkbox', { name: 'Corregir a mano' }).check();
+  assert.equal(await right().getByLabel(/Respuestas aceptadas/).count(), 0);
+  await right().getByRole('checkbox', { name: 'Corregir a mano' }).uncheck();
+  await shot('quiz-design');
+  await tab('Diseño');
+  await press('Mostrar las respuestas al terminar');
+  await press('Modo práctica');
+  await tab('Inicio');
+  const f = await ev(() => window.__novaForms.ctl.form);
+  assert.deepEqual([f.showAnswers, f.practice, f.questions[1].manual, f.questions[0].feedback, f.questions[2].correct], [true, true, true, { Cusco: 'Fue la capital del imperio inca.' }, ['Amazonas', 'Rímac']]);
+  assert.equal(await page.getByRole('note').filter({ hasText: 'Quien responde verá' }).count(), 0);
+});
+
+await check('practice mode: each answer is checked, explained and tried again; at the end everything is shown', async () => {
+  await mode('Rellenar y guardar respuestas');
+  const q1 = quizForm().locator('[data-page]').filter({ hasText: 'Capital del Perú' });
+  // only the questions marked by themselves can be checked
+  assert.equal(await quizForm().getByRole('button', { name: 'Comprobar' }).count(), 2);
+  await q1.getByRole('button', { name: 'Comprobar' }).click();
+  await q1.getByText('Responde antes de comprobar.').waitFor();
+  await q1.getByRole('radio', { name: 'Cusco' }).check();
+  assert.equal(await q1.getByText('Responde antes de comprobar.').count(), 0, 'changing the answer clears what was said');
+  await q1.getByRole('button', { name: 'Comprobar' }).click();
+  await q1.getByText(/No es correcto/).waitFor();
+  await q1.getByText('Fue la capital del imperio inca.').waitFor();
+  assert.equal(await q1.getByText('Respuesta correcta: Lima').count(), 0, 'the answer waits to be asked for');
+  await q1.getByRole('button', { name: 'Ver la respuesta' }).click();
+  await q1.getByText('Respuesta correcta: Lima').waitFor();
+  await shot('practice-wrong');
+  await q1.getByRole('radio', { name: 'Lima' }).check();
+  assert.equal(await q1.getByText(/No es correcto/).count(), 0);
+  await q1.getByRole('button', { name: 'Comprobar' }).click();
+  await q1.getByText('¡Correcto!').waitFor();
+  await q1.getByText('Explicación: Lima es la capital desde 1535.').waitFor();
+  await shot('practice-right');
+  const send = async (name, capital, trip, river) => {
+    await quizForm().getByLabel(/Tu nombre/).fill(name);
+    await quizForm().getByRole('radio', { name: capital }).check();
+    await quizForm().getByLabel('Cuenta un viaje').fill(trip);
+    await quizForm().getByLabel('Un río').fill(river);
+    await quizForm().getByRole('button', { name: 'Enviar', exact: true }).click();
+    await page.getByText('Respuesta guardada').waitFor();
+  };
+  await send('Ana', 'Lima', 'Fui al mar.', 'rimac');
+  const done = page.getByRole('status').filter({ hasText: 'Respuesta guardada' });
+  assert.match(await done.innerText(), /Puntuación: 3 \/ 6[\s\S]*Quedan 3 puntos por corregir a mano\./);
+  const review = page.getByRole('region', { name: 'Respuestas y comentarios' });
+  assert.match(await review.innerText(), /1\. Capital del Perú[\s\S]*Correcta · Puntos: 2 de 2[\s\S]*Explicación: Lima[\s\S]*2\. Cuenta un viaje[\s\S]*Por corregir · Puntos: hasta 3[\s\S]*3\. Un río[\s\S]*Respuesta correcta: Amazonas \/ Rímac/);
+  await shot('quiz-review');
+  await page.getByRole('button', { name: 'Rellenar otra respuesta' }).click();
+  await send('Beto', 'Cusco', 'Nada.', 'Nilo');
+  assert.match(await review.innerText(), /Incorrecta · Puntos: 0 de 2[\s\S]*Fue la capital del imperio inca\./);
+  assert.equal((await st()).r, 2);
+});
+
+await check('marking by person: points checked, comments, reviewed, and undone', async () => {
+  await tab('Respuestas');
+  await press('Corregir y devolver…');
+  await tab('Inicio');
+  await page.getByRole('tab', { name: 'Corregir', exact: true }).waitFor();
+  assert.match(await page.locator('.fm-top').innerText(), /2 respuestas por corregir/);
+  const person = page.getByRole('combobox', { name: 'Respuesta que se corrige' });
+  assert.deepEqual(await person.locator('option').allInnerTexts(), ['1. Ana — 3 / 6 · por corregir', '2. Beto — 0 / 6 · por corregir']);
+  const box = scoreBox('2. Cuenta un viaje', 'Ana');
+  await box.fill('9');
+  await box.press('Enter');
+  await marking('2. Cuenta un viaje').getByText('Escribe un número de 0 a 3.').waitFor();
+  assert.equal(await answersOf(0), null);
+  await box.fill('2,5');
+  await box.press('Enter');
+  assert.match(await page.locator('.fm-grading .fm-total').innerText(), /Puntuación: 5\.5 \/ 6/);
+  assert.doesNotMatch(await page.locator('.fm-grading .fm-total').innerText(), /por corregir/);
+  await page.getByRole('textbox', { name: 'Comentario sobre 2. Cuenta un viaje — Ana' }).pressSequentially('Muy vivo');
+  await page.getByRole('textbox', { name: 'Comentario general' }).fill('Sigue así, Ana.');
+  await page.getByRole('checkbox', { name: 'Revisada' }).check();
+  assert.match((await person.locator('option').allInnerTexts())[0], /^1\. Ana — 5\.5 \/ 6 ✓$/);
+  await shot('marking-person');
+  await press('Siguiente sin revisar');
+  assert.match(await marking('1. Capital del Perú').innerText(), /Cusco[\s\S]*Incorrecta · 0 \/ 2 · Respuesta correcta: Lima/);
+  // half the points to a wrong answer, then back to the automatic ones
+  await page.getByRole('button', { name: 'Todos los puntos a 1. Capital del Perú — Beto' }).click();
+  assert.equal(await scoreBox('1. Capital del Perú', 'Beto').inputValue(), '2');
+  await page.getByRole('button', { name: 'Quitar los puntos puestos a 1. Capital del Perú — Beto' }).click();
+  assert.equal(await scoreBox('1. Capital del Perú', 'Beto').inputValue(), '');
+  assert.equal(await answersOf(1), null);
+  await page.getByRole('button', { name: 'Cero puntos a 2. Cuenta un viaje — Beto' }).click();
+  assert.deepEqual((await answersOf(1)).points, Object.fromEntries([[await ev(() => window.__novaForms.ctl.form.questions[1].id), 0]]));
+  await page.locator('.fm-grading .fm-total').click();
+  await page.keyboard.press('Control+z');
+  await settle();
+  assert.equal(await answersOf(1), null);
+  assert.equal((await st()).r, 2);
+});
+
+await check('marking by question, and the marks in the summary, one by one, in the table and in the file', async () => {
+  await page.getByRole('button', { name: 'Por pregunta', exact: true }).click();
+  const which = page.getByRole('combobox', { name: 'Pregunta que se corrige' });
+  await which.selectOption({ label: '2. Cuenta un viaje' });
+  assert.equal(await scoreBox('2. Cuenta un viaje', 'Ana').inputValue(), '2.5');
+  await scoreBox('2. Cuenta un viaje', 'Beto').fill('1');
+  await scoreBox('2. Cuenta un viaje', 'Beto').press('Tab');
+  await page.getByRole('textbox', { name: 'Comentario sobre 2. Cuenta un viaje — Beto' }).fill('Cuenta más.');
+  await shot('marking-question');
+  await page.getByRole('tab', { name: 'Resumen' }).click();
+  const top = await page.locator('.fm-top').innerText();
+  assert.match(top, /Puntuación media:\s*3[.,]25 \/ 6/);
+  assert.doesNotMatch(top, /por corregir/);
+  await page.getByRole('tab', { name: 'Individuales' }).click();
+  assert.match(await page.getByRole('region', { name: 'Respuesta individual' }).innerText(), /Puntuación: 5\.5 \/ 6/);
+  const [csv] = await Promise.all([page.waitForEvent('download'), (async () => { await tab('Respuestas'); await press('Exportar respuestas a CSV…'); })()]);
+  const text = read(await csv.path()).toString('utf8');
+  assert.match(text, /Puntuación;Puntuación máxima;Puntos por corregir;Comentario general;/);
+  assert.match(text, /;Ana;5\.5;6;0;Sigue así, Ana\.;/);
+  await tab('Inicio');
+  const before = await ev(() => JSON.stringify(window.__novaForms.ctl.doc));
+  const [saved] = await Promise.all([page.waitForEvent('download'), page.keyboard.press('Control+s')]);
+  const file = path.join(tmp, 'examen.novaforms');
+  await saved.saveAs(file);
+  await ev(([t]) => window.__novaForms.load(t, 'examen.novaforms'), [fs.readFileSync(file, 'utf8')]);
+  await settle();
+  assert.deepEqual(JSON.parse(await ev(() => JSON.stringify(window.__novaForms.ctl.doc))), JSON.parse(before));
+});
+
+await check('feedback sheets: printed and saved, one per person, with or without the right answers', async () => {
+  await toResults('Corregir');
+  await page.getByRole('button', { name: 'Por persona', exact: true }).click();
+  await press('Imprimir todas las hojas');
+  const printed = async () => {
+    await page.locator('iframe.ml-print').waitFor({ state: 'attached' });
+    return page.locator('iframe.ml-print').getAttribute('srcdoc');
+  };
+  const all = await printed();
+  await page.waitForTimeout(600); // the page that prints takes the focus
+  assert.equal(all.match(/<section>/g).length, 2);
+  assert.match(all, /<h2>Ana<\/h2>[\s\S]*Puntuación: 5\.5 de 6[\s\S]*Comentario general: Sigue así, Ana\.[\s\S]*Comentario: Muy vivo[\s\S]*<h2>Beto<\/h2>[\s\S]*Cuenta más\./);
+  assert.match(all, /Respuesta correcta: Lima[\s\S]*Explicación: Lima es la capital/);
+  await page.getByRole('checkbox', { name: 'Incluir las respuestas correctas en las hojas' }).uncheck();
+  const [one] = await Promise.all([page.waitForEvent('download'), press('Guardar su hoja…')]);
+  assert.equal(one.suggestedFilename(), 'Examen - Ana.html');
+  const sheet = path.join(tmp, 'hoja.html');
+  await one.saveAs(sheet);
+  const { p, errs } = await openPage(sheet);
+  assert.equal(await p.locator('section').count(), 1);
+  const text = await p.locator('body').innerText();
+  assert.match(text, /Examen\s+Ana[\s\S]*Puntuación: 5\.5 de 6/);
+  assert.doesNotMatch(text, /Respuesta correcta|Explicación/);
+  await shot('sheet', p);
+  assert.deepEqual(errs, []);
+  await p.close();
+  const [every] = await Promise.all([page.waitForEvent('download'), press('Guardar todas las hojas…')]);
+  assert.equal(every.suggestedFilename(), 'Examen - devoluciones.html');
+});
+
+await check('the exported page practises and shows the answers; without those settings it carries neither', async () => {
+  const f = await exportPage('examen.html');
+  const { p, errs } = await openPage(f);
+  assert.equal(await p.getByRole('button', { name: 'Comprobar' }).count(), 2);
+  const q1 = p.locator('[data-q]').first();
+  await q1.getByRole('button', { name: 'Comprobar' }).click();
+  await q1.getByText('Responde antes de comprobar.').waitFor();
+  await q1.getByRole('radio', { name: 'Cusco' }).check();
+  assert.equal(await q1.getByText('Responde antes de comprobar.').count(), 0);
+  await q1.getByRole('button', { name: 'Comprobar' }).click();
+  await q1.getByText(/No es correcto/).waitFor();
+  await q1.getByText('Fue la capital del imperio inca.').waitFor();
+  await q1.getByRole('button', { name: 'Ver la respuesta' }).click();
+  await q1.getByText('Respuesta correcta: Lima').waitFor();
+  await q1.getByRole('radio', { name: 'Lima' }).check();
+  assert.equal(await q1.getByText(/No es correcto/).count(), 0);
+  await q1.getByRole('button', { name: 'Comprobar' }).click();
+  await q1.getByText('¡Correcto!').waitFor();
+  await shot('page-practice', p);
+  await p.getByLabel(/Tu nombre/).fill('Caro');
+  await p.getByLabel('Cuenta un viaje').fill('<b>Selva</b>');
+  await p.getByLabel('Un río').fill('Amazonas');
+  await p.getByRole('button', { name: 'Enviar' }).click();
+  assert.match(await p.locator('#done').innerText(), /Puntuación: 3 de 6[\s\S]*Quedan 3 puntos por corregir a mano\./);
+  assert.match(await p.locator('#review-list').innerText(), /Correcta · Puntos: 2 de 2[\s\S]*Por corregir · Puntos: hasta 3[\s\S]*Tu respuesta: <b>Selva<\/b>[\s\S]*Respuesta correcta: Amazonas \/ Rímac/);
+  await shot('page-review', p);
+  await p.getByRole('button', { name: 'Responder otra vez' }).click();
+  await p.getByRole('button', { name: 'Comprobar' }).first().waitFor();
+  assert.equal(await p.locator('#review-list').count(), 0);
+  assert.deepEqual(errs, []);
+  await p.close();
+  await ev(() => window.__novaForms.ctl.setForm({ showAnswers: undefined, practice: undefined }));
+  const plain = await exportPage('examen-sin.html');
+  assert.doesNotMatch(fs.readFileSync(plain, 'utf8'), /imperio inca|desde 1535/);
+  const other = await openPage(plain);
+  assert.equal(await other.p.getByRole('button', { name: 'Comprobar' }).count(), 0);
+  await other.p.getByLabel(/Tu nombre/).fill('Dani');
+  await other.p.getByRole('button', { name: 'Enviar' }).click();
+  await other.p.locator('#done').waitFor();
+  assert.equal(await other.p.locator('#review-list').count(), 0);
+  assert.deepEqual(other.errs, []);
+  await other.p.close();
+});
+
+await check('a quiz in English: checking and the review speak English', async () => {
+  await ev(() => window.__novaForms.ctl.setForm({ showAnswers: true, practice: true, language: 'en' }));
+  await mode('Rellenar y guardar respuestas');
+  await press('Borrar respuestas').catch(async () => press('Clear answers'));
+  await quizForm().getByRole('radio', { name: 'Cusco' }).check();
+  await quizForm().getByRole('button', { name: 'Check' }).first().click();
+  await quizForm().getByText(/Not correct/).waitFor();
+  await quizForm().getByRole('button', { name: 'Show the answer' }).click();
+  await quizForm().getByText('Right answer: Lima').waitFor();
+  await quizForm().getByLabel(/Your name/).fill('Eve');
+  await quizForm().getByRole('button', { name: 'Submit', exact: true }).click();
+  assert.match(await page.getByRole('region', { name: 'Answers and comments' }).innerText(), /Incorrect · Points: 0 of 2[\s\S]*Your answer: Cusco/);
+});
+
+await check('marking two thousand responses: by question in pages, and quick to type in', async () => {
+  await ev(() => {
+    const { ctl } = window.__novaForms;
+    const [a, b] = ctl.form.questions;
+    const responses = Array.from({ length: 2000 }, (_, i) => ({ id: `m${i}`, at: new Date(Date.UTC(2026, 0, 1)).toISOString(), name: `P${i + 1}`, answers: { [a.id]: i % 2 ? 'Lima' : 'Cusco', [b.id]: 'texto' } }));
+    ctl.commit({ ...ctl.doc, responses });
+  });
+  const t0 = Date.now();
+  await toResults('Corregir');
+  await page.getByRole('button', { name: 'Por pregunta', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Pregunta que se corrige' }).selectOption({ label: '2. Cuenta un viaje' });
+  await page.getByText('Personas 1 a 25 de 2000').waitFor();
+  assert.equal(await page.locator('.fm-marks').count(), 25);
+  await press('Personas siguientes');
+  await page.getByText('Personas 26 a 50 de 2000').waitFor();
+  const comment = page.getByRole('textbox', { name: 'Comentario sobre 2. Cuenta un viaje — P26' });
+  await comment.pressSequentially('bien hecho');
+  await scoreBox('2. Cuenta un viaje', 'P26').fill('3');
+  await scoreBox('2. Cuenta un viaje', 'P26').press('Enter');
+  assert.equal((await answersOf(25)).comments !== undefined, true);
+  assert.ok(Date.now() - t0 < 15000, `took ${Date.now() - t0} ms`);
+  await page.getByRole('button', { name: 'Por persona', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Respuesta que se corrige' }).selectOption('m1999');
+  await page.getByRole('textbox', { name: 'Comentario general' }).pressSequentially('fin');
+  assert.equal((await answersOf(1999)).comment, 'fin');
+  await ev(() => window.__novaForms.ctl.commit({ ...window.__novaForms.ctl.doc, responses: [] }));
+});
+
+await check('practice, review and marking are readable in the four themes', async () => {
+  await ev(() => window.__novaForms.ctl.setForm({ language: undefined }));
+  for (const theme of ['colorful', 'white', 'darkgray', 'black']) {
+    await ev((t) => window.__novaSettings.set('theme', t), theme);
+    await page.waitForFunction((t) => document.querySelector('[data-app]').dataset.theme === t, theme);
+    await mode('Diseñar');
+    await ev(() => { const { ctl } = window.__novaForms; ctl.select(ctl.form.questions[0].id); });
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `diseñar ${theme}`);
+    await mode('Rellenar y guardar respuestas');
+    const q = page.locator('[data-page]').filter({ hasText: 'Capital del Perú' });
+    await q.getByRole('radio', { name: 'Cusco' }).check();
+    await q.getByRole('button', { name: 'Comprobar' }).click();
+    const river = page.locator('[data-page]').filter({ hasText: 'Un río' });
+    await river.getByRole('textbox').fill('Rímac');
+    await river.getByRole('button', { name: 'Comprobar' }).click();
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `práctica ${theme}`);
+    await shot(`theme-${theme}-practice`);
+    await page.getByLabel(/Tu nombre/).fill('Tema');
+    await press('Enviar');
+    await page.getByRole('region', { name: 'Respuestas y comentarios' }).waitFor();
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `respuestas ${theme}`);
+    await shot(`theme-${theme}-review`);
+    await toResults('Corregir');
+    await settle();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `corregir ${theme}`);
+    await shot(`theme-${theme}-marking`);
   }
 });
 
