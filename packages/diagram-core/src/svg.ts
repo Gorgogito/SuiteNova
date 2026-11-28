@@ -78,7 +78,7 @@ export function pageToSvg(full: Page, opts: SvgOptions = {}): string {
     parts.push(`<g ${g}>`);
     if (r.flip) parts.push(`<g transform="${r.flip}">`);
     if (r.image) parts.push(`<image href="${escXml(r.image.href)}" x="0" y="0" width="${num(r.image.w)}" height="${num(r.image.h)}" preserveAspectRatio="${r.image.par}">${r.image.alt ? `<title>${escXml(r.image.alt)}</title>` : ''}</image>`);
-    for (const p of r.paths) parts.push(`<path d="${p.d}" fill="${escXml(p.fill)}" stroke="${escXml(p.stroke)}" stroke-width="${num(p.strokeWidth)}"${p.dasharray ? ` stroke-dasharray="${p.dasharray}"` : ''} stroke-linejoin="round"/>`);
+    for (const p of r.paths) parts.push(`<path d="${p.d}"${p.evenOdd ? ' fill-rule="evenodd"' : ''} fill="${escXml(p.fill)}" stroke="${escXml(p.stroke)}" stroke-width="${num(p.strokeWidth)}"${p.dasharray ? ` stroke-dasharray="${p.dasharray}"` : ''} stroke-linejoin="round"/>`);
     if (r.flip) parts.push('</g>');
     for (const t of r.texts) parts.push(textSvg(t));
     if (r.caption) parts.push(textSvg(r.caption));

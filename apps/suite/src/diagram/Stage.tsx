@@ -49,7 +49,7 @@ const ShapeView = memo(function ShapeView({ shape }: { shape: Shape }) {
       <g transform={r.flip || undefined}>
         {r.image && <image href={r.image.href} x={0} y={0} width={r.image.w} height={r.image.h} preserveAspectRatio={r.image.par} pointerEvents="none" role="img" aria-label={r.image.alt || undefined} />}
         {r.paths.map((p, i) => (
-          <path key={i} d={p.d} fill={p.fill} stroke={p.stroke} strokeWidth={p.strokeWidth} strokeDasharray={p.dasharray} strokeLinejoin="round" />
+          <path key={i} d={p.d} fillRule={p.evenOdd ? 'evenodd' : undefined} fill={p.fill} stroke={p.stroke} strokeWidth={p.strokeWidth} strokeDasharray={p.dasharray} strokeLinejoin="round" />
         ))}
       </g>
       {r.texts.map((tx, i) => (

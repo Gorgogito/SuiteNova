@@ -12,7 +12,10 @@ import { containerParts } from './container';
 const NARROW = new Set("iljtfI.,:;|!'`()[]/\\ ");
 const WIDE = new Set('mwMW@%');
 
-export function textWidth(s: string, size: number, bold = false): number {
+/** Typefaces clearly narrower than the average the table was made for (the one of imported Visio drawings). */
+const NARROW_FONTS: Record<string, number> = { Calibri: 0.88 };
+
+export function textWidth(s: string, size: number, bold = false, family = ''): number {
   let w = 0;
   for (const ch of s) {
     let k = 0.54;
@@ -23,14 +26,14 @@ export function textWidth(s: string, size: number, bold = false): number {
     else if (ch.charCodeAt(0) > 0x2e80) k = 1; // CJK
     w += k;
   }
-  return w * size * (bold ? 1.06 : 1);
+  return w * size * (bold ? 1.06 : 1) * (NARROW_FONTS[family] ?? 1);
 }
 
 /**
  * Break text into lines that fit `maxW`; explicit line breaks are kept. A word longer than a line stays whole (on a
  * line of its own) while it fits in `hardW`, the room there really is; only a word longer than that is split.
  */
-export function wrapLines(text: string, maxW: number, font: Pick<Font, 'size' | 'bold'>, wrap = true, hardW = maxW): string[] {
+export function wrapLines(text: string, maxW: number, font: Pick<Font, 'size' | 'bold'> & { family?: string }, wrap = true, hardW = maxW): string[] {
   const limit = Math.max(maxW, hardW);
   const out: string[] = [];
   for (const para of text.split('\n')) {
@@ -41,14 +44,14 @@ export function wrapLines(text: string, maxW: number, font: Pick<Font, 'size' | 
     let line = '';
     for (const word of para.split(/(?<= )/)) {
       const trial = line + word;
-      if (line && textWidth(trial.trimEnd(), font.size, font.bold) > maxW) {
+      if (line && textWidth(trial.trimEnd(), font.size, font.bold, font.family) > maxW) {
         out.push(line.trimEnd());
         line = '';
       }
       let rest = word;
-      while (textWidth(rest.trimEnd(), font.size, font.bold) > limit && rest.length > 1) {
+      while (textWidth(rest.trimEnd(), font.size, font.bold, font.family) > limit && rest.length > 1) {
         let cut = rest.length - 1;
-        while (cut > 1 && textWidth(rest.slice(0, cut), font.size, font.bold) > limit) cut--;
+        while (cut > 1 && textWidth(rest.slice(0, cut), font.size, font.bold, font.family) > limit) cut--;
         out.push(rest.slice(0, cut));
         rest = rest.slice(cut);
       }
@@ -95,6 +98,8 @@ function layout(text: string, rect: { x: number; y: number; w: number; h: number
 
 export interface DrawnPath {
   d: string;
+  /** Overlapping parts of the path leave holes. */
+  evenOdd?: boolean;
   fill: string;
   stroke: string;
   strokeWidth: number;
@@ -144,13 +149,22 @@ export const dashArray = (dash: Dash, width: number): string | undefined => {
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-/** Free-form outlines scaled to the shape's current size. */
+/**
+ * Free-form outlines scaled to the shape's current size. As in Visio, the filled outlines of one shape that overlap
+ * leave a hole (a ring is two outlines), so those that follow each other with the same line are one path.
+ */
 function outlinePaths(s: Shape): PathDef[] {
-  return (s.geometry ?? []).filter((o) => o.pts.length > 1).map((o) => ({
-    d: `M${o.pts.map(([x, y]) => `${r2(x * s.w)},${r2(y * s.h)}`).join(' L')}${o.closed ? ' Z' : ''}`,
-    fill: o.fill ? 'main' : 'none',
-    stroke: o.stroke,
-  }));
+  const out: PathDef[] = [];
+  for (const o of s.geometry ?? []) {
+    if (o.pts.length < 2) continue;
+    const d = `M${o.pts.map(([x, y]) => `${r2(x * s.w)},${r2(y * s.h)}`).join(' L')}${o.closed ? ' Z' : ''}`;
+    const last = out[out.length - 1];
+    if (o.fill && last?.fill === 'main' && last.stroke === o.stroke) {
+      last.d += ` ${d}`;
+      last.evenOdd = true;
+    } else out.push({ d, fill: o.fill ? 'main' : 'none', stroke: o.stroke });
+  }
+  return out;
 }
 
 export function shapeRender(s: Shape): ShapeRender {
@@ -162,6 +176,7 @@ export function shapeRender(s: Shape): ShapeRender {
     const hasStroke = p.stroke !== false && s.style.stroke !== 'none';
     return {
       d: p.d,
+      ...(p.evenOdd ? { evenOdd: true } : {}),
       fill: p.fill === 'main' ? s.style.fill : p.fill === 'stroke' ? (s.style.stroke === 'none' ? s.style.fill : s.style.stroke) : p.fill === 'light' ? 'rgba(255,255,255,0.55)' : 'none',
       stroke: hasStroke ? s.style.stroke : 'none',
       strokeWidth: sw,
@@ -248,7 +263,7 @@ export function connectorRender(c: Connector, page: Page): ConnectorRender {
   let label: ConnectorRender['label'] = null;
   if (c.text.trim()) {
     const lines = wrapLines(c.text, 160, c.font, true, 320);
-    const w = Math.max(...lines.map((l) => textWidth(l, c.font.size, c.font.bold))) + 8;
+    const w = Math.max(...lines.map((l) => textWidth(l, c.font.size, c.font.bold, c.font.family))) + 8;
     const h = lines.length * c.font.size * LINE_H + 4;
     const box = { x: route.mid.x - w / 2, y: route.mid.y - h / 2, w, h };
     // the lines are already broken: the box is measured on them

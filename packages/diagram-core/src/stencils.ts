@@ -6,6 +6,8 @@ import type { Style } from './model';
  */
 export interface PathDef {
   d: string;
+  /** Overlapping parts of the path leave holes. */
+  evenOdd?: boolean;
   /** "main" = the shape's fill; "stroke" = painted with the line colour; "light" = semi-transparent white over the fill. */
   fill: 'main' | 'none' | 'stroke' | 'light';
   /** Draw the outline (default true). */

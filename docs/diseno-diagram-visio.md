@@ -1,6 +1,6 @@
 # Nova Diagram frente a Microsoft Visio (segunda ronda)
 
-Estado: **plan aprobado** (2026-11-28; propuesto el 2026-11-27). Fase 1 hecha; ver la bitácora al final.
+Estado: **plan aprobado** (2026-11-28; propuesto el 2026-11-27). Fases 1 y 2 hechas; ver la bitácora al final.
 
 Referencia: Visio de escritorio. La comparación sale de leer el código de Nova Diagram y `docs/LIMITACIONES.md`, de
 probarlo en Edge, de **abrir en Nova dibujos creados con Visio real y en Visio real un dibujo exportado por Nova**
@@ -26,7 +26,7 @@ todavía permitió crear, guardar y exportar, pero puede dejar de hacerlo.
 
 ## 2. Fallos encontrados al revisar
 
-### En el intercambio con Visio
+### En el intercambio con Visio (de Visio a Nova, corregido en la fase 2)
 
 Dibujo de prueba hecho con Visio (diagrama de flujo, grupo girado, imagen, líneas, página de fondo, BPMN, carril y
 servidor) y abierto con la importación de Nova:
@@ -134,3 +134,25 @@ Pruebas: 7 nuevas en `diagram-core` (`foundations.test.ts`), 2 del controlador y
 
 Sin probar: la ventana de impresión real y una impresora (las hojas se comprobaron generando el PDF con Edge sin
 ventana), y la aplicación de escritorio compilada.
+
+### Fase 2 (hecha, 2026-11-28): abrir dibujos de Visio
+El lector se ha rehecho en `diagram-core`: `vsdx-read.ts` (partes y herencia de celdas), `vsdx-theme.ts` (temas),
+`vsdx-geometry.ts` (arcos, elipses, polilíneas y NURBS) y `vsdx-import.ts` (formas de Nova). `vsdx.ts` queda para
+escribir.
+
+- **Herencia como Visio:** forma → patrón (cada parte de un grupo con la suya) → hojas de estilo → tema de la página.
+- **Temas:** el color de una forma sale de sus números de «estilo rápido», la variante de la página y las listas de
+  estilos del tema; los conectores usan las suyas. Las mezclas de color se hacen en luz lineal.
+- **Reglas halladas comparando con Visio:** el relleno de varios contornos de una forma deja huecos; las líneas van
+  encima de los rellenos sea cual sea su orden; el dibujo propio de un grupo va delante de sus partes; reflejar no gira
+  el texto; sin tema, `THEMEVAL(…)` vale su valor guardado; el texto claro del tema se dibuja con el color de la forma
+  cuando detrás solo está la hoja; una forma puede dibujar fuera de su caja.
+- **Cómo se comprobó:** pidiendo a Visio por automatización los colores que calcula (1449 formas, 6 temas) y
+  comparando a la vista las páginas que exporta con las de Nova (`real.vsdx` y un dibujo de 20 páginas). Esos archivos
+  llevan formas de Microsoft y no están en el repositorio.
+- **Pruebas:** 25 nuevas con archivos escritos a mano (`vsdx-import.test.ts`) y `scripts/e2e-diagram-visio.mjs`
+  (5 comprobaciones). El dibujo grande (unas 2000 piezas) se abre en Edge en 1,2 s.
+
+Queda aproximado o fuera (ver `LIMITACIONES.md`): degradados y tramas, sombras del tema, un formato por texto,
+imágenes en metarchivo, contenedores como grupos y el recorrido de los conectores. Los temas, degradados y fondos
+propios son de la fase 6; el formato por fragmentos, de la fase 5.

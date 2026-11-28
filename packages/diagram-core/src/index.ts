@@ -7,6 +7,7 @@ export * from './ops';
 export * from './io';
 export * from './svg';
 export * from './vsdx';
+export * from './vsdx-import';
 export * from './groups';
 export * from './layers';
 export * from './container';
