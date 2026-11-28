@@ -222,7 +222,8 @@ function pointData(values: (number | null)[], s: ChartSeries | undefined, base: 
 
 // ---- área del gráfico, área de trazado y fuentes
 
-const FONT_FALLBACK = 'Calibri, Carlito, "Segoe UI", sans-serif';
+// single quotes: the static pictures write it inside an attribute in double quotes, and the SVG has to stay well formed
+const FONT_FALLBACK = "Calibri, Carlito, 'Segoe UI', sans-serif";
 
 /** The colours the chart is drawn with once the chart area and the base font have had their say. */
 export function effectivePalette(def: ChartSpec, palette: ChartPalette): ChartPalette {
@@ -244,7 +245,7 @@ const textOf = (f: TextFormat | undefined, base: TextFormat | undefined, color: 
   const m: TextFormat = { ...base, ...f };
   return {
     color: m.color ?? color,
-    fontFamily: m.family ? `"${m.family}", ${FONT_FALLBACK}` : FONT_FALLBACK,
+    fontFamily: m.family ? `'${m.family.replace(/["'<>&;]/g, '')}', ${FONT_FALLBACK}` : FONT_FALLBACK,
     ...(m.size !== undefined ? { fontSize: px(m.size) } : {}),
     ...(m.bold !== undefined ? { fontWeight: m.bold ? 700 : 400 } : {}),
     ...(m.italic !== undefined ? { fontStyle: m.italic ? 'italic' : 'normal' } : {}),
@@ -341,7 +342,7 @@ function trendDraw(def: ChartSpec, series: ChartSeriesData[], locale: ChartLocal
 
 /** Texto sobre el gráfico con las ecuaciones de las tendencias. */
 function trendGraphic(labels: TrendDraw['labels'], palette: ChartPalette, top: number): Record<string, unknown>[] {
-  return labels.map((l, i) => ({ type: 'text', right: 28, top: top + i * 34, silent: true, z: 20, style: { text: l.text, fill: l.color, font: '12px Calibri, Carlito, "Segoe UI", sans-serif', backgroundColor: palette.bg, padding: [2, 4] } }));
+  return labels.map((l, i) => ({ type: 'text', right: 28, top: top + i * 34, silent: true, z: 20, style: { text: l.text, fill: l.color, font: `12px ${FONT_FALLBACK}`, backgroundColor: palette.bg, padding: [2, 4] } }));
 }
 
 /** Series «personalizadas» que dibujan las barras de error de las series que las tienen. */
@@ -444,7 +445,7 @@ function buildOption(def: ChartSpec, data: ChartData, locale: ChartLocale, palet
     animation: false,
     color: series.map((s) => s.color),
     backgroundColor: palette.bg,
-    textStyle: { color: palette.text, fontFamily: 'Calibri, Carlito, "Segoe UI", sans-serif' },
+    textStyle: { color: palette.text, fontFamily: FONT_FALLBACK },
     title: def.title ? { text: def.title, left: 'center', top: 6, textStyle: { color: palette.text, fontSize: 15, fontWeight: 600 } } : undefined,
     legend: legendOf(def, palette),
     tooltip: { trigger: def.type === 'pie' || def.type === 'doughnut' || def.type === 'scatter' || def.type === 'radar' ? 'item' : 'axis', confine: true },
@@ -466,7 +467,8 @@ function buildOption(def: ChartSpec, data: ChartData, locale: ChartLocale, palet
     const maxExplode = Math.max(0, ...(s?.values ?? []).map((_v, i) => explode(i)));
     return {
       ...base,
-      color: undefined,
+      // one colour per slice (without a list of colours they are drawn with none at all)
+      color: CHART_COLORS,
       grid: undefined,
       legend: legendOf(def, palette, data.map((d) => d.name)),
       series: [{ type: 'pie', name: s?.name, radius: def.type === 'doughnut' ? [`${Math.round(((def.holeSize ?? 50) / 100) * 68)}%`, '68%'] : ['0%', '68%'], center: roundCenter(def), startAngle: 90 - (def.firstSliceAng ?? 0), data, selectedMode: 'multiple', selectedOffset: Math.round(maxExplode * 0.6), label: { color: palette.text, ...labelOf(def.series[0]?.labels, 'pie') }, itemStyle: { borderColor: palette.bg, borderWidth: 1, ...(({ color: _c, ...border }) => border)(fillOf(ps, '#000000')) } }],

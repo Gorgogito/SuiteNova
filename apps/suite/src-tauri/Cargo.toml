@@ -1,6 +1,6 @@
 [package]
 name = "suitenova"
-version = "0.0.15"
+version = "0.0.16"
 description = "SuiteNova – suite ofimática libre"
 license = "MPL-2.0"
 edition = "2021"

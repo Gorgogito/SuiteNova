@@ -1,5 +1,5 @@
 import { getLocale } from '@suitenova/core-ui';
-import { isEmpty, newForm, newId, newQuestion, parseResponses, removeItem, renameInAnswers, renameItem, type Answer, type Form, type ItemList, type QType, type Question, type Response, conditionsOf, showIfOf, tidyFlow, MAX_NAME, type Review } from '@suitenova/forms-core';
+import { isEmpty, newForm, newId, newQuestion, parseResponses, removeItem, renameInAnswers, renameItem, type Answer, type Form, type ItemList, type QType, type Question, type Response, conditionsOf, showIfOf, tidyFlow, MAX_NAME, type Review, sortResponses, validSeconds, type ResultFilter, type SortKey } from '@suitenova/forms-core';
 
 export type Mode = 'design' | 'preview' | 'fill' | 'results';
 export interface Doc {
@@ -13,11 +13,16 @@ export const FORM_HEAD = '__form__';
 /** A new form speaks the language of the program to whoever answers it. */
 const blankForm = (): Form => (getLocale().startsWith('en') ? { ...newForm(), language: 'en' } : newForm());
 
+export type ResultsView = 'summary' | 'table' | 'individual' | 'grade';
+
 export class FormsCtl {
   doc: Doc = { form: blankForm(), responses: [] };
   mode: Mode = 'design';
-  /** What is looked at among the results. */
-  resultsView: 'summary' | 'individual' | 'grade' = 'summary';
+  /** What is looked at among the results, which responses, in what order and which one by itself. */
+  resultsView: ResultsView = 'summary';
+  filter: ResultFilter = {};
+  sort: { key: SortKey; descending: boolean } | null = null;
+  shownResponse: string | null = null;
   selected: string | null = FORM_HEAD;
   fileName: string | null = null;
   filePath: string | null = null;
@@ -32,6 +37,8 @@ export class FormsCtl {
   /** Who says they are answering, and when they started (with a time limit). */
   draftName = '';
   draftStarted: number | null = null;
+  /** Since when the questions are in front of whoever is answering: how long it takes. */
+  draftOpened: number | null = null;
   /** How the preview shows the form. */
   device: 'desktop' | 'phone' = 'desktop';
   /** The box being typed in: its letters count as one change. */
@@ -137,10 +144,14 @@ export class FormsCtl {
     this.draftPage = 0;
     this.draftName = '';
     this.draftStarted = null;
+    this.draftOpened = null;
     this.seed = newId('s');
     this.selected = FORM_HEAD;
     this.mode = 'design';
     this.resultsView = 'summary';
+    this.filter = {};
+    this.sort = null;
+    this.shownResponse = null;
     this.fileName = name;
     this.filePath = path;
     this.dirty = false;
@@ -171,7 +182,29 @@ export class FormsCtl {
     this.mode = m;
     this.touch();
   }
-  setResultsView(view: 'summary' | 'individual' | 'grade'): void {
+  setFilter(patch: ResultFilter): void {
+    this.filter = { ...this.filter, ...patch };
+    this.touch();
+  }
+  clearFilter(): void {
+    this.filter = {};
+    this.touch();
+  }
+  setSort(sort: { key: SortKey; descending: boolean } | null): void {
+    this.sort = sort;
+    this.touch();
+  }
+  /** The responses in the order chosen (without one, as they arrived). */
+  ordered(list: Response[]): Response[] {
+    return this.sort ? sortResponses(this.form, list, this.sort.key, this.sort.descending) : list;
+  }
+  /** Looks at one response by itself. */
+  showResponse(id: string): void {
+    this.shownResponse = id;
+    this.resultsView = 'individual';
+    this.touch();
+  }
+  setResultsView(view: ResultsView): void {
     this.typing = null;
     this.resultsView = view;
     this.touch();
@@ -335,6 +368,10 @@ export class FormsCtl {
     this.draftName = name;
     this.touch();
   }
+  setDraftOpened(at: number | null): void {
+    // nothing on screen depends on it
+    this.draftOpened = at;
+  }
   setDraftStarted(at: number | null): void {
     this.draftStarted = at;
     this.touch();
@@ -347,14 +384,15 @@ export class FormsCtl {
    * Keeps a response that someone filled in here. It is not a change of the design: undoing never takes it away, so it
    * is also added to what the undo would go back to.
    */
-  addResponse(answers: Record<string, Answer>, name = ''): Response {
+  addResponse(answers: Record<string, Answer>, name = '', seconds?: number): Response {
     const who = name.trim().slice(0, MAX_NAME);
-    const r: Response = { id: newId('r'), at: new Date().toISOString(), answers, ...(who ? { name: who } : {}) };
+    const r: Response = { id: newId('r'), at: new Date().toISOString(), answers, ...(who ? { name: who } : {}), ...(validSeconds(seconds) ? { seconds } : {}) };
     this.keep(r);
     this.draft = {};
     this.draftPage = 0;
     this.draftName = '';
     this.draftStarted = null;
+    this.draftOpened = null;
     this.seed = newId('s');
     this.touch();
     return r;

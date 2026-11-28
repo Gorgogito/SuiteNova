@@ -1,6 +1,6 @@
 import { MAX_FILES, MAX_RESPONSE_MB, MB, fileProblem, readFileItem } from './files';
 import { route } from './flow';
-import { MAX_COMMENT, MAX_NAME, autoGraded, countsPoints, isInput, type Answer, type Form, type Question, type Response, type Review, type UploadedFile } from './model';
+import { MAX_COMMENT, MAX_NAME, validSeconds, autoGraded, countsPoints, isInput, type Answer, type Form, type Question, type Response, type Review, type UploadedFile } from './model';
 import { norm, shuffled } from './text';
 
 /*
@@ -212,10 +212,10 @@ export function readReview(form: Form, raw: unknown): Review | undefined {
 }
 
 /** The response with these answers: its identifier and date, or new ones if what came is not usable. */
-function asResponse(r: { id?: unknown; at?: unknown; name?: unknown }, answers: Record<string, Answer>): Response {
+function asResponse(r: { id?: unknown; at?: unknown; name?: unknown; seconds?: unknown }, answers: Record<string, Answer>): Response {
   const name = typeof r.name === 'string' ? r.name.trim().slice(0, MAX_NAME) : '';
   const at = typeof r.at === 'string' && !Number.isNaN(Date.parse(r.at)) ? r.at : new Date().toISOString();
-  return { id: typeof r.id === 'string' && r.id ? r.id.slice(0, 60) : `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at, answers, ...(name ? { name } : {}) };
+  return { id: typeof r.id === 'string' && r.id ? r.id.slice(0, 60) : `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at, answers, ...(name ? { name } : {}), ...(validSeconds(r.seconds) ? { seconds: r.seconds } : {}) };
 }
 
 /**

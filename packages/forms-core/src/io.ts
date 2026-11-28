@@ -4,7 +4,7 @@ import { tidyFlow } from './flow';
 import { LANGUAGES } from './i18n';
 import { outsideDates } from './session';
 import { cleanResponse, keptResponse, score } from './logic';
-import { BACKGROUNDS, IMAGE_SIZES, MAX_COMMENT, MAX_CONDITIONS, MAX_FEEDBACK, MAX_TIME_LIMIT, canBeManual, manualGraded, NUMBER_RULES, QTYPES, RATING_SYMBOLS, isInput, isSafeImage, newForm, newId, newQuestion, showIfOf, type Answer, type Condition, type Form, type QType, type Question, type Response } from './model';
+import { BACKGROUNDS, IMAGE_SIZES, MAX_COMMENT, MAX_CONDITIONS, MAX_FEEDBACK, MAX_TIME_LIMIT, canBeManual, chartsFor, manualGraded, NUMBER_RULES, QTYPES, RATING_SYMBOLS, isInput, isSafeImage, newForm, newId, newQuestion, showIfOf, type Answer, type Condition, type Form, type QType, type Question, type Response } from './model';
 
 export interface Project {
   form: Form;
@@ -25,6 +25,7 @@ const TYPES = new Set(QTYPES.map((t) => t.id));
 function quizNotes(r: any, options: string[], type: QType): Partial<Question> {
   const out: Partial<Question> = {};
   if (r?.manual === true && canBeManual({ type })) out.manual = true;
+  if (chartsFor({ type }).includes(r?.chart)) out.chart = r.chart;
   if (typeof r?.explanation === 'string' && r.explanation !== '') out.explanation = r.explanation.slice(0, MAX_COMMENT);
   if (r?.feedback && typeof r.feedback === 'object' && (type === 'choice' || type === 'dropdown' || type === 'multi')) {
     const kept = options.flatMap((o) => (Object.hasOwn(r.feedback, o) && typeof r.feedback[o] === 'string' && r.feedback[o] !== '' ? [[o, r.feedback[o].slice(0, MAX_FEEDBACK) as string] as const] : []));
@@ -153,7 +154,7 @@ export function parseProject(text: string): { project: Project; warnings: string
 // ------------------------------------------------------------ response files
 
 export function serializeResponse(form: Form, r: Response): string {
-  return JSON.stringify({ format: 'novaforms-response', formId: form.id, id: r.id, at: r.at, ...(r.name ? { name: r.name } : {}), answers: r.answers }, null, 1);
+  return JSON.stringify({ format: 'novaforms-response', formId: form.id, id: r.id, at: r.at, ...(r.name ? { name: r.name } : {}), ...(r.seconds ? { seconds: r.seconds } : {}), answers: r.answers }, null, 1);
 }
 
 export interface Imported {
@@ -230,6 +231,8 @@ export function responsesToCsv(form: Form, responses: Response[]): string {
   const head = ['Id', 'Fecha'];
   const named = !!form.askName || responses.some((r) => r.name);
   if (named) head.push('Nombre');
+  const timed = responses.some((r) => r.seconds !== undefined);
+  if (timed) head.push('Duración (s)');
   if (form.quiz) head.push('Puntuación', 'Puntuación máxima');
   const byHand = form.quiz && form.questions.some(manualGraded);
   const remarked = form.quiz && responses.some((r) => r.review?.comment);
@@ -243,6 +246,7 @@ export function responsesToCsv(form: Form, responses: Response[]): string {
   for (const r of responses) {
     const line: (string | number)[] = [r.id, r.at];
     if (named) line.push(r.name ?? '');
+    if (timed) line.push(r.seconds ?? '');
     if (form.quiz) {
       const s = score(form, r.answers, r.review);
       line.push(s.earned, s.total);

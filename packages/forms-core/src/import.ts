@@ -285,6 +285,7 @@ export function formFromSheet(rows: string[][], title: string): ImportedForm {
   const source: Source = nh[0] === 'id' && nh.some((h) => MS_TIME.has(h) || MS_START.has(h)) ? 'microsoft' : G_TIME.has(nh[0] ?? '') ? 'google' : 'unknown';
   const timeCol = source === 'microsoft' ? nh.findIndex((h) => MS_TIME.has(h)) : source === 'google' ? 0 : -1;
   const idCol = source === 'microsoft' ? 0 : -1;
+  const startCol = source === 'microsoft' ? nh.findIndex((h) => MS_START.has(h)) : -1;
   const metaCol = (i: number): boolean => {
     if (i === timeCol || i === idCol) return true;
     const h = nh[i]!;
@@ -296,7 +297,7 @@ export function formFromSheet(rows: string[][], title: string): ImportedForm {
   const questionCols = header.map((_h, i) => i).filter((i) => header[i] !== '' && !metaCol(i));
   if (!questionCols.length) throw new Error('El archivo no tiene columnas de preguntas.');
 
-  const timeValues = timeCol >= 0 ? data.map((r) => cell(r, timeCol)) : [];
+  const timeValues = [timeCol, startCol].flatMap((c) => (c >= 0 ? data.map((r) => cell(r, c)) : []));
   const order = dateOrder([...timeValues, ...questionCols.flatMap((c) => data.map((r) => cell(r, c)))]);
   const seps = source === 'microsoft' ? [';'] : source === 'google' ? [', ', ';'] : [';', ', '];
 
@@ -353,7 +354,9 @@ export function formFromSheet(rows: string[][], title: string): ImportedForm {
     }
     const id = source === 'microsoft' && cell(r, idCol) ? `ms-${cell(r, idCol)}` : `imp-${i + 1}`;
     const at = timeCol >= 0 ? toIsoAt(cell(r, timeCol), order) : undefined;
-    const c = cleanResponse(form, { id, at, answers });
+    const began = startCol >= 0 ? toIsoAt(cell(r, startCol), order) : undefined;
+    const seconds = at && began ? Math.round((Date.parse(at) - Date.parse(began)) / 1000) : undefined;
+    const c = cleanResponse(form, { id, at, answers, seconds });
     if (c) {
       responses.push(c.response);
       dropped += c.dropped;

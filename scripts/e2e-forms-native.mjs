@@ -312,6 +312,27 @@ ${Buffer.from(answerFile).toString('base64')}
     await until(() => JSON.parse(fs.readFileSync(target, 'utf8')).responses.length === 1, 'no se guardó solo');
     assert.equal(JSON.parse(fs.readFileSync(target, 'utf8')).responses[0].answers.q1, 'mora');
   });
+
+  await check('resultados en la aplicación compilada: el gráfico circular se dibuja con sus colores y el resumen se prepara para imprimir', async () => {
+    const results = path.join(dir, 'resultados.novaforms');
+    const fruit = question('q1', 'choice', 'Fruta', { options: ['Mango', 'Piña'], chart: 'pie' });
+    fs.writeFileSync(results, JSON.stringify({ format: 'novaforms', form: { ...form, id: 'fres', questions: [fruit] }, responses: ['Mango', 'Mango', 'Piña'].map((v, i) => ({ id: `g${i}`, at: '2026-05-04T10:00:00Z', seconds: 30, answers: { q1: v } })) }));
+    await forms.evaluate((p) => window.__TAURI_INTERNALS__.invoke('plugin:webview|create_webview_window', { options: { label: 'forms-resultados', url: `index.html?app=forms&open=${encodeURIComponent(p)}`, title: 'Resultados', decorations: false, width: 1200, height: 800 } }), results);
+    const win = await windowFor((u) => (u.searchParams.get('open') ?? '').endsWith('resultados.novaforms'), '.fm-app');
+    await win.getByRole('tab', { name: 'Vista', exact: true }).click();
+    await win.getByRole('button', { name: 'Resultados', exact: true }).click();
+    const picture = win.locator('.fm-chart img');
+    assert.ok(await picture.evaluate(async (i) => (await i.decode(), i.naturalWidth > 100)), 'el gráfico no se abre');
+    const svg = decodeURIComponent(await picture.getAttribute('src'));
+    for (const color of ['#3b82c4', '#e8833a']) assert.ok(svg.includes(`fill="${color}"`), color);
+    if (shotsDir) await win.screenshot({ path: `${shotsDir}/nativa-resultados.png` });
+    // the printer of the system is not opened here: only what would be printed is looked at
+    await win.evaluate(() => { window.__printed = new Promise((r) => new MutationObserver(() => { const f = document.querySelector('iframe.ml-print'); if (f) { f.addEventListener('load', () => (f.contentWindow.print = () => {}), { once: true }); r(f.srcdoc); } }).observe(document.body, { childList: true })); });
+    await win.getByRole('button', { name: 'Imprimir el resumen', exact: true }).click();
+    const printed = await win.evaluate(() => window.__printed);
+    assert.match(printed, /Tiempo medio para responder: 0:30[\s\S]*<img /);
+    await sleep(800);
+  });
 } finally {
   await outside?.close().catch(() => {});
   await app?.close().catch(() => {});

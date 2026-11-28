@@ -13,6 +13,8 @@ import { FormsCtl } from './ctl';
 import { Designer } from './Designer';
 import { finishTyping } from './DraftInput';
 import { SettingsBody } from './SettingsDialog';
+import { TemplatesBody } from './TemplatesDialog';
+import { responsesXlsx } from './xlsx';
 import { Collector, collectBridge, setCollectBridge } from './collect';
 import { CollectBody } from './CollectDialog';
 import { InboxBanner } from './InboxBanner';
@@ -193,6 +195,14 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
         }
         await saveBytes(`${safeName(ctl.form.title)}.html`, new TextEncoder().encode(exportHtml(ctl.form)), [{ name: 'Página web', extensions: ['html'] }]);
       },
+      exportXlsx: async () => {
+        finishTyping();
+        try {
+          await saveBytes(`${safeName(ctl.form.title)}-respuestas.xlsx`, await responsesXlsx(ctl.form, ctl.responses), [{ name: 'Excel', extensions: ['xlsx'] }]);
+        } catch (e) {
+          window.alert(t('No se pudo guardar: {error}', { error: (e as Error).message }));
+        }
+      },
       exportCsv: async () => {
         await saveBytes(`${safeName(ctl.form.title)}-respuestas.csv`, new TextEncoder().encode(responsesToCsv(ctl.form, ctl.responses)), [{ name: 'CSV', extensions: ['csv'] }]);
       },
@@ -249,6 +259,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
     const pages = backstageEntries(module.name).filter((e) => e.kind === 'page');
     return [
       { kind: 'command', command: 'forms.new' },
+      { kind: 'command', command: 'forms.templates' },
       { kind: 'command', command: 'forms.open' },
       { kind: 'command', command: 'forms.import' },
       { kind: 'separator' },
@@ -256,6 +267,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       { kind: 'command', command: 'forms.saveAs' },
       { kind: 'command', command: 'forms.export.html' },
       { kind: 'command', command: 'forms.responses.import' },
+      { kind: 'command', command: 'forms.export.xlsx' },
       { kind: 'command', command: 'forms.export.csv' },
       { kind: 'separator' },
       ...pages,
@@ -316,7 +328,7 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
                 </div>
               </>
             )}
-            {ctl.mode === 'fill' && <Runner key="fill" form={ctl.form} seed={ctl.seed} draft={{ answers: ctl.draft, keep: (change) => ctl.setDraft(change(ctl.draft)), page: ctl.draftPage, keepPage: (page) => ctl.setDraftPage(page), name: ctl.draftName, keepName: (name) => ctl.setDraftName(name), started: ctl.draftStarted, keepStarted: (at) => ctl.setDraftStarted(at) }} onSubmit={(a, name) => { ctl.addResponse(a, name); }} />}
+            {ctl.mode === 'fill' && <Runner key="fill" form={ctl.form} seed={ctl.seed} draft={{ answers: ctl.draft, keep: (change) => ctl.setDraft(change(ctl.draft)), page: ctl.draftPage, keepPage: (page) => ctl.setDraftPage(page), name: ctl.draftName, keepName: (name) => ctl.setDraftName(name), started: ctl.draftStarted, keepStarted: (at) => ctl.setDraftStarted(at), opened: ctl.draftOpened, keepOpened: (at) => ctl.setDraftOpened(at) }} onSubmit={(a, name, seconds) => { ctl.addResponse(a, name, seconds); }} />}
             {ctl.mode === 'results' && <Results ctl={ctl} />}
           </div>
         </div>
@@ -326,6 +338,21 @@ export function FormsApp({ module }: { module: ModuleInfo }) {
       </StickyDialog>
       <StickyDialog open={dialog === 'collect'} onClose={close} width={620}>
         {dialog === 'collect' && <CollectBody ctl={ctl} collector={collector} needsFile={isTauri()} onSave={() => void saveNow(false)} onClose={close} />}
+      </StickyDialog>
+      <StickyDialog open={dialog === 'templates'} onClose={close} width={560}>
+        {dialog === 'templates' && (
+          <TemplatesBody
+            onClose={close}
+            onChoose={(form) => {
+              finishTyping();
+              if ((ctl.dirty || ctl.hasDraft) && !window.confirm(t('Hay cambios sin guardar. ¿Abrir otro archivo y descartarlos?'))) return;
+              if (!leaving()) return;
+              close();
+              ctl.loadImported({ form, responses: [] });
+              setSaveState('');
+            }}
+          />
+        )}
       </StickyDialog>
       <Dialog open={dialog === 'about'} modalType="modal" onOpenChange={(_e, d) => !d.open && close()}>
         <DialogSurface style={{ maxWidth: 520, width: '92vw' }}>

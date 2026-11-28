@@ -5,7 +5,7 @@
 import { MAX_RESPONSE_MB, MB, isFiles } from './files';
 import { localize } from './i18n';
 import { cleanResponse, validateAll } from './logic';
-import { MAX_NAME, type Form, type Response } from './model';
+import { MAX_NAME, validSeconds, type Form, type Response } from './model';
 import { availability, closedText, tidyAnswers } from './session';
 
 /** The answer for whoever sent it: taken (`duplicate` when it was there already), or why not, in the language of the form. */
@@ -20,7 +20,7 @@ export function receiveResponse(form: Form, existing: Response[], body: string, 
   const no = (message: string): Reception => ({ ok: false, message: localize(message, form.language) });
   const unreadable = 'La respuesta no se entiende.';
   const invalid = 'Hay respuestas que no son válidas: puede que el formulario haya cambiado. Recarga la página.';
-  let raw: { format?: unknown; formId?: unknown; id?: unknown; name?: unknown; answers?: unknown; timed?: unknown } | null;
+  let raw: { format?: unknown; formId?: unknown; id?: unknown; name?: unknown; answers?: unknown; timed?: unknown; seconds?: unknown } | null;
   try {
     raw = JSON.parse(body);
   } catch {
@@ -46,7 +46,7 @@ export function receiveResponse(form: Form, existing: Response[], body: string, 
   if (weight > MAX_RESPONSE_MB * MB) return no(`Entre todos, los archivos pasan de ${MAX_RESPONSE_MB} MB.`);
   const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, MAX_NAME) : '';
   if (form.askName && !name && !timed) return no('Escribe tu nombre.');
-  return { ok: true, duplicate: false, response: { id: raw.id, at: new Date(now).toISOString(), answers, ...(form.askName && name ? { name } : {}) } };
+  return { ok: true, duplicate: false, response: { id: raw.id, at: new Date(now).toISOString(), answers, ...(form.askName && name ? { name } : {}), ...(validSeconds(raw.seconds) ? { seconds: raw.seconds } : {}) } };
 }
 
 /** The responses of a file (one or several) that say which form they are for: that identifier, or null if it is not such a file. */

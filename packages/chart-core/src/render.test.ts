@@ -1,5 +1,6 @@
+import { XMLValidator } from 'fast-xml-parser';
 import { describe, expect, it } from 'vitest';
-import { chartOption, chartSvg, formatChartNumber, is3D, setChartNumberFormatter, type ChartData, type ChartPalette, type ChartSpec } from './index';
+import { CHART_COLORS, chartOption, chartSvg, formatChartNumber, is3D, setChartNumberFormatter, type ChartData, type ChartPalette, type ChartSpec } from './index';
 
 const palette: ChartPalette = { text: '#222222', grid: '#dddddd', bg: '#ffffff' };
 const data: ChartData = {
@@ -27,6 +28,25 @@ describe('chart-core sin libro de cálculo', () => {
     }
     expect(is3D(spec({ type: 'surface' }))).toBe(true);
     expect(is3D(spec())).toBe(false);
+  });
+
+  it('el SVG está bien formado: se puede usar como imagen y guardar en un archivo', () => {
+    const styled: Partial<ChartSpec> = { title: 'A & <B>', fonts: { title: { family: 'Times "New" Roman' } } as ChartSpec['fonts'] };
+    for (const s of [spec(styled), spec({ type: 'pie' }), spec({ type: 'doughnut', ...styled }), spec({ type: 'line' }), spec({ type: 'bar', dataTable: { keys: true } }), spec({ threeD: { rotX: 15, rotY: 20, perspective: 30, depth: 100, rightAngle: true } })]) {
+      expect(XMLValidator.validate(chartSvg(s, data, 'es', palette, 480, 300)), s.type).toBe(true);
+    }
+  });
+
+  it('cada sector de un gráfico circular o de anillo tiene su color', () => {
+    for (const type of ['pie', 'doughnut'] as const) {
+      const svg = chartSvg(spec({ type }), data, 'es', palette, 480, 300);
+      const slices = [...svg.matchAll(/<path [^>]*ecmeta_ssr_type="chart"[^>]*>|<path [^>]*fill="(#[0-9a-f]{6})"[^>]*>/g)].map((m) => /fill="([^"]+)"/.exec(m[0])![1]);
+      for (const color of CHART_COLORS.slice(0, 3)) expect(slices, `${type} ${color}`).toContain(color);
+      expect(slices).not.toContain('none');
+    }
+    // a colour of its own for a slice wins
+    const own = chartSvg(spec({ type: 'pie', series: [{ values: '', points: [{ idx: 1, color: '#123456' }] }] }), data, 'es', palette, 480, 300);
+    expect(own).toContain('fill="#123456"');
   });
 
   it('el formato de números lo pone cada producto', () => {

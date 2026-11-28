@@ -116,6 +116,8 @@ export interface Question {
   explanation?: string;
   /** Quiz: its points are given by hand. */
   manual?: boolean;
+  /** Drawn like this in the summary of the results, besides the figures; without it, bars. */
+  chart?: ChartKind;
   /** A picture shown under the title of the question. */
   image?: QuestionImage;
   /** An equation shown under the title, written as in LaTeX. */
@@ -210,6 +212,8 @@ export interface Response {
   /** ISO date and time. */
   at: string;
   answers: Record<string, Answer>;
+  /** How long answering took. */
+  seconds?: number;
   /** Who answered, when the form asks. */
   name?: string;
   /** What whoever marks the quiz wrote. It never comes with a response sent by someone else. */
@@ -226,6 +230,18 @@ export interface Review {
 export const MAX_COMMENT = 2000;
 export const MAX_FEEDBACK = 1000;
 export const MAX_NAME = 200;
+/** A month: longer than that is not a time someone spent answering. */
+export const MAX_SECONDS = 30 * 24 * 3600;
+export const validSeconds = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= MAX_SECONDS;
+
+export const CHART_KINDS = [
+  { id: 'column', name: 'Columnas' },
+  { id: 'pie', name: 'Circular' },
+  { id: 'doughnut', name: 'Anillo' },
+] as const;
+export type ChartKind = (typeof CHART_KINDS)[number]['id'];
+/** The charts that make sense for a question: parts of a whole only when each person gave one answer. */
+export const chartsFor = (q: Pick<Question, 'type'>): ChartKind[] => (q.type === 'choice' || q.type === 'dropdown' || q.type === 'rating' ? ['column', 'pie', 'doughnut'] : q.type === 'multi' || q.type === 'nps' ? ['column'] : []);
 
 let counter = 0;
 export const newId = (p: string): string => `${p}${Date.now().toString(36)}${(counter++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;

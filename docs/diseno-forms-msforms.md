@@ -1,7 +1,7 @@
 # Nova Forms frente a Microsoft Forms (segunda ronda)
 
-Estado: **plan aprobado por el usuario** (2026-11-27): las 7 fases en este orden, respuestas por **red local** (opción A) y
-el número de versión corregido en todos los productos dentro de la fase 1. Fases 1 a 3 hechas (ver la bitácora al final).
+Estado: **terminado** (2026-11-27). El usuario aprobó las 7 fases en este orden, las respuestas por **red local** (opción A)
+y la versión corregida en todos los productos en la fase 1. Las 7 fases están hechas (ver la bitácora al final); versión **0.0.16**.
 
 Referencia: Microsoft Forms (web). La comparación sale de leer el código de Nova Forms y `docs/LIMITACIONES.md`, de
 probar en Edge los fallos de la sección 2 y de la ayuda de Microsoft sobre
@@ -175,3 +175,23 @@ que la aplicación y una prueba lo compara.
 - **Cambios en lo que ya había:** la vista de resultados elegida se conserva al cambiar de modo (antes volvía al resumen);
   una pregunta de párrafo, fecha, clasificación o archivos puede dar puntos.
 - **Pruebas:** `quiz.test.ts` (14), 1 más en `forms.test.ts`, `e2e-forms.mjs` pasa de 47 a 56.
+
+### Fase 7 (hecha, 2026-11-27): resultados y cierre
+- **Núcleo** (`forms-core`): tiempo de respuesta (`seconds`, también de la hoja de Microsoft), `query.ts` (buscar,
+  filtrar, ordenar y la tabla), `report.ts` (resumen como página) y `templates.ts` (seis plantillas); gráfico elegido
+  por pregunta.
+- **Aplicación:** resultados rehechos con barra de filtro, vista de tabla, gráficos con `chart-core`
+  (`QuestionChart.tsx`), imprimir y guardar el resumen, exportar a Excel (`xlsx.ts`) y plantillas
+  (`TemplatesDialog.tsx`).
+- **Fallos del motor de gráficos compartido hallados y corregidos** (afectaban a todos los productos que lo usan): los
+  gráficos circulares y de anillo se dibujaban **sin color**, y el SVG de cualquier gráfico quedaba **mal formado** por
+  las comillas del nombre de la fuente, así que no servía como imagen suelta.
+- **Pruebas:** `results.test.ts` (15 en la biblioteca y 5 en la aplicación), 2 en `chart-core`, `e2e-forms.mjs` pasa de
+  56 a 64 y `e2e-forms-native.mjs` de 9 a 10. Instaladores 0.0.16 en `instaladores/` (sin ejecutar).
+
+## 9. Cómo quedó frente a Microsoft Forms
+
+Lo de la tabla de la sección 3 está hecho salvo: vídeo en las preguntas, restricciones de validación en textos más allá de
+formato y longitud, enlace de internet y servicio en la nube, varios idiomas más allá de español e inglés, y lo que la
+sección 6 dejó fuera. **Nada se ha comparado con Microsoft Forms en funcionamiento**, y la recogida por red local **no se
+ha probado desde otro dispositivo**. Los límites de cada parte están en `docs/LIMITACIONES.md`.

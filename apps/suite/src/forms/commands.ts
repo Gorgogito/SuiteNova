@@ -3,7 +3,7 @@ import { QTYPES, canShuffle, isInput } from '@suitenova/forms-core';
 import { FORM_HEAD, type FormsCtl, type Mode } from './ctl';
 import { finishTyping } from './DraftInput';
 
-export type FormsDialog = 'about' | 'shortcuts' | 'settings' | 'collect';
+export type FormsDialog = 'about' | 'shortcuts' | 'settings' | 'collect' | 'templates';
 
 export interface FormsUI {
   ctl: FormsCtl;
@@ -14,6 +14,7 @@ export interface FormsUI {
   save(saveAs: boolean): Promise<void>;
   exportHtml(): Promise<void>;
   exportCsv(): Promise<void>;
+  exportXlsx(): Promise<void>;
   importResponses(): Promise<void>;
   close(): void;
 }
@@ -37,6 +38,7 @@ export function formsCommands(ui: FormsUI): CommandDef[] {
 
   // ---- file
   add({ id: 'forms.new', label: 'Formulario nuevo', icon: 'new', shortcut: 'Ctrl+N', run: () => ui.newWindow() });
+  add({ id: 'forms.templates', label: 'Nuevo desde plantilla…', icon: 'new', description: 'Formularios de partida: encuestas, inscripciones, un cuestionario y más.', run: () => ui.openDialog('templates') });
   add({ id: 'forms.open', label: 'Abrir…', icon: 'open', shortcut: 'Ctrl+O', run: () => void ui.open() });
   add({
     id: 'forms.import',
@@ -48,6 +50,7 @@ export function formsCommands(ui: FormsUI): CommandDef[] {
   add({ id: 'forms.save', label: 'Guardar', icon: 'save', shortcut: 'Ctrl+S', description: 'Guarda el formulario y sus respuestas como archivo de Nova Forms (.novaforms).', run: () => void ui.save(false) });
   add({ id: 'forms.saveAs', label: 'Guardar como…', icon: 'save', shortcut: 'Ctrl+Shift+S', run: () => void ui.save(true) });
   add({ id: 'forms.export.html', label: 'Exportar formulario como página web…', icon: 'exportFile', description: 'Crea un único archivo .html que se puede rellenar en cualquier navegador. Las respuestas no se envían solas: cada persona descarga un archivo que debes importar.', run: () => void ui.exportHtml() });
+  add({ id: 'forms.export.xlsx', label: 'Exportar respuestas a Excel…', icon: 'exportFile', description: 'Un libro .xlsx con una fila por respuesta y una hoja con las cifras.', enabled: () => c.responses.length > 0, run: () => void ui.exportXlsx() });
   add({ id: 'forms.export.csv', label: 'Exportar respuestas a CSV…', icon: 'exportFile', enabled: () => c.responses.length > 0, run: () => void ui.exportCsv() });
   add({ id: 'forms.collect', label: 'Recoger por la red local…', icon: 'wifi', description: 'Quienes estén en tu red responden desde su navegador y las respuestas llegan solas (aplicación de escritorio).', run: () => ui.openDialog('collect') });
   add({ id: 'forms.responses.import', label: 'Importar respuestas…', icon: 'open', description: 'Añade los archivos de respuesta que te devolvieron (.json) o las de otro archivo .novaforms del mismo formulario.', run: () => void ui.importResponses() });

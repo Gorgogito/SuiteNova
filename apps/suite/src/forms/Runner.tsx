@@ -156,6 +156,9 @@ export interface Draft {
   /** When the person started, with a time limit. */
   started: number | null;
   keepStarted: (at: number | null) => void;
+  /** Since when the questions are in front of them. */
+  opened: number | null;
+  keepOpened: (at: number | null) => void;
 }
 
 interface Done {
@@ -173,7 +176,7 @@ const clock = (seconds: number): string => `${Math.floor(seconds / 60)}:${String
  * Fill in a form, as whoever answers sees it and in the language of the form. With `onSubmit` the answers are handed
  * over; without it this is only a preview, which also shows a form that is not taking answers.
  */
-export function Runner({ form, onSubmit, draft, seed }: { form: Form; onSubmit: ((a: Answers, name: string) => void) | null; draft?: Draft; /** Starts the order of shuffled options; without it, one of its own. */ seed?: string }) {
+export function Runner({ form, onSubmit, draft, seed }: { form: Form; onSubmit: ((a: Answers, name: string, seconds?: number) => void) | null; draft?: Draft; /** Starts the order of shuffled options; without it, one of its own. */ seed?: string }) {
   const say = (text: string) => localize(text, form.language);
   const [own, setOwn] = useState<Answers>({});
   const answers = draft ? draft.answers : own;
@@ -232,7 +235,7 @@ export function Runner({ form, onSubmit, draft, seed }: { form: Form; onSubmit: 
     if (left !== 0) return;
     if (onSubmit && availability(form, Date.now()) !== 'open') return setNow(Date.now());
     const kept = timedAnswers(form, answers);
-    if (Object.keys(kept).length) onSubmit?.(kept, name);
+    if (Object.keys(kept).length) onSubmit?.(kept, name, limit! * 60);
     else {
       // nothing to keep: the next try starts from the beginning
       reset();
@@ -241,6 +244,17 @@ export function Runner({ form, onSubmit, draft, seed }: { form: Form; onSubmit: 
     setDone({ answers: kept, name: name.trim(), at: new Date().toISOString(), timed: true });
   }, [left]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // how long it takes counts from when the questions are shown with nothing answered
+  const opened = useRef<number | null>(null);
+  useEffect(() => {
+    if (draft && !Object.keys(draft.answers).length && !draft.name) draft.keepOpened(Date.now());
+    opened.current = Date.now();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  /** The seconds since then, or since pressing «Empezar» with a time limit. */
+  const spent = (): number | undefined => {
+    const from = limit ? started : draft ? draft.opened : opened.current;
+    return from === null || from === undefined ? undefined : Math.max(1, Math.round((Date.now() - from) / 1000));
+  };
   const reset = () => {
     change(() => ({}));
     setName('');
@@ -248,6 +262,8 @@ export function Runner({ form, onSubmit, draft, seed }: { form: Form; onSubmit: 
     setErrors({});
   };
   const again = () => {
+    opened.current = Date.now();
+    draft?.keepOpened(Date.now());
     reset();
     setStarted(null);
     setOwnSeed(newId('s'));
@@ -281,7 +297,7 @@ export function Runner({ form, onSubmit, draft, seed }: { form: Form; onSubmit: 
       return;
     }
     const clean = tidyAnswers(form, answers);
-    onSubmit?.(clean, name);
+    onSubmit?.(clean, name, spent());
     setDone({ answers: clean, name: name.trim(), at: new Date().toISOString(), timed: false });
   };
 

@@ -11,3 +11,6 @@ export * from './i18n';
 export * from './session';
 export * from './receive';
 export * from './quiz';
+export * from './query';
+export * from './report';
+export * from './templates';

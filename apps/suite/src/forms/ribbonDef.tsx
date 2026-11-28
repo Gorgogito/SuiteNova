@@ -72,7 +72,7 @@ export function formsTabs(ui: FormsUI): RibbonTab[] {
           { kind: 'button', command: 'forms.q.delete', size: 'small', keytip: 'EL' },
         ],
       },
-      { id: 'head', label: 'Formulario', icon: 'file', items: [{ kind: 'button', command: 'forms.q.top', size: 'large', keytip: 'TF' }] },
+      { id: 'head', label: 'Formulario', icon: 'file', items: [{ kind: 'button', command: 'forms.q.top', size: 'large', keytip: 'TF' }, { kind: 'button', command: 'forms.templates', size: 'large', keytip: 'PL' }] },
       { id: 'import', label: 'Importar', icon: 'open', items: [{ kind: 'button', command: 'forms.import', size: 'large', keytip: 'IF' }] },
     ],
   };
@@ -129,6 +129,7 @@ export function formsTabs(ui: FormsUI): RibbonTab[] {
         icon: 'exportFile',
         items: [
           { kind: 'button', command: 'forms.grade', size: 'large', keytip: 'CO' },
+          { kind: 'button', command: 'forms.export.xlsx', size: 'large', keytip: 'XL' },
           { kind: 'button', command: 'forms.export.csv', size: 'large', keytip: 'CS' },
           { kind: 'button', command: 'forms.responses.clear', size: 'large', keytip: 'EA' },
         ],

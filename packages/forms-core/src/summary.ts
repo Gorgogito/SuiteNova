@@ -20,6 +20,8 @@ export interface Summary {
   first: string | null;
   last: string | null;
   questions: QSummary[];
+  /** How long answering took, in seconds, of the responses that say it. */
+  time?: { average: number; median: number; count: number };
   /**
    * `max` is the most anyone could get. With questions shown only to some, each person has their own total (`varies`):
    * `percent` is then the average share of it.
@@ -126,5 +128,8 @@ export function summarize(form: Form, responses: Response[]): Summary {
       pending: scores.filter((s) => s.pending).length,
     };
   }
-  return { total: responses.length, first: dates[0] ?? null, last: dates[dates.length - 1] ?? null, questions, quiz };
+  const times = responses.flatMap((r) => r.seconds ?? []).sort((a, b) => a - b);
+  const middle = times.length % 2 ? times[(times.length - 1) / 2]! : (times[times.length / 2 - 1]! + times[times.length / 2]!) / 2;
+  const time = times.length ? { time: { average: Math.round(times.reduce((s, x) => s + x, 0) / times.length), median: Math.round(middle), count: times.length } } : {};
+  return { total: responses.length, first: dates[0] ?? null, last: dates[dates.length - 1] ?? null, questions, quiz, ...time };
 }

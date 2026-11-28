@@ -626,3 +626,74 @@
 .fm-grading .fm-devices {
   margin: 0;
 }
+
+/* ---------- results: filters, charts, table and templates ---------- */
+.fm-filters .fm-row,
+.fm-share .fm-row {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.fm-filters .fm-row + .fm-row {
+  margin-top: 6px;
+}
+.fm-search {
+  flex: 1;
+  min-width: 200px;
+}
+.fm-chart img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 6px auto;
+}
+.fm-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.fm-table th,
+.fm-table td {
+  border: 1px solid var(--colorNeutralStroke2);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+  max-width: 260px;
+  overflow-wrap: anywhere;
+}
+.fm-table td {
+  min-width: 70px;
+}
+.fm-table thead th {
+  background: var(--colorNeutralBackground3);
+}
+.fm-table button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+.fm-table tbody th button {
+  text-decoration: underline;
+}
+.fm-templates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 62vh;
+  overflow-y: auto;
+}
+.fm-templates li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--colorNeutralStroke2);
+  padding: 8px 0;
+}
+.fm-templates p {
+  margin: 2px 0 0;
+}

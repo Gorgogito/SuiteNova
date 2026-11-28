@@ -330,7 +330,7 @@ await check('export CSV: BOM, header, quoting, one column per grid row', async (
   const raw = fs.readFileSync(file, 'utf8');
   assert.equal(raw.charCodeAt(0), 0xfeff);
   const lines = raw.slice(1).trim().split('\r\n');
-  assert.equal(lines[0], 'Id;Fecha;Puntuación;Puntuación máxima;¿Cómo nos conociste?;Tu correo;Edad;Valora el curso;Contenido [Claridad];Contenido [Ritmo];¿Qué mejorarías?');
+  assert.equal(lines[0], 'Id;Fecha;Duración (s);Puntuación;Puntuación máxima;¿Cómo nos conociste?;Tu correo;Edad;Valora el curso;Contenido [Claridad];Contenido [Ritmo];¿Qué mejorarías?');
   assert.equal(lines.length, 6);
   assert.match(lines[1], /;a@x\.es;30;4;De acuerdo;Muy de acuerdo;/);
   assert.match(lines[5], /;Radio;/);
@@ -1299,7 +1299,7 @@ await check('asks for the name, offers a copy of the answers and no second respo
   assert.match(await page.getByRole('region', { name: 'Respuesta individual' }).innerText(), /Ana Ruiz · /);
   await page.getByRole('tab', { name: 'Resumen' }).click();
   const [csv] = await Promise.all([page.waitForEvent('download'), (async () => { await tab('Respuestas'); await press('Exportar respuestas a CSV…'); })()]);
-  assert.match(read(await csv.path()).toString('utf8'), /Fecha;Nombre;Color;Horas[\s\S]*;Ana Ruiz;verde;/);
+  assert.match(read(await csv.path()).toString('utf8'), /Fecha;Nombre;Duración \(s\);Color;Horas[\s\S]*;Ana Ruiz;\d+;verde;/);
   await tab('Inicio');
 });
 
@@ -1686,7 +1686,7 @@ await check('marking by question, and the marks in the summary, one by one, in t
   const [csv] = await Promise.all([page.waitForEvent('download'), (async () => { await tab('Respuestas'); await press('Exportar respuestas a CSV…'); })()]);
   const text = read(await csv.path()).toString('utf8');
   assert.match(text, /Puntuación;Puntuación máxima;Puntos por corregir;Comentario general;/);
-  assert.match(text, /;Ana;5\.5;6;0;Sigue así, Ana\.;/);
+  assert.match(text, /;Ana;\d+;5\.5;6;0;Sigue así, Ana\.;/);
   await tab('Inicio');
   const before = await ev(() => JSON.stringify(window.__novaForms.ctl.doc));
   const [saved] = await Promise.all([page.waitForEvent('download'), page.keyboard.press('Control+s')]);
@@ -1842,6 +1842,254 @@ await check('practice, review and marking are readable in the four themes', asyn
     await settle();
     assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `corregir ${theme}`);
     await shot(`theme-${theme}-marking`);
+  }
+});
+
+// ------------------------------------------------------------ results and templates (phase 7)
+const JSZip = (await import('../apps/suite/node_modules/jszip/lib/index.js')).default;
+const templatesDialog = async () => {
+  await tab('Inicio');
+  await press('Nuevo desde plantilla…');
+  const d = page.getByRole('dialog');
+  await d.waitFor();
+  return d;
+};
+// a survey with answers to look through
+const survey7 = async () => {
+  await fresh();
+  await ev(() => {
+    const { ctl } = window.__novaForms;
+    ctl.setForm({ title: 'Merienda', askName: true });
+    const fruit = ctl.addQuestion('choice');
+    ctl.updateQuestion(fruit.id, { title: 'Fruta', options: ['Mango', 'Piña', 'Uva'] });
+    ctl.updateQuestion(ctl.addQuestion('multi').id, { title: 'Días', options: ['Lunes', 'Martes'] });
+    ctl.updateQuestion(ctl.addQuestion('number').id, { title: 'Cuántas' });
+    ctl.updateQuestion(ctl.addQuestion('longtext').id, { title: 'Comentario' });
+    const [a, b, c, d] = ctl.form.questions;
+    const people = [
+      ['Zoe', 'Mango', ['Lunes'], 3, 'Ácido y dulce', 1, 30],
+      ['ana', 'Piña', ['Lunes', 'Martes'], 9, 'Más fruta', 3, 90],
+      ['Luis', 'Mango', ['Martes'], 5, 'Nada', 2, 240],
+    ];
+    ctl.commit({ ...ctl.doc, responses: people.map(([name, fr, days, n, said, day, seconds], i) => ({ id: `s${i}`, at: new Date(2026, 5, day, 12).toISOString(), name, seconds, answers: { [a.id]: fr, [b.id]: days, [c.id]: n, [d.id]: said } })) });
+  });
+  await mode('Resultados');
+};
+const filters = () => page.getByRole('search', { name: 'Buscar y filtrar' });
+const numbersShown = () => page.locator('.fm-table tbody th').allInnerTexts();
+const picture = () => page.locator('[data-summary] .fm-chart img');
+const loaded = (img) => img.evaluate(async (i) => { await i.decode(); return i.naturalWidth > 100; });
+
+await check('templates: six of them, each makes a form that can be filled in', async () => {
+  await fresh();
+  let d = await templatesDialog();
+  assert.equal(await d.locator('li').count(), 6);
+  await shot('templates');
+  await d.getByRole('button', { name: 'Usar la plantilla «Inscripción a un evento»' }).click();
+  await d.waitFor({ state: 'detached' });
+  assert.deepEqual(await ev(() => [window.__novaForms.ctl.form.title, window.__novaForms.ctl.form.askName, window.__novaForms.ctl.dirty]), ['Inscripción', true, true]);
+  await mode('Rellenar y guardar respuestas');
+  const form = page.getByRole('form', { name: 'Inscripción' });
+  await form.getByLabel(/Tu nombre/).fill('Eva');
+  await form.getByRole('radio', { name: 'No' }).check();
+  await page.waitForTimeout(1100);
+  await form.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await page.getByText('Respuesta guardada').waitFor();
+  const r = await ev(() => window.__novaForms.ctl.responses[0]);
+  assert.equal(r.name, 'Eva');
+  assert.ok(r.seconds >= 1 && r.seconds < 60, `seconds ${r.seconds}`);
+  // another one starts counting again
+  await press('Rellenar otra respuesta');
+  await form.getByLabel(/Tu nombre/).fill('Leo');
+  await form.getByRole('radio', { name: 'No' }).check();
+  await form.getByRole('button', { name: 'Enviar', exact: true }).click();
+  assert.ok((await ev(() => window.__novaForms.ctl.responses[1].seconds)) < 5);
+  d = await templatesDialog();
+  await d.getByRole('button', { name: 'Usar la plantilla «Cuestionario con puntuación»' }).click();
+  await d.waitFor({ state: 'detached' });
+  assert.deepEqual(await ev(() => [window.__novaForms.ctl.form.quiz, window.__novaForms.ctl.responses.length, window.__novaForms.ctl.mode]), [true, 0, 'design']);
+});
+
+await check('the exported page measures how long it took, and it is imported', async () => {
+  await fresh();
+  await addVia('Texto corto');
+  await setTitle('Color');
+  const { p, errs } = await openPage(await exportPage('tardo.html'));
+  await p.getByLabel('Color').fill('azul');
+  await p.waitForTimeout(1600);
+  await p.getByRole('button', { name: 'Enviar' }).click();
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('#dl').click()]);
+  const file = path.join(tmp, 'tardo.json');
+  await dl.saveAs(file);
+  const sent = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.ok(sent.seconds >= 2 && sent.seconds < 20, `seconds ${sent.seconds}`);
+  assert.deepEqual(errs, []);
+  await p.close();
+  dialogs.length = 0;
+  const [c] = await Promise.all([page.waitForEvent('filechooser'), (async () => { await tab('Respuestas'); await press('Importar respuestas…'); })()]);
+  await c.setFiles(file);
+  await page.waitForFunction(() => window.__novaForms.ctl.responses.length === 1);
+  assert.equal(await ev(() => window.__novaForms.ctl.responses[0].seconds), sent.seconds);
+  await tab('Inicio');
+});
+
+await check('summary: time to answer, and a chart per question that is drawn, kept and undone', async () => {
+  await survey7();
+  assert.match(await page.locator('.fm-top').innerText(), /Tiempo medio para responder: 2:00 \(mediana 1:30\)/);
+  assert.equal(await picture().count(), 0);
+  const first = page.getByRole('combobox', { name: 'Gráfico de la pregunta 1' });
+  assert.deepEqual(await first.locator('option').allInnerTexts(), ['Barras', 'Columnas', 'Circular', 'Anillo']);
+  // several answers each: no parts of a whole
+  assert.deepEqual(await page.getByRole('combobox', { name: 'Gráfico de la pregunta 2' }).locator('option').allInnerTexts(), ['Barras', 'Columnas']);
+  assert.equal(await page.getByRole('combobox', { name: 'Gráfico de la pregunta 3' }).count(), 0);
+  await first.selectOption('pie');
+  await page.getByRole('combobox', { name: 'Gráfico de la pregunta 2' }).selectOption('column');
+  assert.equal(await picture().count(), 2);
+  for (let i = 0; i < 2; i++) assert.ok(await loaded(picture().nth(i)));
+  assert.match(decodeURIComponent(await picture().first().getAttribute('src')), /Mango/);
+  // the slices are painted, each with its colour
+  const pie = decodeURIComponent(await picture().first().getAttribute('src'));
+  for (const color of ['#3b82c4', '#e8833a']) assert.ok(pie.includes(`fill="${color}"`), color);
+  assert.equal(await ev(() => window.__novaForms.ctl.form.questions[0].chart), 'pie');
+  await shot('charts');
+  await first.selectOption('doughnut');
+  await page.keyboard.press('Control+z');
+  await settle();
+  assert.equal(await first.inputValue(), 'pie');
+});
+
+await check('search, filter and order: the summary, the table and one by one follow', async () => {
+  await page.getByRole('searchbox', { name: 'Buscar en las respuestas' }).fill('ACIDO');
+  assert.match(await filters().innerText(), /Se muestran 1 de 3 respuestas/);
+  assert.equal((await page.getByLabel('Número de respuestas').innerText()).trim().split(/\s/)[0], '1');
+  await press('Quitar el filtro');
+  await filters().getByRole('combobox', { name: 'Filtrar por pregunta' }).selectOption({ label: '1. Fruta' });
+  await filters().getByRole('combobox', { name: 'Con la respuesta' }).selectOption('Mango');
+  assert.match(await filters().innerText(), /Se muestran 2 de 3/);
+  assert.match(await page.locator('[data-summary]').first().innerText(), /Mango\s*2 \(100 %\)/);
+  await page.getByRole('tab', { name: 'Tabla' }).click();
+  assert.deepEqual(await numbersShown(), ['1', '3']);
+  await filters().getByLabel('Desde el día').fill('2026-06-02');
+  assert.deepEqual(await numbersShown(), ['3']);
+  await press('Quitar el filtro');
+  const table = page.getByRole('table', { name: 'Tabla de respuestas' });
+  await table.getByRole('button', { name: 'Nombre' }).click();
+  assert.deepEqual(await numbersShown(), ['2', '3', '1']);
+  assert.equal(await table.locator('th[aria-sort="ascending"]').count(), 1);
+  await table.getByRole('button', { name: /^Nombre/ }).click();
+  assert.deepEqual(await numbersShown(), ['1', '3', '2']);
+  await table.getByRole('button', { name: '3. Cuántas' }).click();
+  assert.deepEqual(await numbersShown(), ['1', '3', '2']);
+  assert.equal(await filters().getByRole('combobox', { name: 'Ordenar las respuestas' }).inputValue(), `q:${await ev(() => window.__novaForms.ctl.form.questions[2].id)}|asc`);
+  await shot('table');
+  await filters().getByRole('combobox', { name: 'Ordenar las respuestas' }).selectOption('time|desc');
+  assert.deepEqual(await numbersShown(), ['3', '2', '1']);
+  await table.getByRole('button', { name: 'Ver la respuesta 2' }).click();
+  const one = page.getByRole('region', { name: 'Respuesta individual' });
+  assert.match(await one.innerText(), /ana · [\s\S]*Tardó 1:30/);
+  assert.match(await page.locator('.fm-pager').innerText(), /Respuesta 2 \/ 3/);
+  await page.getByRole('button', { name: 'Respuesta siguiente' }).click();
+  assert.match(await page.locator('.fm-pager').innerText(), /Respuesta 3 \/ 3 \(n\.º 1\)/);
+  await page.getByRole('searchbox', { name: 'Buscar en las respuestas' }).fill('nada de esto');
+  await page.getByText('Ninguna respuesta pasa el filtro.').waitFor();
+  await page.getByRole('searchbox', { name: 'Buscar en las respuestas' }).fill('');
+  await shot('individual');
+});
+
+await check('the summary is printed and saved without names, with the written answers only when asked', async () => {
+  await page.getByRole('tab', { name: 'Resumen' }).click();
+  await filters().getByRole('combobox', { name: 'Filtrar por pregunta' }).selectOption({ label: '2. Días' });
+  await filters().getByRole('combobox', { name: 'Con la respuesta' }).selectOption('Lunes');
+  await press('Imprimir el resumen');
+  await page.locator('iframe.ml-print').waitFor({ state: 'attached' });
+  await page.waitForTimeout(600); // the page that prints takes the focus
+  const printed = await page.locator('iframe.ml-print').getAttribute('srcdoc');
+  assert.match(printed, /2 respuestas[\s\S]*Se resumen 2 de 3 respuestas[\s\S]*Tiempo medio para responder: 1:00/);
+  assert.equal(printed.match(/<img /g).length, 2);
+  assert.doesNotMatch(printed, /Zoe|Luis|Ácido/);
+  await press('Quitar el filtro');
+  const [dl] = await Promise.all([page.waitForEvent('download'), press('Guardar como página…')]);
+  assert.equal(dl.suggestedFilename(), 'Merienda - resumen.html');
+  const file = path.join(tmp, 'resumen.html');
+  await dl.saveAs(file);
+  const { p, errs } = await openPage(file);
+  assert.equal(await p.locator('img').count(), 2);
+  for (let i = 0; i < 2; i++) assert.ok(await loaded(p.locator('img').nth(i)));
+  assert.doesNotMatch(await p.locator('body').innerText(), /Zoe|Luis|Ácido/);
+  await shot('summary-page', p);
+  assert.deepEqual(errs, []);
+  await p.close();
+  await page.getByRole('checkbox', { name: 'Incluir las respuestas escritas' }).check();
+  const [with_] = await Promise.all([page.waitForEvent('download'), press('Guardar como página…')]);
+  const full = read(await with_.path()).toString('utf8');
+  assert.match(full, /Ácido y dulce/);
+  assert.doesNotMatch(full, /Zoe|Luis/);
+});
+
+await check('export to Excel: a workbook with the responses and the figures, without formulas', async () => {
+  await ev(() => {
+    const { ctl } = window.__novaForms;
+    const [a, , , d] = ctl.form.questions;
+    ctl.addResponse({ [a.id]: 'Uva', [d.id]: '=1+1' }, '=cmd', 5);
+  });
+  const [dl] = await Promise.all([page.waitForEvent('download'), (async () => { await tab('Respuestas'); await press('Exportar respuestas a Excel…'); })()]);
+  assert.equal(dl.suggestedFilename(), 'Merienda-respuestas.xlsx');
+  const zip = await JSZip.loadAsync(read(await dl.path()));
+  const sheet = await zip.file('xl/worksheets/sheet1.xml').async('string');
+  const strings = (await zip.file('xl/sharedStrings.xml')?.async('string')) ?? sheet;
+  for (const text of ['Zoe', 'Fruta', 'Lunes | Martes', '=1+1', '=cmd']) assert.ok(strings.includes(text) || sheet.includes(text), text);
+  assert.doesNotMatch(sheet, /<f[ >]/);
+  assert.match(await zip.file('xl/workbook.xml').async('string'), /name="Respuestas"[\s\S]*name="Resumen"/);
+  await tab('Inicio');
+});
+
+await check('two thousand responses: the table in pages, searched and ordered quickly', async () => {
+  await ev(() => {
+    const { ctl } = window.__novaForms;
+    const [a] = ctl.form.questions;
+    ctl.commit({ ...ctl.doc, responses: Array.from({ length: 2000 }, (_, i) => ({ id: `k${i}`, at: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString(), name: `P${i + 1}`, seconds: 1 + (i % 500), answers: { [a.id]: i % 3 ? 'Mango' : 'Uva' } })) });
+  });
+  const t0 = Date.now();
+  await mode('Resultados');
+  await page.getByRole('tab', { name: 'Tabla' }).click();
+  await page.getByText(/Filas 1 a 50 de 2[.,]?000/).waitFor();
+  assert.equal(await page.locator('.fm-table tbody tr').count(), 50);
+  await page.getByRole('searchbox', { name: 'Buscar en las respuestas' }).fill('P1999');
+  assert.deepEqual(await numbersShown(), ['1999']);
+  await page.getByRole('searchbox', { name: 'Buscar en las respuestas' }).fill('');
+  await filters().getByRole('combobox', { name: 'Ordenar las respuestas' }).selectOption('date|desc');
+  assert.equal((await numbersShown())[0], '2000');
+  await press('Filas siguientes');
+  assert.equal((await numbersShown())[0], '1950');
+  assert.ok(Date.now() - t0 < 15000, `took ${Date.now() - t0} ms`);
+});
+
+await check('results, filters, table and templates are readable in the four themes', async () => {
+  for (const theme of ['colorful', 'white', 'darkgray', 'black']) {
+    await ev((t) => window.__novaSettings.set('theme', t), theme);
+    await page.waitForFunction((t) => document.querySelector('[data-app]').dataset.theme === t, theme);
+    await survey7();
+    await page.getByRole('combobox', { name: 'Gráfico de la pregunta 1' }).selectOption('column');
+    await page.getByRole('combobox', { name: 'Gráfico de la pregunta 2' }).selectOption('column');
+    await settle();
+    await page.waitForTimeout(250);
+    // the chart takes the colours of the card it is on
+    const [card, drawn] = await page.evaluate(() => {
+      const c = getComputedStyle(document.querySelector('[data-summary]'));
+      return [c.color, decodeURIComponent(document.querySelector('.fm-chart img').src)];
+    });
+    assert.ok(drawn.includes(card.replace(/\s/g, '')) || drawn.includes(card), `${theme}: ${card}`);
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `resumen ${theme}`);
+    await shot(`theme-${theme}-charts`);
+    await page.getByRole('tab', { name: 'Tabla' }).click();
+    await page.getByRole('table', { name: 'Tabla de respuestas' }).getByRole('button', { name: 'Fecha' }).click();
+    assert.deepEqual(await lowContrast(page, ['.fm-page']), [], `tabla ${theme}`);
+    await shot(`theme-${theme}-table`);
+    const d = await templatesDialog();
+    await page.waitForTimeout(600);
+    assert.deepEqual(await lowContrast(page, ['[role="dialog"]']), [], `plantillas ${theme}`);
+    await d.getByRole('button', { name: 'Cerrar', exact: true }).click();
+    await d.waitFor({ state: 'detached' });
   }
 });
 
