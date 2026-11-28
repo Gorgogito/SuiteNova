@@ -191,7 +191,9 @@ await check('exportar a Visio: la imagen va como forma de imagen con su archivo,
   assert.match(page1, /Type="Foreign"/);
   assert.match(await zip.file('visio/pages/_rels/page1.xml.rels').async('string'), /relationships\/image/);
   assert.match(await zip.file('[Content_Types].xml').async('string'), /Extension="png"/);
-  assert.ok(page1.indexOf('Type="Foreign"') < page1.indexOf('NovaStencil'), 'the picture is under its shape');
+  // the picture and the drawing of its shape are one group, the picture first (underneath)
+  assert.match(page1, /Type="Group"/);
+  assert.ok(page1.indexOf('Type="Foreign"') < page1.indexOf('V="body"'), 'the picture is under its shape');
   assert.deepEqual(alerts.filter((a) => /Visio/.test(a)), [], 'sin avisos: la imagen sí cabe en Visio');
 });
 

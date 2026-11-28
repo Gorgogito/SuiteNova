@@ -3,6 +3,7 @@ import { newId, type Connector, type Layer, type Page, type Shape } from './mode
 /*
  * Layers. Every shape and connector sits on one layer (the first one when it names none). A hidden layer is neither drawn nor
  * exported, a locked one cannot be selected or changed, and a layer that is not printable is left out of exports and printing.
+ * A Visio drawing is the exception: it keeps every layer, with its state.
  * Layers do not change the stacking order.
  */
 

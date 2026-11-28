@@ -85,12 +85,12 @@ describe('comments of a diagram', () => {
     expect(await zip.file('[Content_Types].xml')!.async('string')).not.toContain('comments');
   });
 
-  it('a comment on a shape of a layer that does not print is not written', async () => {
+  it('a comment on a shape of a layer that does not print goes with its shape, which stays in the file', async () => {
     const { d, a } = sample();
     const p = d.pages[0]!;
     const hidden = { ...p, layers: [{ id: 'base', name: 'Base', visible: true, locked: false, printable: true }, { id: 'ly2', name: 'Oculta', visible: true, locked: false, printable: false }], shapes: p.shapes.map((s) => (s.id === a ? { ...s, layer: 'ly2' } : s)) };
     const xml = await (await JSZip.loadAsync(await exportVsdx({ ...d, pages: [hidden] }))).file('visio/comments.xml')!.async('string');
-    expect(xml).not.toContain('Revisar este');
+    expect(xml).toContain('Revisar este');
     expect(xml).toContain('Comentario de la página');
   });
 });

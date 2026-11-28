@@ -1,4 +1,5 @@
-// Nova Diagram against Visio, phase 2: opening Visio drawings, in a real browser (Edge). Needs `pnpm dev` on :1420.
+// Nova Diagram against Visio, phases 2 and 3: opening Visio drawings and saving for Visio, in a real browser (Edge).
+// Needs `pnpm dev` on :1420.
 // Usage: node scripts/e2e-diagram-visio.mjs [--shots dir]
 // The drawing is written here by hand, in the structure Visio uses (theme, style sheets, masters, groups, layers…).
 import { chromium } from '../apps/suite/node_modules/playwright-core/index.mjs';
@@ -172,6 +173,55 @@ await check('saves it as a diagram of Nova and opens it again the same', async (
   assert.deepEqual(dialogs.slice(seen), [], 'no warnings when reopening');
   for (const [i, s] of again.shapes.entries()) for (const k of Object.keys({ ...s, ...first.shapes[i] })) assert.deepEqual(s[k], first.shapes[i][k], `${k} of "${s.text}"`);
   assert.deepEqual(again.layers, first.layers);
+});
+
+await check('saved for Visio it keeps glue, containers, data, links and layers, and comes back', async () => {
+  // a pool with a shape in it, as the user would put them, below what was opened
+  await ev(() => {
+    const { ctl } = window.__novaDiagram;
+    ctl.addStencil('pool', { x: 400, y: 1000 });
+    ctl.addStencil('process', { x: 330, y: 900 });
+    const made = ctl.basePage.shapes.at(-1);
+    ctl.setSelection([made.id]);
+    ctl.setText(made.id, 'En el carril');
+  });
+  await settle();
+  const before = await current();
+  assert.ok(before.shapes.find((x) => x.text === 'En el carril').lane, 'the new shape is in a lane');
+  const tab = (name) => page.getByRole('tab', { name, exact: true }).click();
+  await tab('Diseño');
+  await page.getByRole('button', { name: 'Exportar', exact: true }).first().click();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('menuitem', { name: /Visio/ }).click()]);
+  const out = path.join(tmp, 'salida.vsdx');
+  await dl.saveAs(out);
+  const zip = await JSZip.loadAsync(fs.readFileSync(out));
+  const one = await zip.file('visio/pages/page1.xml').async('string');
+  assert.equal((one.match(/<Connect /g) ?? []).length, 2, 'both ends of the connector are glued');
+  assert.match(one, /_WALKGLUE\(BegTrigger,EndTrigger,WalkPreference\)/);
+  assert.match(one, /<Row N="Responsable">/);
+  assert.match(one, /N="Address" V="https:\/\/example\.org\/pedido"/);
+  assert.match(one, /V="Container" U="STR"/);
+  assert.match(one, /DEPENDSON\(4,/);
+  assert.match(await zip.file('visio/pages/pages.xml').async('string'), /N="Name" V="Fondo"/);
+  const seen = dialogs.length;
+  await ev(() => window.__novaDiagram.ctl.flushTyping());
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.keyboard.press('Control+o')]);
+  await chooser.setFiles(out);
+  await page.waitForFunction(() => window.__novaDiagram.ctl.diagram.name === 'salida');
+  await settle(600);
+  const back = await current();
+  assert.deepEqual(dialogs.slice(seen).filter((m) => !/descartarlos/.test(m)), [], 'no warnings when coming back');
+  assert.equal(back.shapes.length, before.shapes.length);
+  assert.equal(back.groups.length, before.groups.length);
+  const layersOf = (x) => JSON.stringify(x.layers.map((l) => [l.name, l.visible, l.locked]));
+  assert.equal(layersOf(back), layersOf(before));
+  assert.ok(back.connectors[0].from.shape && back.connectors[0].to.shape);
+  const pool = back.shapes.find((x) => x.stencil === 'pool');
+  const inside = back.shapes.find((x) => x.text === 'En el carril');
+  assert.equal(inside.parent, pool.id);
+  assert.ok(pool.container.lanes.some((l) => l.id === inside.lane));
+  assert.deepEqual(back.shapes.find((x) => x.text === '¿Hay existencias?').data, before.shapes.find((x) => x.text === '¿Hay existencias?').data);
+  await shot('ida-y-vuelta');
 });
 
 await browser.close();

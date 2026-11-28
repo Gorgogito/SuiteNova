@@ -189,6 +189,12 @@ describe('masters, groups and placing', () => {
     expect(byText(p, 'debajo').y).toBeGreaterThan(p.shapes.find((s) => s.x === 432 && !s.text)!.y + 96);
   });
 
+  it('widens a label only for a word that does not fit in it', async () => {
+    const label = async (text: string) => byText(await one(`<Shape ID="1">${box(5, 4, 1, 1)}${cells({ TxtPinX: 0.5, TxtPinY: -0.5, TxtWidth: 1.5, TxtHeight: 0.8 })}${rect(1, 1)}<Text>${text}</Text></Shape>`), text);
+    expect((await label('texto largo que debe partirlo en cada renglón del dibujo completo')).w).toBe(144);
+    expect((await label('Otorrinolaringologicamente')).w).toBeGreaterThan(144);
+  });
+
   it('turns the common flowchart masters into the shapes of Nova', async () => {
     const master = { id: 2, name: 'Decision', shapes: `<Shape ID="5">${box(1, 1, 1, 0.75)}${rect(1, 0.75)}</Shape>` };
     const p = await one(`<Shape ID="1" Master="2">${cells({ PinX: 2, PinY: 2 })}<Text>¿Sí?</Text></Shape>`, { masters: [master] });

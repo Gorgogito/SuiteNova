@@ -175,11 +175,11 @@ describe('VSDX pictures', () => {
     expect(page).toContain('Type="Foreign"');
     expect(page).toContain('<ForeignData ForeignType="Bitmap" CompressionType="PNG">');
     // contain: 200×100 in a 160×160 box is 160×80 (the picture shape is smaller than the box), centred
-    const w = Number(/<Shape ID="1"[^>]*Type="Foreign">.*?N="Width" V="([^"]+)"/.exec(page)![1]);
-    const h = Number(/<Shape ID="1"[^>]*Type="Foreign">.*?N="Height" V="([^"]+)"/.exec(page)![1]);
+    const w = Number(/<Shape ID="2"[^>]*Type="Foreign">.*?N="Width" V="([^"]+)"/.exec(page)![1]);
+    const h = Number(/<Shape ID="2"[^>]*Type="Foreign">.*?N="Height" V="([^"]+)"/.exec(page)![1]);
     expect(w / h).toBeCloseTo(2, 3);
-    // the shape itself stays after it, with its Nova stencil
-    expect(page).toContain('<Row N="NovaStencil"><Cell N="Value" V="image"/>');
+    // the picture and the drawing of the shape make a group, which carries what Nova knows of the shape
+    expect(page).toMatch(/<Shape ID="1"[^>]*Type="Group">.*?<Row N="NovaStencil"><Cell N="Value" V="image" U="STR"\/>/);
   });
 
   it('cover uses the picture size and offset cells; stretch fills the box', async () => {

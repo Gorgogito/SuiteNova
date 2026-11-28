@@ -1,17 +1,21 @@
 import JSZip from 'jszip';
-import { defaultFont, defaultStyle, newDiagram, newId, type CommentThread, type Connector, type DataField, type Diagram, type End, type Font, type Layer, type Outline, type Page, type Shape, type ShapeLink, type Style } from './model';
-import { portsOf } from './geometry';
-import { textWidth } from './render';
-import { hasStencil } from './stencils';
+import { defaultFont, defaultStyle, newDiagram, newId, type Arrow, type CommentThread, type Connector, type DataField, type Diagram, type End, type Font, type Layer, type Outline, type Page, type Shape, type ShapeLink, type Style } from './model';
+import { assignMembership } from './container';
+import { centerOf, portsOf, rotatePoint } from './geometry';
+import { readContainer } from './io';
+import { resolveText, textWidth } from './render';
+import { hasStencil, stencilOf } from './stencils';
 import { geometryPaths, type Pt } from './vsdx-geometry';
 import { Cascade, THEMED, indexShapes, mergedRows, num, parseXml, readShape, relsOf, sectionNames, type Category, type Cell, type Eff, type Master, type Node, type Raw, type Value } from './vsdx-read';
 import { gradientColor, mix, overWhite, parseTheme, themedLook, type PageTheme, type ThemedLook, type VisioTheme } from './vsdx-theme';
+import { NOVA, NOVA_ARROW, VISIO_ARROW, compartments, joinCompartments } from './vsdx-nova';
 
 /*
  * Reading a Visio drawing (.vsdx). Every shape is resolved the way Visio does it (the shape, then its master, then the
  * style sheets, then the theme of the page) and turned into Nova shapes: the common flowchart shapes become Nova's own,
  * the rest keep their outlines. Groups stay groups; pictures, data, links, layers and background pages come along. What
- * cannot be kept is counted and told.
+ * cannot be kept is counted and told. Drawings written by Nova carry notes (`vsdx-nova.ts`) that give back its own
+ * shapes, containers and swimlanes.
  */
 
 const PX = 96; // pixels per inch
@@ -141,6 +145,19 @@ interface Reading {
   picture?: { src: string; box: { w: number; h: number; offset: boolean } };
   pageNames: Map<string, string>;
   layer?: string; // forced layer (background)
+  /** The lanes of the pools Nova wrote, put into their pools once the page is read. */
+  lanes: LaneRead[];
+}
+
+interface LaneRead {
+  id: string;
+  title: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** The lane as a drawing of its own, for one whose pool is gone. */
+  alone: () => Shape | null;
 }
 
 /** A numeric cell of a shape, following formulas such as `Width*0.5` that its master has. */
@@ -289,7 +306,7 @@ function lineOf(r: Reading, e: Item, t: ThemedLook | null): { stroke: string; st
   stroke = overWhite(stroke, Math.max(0, Math.min(1, trans)));
   const wv = c.cell(e, 'LineWeight', 'LineStyle');
   const weight = wv === THEMED ? (t?.lineWidth ?? 1 / PX) : num(wv, 1 / PX);
-  return { stroke: pattern === 0 || trans >= 0.99 ? 'none' : stroke, strokeWidth: Math.max(0.75, r2(weight * PX)), dash: dashOf(pattern) };
+  return { stroke: pattern === 0 || trans >= 0.99 ? 'none' : stroke, strokeWidth: Math.max(0.75, r2(weight * PX)), dash: pattern === 0 ? 'solid' : dashOf(pattern) };
 }
 
 function fillOf(r: Reading, e: Item, t: ThemedLook | null): string {
@@ -373,6 +390,34 @@ function fontOf(r: Reading, e: Item, t: ThemedLook | null, row: string): Font {
 // ---- data and links
 
 const userRow = (e: Item, name: string) => e.own.sections.get('User')?.rows.get(name);
+const userValue = (e: Item, name: string): string | undefined => userRow(e, name)?.cells.get('Value')?.v;
+
+/** A note that Nova keeps as JSON; undefined when there is none or it is damaged. */
+function note(e: Item, name: string): unknown {
+  const v = userValue(e, name);
+  if (v === undefined) return undefined;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The text as it was written in Nova (with its `{{data}}`), unless it has been changed since. */
+function novaText(e: Item, shape: Shape, seen: string): string {
+  const mine = note(e, NOVA.text);
+  if (typeof mine !== 'string') return seen;
+  const room = stencilOf(shape.stencil).text?.(shape.w, shape.h);
+  const hidden = !!room && (room.w <= 0 || room.h <= 0);
+  return (hidden && !seen) || resolveText(mine, shape.data).replace(/\n+$/, '') === seen ? mine : seen;
+}
+
+/** What a shape of Nova has that Visio has no cell for. */
+function restore(shape: Shape, e: Item): void {
+  if (userRow(e, NOVA.showData)) shape.showData = true;
+  const container = readContainer(note(e, NOVA.container));
+  if (container) shape.container = container;
+}
 
 function dataOf(e: Item): DataField[] {
   const out: DataField[] = [];
@@ -455,6 +500,97 @@ function makeShape(box: ReturnType<typeof boxOf>, stencil: string, style: Style,
 
 const invisible: Pick<Style, 'fill' | 'stroke'> = { fill: 'none', stroke: 'none' };
 
+/** The style of a sheet that Nova wrote. */
+function novaStyle(r: Reading, e: Item): Style {
+  const t = look(r, e);
+  const line = lineOf(r, e, t);
+  // some stencils draw a part with a thicker or thinner line than the shape has
+  const factor = num(userValue(e, NOVA.width), 1) || 1;
+  const painted = fillOf(r, e, t);
+  // a drawing painted with the line colour keeps the fill the shape had
+  const own = userValue(e, NOVA.fill);
+  return {
+    ...defaultStyle(),
+    ...line,
+    strokeWidth: r2(line.strokeWidth / factor),
+    fill: own !== undefined && painted === line.stroke ? own : painted,
+    shadow: num(r.doc.cascade.cell(e, 'ShdwPattern', 'FillStyle'), 0) > 0,
+  };
+}
+
+/** A group that Nova wrote for one of its shapes: the drawing is in its parts, the rest on the group. */
+function composite(r: Reading, e: Item, m: Matrix): Shape {
+  const parts = e.own.kids.map((k) => itemOf(r.doc, k, e.masterDoc));
+  const of = (kind: string) => parts.filter((p) => userValue(p, NOVA.part) === kind);
+  const stored = userValue(e, NOVA.stencil);
+  const stencil = stored && hasStencil(stored) ? stored : undefined;
+  const [body] = of('body');
+  const raw = textOf(e);
+  const style: Style = body ? novaStyle(r, body) : { ...defaultStyle(), ...invisible };
+  const shape = makeShape(boxOf(r, m, e.w, e.h), stencil ?? 'rect', style, fontOf(r, e, look(r, e), raw.row), '', r.layer ?? r.layerOf(e));
+  if (!stencil && body) shape.geometry = outlinesOf(r, body).outlines;
+
+  const [picture] = of('picture');
+  if (picture) {
+    const target = picture.own.foreign?.rel ? r.rels.get(picture.own.foreign.rel)?.target : undefined;
+    const src = target ? r.doc.media.get(target) : null;
+    const fit = userValue(picture, NOVA.fit);
+    const alt = note(picture, NOVA.alt);
+    if (src) shape.image = { src, fit: fit === 'contain' || fit === 'cover' ? fit : 'stretch', ...(typeof alt === 'string' ? { alt } : {}) };
+    else r.doc.notes.add('pictures');
+  }
+
+  const data = dataOf(e);
+  if (data.length) shape.data = data;
+  const link = linkOf(r, e);
+  if (link) shape.link = link;
+  restore(shape, e);
+
+  const texts = of('text');
+  if (texts.length) {
+    // the compartments of a class
+    const seen = joinCompartments(texts.map((p) => textOf(p).value));
+    const mine = note(e, NOVA.text);
+    shape.text = typeof mine === 'string' && joinCompartments(compartments(resolveText(mine, data))) === seen ? mine : seen;
+    const second = texts[1] ?? texts[0]!;
+    shape.font = { ...fontOf(r, second, look(r, second), textOf(second).row), align: 'center', valign: 'middle' };
+  } else shape.text = novaText(e, shape, raw.value);
+  return shape;
+}
+
+/** The pools Nova wrote take the titles, sizes and order of their lanes from the lanes of the drawing. */
+function settleLanes(page: Page, lanes: LaneRead[]): void {
+  const pools = page.shapes.filter((s) => s.container?.kind === 'pool' && s.container.lanes);
+  const mine = new Map<Shape, LaneRead[]>();
+  for (const lane of lanes) {
+    // a copied pool has lanes with the same ids: each goes to the nearest
+    const far = (p: Shape) => Math.hypot(centerOf(lane).x - centerOf(p).x, centerOf(lane).y - centerOf(p).y);
+    const pool = pools.filter((p) => p.container!.lanes!.some((l) => l.id === lane.id)).sort((a, b) => far(a) - far(b))[0];
+    if (pool) mine.set(pool, [...(mine.get(pool) ?? []), lane]);
+    else {
+      const shape = lane.alone();
+      if (shape) page.shapes.push(shape);
+    }
+  }
+  for (const [pool, found] of mine) {
+    const c = pool.container!;
+    const horizontal = (c.dir ?? 'h') === 'h';
+    // the order of the lanes of a turned pool is along its own axes
+    const along = (l: LaneRead) => rotatePoint(centerOf(l), centerOf(pool), -pool.rot)[horizontal ? 'y' : 'x'];
+    const ids = new Set<string>();
+    const sorted = [...found].sort((a, b) => along(a) - along(b)).map((l) => {
+      // a lane copied in Visio is one more lane
+      const id = ids.has(l.id) ? newId('ln') : l.id;
+      ids.add(id);
+      return { id, title: l.title.slice(0, 200), size: r2(Math.max(20, horizontal ? l.h : l.w)) };
+    });
+    pool.container = { ...c, lanes: sorted };
+    const total = r2(sorted.reduce((a, l) => a + l.size, 0));
+    if (horizontal) pool.h = total;
+    else pool.w = total;
+  }
+}
+
 /** The Nova shape of the drawing of a Visio shape (not of its parts); null when it shows nothing. */
 function drawing(r: Reading, e: Item, m: Matrix, text: string, font: Font): Shape | null {
   const t = look(r, e);
@@ -480,10 +616,10 @@ function drawing(r: Reading, e: Item, m: Matrix, text: string, font: Font): Shap
     return { ...makeShape(box, 'image', { ...style, fill: 'none' }, font, text, layer), image: { src, fit: whole ? 'stretch' : 'cover' } };
   }
 
-  const nova = userRow(e, 'NovaStencil')?.cells.get('Value')?.v;
+  const nova = userValue(e, NOVA.stencil);
+  if (nova && hasStencil(nova)) return makeShape(box, nova, novaStyle(r, e), font, text, layer);
   const { outlines, area, extent } = outlinesOf(r, e);
   style.fill = outlines.some((o) => o.fill) ? fillOf(r, e, t) : 'none';
-  if (nova && hasStencil(nova)) return makeShape(box, nova, { ...style, fill: outlines.length ? style.fill : fillOf(r, e, t) }, font, text, layer);
 
   const known = e.instanceOf && !e.own.kids.length && !e.instanceOf.tops[0]?.kids.length && ![...e.own.sections.keys()].some((k) => k.startsWith('Geometry')) ? STENCIL_OF[e.instanceOf.name.replace(/\.\d+$/, '')] : undefined;
   // the shape of Nova takes the room the drawing of Visio takes
@@ -520,7 +656,20 @@ function visit(r: Reading, own: Raw, parent: Matrix, context: Master | undefined
   const m = mul(parent, placement(r, e));
   const sheet = own.attrs.ID ?? '';
 
-  if (userRow(e, 'NovaImagePart')) {
+  const lane = userValue(e, NOVA.lane);
+  if (lane !== undefined) {
+    const title = textOf(e).value;
+    r.lanes.push({ id: lane, title, ...boxOf(r, m, e.w, e.h), alone: () => drawing(r, e, m, title, fontOf(r, e, look(r, e), textOf(e).row)) });
+    return [];
+  }
+  if (userRow(e, NOVA.composite)) {
+    const shape = composite(r, e, m);
+    if (group) shape.group = group;
+    r.page.shapes.push(shape);
+    r.sheets.set(sheet, { shape, item: e, m });
+    return [shape];
+  }
+  if (userRow(e, NOVA.imagePart)) {
     const target = own.foreign?.rel ? r.rels.get(own.foreign.rel)?.target : undefined;
     const src = target ? r.doc.media.get(target) : null;
     if (src) r.picture = { src, box: { w: e.w * PX, h: e.h * PX, offset: Math.abs(size(r, e, 'ImgOffsetX', 0)) + Math.abs(size(r, e, 'ImgOffsetY', 0)) > 0.001 } };
@@ -546,7 +695,8 @@ function visit(r: Reading, own: Raw, parent: Matrix, context: Master | undefined
 
   // the drawing of the shape itself goes under its parts; the text of a group, or of a block outside the shape, on top
   const turn = size(r, e, 'TxtAngle', 0) / (e.own.cells.has('TxtAngle') ? 1 : e.sy || 1);
-  const apart = !!text.trim() && (isGroup || block.outside || Math.abs(Math.sin(turn / 2)) > 0.01);
+  // Nova draws the text of its own shapes where they say
+  const apart = !userRow(e, NOVA.stencil) && !!text.trim() && (isGroup || block.outside || Math.abs(Math.sin(turn / 2)) > 0.01);
   const display = isGroup ? num(r.doc.cascade.cell(e, 'DisplayMode', 'LineStyle'), 2) : 2;
   const main = display === 0 ? null : drawing(r, e, m, apart ? '' : text, font);
   if (main && !apart && main.text && main.style.fill === 'none' && !main.image) main.font = readable(r, e, t, raw.row, main.font);
@@ -573,7 +723,7 @@ function visit(r: Reading, own: Raw, parent: Matrix, context: Master | undefined
     delete box.flipH;
     delete box.flipV;
     // Nova only estimates how wide text is: the box of a label has room for its longest word
-    const room = Math.max(...text.split(/s+/).map((w) => textWidth(w, font.size, font.bold, font.family))) + 12;
+    const room = Math.max(...text.split(/\s+/).map((w) => textWidth(w, font.size, font.bold, font.family))) + 12;
     if (room > box.w) {
       box.x = r2(box.x - (room - box.w) / 2);
       box.w = r2(room);
@@ -592,7 +742,11 @@ function visit(r: Reading, own: Raw, parent: Matrix, context: Master | undefined
     const link = linkOf(r, e);
     if (link) primary.link = link;
   }
-  if (r.picture && main && userRow(e, 'NovaStencil')) {
+  if (main) {
+    restore(main, e);
+    if (!apart && userRow(e, NOVA.text)) main.text = novaText(e, main, text);
+  }
+  if (r.picture && main && userRow(e, NOVA.stencil)) {
     const p = r.picture;
     const smaller = p.box.w < main.w - 0.5 || p.box.h < main.h - 0.5;
     main.image = { src: p.src, fit: p.box.offset && !smaller ? 'cover' : smaller ? 'contain' : 'stretch' };
@@ -610,8 +764,6 @@ function visit(r: Reading, own: Raw, parent: Matrix, context: Master | undefined
   return made;
 }
 
-const ARROWS: Record<number, Connector['endArrow']> = { 0: 'none', 1: 'open', 10: 'oval', 22: 'diamond', 41: 'oval', 42: 'oval' };
-
 function addConnectors(r: Reading, connects: Node[]): void {
   const glue = new Map<string, { begin?: { sheet: string; cell: string }; end?: { sheet: string; cell: string } }>();
   for (const cn of connects) {
@@ -624,14 +776,15 @@ function addConnectors(r: Reading, connects: Node[]): void {
   const point = (p: Pt) => ({ x: r2(p[0] * PX), y: r2((r.height - p[1]) * PX) });
   for (const { item: e, m, id } of r.connectors) {
     const t = look(r, e);
-    const ours = userRow(e, 'NovaConnector')?.cells.get('Value')?.v;
+    const ours = userValue(e, NOVA.connector);
     const g = glue.get(e.own.attrs.ID ?? '');
     const geo = outlinesOf(r, e);
     const first = geo.outlines[0]?.pts;
     // where the ends are: what Nova wrote is in the geometry; Visio keeps them in BeginX… EndY
     const local = placement(r, e);
     const endAt = (k: 0 | 1): End => {
-      if (ours && first?.length) {
+      // files written by earlier versions of Nova have no ends: the line says where they are
+      if (ours && !e.own.cells.has('BeginX') && first?.length) {
         const [nx, ny] = k === 0 ? first[0]! : first[first.length - 1]!;
         return point(apply(mul(m, local), [nx * e.w, (1 - ny) * e.h]));
       }
@@ -658,9 +811,12 @@ function addConnectors(r: Reading, connects: Node[]): void {
       return { shape: target.shape.id, port };
     };
     const line = lineOf(r, e, t);
-    const arrow = (n: string, themed: number | undefined): Connector['endArrow'] => {
+    const stored = userValue(e, NOVA.arrows)?.split(',') ?? [];
+    const arrow = (n: string, themed: number | undefined, mine: string | undefined): Arrow => {
       const v = r.doc.cascade.cell(e, n, 'LineStyle');
-      return ARROWS[v === THEMED ? (themed ?? 0) : num(v, 0)] ?? 'arrow';
+      const index = v === THEMED ? (themed ?? 0) : num(v, 0);
+      // the head chosen in Nova stays while Visio shows the one written for it
+      return mine && VISIO_ARROW[mine as Arrow] === index ? (mine as Arrow) : (NOVA_ARROW[index] ?? 'arrow');
     };
     const raw = textOf(e);
     const text = num(r.doc.cascade.cell(e, 'HideText', 'TextStyle'), 0) === 1 ? '' : raw.value;
@@ -675,8 +831,8 @@ function addConnectors(r: Reading, connects: Node[]): void {
       stroke: line.stroke === 'none' ? '#000000' : line.stroke,
       strokeWidth: line.strokeWidth,
       dash: line.dash,
-      startArrow: arrow('BeginArrow', t?.startArrow),
-      endArrow: arrow('EndArrow', t?.endArrow),
+      startArrow: arrow('BeginArrow', t?.startArrow, stored[0]),
+      endArrow: arrow('EndArrow', t?.endArrow, stored[1]),
       text,
       font: { ...fontOf(r, e, t, raw.row), align: 'center', valign: 'middle' },
       ...(layer ? { layer } : {}),
@@ -806,7 +962,7 @@ export async function importVsdx(data: Uint8Array): Promise<VsdxResult> {
       return { id: newId('ly'), name: row.cells.get('Name')?.v || `Capa ${Number(row.key) + 1}`, visible: v('Visible', 1) === 1, locked: v('Lock', 0) === 1, printable: v('Print', 1) === 1 };
     });
     const layerByIx = new Map(rows.map((row, i) => [row.key, layers[i]!]));
-    let loose = false;
+    const lanes: LaneRead[] = [];
     const sheetsOnPage = new Map<string, { shape: Shape; item: Item; m: Matrix }>();
     const back: Layer | undefined = chain.length ? { id: newId('ly'), name: 'Fondo', visible: true, locked: true, printable: true } : undefined;
 
@@ -820,6 +976,7 @@ export async function importVsdx(data: Uint8Array): Promise<VsdxResult> {
         height: H,
         rels: q.rels,
         pageNames,
+        lanes,
         layer: forced,
         sheets: forced ? new Map() : sheetsOnPage,
         connectors: [],
@@ -829,7 +986,6 @@ export async function importVsdx(data: Uint8Array): Promise<VsdxResult> {
           const mine = (typeof member === 'string' ? member.split(';') : []).map((k) => layerByIx.get(k)).filter((l): l is Layer => !!l);
           if (mine.length > 1) doc.notes.add('manyLayers');
           const chosen = mine.find((l) => l.visible) ?? mine[0];
-          if (!chosen && layers.length) loose = true;
           return chosen?.id;
         },
       };
@@ -840,13 +996,22 @@ export async function importVsdx(data: Uint8Array): Promise<VsdxResult> {
     for (const q of chain) read(q, back!.id);
     read(p, undefined);
 
+    settleLanes(page, lanes);
+
     if (layers.length || back) {
       // what is on no layer of Visio needs one of its own: Nova puts it on the first
-      const needsDefault = loose || !layers.length;
+      // (a group, which draws nothing of its own, may well be on none)
+      const needsDefault = !layers.length || [...page.shapes, ...page.connectors].some((it) => !it.layer);
       const free: Layer | undefined = needsDefault ? { id: newId('ly'), name: layers.length ? 'Sin capa' : 'Capa 1', visible: true, locked: false, printable: true } : undefined;
       if (free) for (const it of [...page.shapes, ...page.connectors]) if (!it.layer) it.layer = free.id;
       page.layers = [...(free ? [free] : []), ...layers, ...(back ? [back] : [])];
-      page.activeLayer = (page.layers.find((l) => l.visible && !l.locked) ?? page.layers[0]!).id;
+      const usable = (l: Layer | undefined) => !!l && l.visible && !l.locked;
+      const marked = layers[rows.findIndex((row) => row.cells.get('Active')?.v === '1')];
+      page.activeLayer = (usable(marked) ? marked! : (page.layers.find(usable) ?? page.layers[0]!)).id;
+    }
+    if (page.shapes.some((s) => s.container)) {
+      // what is inside each container follows from where it is, as in Nova
+      Object.assign(page, assignMembership(page));
     }
     pageByVisioId.set(p.id, { page, sheetToShape: new Map([...sheetsOnPage].map(([k, v]) => [k, v.shape.id])) });
   });

@@ -1,6 +1,6 @@
 # Nova Diagram frente a Microsoft Visio (segunda ronda)
 
-Estado: **plan aprobado** (2026-11-28; propuesto el 2026-11-27). Fases 1 y 2 hechas; ver la bitácora al final.
+Estado: **plan aprobado** (2026-11-28; propuesto el 2026-11-27). Fases 1 a 3 hechas; ver la bitácora al final.
 
 Referencia: Visio de escritorio. La comparación sale de leer el código de Nova Diagram y `docs/LIMITACIONES.md`, de
 probarlo en Edge, de **abrir en Nova dibujos creados con Visio real y en Visio real un dibujo exportado por Nova**
@@ -40,7 +40,7 @@ servidor) y abierto con la importación de Nova:
 | Un grupo girado entra sin girar | Ya anotado en `LIMITACIONES.md` |
 | El formato de la primera letra se aplica a todo el texto y sobra un salto de línea | «Revisar» a 18 pt agranda toda la forma |
 
-Un dibujo de Nova abierto en Visio **se ve casi igual**, pero:
+Un dibujo de Nova abierto en Visio **se veía casi igual**, pero (corregido en la fase 3):
 
 | Fallo | Detalle |
 |---|---|
@@ -156,3 +156,31 @@ escribir.
 Queda aproximado o fuera (ver `LIMITACIONES.md`): degradados y tramas, sombras del tema, un formato por texto,
 imágenes en metarchivo, contenedores como grupos y el recorrido de los conectores. Los temas, degradados y fondos
 propios son de la fase 6; el formato por fragmentos, de la fase 5.
+
+### Fase 3 (hecha, 2026-11-28): guardar para Visio
+La escritura se ha rehecho: `vsdx-write.ts` (formas y conectores de cada página), `vsdx.ts` (paquete, capas y
+comentarios) y `vsdx-nova.ts` (lo que comparten escritura y lectura).
+
+- **Conectores:** líneas con `ObjType 2`. Pegados a la forma entera con `_WALKGLUE` o a un punto con
+  `PAR(PNT(…))`, con sus registros `Connect`. Cada forma lleva sus puntos de conexión.
+- **Formas:** contornos relativos a la caja. Lo que Visio no puede pintar en una sola hoja (otro color u otro grosor
+  encima de un relleno, una imagen, los compartimentos de una clase) va como grupo que lleva el texto, los datos y los
+  puntos.
+- **Datos, vínculos, capas, grupos:** en las secciones propias de Visio; en un grupo las partes siguen el tamaño del
+  grupo. Los textos con `{{nombre}}` son campos ligados al dato. Todas las capas se escriben, también las ocultas.
+- **Contenedores y carriles:** contenedores de Visio; el contenedor nombra todo lo que tiene y cada miembro todos los
+  que lo rodean (`DEPENDSON`). Cada carril es un contenedor dentro de la piscina.
+- **De vuelta:** anotaciones `Nova…` en la sección `User` para recomponer formas, piscinas y textos; un carril
+  copiado en Visio cuenta como uno más y los de una piscina borrada quedan como formas.
+- **Corregidos de paso:** de la fase 2, una expresión mal escrita (`/s+/` en lugar de `/\s+/`) que ensanchaba de más
+  los rótulos colocados fuera de su forma o girados; una línea sin trazo ya no se lee como discontinua; el texto bajo
+  una forma de Nova ya no vuelve como rótulo aparte; una forma de punta «rombo» de Visio se lee como rombo hueco; no se
+  crea una capa «Sin capa» solo porque haya grupos.
+- **Cómo se comprobó:** abriendo en Visio un dibujo de 4 páginas con todo lo anterior, pidiéndole uniones, capas,
+  datos, vínculos y miembros de cada contenedor, moviendo y ampliando formas, guardando desde Visio y volviendo a abrir
+  en Nova; y reexportando los dibujos de Visio de la fase 2.
+- **Pruebas:** 21 nuevas en la biblioteca (casi todas en `vsdx-write.test.ts`) y una comprobación más en
+  `scripts/e2e-diagram-visio.mjs`.
+
+Sin probar: el uso con el ratón en Visio (que un contenedor arrastre a sus miembros: por automatización tampoco lo
+hacen los de Visio), otras versiones de Visio y la aplicación de escritorio compilada.

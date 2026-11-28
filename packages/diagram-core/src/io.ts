@@ -52,7 +52,7 @@ function readOutlines(raw: any[]): Outline[] {
 }
 
 /** A container or pool, checked. */
-function readContainer(r: any): ContainerProps | undefined {
+export function readContainer(r: any): ContainerProps | undefined {
   if (!r || typeof r !== 'object') return undefined;
   const kind = oneOf(r.kind, ['box', 'pool'] as const, 'box');
   const lanes: Lane[] = [];
