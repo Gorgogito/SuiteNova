@@ -5,8 +5,9 @@ import { fromCore, toCore, type ShapeAnchor } from './comments-ops';
 import { addLane, layersOf as layersOfPage, removeLane, renameLane, resizeLane, setContainerProps, settleContainers, withMembers, wrapInContainer } from '@suitenova/diagram-core';
 import {
   addConnector, addDataField, addItems, addLayer, addPage, assignLayer, expandSelection, groupShapes, isItemLocked, isItemVisible, moveLayer, removeLayer, setActiveLayer, ungroupShapes, updateLayer, flipShapes, setShapeData, setShapeImage, setShapeLink, addShape, alignShapes, cloneItems, deleteItems, deletePage, distributeShapes, duplicatePage, fontShapes, isGlued, matchSize, moveConnectorEnds, moveShapes, movePage, newConnector, newDiagram, reorder, rotateBy,
-  styleShapes, updateConnectors, updatePage, updateShapes, type AlignMode, type Arrow, type Group, type Layer, type DataField, type ShapeImage, type ShapeLink, type Connector, type Diagram, type Dash, type End, type Font, type Page, type Routing, type Shape, type Style,
+  styleShapes, updateConnectors, updatePage, updateShapes, type AlignMode, type Arrow, type Layer, type DataField, type ShapeImage, type ShapeLink, type Connector, type Diagram, type Dash, type End, type Font, type Page, type Routing, type Shape, type Style,
 } from '@suitenova/diagram-core';
+import { addGuide, applyLook, autoConnect, boundsOf, changeStencil, createShape, lookOf, moveGuide, removeGuide, unionRects, type ClipContent, type Guide, type Look, type Side } from '@suitenova/diagram-core';
 
 import { t } from '@suitenova/core-ui';
 import { applyOpenPolicy, type SignatureInfo } from '../macros/security';
@@ -19,10 +20,34 @@ const MAX_UNDO = 100;
 
 export type Tool = 'select' | 'connector';
 
-export interface Clip {
-  shapes: Shape[];
-  connectors: Connector[];
-  groups?: Group[];
+export type Clip = ClipContent;
+
+/** Where a shape is and how big: the centre, the size and the turn. */
+export interface Box {
+  cx: number;
+  cy: number;
+  w: number;
+  h: number;
+  rot: number;
+}
+
+const DRAW_OPTIONS = 'nova.diagram.draw';
+/** The aids of the canvas, remembered by this computer. */
+export interface DrawOptions {
+  rulers: boolean;
+  guides: boolean;
+  smartGuides: boolean;
+  autoConnect: boolean;
+}
+function readDrawOptions(): DrawOptions {
+  const all: DrawOptions = { rulers: true, guides: true, smartGuides: true, autoConnect: true };
+  try {
+    const saved = JSON.parse(localStorage.getItem(DRAW_OPTIONS) ?? '{}') as Partial<DrawOptions>;
+    for (const k of Object.keys(all) as (keyof DrawOptions)[]) if (typeof saved[k] === 'boolean') all[k] = saved[k]!;
+  } catch {
+    /* no storage: the defaults */
+  }
+  return all;
 }
 
 export class DiagramCtl {
@@ -90,7 +115,33 @@ export class DiagramCtl {
   /** Set by the app: pictures dropped on the canvas. */
   onImageFiles?: (files: File[], at: { x: number; y: number }) => void;
   /** Pane shown at the right of the canvas. */
-  pane: 'none' | 'data' | 'layers' | 'comments' = 'none';
+  pane: 'none' | 'data' | 'layers' | 'comments' | 'size' = 'none';
+  /** The search bar, when it is open: with or without the replace row. */
+  finding: { replace: boolean } | null = null;
+  options: DrawOptions = readDrawOptions();
+  setOption(key: keyof DrawOptions, on: boolean): void {
+    this.options = { ...this.options, [key]: on };
+    try {
+      localStorage.setItem(DRAW_OPTIONS, JSON.stringify(this.options));
+    } catch {
+      /* not remembered */
+    }
+    this.touch();
+  }
+  openFind(replace: boolean): void {
+    this.finding = { replace };
+    this.touch();
+  }
+  closeFind(): void {
+    this.finding = null;
+    this.touch();
+  }
+  /** Something the canvas should bring into view (a result of a search). */
+  reveal: { id: string; n: number } | null = null;
+  revealItem(id: string): void {
+    this.reveal = { id, n: (this.reveal?.n ?? 0) + 1 };
+    this.touch();
+  }
   /** The macro modules of the diagram (Nova Basic with the objects of Visio). */
   macros: { name: string; code: string }[] = [];
   /** Active content (macros) may run. A file that arrives with macros starts with it disabled. */
@@ -129,7 +180,6 @@ export class DiagramCtl {
     this.dirty = true;
     this.say(r.isEmpty ? t('No se grabó ninguna acción en «{n}».', { n: r.name }) : t('La macro «{n}» se guardó en el módulo «{m}».', { n: r.name, m: module }));
   }
-  private pasteCount = 0;
   private past: Diagram[] = [];
   private future: Diagram[] = [];
   private version = 0;
@@ -280,6 +330,8 @@ export class DiagramCtl {
     this.dirty = false;
     this.justSaved = false;
     this.typing = null;
+    this.painter = null;
+    this.selGuide = null;
     this.message = '';
     this.imageOcr.resetBaseline();
     this.touch();
@@ -300,6 +352,7 @@ export class DiagramCtl {
   setSelection(shapes: string[], connectors: string[] = []): void {
     this.selShapes = shapes;
     this.selConnectors = connectors;
+    if (shapes.length || connectors.length) this.selGuide = null;
     this.touch();
   }
   clearSelection(): void {
@@ -445,6 +498,7 @@ export class DiagramCtl {
 
   setTool(t: Tool): void {
     this.tool = t;
+    this.painter = null;
     this.touch();
   }
   setZoom(z: number): void {
@@ -502,7 +556,6 @@ export class DiagramCtl {
     if (!this.hasSelection) return;
     const p = this.basePage;
     this.clip = cloneItems(p, this.selShapes, this.selConnectors);
-    this.pasteCount = 0;
     this.touch();
   }
   cut(): void {
@@ -512,15 +565,148 @@ export class DiagramCtl {
   get canPaste(): boolean {
     return !!this.clip && this.clip.shapes.length + this.clip.connectors.length > 0;
   }
-  paste(): void {
-    if (!this.clip) return;
-    this.pasteCount++;
-    const off = 24 * this.pasteCount;
+  paste(at?: { x: number; y: number }): void {
+    if (this.clip) this.pasteContent(this.clip, at);
+  }
+  /**
+   * Puts copied shapes on the page: at a point when one is given; else where they were, moved aside as many times as
+   * it takes not to cover a shape that sits exactly there.
+   */
+  pasteContent(content: Clip, at?: { x: number; y: number }): void {
+    if (!content.shapes.length && !content.connectors.length) return;
+    const page = this.basePage;
+    let dx = 0;
+    let dy = 0;
+    const first = content.shapes[0];
+    const ends = content.connectors.flatMap((c) => [c.from, c.to]).filter((e): e is { x: number; y: number } => !isGlued(e));
+    if (at) {
+      const box = unionRects([...content.shapes.map(boundsOf), ...ends.map((e) => ({ x: e.x, y: e.y, w: 0, h: 0 }))]);
+      if (box) {
+        dx = Math.round(at.x - box.x);
+        dy = Math.round(at.y - box.y);
+      }
+    } else {
+      const taken = (off: number) =>
+        first
+          ? page.shapes.some((s) => Math.abs(s.x - first.x - off) < 1 && Math.abs(s.y - first.y - off) < 1)
+          : page.connectors.some((c) => !isGlued(c.from) && !!ends[0] && Math.abs(c.from.x - ends[0].x - off) < 1 && Math.abs(c.from.y - ends[0].y - off) < 1);
+      for (let i = 0; i < 500 && taken(dx); i++) dx = dy = dx + 24;
+    }
     // re-clone so that each paste has fresh ids
-    const tmp: Page = { ...this.basePage, shapes: this.clip.shapes, connectors: this.clip.connectors, groups: this.clip.groups };
-    const copy = cloneItems(tmp, this.clip.shapes.map((s) => s.id), this.clip.connectors.map((c) => c.id), off, off);
-    this.edit((p) => addItems(p, copy.shapes, copy.connectors, copy.groups));
-    this.setSelection(copy.shapes.map((s) => s.id), copy.connectors.map((c) => c.id));
+    const tmp: Page = { ...page, shapes: content.shapes, connectors: content.connectors, groups: content.groups };
+    const copy = cloneItems(tmp, content.shapes.map((s) => s.id), content.connectors.map((c) => c.id), dx, dy);
+    // they go to the active layer of this page
+    const layer = page.activeLayer;
+    const placed = <T extends { layer?: string }>(i: T): T => (layer && !(i.layer && page.layers?.some((l) => l.id === i.layer)) ? { ...i, layer } : i);
+    const shapes = copy.shapes.map(placed);
+    const connectors = copy.connectors.map(placed);
+    this.edit((p) => addItems(p, shapes, connectors, copy.groups));
+    this.setSelection(shapes.map((s) => s.id), connectors.map((c) => c.id));
+  }
+  /** Text from another program: a text box with it. */
+  pasteText(text: string, at: { x: number; y: number }): void {
+    const clean = text.replace(/\r\n?/g, '\n').replace(/\t/g, '    ').replace(/\n+$/, '').slice(0, 5000);
+    if (!clean.trim()) return;
+    const lines = clean.split('\n');
+    const longest = Math.max(...lines.map((l) => l.length));
+    const w = Math.min(480, Math.max(120, longest * 7 + 24));
+    const wrapped = lines.reduce((n, l) => n + Math.max(1, Math.ceil((l.length * 7) / (w - 16))), 0);
+    const base = createShape('text', 0, 0);
+    const h = Math.min(800, Math.max(32, wrapped * 17 + 12));
+    this.pasteContent({ shapes: [{ ...base, w, h, x: 0, y: 0, text: clean, font: { ...base.font, align: 'left', valign: 'top' } }], connectors: [] }, { x: at.x - w / 2, y: at.y - h / 2 });
+  }
+
+  // ---------- drawing aids
+
+  /** Connects a shape to the one on a side of it, adding it when there is none (or when a shape is chosen). */
+  autoConnectFrom(shapeId: string, side: Side, stencil: string | null): void {
+    const r = autoConnect(this.basePage, shapeId, side, stencil, { routing: this.routing, startArrow: this.startArrow, endArrow: this.endArrow });
+    if (!r) return this.say('Esas dos formas ya están conectadas.');
+    this.edit(() => r.page);
+    this.setSelection([r.shapeId], []);
+    this.revealItem(r.shapeId);
+  }
+  changeShape(stencil: string): void {
+    if (this.selShapes.length) this.edit((p) => changeStencil(p, this.selShapes, stencil));
+  }
+
+  /** The format being copied with the format painter. `sticky` keeps it after the first use. */
+  painter: { look: Look; sticky: boolean; armed: number } | null = null;
+  /** The format kept by «Copiar el formato» for «Pegar el formato». */
+  keptLook: Look | null = null;
+  private selectedLook(): Look | null {
+    const id = this.selShapes[0] ?? this.selConnectors[0];
+    return id ? lookOf(this.basePage, id) : null;
+  }
+  /** Takes the format of the selection; pressed twice in a row it stays until Esc; pressed again it stops. */
+  togglePainter(now = Date.now()): void {
+    if (this.painter) {
+      if (!this.painter.sticky && now - this.painter.armed < 700) this.painter = { ...this.painter, sticky: true };
+      else this.painter = null;
+    } else {
+      const look = this.selectedLook();
+      if (!look) return;
+      this.painter = { look, sticky: false, armed: now };
+      this.tool = 'select';
+    }
+    this.touch();
+  }
+  stopPainter(): void {
+    if (!this.painter) return;
+    this.painter = null;
+    this.touch();
+  }
+  /** Gives the copied format to what was clicked. */
+  paint(shapes: string[], connectors: string[]): void {
+    const p = this.painter;
+    if (!p) return;
+    if (!p.sticky) this.painter = null;
+    this.edit((q) => applyLook(q, shapes, connectors, p.look));
+    this.setSelection(shapes, connectors);
+  }
+  keepLook(): void {
+    this.keptLook = this.selectedLook();
+    this.touch();
+  }
+  pasteLook(): void {
+    const look = this.keptLook;
+    if (look && this.hasSelection) this.edit((p) => applyLook(p, this.selShapes, this.selConnectors, look));
+  }
+
+  // ---------- guides
+
+  selGuide: string | null = null;
+  addGuideAt(axis: Guide['axis'], pos: number): string {
+    const r = addGuide(this.basePage, axis, pos);
+    this.edit(() => r.page);
+    return r.guide.id;
+  }
+  moveGuideTo(id: string, pos: number): void {
+    this.edit((p) => moveGuide(p, id, pos));
+  }
+  removeGuideById(id: string): void {
+    if (this.selGuide === id) this.selGuide = null;
+    this.edit((p) => removeGuide(p, id));
+  }
+  clearGuides(): void {
+    this.selGuide = null;
+    this.edit(({ guides: _g, ...p }) => p);
+  }
+
+  // ---------- size and position
+
+  /** Moves, resizes or turns shapes by their centre and size. */
+  setBox(ids: string[], patch: Partial<Box>): void {
+    this.edit((p) =>
+      updateShapes(p, ids.filter((id) => !this.isFrozen(p.shapes.find((s) => s.id === id)!)), (s) => {
+        const w = Math.min(20000, Math.max(8, patch.w ?? s.w));
+        const h = Math.min(20000, Math.max(8, patch.h ?? s.h));
+        const cx = patch.cx ?? s.x + s.w / 2;
+        const cy = patch.cy ?? s.y + s.h / 2;
+        const rot = patch.rot === undefined ? s.rot : (((patch.rot % 360) + 360) % 360);
+        return { x: cx - w / 2, y: cy - h / 2, w, h, rot };
+      }),
+    );
   }
   duplicate(): void {
     if (!this.hasSelection) return;
@@ -571,8 +757,11 @@ export class DiagramCtl {
       if (p.connectors.find((c) => c.id === id)!.text !== text) this.edit((q) => updateConnectors(q, [id], { text }));
     }
   }
-  startEditing(id: string | null): void {
+  /** What was typed on a selected shape before its editor opened: it takes the place of the text. */
+  editSeed: string | null = null;
+  startEditing(id: string | null, seed: string | null = null): void {
     this.editing = id;
+    this.editSeed = seed;
     this.touch();
   }
   setLocked(on: boolean): void {
@@ -659,7 +848,7 @@ export class DiagramCtl {
     this.past.splice(this.past.length - 1, 1);
   }
 
-  togglePane(p: 'data' | 'layers' | 'comments'): void {
+  togglePane(p: 'data' | 'layers' | 'comments' | 'size'): void {
     this.pane = this.pane === p ? 'none' : p;
     this.touch();
   }
@@ -707,6 +896,7 @@ export class DiagramCtl {
     this.pageId = id;
     this.selShapes = [];
     this.selConnectors = [];
+    this.selGuide = null;
     this.editing = null;
     this.touch();
   }

@@ -347,6 +347,22 @@ describe('containers and swimlanes', () => {
   });
 });
 
+describe('guides', () => {
+  it('go to Visio as its guides and come back', async () => {
+    const p = { ...builder().put('A', 'rect', 100, 100).page, guides: [{ id: 'a', axis: 'x' as const, pos: 192 }, { id: 'b', axis: 'y' as const, pos: 96 }] };
+    const { page } = await written(diagramOf(p));
+    expect(page.match(/Type="Guide"/g)).toHaveLength(2);
+    expect(page).toContain('<Row T="InfiniteLine" IX="1">');
+    const { diagram, warnings } = await importVsdx(await exportVsdx(diagramOf(p)));
+    expect(warnings).toEqual([]);
+    expect(diagram.pages[0]!.guides!.map((g) => [g.axis, g.pos])).toEqual([['x', 192], ['y', 96]]);
+    expect(diagram.pages[0]!.shapes).toHaveLength(1);
+    const tilted = await readAfter(diagramOf(p), (x) => x.replace('<Cell N="Angle" V="0"/><Cell N="LineColor" V="#7F7F7F"/>', '<Cell N="Angle" V="0.5"/><Cell N="LineColor" V="#7F7F7F"/>'));
+    expect(tilted.diagram.pages[0]!.guides).toHaveLength(1);
+    expect(tilted.warnings.join(' ')).toMatch(/1 guía/);
+  });
+});
+
 describe('files written by earlier versions', () => {
   it('still read: a picture as a sheet of its own and a connector without ends', async () => {
     const cell = (n: string, v: string | number) => `<Cell N="${n}" V="${v}"/>`;

@@ -39,7 +39,7 @@ Node 20+, pnpm 12, Rust estable, WebView2 y Visual Studio Build Tools (Windows).
 pnpm install
 pnpm dev            # solo frontend en http://localhost:1420  (?app=calc, writer, slides, base, notes, mail, plan, diagram, forms)
 pnpm tauri dev      # aplicación de escritorio (usa el puerto 1420; cierra antes `pnpm dev`)
-pnpm test           # pruebas unitarias (2794); cd apps/suite/src-tauri && cargo test: 74 más de Rust (4 se omiten)
+pnpm test           # pruebas unitarias (2817); cd apps/suite/src-tauri && cargo test: 74 más de Rust (4 se omiten)
 pnpm typecheck
 pnpm tauri build    # instaladores NSIS/MSI
 node scripts/e2e-calc.mjs --shots dir        # pruebas de extremo a extremo en Edge (necesita `pnpm dev`)
@@ -57,6 +57,7 @@ node scripts/e2e-plan.mjs --shots dir        # ídem para Nova Plan (42 comproba
 node scripts/e2e-diagram.mjs --shots dir     # ídem para Nova Diagram (27 comprobaciones)
 node scripts/e2e-diagram-fixes.mjs --shots dir # Diagram: impresión, guardar al escribir, conectores, zoom (9)
 node scripts/e2e-diagram-visio.mjs --shots dir # Diagram: abrir y guardar dibujos de Visio (6)
+node scripts/e2e-diagram-draw.mjs --shots dir  # Diagram: ayudas para dibujar, portapapeles y búsqueda (10)
 node scripts/e2e-forms.mjs --shots dir       # ídem para Nova Forms (64 comprobaciones)
 node scripts/e2e-forms-collect.mjs           # recoger por la red local y desde Nova Mail (13)
 node scripts/e2e-forms-native.mjs            # la aplicación compilada: servidor solo en 127.0.0.1, correo y gráficos (10)

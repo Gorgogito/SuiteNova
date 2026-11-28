@@ -4,6 +4,7 @@ import { assignMembership } from './container';
 import { centerOf, portsOf, rotatePoint } from './geometry';
 import { readContainer } from './io';
 import { resolveText, textWidth } from './render';
+import { MAX_GUIDES } from './draw';
 import { hasStencil, stencilOf } from './stencils';
 import { geometryPaths, type Pt } from './vsdx-geometry';
 import { Cascade, THEMED, indexShapes, mergedRows, num, parseXml, readShape, relsOf, sectionNames, type Category, type Cell, type Eff, type Master, type Node, type Raw, type Value } from './vsdx-read';
@@ -99,6 +100,7 @@ const NOTES = {
   manyLayers: (n: number) => `${n} forma(s) en varias capas quedaron solo en una.`,
   manyLinks: (n: number) => `${n} forma(s) con varios vínculos conservan solo el primero.`,
   badLinks: (n: number) => `${n} vínculo(s) a archivos o direcciones no admitidas no se importaron.`,
+  guides: (n: number) => `${n} guía(s) inclinadas no se importaron.`,
 };
 type Note = keyof typeof NOTES;
 
@@ -645,6 +647,16 @@ function recogniseStencil(o: Outline[]): string | null {
   return null;
 }
 
+/** A level or upright guide of Visio as a guide of the page; tilted ones are left out. */
+function addPageGuide(r: Reading, g: Raw, scale: number): void {
+  const v = (n: string) => num(g.cells.get(n)?.v, 0);
+  const turn = Math.abs(Math.sin(v('Angle')));
+  if ((turn > 0.001 && turn < 0.999) || (r.page.guides?.length ?? 0) >= MAX_GUIDES) return r.doc.notes.add('guides');
+  const upright = turn > 0.5;
+  const pos = r2(upright ? v('PinX') * scale * PX : (r.height - v('PinY') * scale) * PX);
+  (r.page.guides ??= []).push({ id: newId('gd'), axis: upright ? 'x' : 'y', pos });
+}
+
 /** Adds the shapes of one Visio shape (and of its parts) to the page; returns them. */
 function visit(r: Reading, own: Raw, parent: Matrix, context: Master | undefined, group: string | undefined, depth: number): Shape[] {
   if (own.attrs.Type === 'Guide' || depth > 30) return [];
@@ -990,7 +1002,12 @@ export async function importVsdx(data: Uint8Array): Promise<VsdxResult> {
         },
       };
       const root: Matrix = [scale, 0, 0, scale, 0, 0, 0];
-      for (const s of q.contents?.Shapes?.Shape ?? []) visit(r, readShape(s), scale === 1 ? IDENTITY : root, undefined, undefined, 0);
+      for (const s of q.contents?.Shapes?.Shape ?? []) {
+        const raw = readShape(s);
+        // the guides of the page itself; a background brings only its drawing
+        if (raw.attrs.Type === 'Guide' && !forced) addPageGuide(r, raw, scale);
+        else visit(r, raw, scale === 1 ? IDENTITY : root, undefined, undefined, 0);
+      }
       addConnectors(r, q.contents?.Connects?.Connect ?? []);
     };
     for (const q of chain) read(q, back!.id);

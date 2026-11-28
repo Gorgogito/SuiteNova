@@ -152,6 +152,8 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
           { kind: 'button', command: 'diagram.cut', keytip: 'X' },
           { kind: 'button', command: 'diagram.copy', keytip: 'C' },
           { kind: 'button', command: 'diagram.duplicate', keytip: 'D' },
+          { kind: 'button', command: 'diagram.format.painter', size: 'small', iconOnly: true, keytip: 'FP' },
+          { kind: 'button', command: 'diagram.copy.picture', size: 'small', iconOnly: true, keytip: 'GI' },
         ],
       },
       {
@@ -161,7 +163,16 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
         items: [
           { kind: 'button', command: 'diagram.tool.select', size: 'large', keytip: 'PU' },
           { kind: 'button', command: 'diagram.tool.connector', size: 'large', keytip: 'KN' },
-          { kind: 'button', command: 'diagram.edittext', size: 'large', keytip: 'TX' },
+          { kind: 'button', command: 'diagram.edittext', size: 'small', keytip: 'TX' },
+          {
+            kind: 'dropdown',
+            id: 'changeShapeMenu',
+            label: 'Cambiar forma',
+            icon: 'shapes',
+            size: 'small',
+            keytip: 'MF',
+            entries: CATEGORIES.filter((c) => c.id !== 'extra').flatMap((c, i) => [...(i ? [{ kind: 'separator' as const }] : []), ...STENCILS.filter((s) => s.category === c.id).map((s) => ({ kind: 'command' as const, command: `diagram.change.${s.id}` }))]),
+          },
         ],
       },
       { id: 'font', label: 'Fuente', icon: 'bold', items: [{ kind: 'custom', id: 'fontGroup', label: 'Fuente', keytip: 'FN', render: () => <FontGroup ui={ui} /> }] },
@@ -183,7 +194,7 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
           sub('Tipo de conector', 'routingMenu', ROUTINGS.map(([r]) => `diagram.routing.${r}`), 'TC', 'connector'),
           sub('Extremo inicial', 'arrowStartMenu', ARROWS.map(([a]) => `diagram.arrowStart.${a}`), 'EI', 'arrowRight'),
           sub('Extremo final', 'arrowEndMenu', ARROWS.map(([a]) => `diagram.arrowEnd.${a}`), 'EF', 'arrowRight'),
-          { kind: 'button', command: 'diagram.connect', size: 'small', keytip: 'KC' },
+          { kind: 'button', command: 'diagram.connect', size: 'small', iconOnly: true, keytip: 'KC' },
         ],
       },
     ],
@@ -469,7 +480,22 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
   };
 
   const view = viewTab();
-  view.groups.unshift({ id: 'fit', label: 'Ventana', icon: 'zoomIn', items: [{ kind: 'button', command: 'diagram.fit', size: 'large', keytip: 'AJ' }] });
+  view.groups.unshift(
+    {
+      id: 'show',
+      label: 'Mostrar',
+      icon: 'ruler',
+      items: [
+        { kind: 'button', command: 'diagram.rulers.show', size: 'small', keytip: 'MR' },
+        { kind: 'button', command: 'diagram.guides.show', size: 'small', keytip: 'MG' },
+        { kind: 'button', command: 'diagram.guides.clear', size: 'small', keytip: 'MQ' },
+        { kind: 'button', command: 'diagram.snap.smart', size: 'small', keytip: 'MI' },
+        { kind: 'button', command: 'diagram.autoconnect', size: 'small', keytip: 'MA' },
+        { kind: 'button', command: 'diagram.size.pane', size: 'large', keytip: 'MT' },
+      ],
+    },
+    { id: 'fit', label: 'Ventana', icon: 'zoomIn', items: [{ kind: 'button', command: 'diagram.fit', size: 'large', keytip: 'AJ' }] },
+  );
   void PAGE_SIZES;
   const developer: RibbonTab = {
     id: 'developer',
@@ -497,7 +523,7 @@ export function diagramTabs(ui: DiagramUI): RibbonTab[] {
     label: 'Revisar',
     keytip: 'RV',
     groups: [
-      { id: 'find', label: 'Buscar', icon: 'search', items: [{ kind: 'button', command: 'diagram.find', size: 'large', keytip: 'BF' }] },
+      { id: 'find', label: 'Buscar', icon: 'search', items: [{ kind: 'button', command: 'diagram.find', size: 'large', keytip: 'BF' }, { kind: 'button', command: 'diagram.replace', size: 'large', keytip: 'BR' }] },
       {
         id: 'imgOcr',
         label: 'Texto de imágenes',

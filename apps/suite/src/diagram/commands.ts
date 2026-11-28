@@ -1,12 +1,12 @@
-import type { CommandDef } from '@suitenova/core-ui';
+import { t, type CommandDef } from '@suitenova/core-ui';
 import { ocrCommands } from './commands-ocr';
 import '../ocr/messages';
 import { neighbor } from '@suitenova/comment-core';
-import { STENCILS, type Arrow, type Dash, type Routing } from '@suitenova/diagram-core';
+import { STENCILS, canChangeStencil, type Arrow, type Dash, type Routing } from '@suitenova/diagram-core';
 import type { DiagramCtl } from './ctl';
 import { resetPicture } from './pichost';
 
-export type DiagramDialog = 'page' | 'rename' | 'png' | 'about' | 'shortcuts' | 'link' | 'layout' | 'macros' | 'macroEditor' | 'macroSecurity' | 'recordMacro' | 'pictureCorrections' | 'pictureColor' | 'pictureArtistic' | 'removeBg' | 'imageAlt' | 'imageText' | 'find';
+export type DiagramDialog = 'page' | 'rename' | 'png' | 'about' | 'shortcuts' | 'link' | 'layout' | 'macros' | 'macroEditor' | 'macroSecurity' | 'recordMacro' | 'pictureCorrections' | 'pictureColor' | 'pictureArtistic' | 'removeBg' | 'imageAlt' | 'imageText';
 
 export interface DiagramUI {
   ctl: DiagramCtl;
@@ -27,6 +27,11 @@ export interface DiagramUI {
   /** Follows a link of a shape: a web address, or another page of the diagram. */
   openLink(shape: { link?: { url?: string; page?: string } }): void;
   exportData(): Promise<void>;
+  /** The clipboard of the system. */
+  copy(): void;
+  cut(): void;
+  paste(at?: { x: number; y: number }): Promise<void>;
+  copyPicture(): Promise<void>;
   close(): void;
 }
 
@@ -69,14 +74,31 @@ export function diagramCommands(ui: DiagramUI): CommandDef[] {
   add({ id: 'help.shortcuts', label: 'Atajos de teclado', icon: 'keyboard', run: () => ui.openDialog('shortcuts') });
 
   // ---- edit
-  add({ id: 'diagram.undo', label: 'Deshacer', icon: 'undo', shortcut: 'Ctrl+Z', enabled: () => c.canUndo, run: () => c.undo() });
-  add({ id: 'diagram.redo', label: 'Rehacer', icon: 'redo', shortcut: ['Ctrl+Y', 'Ctrl+Shift+Z'], enabled: () => c.canRedo, run: () => c.redo() });
-  add({ id: 'diagram.cut', label: 'Cortar', icon: 'cut', shortcut: 'Ctrl+X', enabled: has, run: () => c.cut() });
-  add({ id: 'diagram.copy', label: 'Copiar', icon: 'copy', shortcut: 'Ctrl+C', enabled: has, run: () => c.copy() });
-  add({ id: 'diagram.paste', label: 'Pegar', icon: 'paste', shortcut: 'Ctrl+V', enabled: () => c.canPaste, run: () => c.paste() });
-  add({ id: 'diagram.duplicate', label: 'Duplicar', icon: 'copy', shortcut: 'Ctrl+D', enabled: has, run: () => c.duplicate() });
+  // while a text is being written (in a shape or in a box) the keys of editing belong to it
+  // (only for the keys: a button pressed while writing still does what it says)
+  const inBox = () => !!document.activeElement?.matches?.('input:not([type=checkbox]):not([type=radio]), textarea, [contenteditable="true"]');
+  const writing = () => typeof window !== 'undefined' && window.event?.type === 'keydown' && (!!c.editing || !!c.editingLane || inBox());
+  add({ id: 'diagram.undo', label: 'Deshacer', icon: 'undo', shortcut: 'Ctrl+Z', enabled: () => c.canUndo && !writing(), run: () => c.undo() });
+  add({ id: 'diagram.redo', label: 'Rehacer', icon: 'redo', shortcut: ['Ctrl+Y', 'Ctrl+Shift+Z'], enabled: () => c.canRedo && !writing(), run: () => c.redo() });
+  // Ctrl+C, X and V are answered by the clipboard events of the system, not by the registry
+  add({ id: 'diagram.cut', label: 'Cortar', icon: 'cut', hint: 'Ctrl+X', enabled: has, run: () => ui.cut() });
+  add({ id: 'diagram.copy', label: 'Copiar', icon: 'copy', hint: 'Ctrl+C', enabled: has, run: () => ui.copy() });
+  add({ id: 'diagram.paste', label: 'Pegar', icon: 'paste', hint: 'Ctrl+V', run: () => void ui.paste() });
+  add({ id: 'diagram.duplicate', label: 'Duplicar', icon: 'copy', shortcut: 'Ctrl+D', enabled: () => has() && !writing(), run: () => c.duplicate() });
   add({ id: 'diagram.delete', label: 'Eliminar', icon: 'trash', enabled: has, run: () => c.deleteSelection() });
-  add({ id: 'diagram.selectAll', label: 'Seleccionar todo', shortcut: 'Ctrl+A', run: () => c.selectAll() });
+  add({ id: 'diagram.selectAll', label: 'Seleccionar todo', shortcut: 'Ctrl+A', enabled: () => !writing(), run: () => c.selectAll() });
+  add({ id: 'diagram.copy.picture', label: 'Copiar como imagen', icon: 'image', description: 'Pone en el portapapeles una imagen de lo seleccionado (o de toda la página) para pegarla en otro programa.', run: () => void ui.copyPicture() });
+  add({ id: 'diagram.find', label: 'Buscar…', icon: 'search', shortcut: 'Ctrl+F', description: 'Busca texto en las formas, en las líneas y dentro de las imágenes de todas las páginas, y va a lo que encuentra.', run: () => c.openFind(false) });
+  add({ id: 'diagram.replace', label: 'Reemplazar…', icon: 'search', shortcut: 'Ctrl+H', description: 'Busca y cambia texto en las formas, las líneas y los carriles de todas las páginas.', run: () => c.openFind(true) });
+
+  // ---- format painter
+  add({ id: 'diagram.format.painter', label: 'Copiar formato', icon: 'formatPainter', description: 'Toma el formato de lo seleccionado; haz clic en otra forma o línea para dárselo. Pulsado dos veces seguidas, sirve para varias (Esc termina).', shortcut: 'Ctrl+Shift+P', enabled: () => !!c.painter || has(), checked: () => !!c.painter, run: () => c.togglePainter() });
+  add({ id: 'diagram.format.copy', label: 'Copiar el formato', icon: 'formatPainter', shortcut: 'Ctrl+Shift+C', enabled: has, run: () => c.keepLook() });
+  add({ id: 'diagram.format.paste', label: 'Pegar el formato', icon: 'paste', shortcut: 'Ctrl+Shift+V', enabled: () => !!c.keptLook && has(), run: () => c.pasteLook() });
+
+  // ---- another shape in place of the selected ones
+  const changeable = () => c.selectedShapes().filter(canChangeStencil);
+  for (const s of STENCILS) if (s.category !== 'extra') add({ id: `diagram.change.${s.id}`, get label() { return t('Cambiar la forma por: {name}', { name: t(s.name).toLowerCase() }); }, icon: 'shapes', description: 'Cambia la forma seleccionada sin perder su texto, formato, datos ni conectores.', enabled: () => changeable().length > 0, checked: () => changeable()[0]?.stencil === s.id && !changeable()[0]?.geometry, run: () => c.changeShape(s.id) });
 
   // ---- tools
   add({ id: 'diagram.tool.select', label: 'Puntero', icon: 'pointer', checked: () => c.tool === 'select', run: () => c.setTool('select') });
@@ -215,6 +237,12 @@ export function diagramCommands(ui: DiagramUI): CommandDef[] {
   add({ id: 'diagram.page.portrait', label: 'Orientación vertical', icon: 'portrait', checked: () => c.basePage.width < c.basePage.height, run: () => { const p = c.basePage; if (p.width >= p.height) c.setPageProps({ width: p.height, height: p.width }); } });
 
   // ---- view
+  add({ id: 'diagram.rulers.show', label: 'Mostrar reglas', icon: 'ruler', description: 'Arrastra desde una regla para poner una guía.', checked: () => c.options.rulers, run: () => c.setOption('rulers', !c.options.rulers) });
+  add({ id: 'diagram.guides.show', label: 'Guías', icon: 'guides', description: 'Arrastra desde una regla para poner una guía.', checked: () => c.options.guides, run: () => c.setOption('guides', !c.options.guides) });
+  add({ id: 'diagram.guides.clear', label: 'Quitar todas las guías', icon: 'trash', enabled: () => !!c.basePage.guides?.length, run: () => c.clearGuides() });
+  add({ id: 'diagram.snap.smart', label: 'Guías inteligentes', icon: 'magnet', description: 'Al mover una forma, la alinea con las demás y con espacios iguales (Alt lo ignora).', checked: () => c.options.smartGuides, run: () => c.setOption('smartGuides', !c.options.smartGuides) });
+  add({ id: 'diagram.autoconnect', label: 'Conexión automática', icon: 'connector', description: 'Al pasar sobre una forma muestra flechas para conectarla con la siguiente.', checked: () => c.options.autoConnect, run: () => c.setOption('autoConnect', !c.options.autoConnect) });
+  add({ id: 'diagram.size.pane', label: 'Tamaño y posición', icon: 'size', description: 'Muestra y cambia la posición, el tamaño y el ángulo de lo seleccionado.', checked: () => c.pane === 'size', run: () => c.togglePane('size') });
   add({ id: 'diagram.grid.show', label: 'Mostrar cuadrícula', icon: 'grid', checked: () => c.showGrid, run: () => { c.showGrid = !c.showGrid; c.touch(); } });
   add({ id: 'diagram.grid.snap', label: 'Ajustar a la cuadrícula', icon: 'magnet', checked: () => c.snapToGrid, run: () => { c.snapToGrid = !c.snapToGrid; c.touch(); } });
   add({ id: 'diagram.fit', label: 'Ajustar a la ventana', icon: 'zoomIn', shortcut: 'Ctrl+Shift+H', run: () => ui.fitPage() });

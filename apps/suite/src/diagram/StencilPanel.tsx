@@ -6,7 +6,7 @@ import type { DiagramCtl } from './ctl';
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** A small drawing of the stencil, using the same renderer as the canvas. */
-function Thumb({ st }: { st: Stencil }) {
+export function StencilThumb({ st }: { st: Stencil }) {
   const k = Math.min(52 / st.w, 34 / st.h);
   const w = st.w * k;
   const h = st.h * k;
@@ -62,7 +62,7 @@ export function StencilPanel({ ctl, onImage }: { ctl: DiagramCtl; onImage?: () =
                         }}
                         onClick={() => (s.id === 'image' && onImage ? onImage() : ctl.addStencil(s.id))}
                       >
-                        <Thumb st={s} />
+                        <StencilThumb st={s} />
                         <span>{t(s.name)}</span>
                       </button>
                     </li>

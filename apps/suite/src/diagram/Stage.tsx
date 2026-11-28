@@ -3,8 +3,11 @@ import {
   boundsOf, centerOf, connectorRender, slotOffset, hitContainerFrame, laneBoxes, withMembers, expandSelection, rotateBlock, scaleShapes, topGroupId, visibleConnectors, visibleShapes, contentBounds, cornersOf, hitConnector, hitShape, isGlued, newConnector, normalizeAngle, portsOf, resizeShape, resolveEnd, referencePoint, rotatePoint, shapeRender, shapesInRect, snap, unionRects, updateConnectors, updateShapes,
   type Connector, type End, type Handle, type Page, type Point, type Shape, type TextRun,
 } from '@suitenova/diagram-core';
+import { addGuide, moveGuide, quickShapes, snapBox, stencilOf, type Side, type SnapLine } from '@suitenova/diagram-core';
 import { memo, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { DiagramCtl } from './ctl';
+import { Ruler, type View } from './Rulers';
+import { StencilThumb } from './StencilPanel';
 
 const MARGIN = 160;
 const HANDLES: [Handle, number, number][] = [
@@ -20,7 +23,32 @@ type Gesture =
   | { k: 'rotate'; id: string }
   | { k: 'marquee'; start: Point; additive: boolean; base: { s: string[]; c: string[] } }
   | { k: 'connect'; from: End; start: Point; sourceShape: string | null }
-  | { k: 'endpoint'; id: string; which: 'from' | 'to' };
+  | { k: 'endpoint'; id: string; which: 'from' | 'to' }
+  | { k: 'pan'; x: number; y: number; left: number; top: number }
+  | { k: 'guide'; id: string; axis: 'x' | 'y'; fresh: boolean; moved: boolean };
+
+/** What a menu opened with the secondary button is about. */
+export interface MenuTarget {
+  kind: 'shape' | 'connector' | 'canvas' | 'guide';
+  id?: string;
+  /** Where on the page (to paste there). */
+  point: Point;
+}
+
+/** Where each arrow of the automatic connection sits: a side of the box and how it points. */
+const SIDES: [Side, number, number, number][] = [
+  ['n', 0.5, 0, -90],
+  ['e', 1, 0.5, 0],
+  ['s', 0.5, 1, 90],
+  ['w', 0, 0.5, 180],
+];
+
+/** A key that writes a character (typing on a selected shape starts writing in it). */
+const writes = (e: React.KeyboardEvent): boolean => {
+  const graph = e.getModifierState?.('AltGraph');
+  if ((e.ctrlKey || e.metaKey || e.altKey) && !graph) return false;
+  return e.key === 'Dead' || ([...e.key].length === 1 && e.key !== ' ');
+};
 
 const TextView = ({ run }: { run: TextRun }) => (
   <text
@@ -88,7 +116,7 @@ const ConnectorView = memo(
   (p, n) => p.c === n.c && p.a === n.a && p.b === n.b && p.sf === n.sf && p.st === n.st && p.page.background === n.page.background,
 );
 
-export function Stage({ ctl }: { ctl: DiagramCtl }) {
+export function Stage({ ctl, onMenu }: { ctl: DiagramCtl; onMenu?: (at: { x: number; y: number }, target: MenuTarget) => void }) {
   useSyncExternalStore(ctl.subscribe, ctl.getVersion);
   const scroller = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -96,7 +124,14 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
   const [hover, setHover] = useState<string | null>(null);
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [rubber, setRubber] = useState<{ a: Point; b: Point; target: { shape: string; port: number | 'auto' } | null } | null>(null);
-  const [draft, setDraft] = useState('');
+  const [typedText, setTypedText] = useState<{ id: string; v: string } | null>(null);
+  const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
+  const [space, setSpace] = useState(false);
+  const [quick, setQuick] = useState<{ shape: string; side: Side } | null>(null);
+  // where the pointer is, on the rulers: moved by hand so that the canvas is not drawn again at every move
+  const markH = useRef<HTMLDivElement>(null);
+  const markV = useRef<HTMLDivElement>(null);
+  const [seen, setSeen] = useState({ left: 0, top: 0, width: 0, height: 0 });
 
   const page = ctl.page;
   const scale = ctl.zoom / 100;
@@ -141,12 +176,56 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
   const gridStep = (e: { altKey: boolean }) => (ctl.snapToGrid && !e.altKey ? page.grid : 0);
 
   // ---- pointer handling
+  /** A guide pulled out of a ruler: it follows the pointer until it is let go. */
+  const pullGuide = (axis: 'x' | 'y', e: React.PointerEvent) => {
+    if (ctl.editing) return;
+    if (!ctl.options.guides) ctl.setOption('guides', true);
+    scroller.current?.focus({ preventScroll: true });
+    svgRef.current!.setPointerCapture(e.pointerId);
+    g.current = { k: 'guide', id: `new-${Date.now().toString(36)}`, axis, fresh: true, moved: false };
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 || ctl.editing) return;
+    if (ctl.editing) return;
+    // the middle button, or the space bar held, drag the drawing around
+    if (e.button === 1 || (e.button === 0 && space)) {
+      e.preventDefault();
+      const sc = scroller.current!;
+      svgRef.current!.setPointerCapture(e.pointerId);
+      g.current = { k: 'pan', x: e.clientX, y: e.clientY, left: sc.scrollLeft, top: sc.scrollTop };
+      return;
+    }
+    if (e.button !== 0) return;
     scroller.current?.focus({ preventScroll: true });
     const p = toPage(e);
     const el = e.target as Element;
+
+    const auto = el.getAttribute('data-auto') as Side | null;
+    if (auto) {
+      ctl.autoConnectFrom(el.getAttribute('data-auto-for')!, auto, null);
+      setQuick(null);
+      setHover(null);
+      return;
+    }
     svgRef.current!.setPointerCapture(e.pointerId);
+
+    if (ctl.painter) {
+      const c = connectorAt(p);
+      const s = c ? null : shapeAt(p);
+      if (c) ctl.paint([], [c.id]);
+      else if (s) ctl.paint(expandSelection(page, [s.id]).filter((id) => ctl.canSelect(page.shapes.find((x) => x.id === id)!)), []);
+      else if (!ctl.painter.sticky) ctl.stopPainter();
+      return;
+    }
+    const guide = el.getAttribute('data-guide');
+    if (guide) {
+      ctl.setSelection([], []);
+      ctl.selGuide = guide;
+      ctl.touch();
+      g.current = { k: 'guide', id: guide, axis: el.getAttribute('data-guide-axis') as 'x' | 'y', fresh: false, moved: false };
+      return;
+    }
+    ctl.selGuide = null;
 
     const portShape = el.getAttribute('data-port-shape');
     if (portShape) {
@@ -244,17 +323,61 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
     return !t || expandSelection(page, [id]).every((m) => ids.includes(m));
   });
 
+  const showPointer = (p: Point | null) => {
+    for (const [ref, axis] of [[markH, 'x'], [markV, 'y']] as const) {
+      const el = ref.current;
+      if (!el) continue;
+      el.style.display = p ? '' : 'none';
+      if (!p) continue;
+      const at = axis === 'x' ? (p.x - ox) * scale - seen.left : (p.y - oy) * scale - seen.top;
+      el.style.transform = axis === 'x' ? `translateX(${at}px)` : `translateY(${at}px)`;
+    }
+  };
+
   const onPointerMove = (e: React.PointerEvent) => {
     const p = toPage(e);
+    // dragging on a crowded page, moving the mark of the rulers makes every frame slower: it rests until the end
+    showPointer(g.current && page.shapes.length > 200 ? null : p);
     const cur = g.current;
     if (!cur) {
+      const el = e.target as Element;
+      const auto = el.getAttribute('data-auto') as Side | null;
+      if (auto) {
+        const shape = el.getAttribute('data-auto-for')!;
+        if (quick?.shape !== shape || quick.side !== auto) setQuick({ shape, side: auto });
+        return;
+      }
+      if (quick) setQuick(null);
       const s = shapeAt(p);
-      const id = s ? s.id : null;
-      if (id !== hover) setHover(id);
+      if (s) {
+        if (s.id !== hover) setHover(s.id);
+        return;
+      }
+      // the arrows of the automatic connection sit just outside: the shape stays while the pointer goes to them
+      const held = hover ? page.shapes.find((x) => x.id === hover) : undefined;
+      const b = held && boundsOf(held);
+      const m = 26 / scale;
+      if (b && p.x >= b.x - m && p.x <= b.x + b.w + m && p.y >= b.y - m && p.y <= b.y + b.h + m) return;
+      if (hover !== null) setHover(null);
+      return;
+    }
+    if (cur.k === 'pan') {
+      scroller.current!.scrollLeft = cur.left - (e.clientX - cur.x);
+      scroller.current!.scrollTop = cur.top - (e.clientY - cur.y);
       return;
     }
     const base = ctl.basePage;
     const step = gridStep(e);
+    if (cur.k === 'guide') {
+      cur.moved = true;
+      const pos = snap(cur.axis === 'x' ? p.x : p.y, step);
+      ctl.previewWith((pg) => {
+        if (!cur.fresh) return moveGuide(pg, cur.id, pos);
+        const r = addGuide(pg, cur.axis, pos);
+        return { ...r.page, guides: r.page.guides!.map((x) => (x.id === r.guide.id ? { ...x, id: cur.id } : x)) };
+      });
+      return;
+    }
     if (cur.k === 'move') {
       const dx0 = p.x - cur.start.x;
       const dy0 = p.y - cur.start.y;
@@ -266,6 +389,20 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
         dx = snap(cur.primary.x + dx0, step) - cur.primary.x;
         dy = snap(cur.primary.y + dy0, step) - cur.primary.y;
       }
+      // lining up with other shapes or with a guide wins over the grid, on the axis where something is near
+      const chosen = new Set(cur.ids);
+      const moving = base.shapes.filter((s) => chosen.has(s.id) && !ctl.isFrozen(s));
+      const box = unionRects(moving.map(boundsOf));
+      const others = ctl.options.smartGuides ? visibleShapes(base).filter((s) => !chosen.has(s.id)).map(boundsOf) : [];
+      const guides = ctl.options.guides ? (base.guides ?? []) : [];
+      let lines: SnapLine[] = [];
+      if (box && !e.altKey && (others.length || guides.length)) {
+        const near = snapBox({ ...box, x: box.x + dx0, y: box.y + dy0 }, others, guides, 6 / scale);
+        if (near.dx !== null) dx = dx0 + near.dx;
+        if (near.dy !== null) dy = dy0 + near.dy;
+        lines = snapBox({ ...box, x: box.x + dx, y: box.y + dy }, others, guides, 0.5).lines;
+      }
+      setSnapLines(lines);
       ctl.previewWith((pg) => {
         const moved = pg.shapes.map((s) => (cur.ids.includes(s.id) && !ctl.isFrozen(s) ? { ...s, x: s.x + dx, y: s.y + dy } : s));
         let q: Page = { ...pg, shapes: moved };
@@ -338,9 +475,29 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
   const onPointerUp = (e: React.PointerEvent) => {
     const cur = g.current;
     g.current = null;
+    setSnapLines([]);
     if (!cur) return;
+    if (cur.k === 'pan') return;
     const p = toPage(e);
     const step = gridStep(e);
+    if (cur.k === 'guide') {
+      // let go back over its ruler, a guide is taken away
+      const r = scroller.current!.getBoundingClientRect();
+      const out = cur.axis === 'x' ? e.clientX < r.left : e.clientY < r.top;
+      if (cur.fresh) {
+        const pos = ctl.preview?.guides?.find((x) => x.id === cur.id)?.pos;
+        ctl.endGesture(false);
+        if (!out && cur.moved && pos !== undefined) {
+          const id = ctl.addGuideAt(cur.axis, pos);
+          ctl.selGuide = id;
+          ctl.touch();
+        }
+      } else if (out && cur.moved) {
+        ctl.endGesture(false);
+        ctl.removeGuideById(cur.id);
+      } else ctl.endGesture(cur.moved);
+      return;
+    }
     if (cur.k === 'move') {
       ctl.endGesture(cur.moved);
       // a click on a member of an already selected group picks just that member
@@ -389,11 +546,29 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (ctl.editing) return;
+    if (ctl.editing || e.defaultPrevented) return;
+    const only = ctl.selShapes.length === 1 && !ctl.selConnectors.length ? ctl.selShapes[0]! : ctl.selConnectors.length === 1 && !ctl.selShapes.length ? ctl.selConnectors[0]! : null;
+    if (e.key === ' ') {
+      e.preventDefault();
+      if (!space) setSpace(true);
+      return;
+    }
+    if (only && writes(e)) {
+      const item = page.shapes.find((x) => x.id === only) ?? page.connectors.find((x) => x.id === only);
+      if (item && ctl.canSelect(item) && !(item as Shape).locked) {
+        // an accent typed first goes on into the editor, which opens with the text chosen
+        if (e.key !== 'Dead') e.preventDefault();
+        ctl.startEditing(only, e.key === 'Dead' ? null : e.key);
+        return;
+      }
+    }
     const stepBy = e.shiftKey ? 1 : page.grid || 8;
     switch (e.key) {
       case 'Delete':
-      case 'Backspace': ctl.deleteSelection(); break;
+      case 'Backspace':
+        if (ctl.selGuide) ctl.removeGuideById(ctl.selGuide);
+        else ctl.deleteSelection();
+        break;
       case 'ArrowLeft': ctl.nudge(-stepBy, 0); break;
       case 'ArrowRight': ctl.nudge(stepBy, 0); break;
       case 'ArrowUp': ctl.nudge(0, -stepBy); break;
@@ -410,13 +585,76 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
           ctl.endGesture(false);
           setRubber(null);
           setMarquee(null);
-        } else if (ctl.tool !== 'select') ctl.setTool('select');
-        else ctl.clearSelection();
+          setSnapLines([]);
+        } else if (ctl.painter) ctl.stopPainter();
+        else if (ctl.tool !== 'select') ctl.setTool('select');
+        else {
+          ctl.selGuide = null;
+          ctl.clearSelection();
+        }
         break;
       default: return;
     }
     e.preventDefault();
   };
+
+  const onContextMenu = (e: React.MouseEvent) => {
+    if (ctl.editing || ctl.editingLane || !onMenu) return;
+    e.preventDefault();
+    // opened with the keyboard: at the selection
+    const mouse = e.nativeEvent.button === 2;
+    let client = { x: e.clientX, y: e.clientY };
+    if (!mouse) {
+      const first = ctl.selectedShapes()[0];
+      const r = svgRef.current!.getBoundingClientRect();
+      const mid = first ? centerOf(first) : ctl.selectedConnectors()[0] ? connectorRender(ctl.selectedConnectors()[0]!, page).route.mid : null;
+      const sc = scroller.current!.getBoundingClientRect();
+      client = mid ? { x: r.left + (mid.x - ox) * scale, y: r.top + (mid.y - oy) * scale } : { x: sc.left + sc.width / 2, y: sc.top + sc.height / 2 };
+    }
+    const point = toPage({ clientX: client.x, clientY: client.y });
+    const guide = (e.target as Element).getAttribute('data-guide');
+    if (guide && mouse) {
+      ctl.setSelection([], []);
+      ctl.selGuide = guide;
+      ctl.touch();
+      return onMenu(client, { kind: 'guide', id: guide, point });
+    }
+    const c = mouse ? connectorAt(point) : (ctl.selectedShapes().length ? null : (ctl.selectedConnectors()[0] ?? null));
+    const sh = c ? null : mouse ? shapeAt(point) : (ctl.selectedShapes()[0] ?? null);
+    if (c) {
+      if (!ctl.selConnectors.includes(c.id)) ctl.setSelection([], [c.id]);
+      onMenu(client, { kind: 'connector', id: c.id, point });
+    } else if (sh) {
+      if (!ctl.selShapes.includes(sh.id)) ctl.selectWithGroup(sh.id);
+      onMenu(client, { kind: 'shape', id: sh.id, point });
+    } else {
+      ctl.clearSelection();
+      onMenu(client, { kind: 'canvas', point });
+    }
+  };
+
+  // what of the canvas is on screen (for the rulers)
+  const measure = () => {
+    const el = scroller.current;
+    if (el) setSeen((v) => (v.left === el.scrollLeft && v.top === el.scrollTop && v.width === el.clientWidth && v.height === el.clientHeight ? v : { left: el.scrollLeft, top: el.scrollTop, width: el.clientWidth, height: el.clientHeight }));
+  };
+  // measured when what is shown changes, not at every drawing (reading it makes the browser lay out the canvas)
+  useLayoutEffect(measure, [ox, oy, ew, eh, scale, ctl.pageId, ctl.options.rulers]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    const up = (e: KeyboardEvent) => e.key === ' ' && setSpace(false);
+    const gone = () => setSpace(false);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', gone);
+    return () => {
+      watch.disconnect();
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', gone);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // start each page with its top-left corner in view
   useLayoutEffect(() => {
@@ -457,6 +695,22 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
     el.scrollTop += r.top + (a.at.y - oy) * scale - a.clientY;
   });
 
+  // bring into view what was asked for (a search result, a shape just added)
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const want = ctl.reveal?.id;
+    if (!el || !want) return;
+    const sh = page.shapes.find((x) => x.id === want);
+    const c = sh ? null : page.connectors.find((x) => x.id === want);
+    const b = sh ? boundsOf(sh) : c ? { ...connectorRender(c, page).route.mid, w: 0, h: 0 } : null;
+    if (!b) return;
+    const x0 = (b.x - ox) * scale;
+    const y0 = (b.y - oy) * scale;
+    if (x0 >= el.scrollLeft && y0 >= el.scrollTop && x0 + b.w * scale <= el.scrollLeft + el.clientWidth && y0 + b.h * scale <= el.scrollTop + el.clientHeight) return;
+    el.scrollLeft = x0 + (b.w * scale - el.clientWidth) / 2;
+    el.scrollTop = y0 + (b.h * scale - el.clientHeight) / 2;
+  }, [ctl.reveal?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // text editor
   const editingShape = ctl.editing ? page.shapes.find((s) => s.id === ctl.editing) : undefined;
   const editingConn = ctl.editing ? page.connectors.find((c) => c.id === ctl.editing) : undefined;
@@ -464,9 +718,10 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
   useLayoutEffect(() => {
     const id = ctl.editing;
     const item = editingShape ?? editingConn;
+    setTypedText(null);
     if (!id || !item) return;
-    setDraft(item.text);
     const y = ctl.startTyping(item.text, (v) => ctl.setText(id, v));
+    if (ctl.editSeed !== null) y.type(ctl.editSeed);
     typed.current = y;
     return y.done;
   }, [ctl.editing]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -480,6 +735,8 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
     typedLane.current = y;
     return y.done;
   }, [ctl.editingLane]); // eslint-disable-line react-hooks/exhaustive-deps
+  // what the editor shows: what has been typed, or what it opened with
+  const draft = typedText && typedText.id === ctl.editing ? typedText.v : (ctl.editSeed ?? (editingShape ?? editingConn)?.text ?? '');
   const finishEdit = (accept: boolean) => {
     const id = ctl.editing;
     if (!id) return;
@@ -496,13 +753,32 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
   const handleSize = 8 / scale;
   const gridOn = ctl.showGrid && page.grid > 0 && page.grid * scale >= 4;
   const shapeById = new Map(page.shapes.map((s) => [s.id, s]));
+  // the selection as it is being drawn: during a gesture it goes with what is moved
+  const chosenShapes = page.shapes.filter((s) => ctl.selShapes.includes(s.id));
+  const chosenLines = page.connectors.filter((c) => ctl.selConnectors.includes(c.id));
+  // the arrows that connect to the next shape, around the one under the pointer
+  const hovered = ctl.options.autoConnect && ctl.tool === 'select' && !ctl.painter && !ctl.editing && !g.current && !space ? page.shapes.find((s) => s.id === (quick?.shape ?? hover)) : undefined;
+  const autoShape = hovered && !hovered.container && ctl.canSelect(hovered) ? hovered : undefined;
+  const guides = ctl.options.guides ? (page.guides ?? []) : [];
+  const guideLine = (gd: { axis: 'x' | 'y'; pos: number }) => (gd.axis === 'x' ? { x1: gd.pos, y1: oy, x2: gd.pos, y2: oy + eh } : { x1: ox, y1: gd.pos, x2: ox + ew, y2: gd.pos });
+  const onScreen: View = { ox, oy, scale, ...seen };
+  const rulers = ctl.options.rulers;
 
   return (
+    <div className={`dg-stage${rulers ? ' has-rulers' : ''}`}>
+    {rulers && <div className="dg-corner" aria-hidden="true" />}
+    {rulers && <Ruler dir="h" view={onScreen} mark={markH} onPull={pullGuide} />}
+    {rulers && <Ruler dir="v" view={onScreen} mark={markV} onPull={pullGuide} />}
     <div
-      className={`dg-scroller dg-tool-${ctl.tool}`}
+      className={`dg-scroller dg-tool-${ctl.tool}${ctl.painter ? ' is-painting' : ''}${space ? ' is-panning' : ''}`}
       ref={scroller}
       tabIndex={0}
       onKeyDown={onKeyDown}
+      onScroll={() => {
+        measure();
+        setQuick(null);
+      }}
+      onContextMenu={onContextMenu}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes('application/x-nova-stencil') || e.dataTransfer.types.includes('Files')) e.preventDefault();
       }}
@@ -532,7 +808,14 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onDoubleClick={onDoubleClick}
-          onPointerLeave={() => !g.current && setHover(null)}
+          onPointerLeave={(e) => {
+            showPointer(null);
+            // the pointer may be going into the shapes offered next to an arrow
+            if (!g.current && !(e.relatedTarget instanceof Element && e.relatedTarget.closest('.dg-quick'))) {
+              setHover(null);
+              setQuick(null);
+            }
+          }}
         >
           <defs>
             <filter id="dg-shadow" x="-20%" y="-20%" width="150%" height="150%">
@@ -545,6 +828,10 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
           <rect className="dg-pageshadow" x={3} y={3} width={page.width} height={page.height} />
           <rect className="dg-page" x={0} y={0} width={page.width} height={page.height} fill={page.background} data-testid="page" />
           {gridOn && <rect x={0} y={0} width={page.width} height={page.height} fill="url(#dg-grid)" pointerEvents="none" />}
+          {/* what is grabbed of a guide lies under the shapes, so that they are clicked first */}
+          {guides.map((gd) => (
+            <line key={gd.id} className={`dg-guidehit dg-guidehit--${gd.axis}`} {...guideLine(gd)} strokeWidth={7 / scale} data-guide={gd.id} data-guide-axis={gd.axis} />
+          ))}
           <g className="dg-shapes">
             {visibleShapes(page).map((s) => (
               <ShapeView key={s.id} shape={s} />
@@ -556,12 +843,16 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
             ))}
           </g>
 
+          {guides.map((gd) => (
+            <line key={gd.id} className={`dg-guide${ctl.selGuide === gd.id ? ' is-sel' : ''}`} {...guideLine(gd)} strokeWidth={1 / scale} strokeDasharray={`${6 / scale} ${4 / scale}`} data-guide-line={gd.axis} />
+          ))}
+
           {/* selection */}
           <g className="dg-selection">
-            {ctl.selectedShapes().map((s) => (
+            {chosenShapes.map((s) => (
               <polygon key={s.id} className="dg-outline" points={cornersOf(s).map((q) => `${q.x},${q.y}`).join(' ')} data-selected={s.id} />
             ))}
-            {ctl.selectedConnectors().map((c) => (
+            {chosenLines.map((c) => (
               <g key={c.id} data-selected-connector={c.id}>
                 <path d={connectorRender(c, page).route.d} className="dg-connsel" fill="none" />
               </g>
@@ -612,8 +903,9 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
             })()}
             {single?.locked && <text className="dg-lock" x={single.x + single.w + 4} y={single.y + 12}>🔒</text>}
             {ctl.selShapes.length > 1 && (() => {
-              const sel = ctl.selectedShapes();
-              const b = unionRects(sel.map(boundsOf))!;
+              const sel = chosenShapes;
+              const b = unionRects(sel.map(boundsOf));
+              if (!b) return null;
               const frozen = sel.some((x) => ctl.isFrozen(x));
               const groupSel = sel.every((x) => topGroupId(page, x) === topGroupId(page, sel[0]!)) && !!topGroupId(page, sel[0]!);
               return (
@@ -651,6 +943,23 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
               });
             })}
           </g>
+          {snapLines.map((l, i) => (
+            <line key={i} className={`dg-snap dg-snap--${l.kind}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} strokeWidth={1 / scale} data-snap={l.kind} />
+          ))}
+          {autoShape && (() => {
+            const b = boundsOf(autoShape);
+            const k = 1 / scale;
+            return (
+              <g className="dg-autos">
+                {SIDES.map(([side, fx, fy, turn]) => {
+                  const off = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] }[side];
+                  const x = b.x + fx * b.w + off[0]! * 13 * k;
+                  const y = b.y + fy * b.h + off[1]! * 13 * k;
+                  return <path key={side} className="dg-auto" d="M-4,-6 L5,0 L-4,6 Z" transform={`translate(${x} ${y}) rotate(${turn}) scale(${k})`} data-auto={side} data-auto-for={autoShape.id} role="button" aria-label={t(side === 'n' ? 'Conectar hacia arriba' : side === 's' ? 'Conectar hacia abajo' : side === 'e' ? 'Conectar a la derecha' : 'Conectar a la izquierda')} />;
+                })}
+              </g>
+            );
+          })()}
           {rubber && <line className="dg-rubber" x1={rubber.a.x} y1={rubber.a.y} x2={rubber.b.x} y2={rubber.b.y} />}
           {rubber?.target && (() => {
             const s = page.shapes.find((x) => x.id === rubber.target!.shape);
@@ -694,6 +1003,47 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
           </g>
         </svg>
 
+        {autoShape && quick && (() => {
+          const b = boundsOf(autoShape);
+          const place: Record<Side, React.CSSProperties> = {
+            n: { left: (b.x + b.w / 2 - ox) * scale, top: (b.y - oy) * scale - 17, transform: 'translate(-50%, -100%)' },
+            s: { left: (b.x + b.w / 2 - ox) * scale, top: (b.y + b.h - oy) * scale + 17, transform: 'translate(-50%, 0)' },
+            e: { left: (b.x + b.w - ox) * scale + 17, top: (b.y + b.h / 2 - oy) * scale, transform: 'translate(0, -50%)' },
+            w: { left: (b.x - ox) * scale - 17, top: (b.y + b.h / 2 - oy) * scale, transform: 'translate(-100%, -50%)' },
+          };
+          return (
+            <div
+              className="dg-quick"
+              role="toolbar"
+              aria-label={t('Formas rápidas')}
+              style={place[quick.side]}
+              onMouseLeave={(e) => {
+                if (!(e.relatedTarget instanceof Element && e.relatedTarget.closest('.dg-svg'))) {
+                  setQuick(null);
+                  setHover(null);
+                }
+              }}
+            >
+              {quickShapes(autoShape.stencil).map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  title={t(stencilOf(id).name)}
+                  aria-label={t(stencilOf(id).name)}
+                  data-quick={id}
+                  onClick={() => {
+                    ctl.autoConnectFrom(quick.shape, quick.side, id);
+                    setQuick(null);
+                    setHover(null);
+                    scroller.current?.focus({ preventScroll: true });
+                  }}
+                >
+                  <StencilThumb st={stencilOf(id)} />
+                </button>
+              ))}
+            </div>
+          );
+        })()}
         {ctl.editingLane && (() => {
           const pool = page.shapes.find((x) => x.id === ctl.editingLane!.pool);
           const lb = pool && laneBoxes(pool).find((l) => l.lane.id === ctl.editingLane!.lane);
@@ -753,9 +1103,13 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
                   color: font.color,
                   textAlign: font.align,
                 }}
-                onFocus={(e) => e.currentTarget.select()}
+                onFocus={(e) => {
+                  // typing over a shape goes on after what was typed; opening it chooses the whole text
+                  if (ctl.editSeed === null) e.currentTarget.select();
+                  else e.currentTarget.setSelectionRange(e.currentTarget.value.length, e.currentTarget.value.length);
+                }}
                 onChange={(e) => {
-                  setDraft(e.target.value);
+                  setTypedText({ id: ctl.editing!, v: e.target.value });
                   typed.current?.type(e.target.value);
                 }}
                 onBlur={() => finishEdit(true)}
@@ -768,6 +1122,7 @@ export function Stage({ ctl }: { ctl: DiagramCtl }) {
             );
           })()}
       </div>
+    </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { CommentMessage, CommentThread, ContainerProps, DataField, Group, Lane, Layer, ShapeImage, ShapeLink } from './model';
+import type { CommentMessage, CommentThread, ContainerProps, DataField, Group, Guide, Lane, Layer, ShapeImage, ShapeLink } from './model';
 import { defaultFont, defaultStyle, newId, type Outline, type Arrow, type Connector, type Dash, type Diagram, type End, type Font, type Page, type Routing, type Shape, type Style } from './model';
 import { hasStencil } from './stencils';
 
@@ -193,6 +193,13 @@ export function parseDiagram(text: string): ParseResult {
       else if (g.parent && !groups.some((x) => x.id === g.parent)) delete g.parent;
     }
     const groupSet = new Set(groups.map((g) => g.id));
+    const guides: Guide[] = [];
+    for (const g of Array.isArray(rp?.guides) ? rp.guides.slice(0, 200) : []) {
+      if ((g?.axis !== 'x' && g?.axis !== 'y') || typeof g.pos !== 'number' || !Number.isFinite(g.pos)) continue;
+      let id = str(g.id).slice(0, 60) || newId('gd');
+      while (guides.some((x) => x.id === id)) id = newId('gd');
+      guides.push({ id, axis: g.axis, pos: Math.min(60000, Math.max(-60000, g.pos)) });
+    }
     for (const sh of shapes) {
       const raw = (Array.isArray(rp?.shapes) ? rp.shapes : []).find((x: any) => x?.id === sh.id);
       if (layers.length && typeof raw?.layer === 'string' && layerSet.has(raw.layer)) sh.layer = raw.layer;
@@ -254,6 +261,7 @@ export function parseDiagram(text: string): ParseResult {
       ...(layers.length ? { layers, ...(typeof rp?.activeLayer === 'string' && layerSet.has(rp.activeLayer) ? { activeLayer: rp.activeLayer } : {}) } : {}),
       ...(groups.length ? { groups } : {}),
       ...(threads.length ? { threads } : {}),
+      ...(guides.length ? { guides } : {}),
       ...(typeof rp?.spread === 'number' && Number.isFinite(rp.spread) ? { spread: Math.min(60, Math.max(0, rp.spread)) } : {}),
     };
   });

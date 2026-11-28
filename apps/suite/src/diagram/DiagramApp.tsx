@@ -1,12 +1,19 @@
 import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, DialogTrigger, Input } from '@fluentui/react-components';
 import { useImageSources } from '../images/useSources';
 import { AppFrame, CommandRegistry, clampZoom, coreCommands, t, useLocale, type BackstageEntry } from '@suitenova/core-ui';
-import { PAGE_SIZES, dataToCsv, exportArea, exportVsdx, importVsdx, setShapeImage, vsdxPicturesLost, pageToSvg, parseDiagram, printDocument, serializeDiagram, type Page } from '@suitenova/diagram-core';
+import { PAGE_SIZES, dataToCsv, exportArea, exportVsdx, importVsdx, setShapeImage, vsdxPicturesLost, pageToSvg, parseDiagram, printDocument, serializeDiagram, type Page, type Point } from '@suitenova/diagram-core';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { zoomCommands } from '../common';
 import { pickAndRead, readPath, saveBytes } from '../fileio';
 import { StickyDialog } from '../mail/StickyDialog';
-import { FindForm, ImageTextForm } from './dlg-ocr';
+import { ImageTextForm } from './dlg-ocr';
+import { FindPanel } from '../find';
+import { ContextMenu, type MenuAt } from '../mail/ContextMenu';
+import { CLIP_TYPE, copySelection, pasteIncoming, readSystem } from './clipboard';
+import { diagramFindHost } from './find-host';
+import { contextMenu } from './menu';
+import { SizePane } from './SizePane';
+import './messages-draw';
 import type { ModuleInfo } from '../modules';
 import { backstageEntries, fileCommands } from '../options';
 import { useCloseGuard } from '../close-guard';
@@ -42,13 +49,19 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+N / O / S', 'Nuevo / Abrir / Guardar'],
   ['Ctrl+Z / Y', 'Deshacer / Rehacer'],
   ['Ctrl+C / X / V / D', 'Copiar / Cortar / Pegar / Duplicar'],
+  ['Ctrl+F / Ctrl+H', 'Buscar / Reemplazar'],
+  ['Ctrl+Shift+C / V', 'Copiar el formato / Pegarlo'],
+  ['Escribir con una forma seleccionada', 'Reemplazar su texto'],
+  ['Espacio o botón central al arrastrar', 'Desplazar el dibujo'],
+  ['Botón secundario, tecla Menú o Mayús+F10', 'Menú de lo que está debajo o seleccionado'],
+  ['Arrastrar desde una regla', 'Poner una guía (devuélvela a la regla o pulsa Supr para quitarla)'],
   ['Ctrl+A', 'Seleccionar todo'],
   ['Supr', 'Eliminar la selección'],
   ['Flechas (Mayús = 1 px)', 'Mover la selección'],
   ['Doble clic, Intro o F2', 'Editar el texto de una forma o de un conector'],
   ['Ctrl+Intro', 'Terminar la edición del texto'],
   ['Mayús al cambiar tamaño o girar', 'Mantener proporción / girar de 15 en 15°'],
-  ['Alt al arrastrar', 'Ignorar la cuadrícula'],
+  ['Alt al arrastrar', 'Ignorar la cuadrícula y las guías'],
   ['Ctrl+rueda', 'Acercar o alejar'],
   ['Ctrl+G / Ctrl+Mayús+G', 'Agrupar / Desagrupar'],
   ['Ctrl+K', 'Poner un vínculo a la forma'],
@@ -327,6 +340,68 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
     [ctl],
   );
 
+  /** The middle of what is on screen, in page coordinates: where what comes from outside is put. */
+  const viewCentre = (): Point => {
+    const sc = document.querySelector('.dg-scroller')?.getBoundingClientRect();
+    const svg = document.querySelector('svg.dg-svg') as SVGSVGElement | null;
+    const m = svg?.getScreenCTM();
+    if (!sc || !m) return { x: ctl.basePage.width / 2, y: ctl.basePage.height / 2 };
+    const p = new DOMPoint(sc.left + sc.width / 2, sc.top + sc.height / 2).matrixTransform(m.inverse());
+    return { x: Math.round(p.x), y: Math.round(p.y) };
+  };
+  /** Set while a button asks the system to copy: then the shapes go, whatever has the focus. */
+  const asked = useRef(false);
+  const byEvent = (kind: 'copy' | 'cut') => {
+    asked.current = true;
+    const answered = document.execCommand(kind);
+    asked.current = false;
+    if (!answered) {
+      if (kind === 'copy') ctl.copy();
+      else ctl.cut();
+    }
+  };
+  const insertImages = useRef<(files: File[], at: Point) => void>(() => undefined);
+  const insertAt = (files: File[], at: Point) => insertImages.current(files, at);
+
+  // copy, cut and paste with the system: the keys and the buttons both end here
+  useEffect(() => {
+    // text in a box or in a dialog, or chosen on screen, keeps the clipboard of the system
+    const forText = (e: ClipboardEvent) => {
+      const el = e.target instanceof Element ? e.target : null;
+      if (asked.current) return false;
+      return !!ctl.editing || !!el?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]') || !!window.getSelection()?.toString();
+    };
+    const copy = (e: ClipboardEvent) => {
+      if (forText(e) || !e.clipboardData) return;
+      const data = copySelection(ctl);
+      if (!data) return;
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', data.text);
+      e.clipboardData.setData('text/html', data.html);
+      e.clipboardData.setData(CLIP_TYPE, data.payload);
+      if (e.type === 'cut') ctl.deleteSelection();
+      else ctl.touch();
+    };
+    const paste = (e: ClipboardEvent) => {
+      if (forText(e) || !e.clipboardData) return;
+      e.preventDefault();
+      const d = e.clipboardData;
+      const incoming = { custom: d.getData(CLIP_TYPE), html: d.getData('text/html'), text: d.getData('text/plain'), images: [...d.files].filter((f) => f.type.startsWith('image/')) };
+      if (!pasteIncoming(ctl, incoming, undefined, viewCentre(), insertAt)) ctl.paste();
+    };
+    document.addEventListener('copy', copy);
+    document.addEventListener('cut', copy);
+    document.addEventListener('paste', paste);
+    return () => {
+      document.removeEventListener('copy', copy);
+      document.removeEventListener('cut', copy);
+      document.removeEventListener('paste', paste);
+    };
+  }, [ctl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [menu, setMenu] = useState<MenuAt | null>(null);
+  const findHost = useMemo(() => diagramFindHost(ctl), [ctl]);
+
   const ui: DiagramUI = useMemo(
     () => ({
       ctl,
@@ -398,6 +473,29 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         const p = ctl.basePage;
         ctl.setZoom(Math.min((el.clientWidth - 40) / p.width, (el.clientHeight - 40) / p.height) * 100);
       },
+      // the buttons ask the system to copy, which answers with the same event as Ctrl+C
+      copy: () => byEvent('copy'),
+      cut: () => byEvent('cut'),
+      paste: async (at) => {
+        const incoming = await readSystem();
+        // without leave to read the clipboard, what this window copied is pasted
+        if (!incoming || !pasteIncoming(ctl, incoming, at, viewCentre(), insertAt)) ctl.paste(at);
+      },
+      copyPicture: async () => {
+        try {
+          ctl.flushTyping();
+          const page = ctl.basePage;
+          const some = ctl.hasSelection;
+          const shown: Page = some ? { ...page, layers: undefined, shapes: page.shapes.filter((s) => ctl.selShapes.includes(s.id)), connectors: page.connectors.filter((c) => ctl.selConnectors.includes(c.id)) } : page;
+          const opts = { area: 'content' as const, margin: 8, transparent: false };
+          const a = exportArea(shown, opts);
+          const png = svgToPng(pageToSvg(shown, opts), a.w, a.h, 2).then((b) => new Blob([b.buffer as ArrayBuffer], { type: 'image/png' }));
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+          ctl.say('La imagen se copió al portapapeles.');
+        } catch (e) {
+          window.alert(t('No se pudo copiar la imagen: {error}', { error: (e as Error).message }));
+        }
+      },
       // the close guard asks about unsaved changes, here and from the title bar
       close: () => void closeThisWindow(),
     }),
@@ -466,6 +564,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
     }
   };
   useEffect(() => {
+    insertImages.current = (files, at) => ctl.onImageFiles?.(files, at);
     ctl.onImageFiles = (files, at) => {
       void (async () => {
         for (const f of files) {
@@ -553,7 +652,10 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         )}
         <StencilPanel ctl={ctl} onImage={() => ui.insertImage()} />
         <div className="dg-main">
-          <Stage ctl={ctl} />
+          {ctl.finding && (
+            <FindPanel key={ctl.finding.replace ? 'replace' : 'find'} className="dg-findbar" host={findHost} replace={ctl.finding.replace} onClose={() => ctl.closeFind()} />
+          )}
+          <Stage ctl={ctl} onMenu={(at, target) => setMenu({ ...at, label: t('Menú de lo seleccionado'), items: contextMenu(ui, registry, target) })} />
           <div className="dg-pagebar" role="tablist" aria-label={t('Páginas')}>
             {ctl.diagram.pages.map((pg) => (
               <button
@@ -576,6 +678,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
         {ctl.pane === 'data' && <DataPane ctl={ctl} />}
         {ctl.pane === 'layers' && <LayersPane ctl={ctl} />}
         {ctl.pane === 'comments' && <CommentsPanel ctl={ctl} />}
+        {ctl.pane === 'size' && <SizePane ctl={ctl} />}
         <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/bmp" multiple hidden aria-hidden="true" tabIndex={-1} data-testid="dg-image-input" onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; void onImageFiles(fs); }} />
       </div>
       {dialog === 'macros' && <MacroListDialog ctl={ctl} onClose={close} onEdit={() => setDialog('macroEditor')} />}
@@ -599,9 +702,7 @@ export function DiagramApp({ module }: { module: ModuleInfo }) {
       <StickyDialog open={dialog === 'imageText'} onClose={close} width={640}>
         {dialog === 'imageText' && <ImageTextForm ctl={ctl} onClose={close} />}
       </StickyDialog>
-      <StickyDialog open={dialog === 'find'} onClose={close}>
-        {dialog === 'find' && <FindForm ctl={ctl} onClose={close} />}
-      </StickyDialog>
+      {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
       <StickyDialog open={dialog === 'imageAlt'} onClose={close}>
         {dialog === 'imageAlt' && <AltForm ctl={ctl} onClose={close} />}
       </StickyDialog>

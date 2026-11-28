@@ -176,6 +176,13 @@ export interface CommentThread {
   resolvedBy?: string;
 }
 
+/** A guide of the page: a vertical line at x = `pos` (axis "x") or a horizontal one at y = `pos`. Never printed. */
+export interface Guide {
+  id: string;
+  axis: 'x' | 'y';
+  pos: number;
+}
+
 export interface Page {
   id: string;
   name: string;
@@ -194,6 +201,7 @@ export interface Page {
   spread?: number;
   /** Comments on the shapes and on the page. */
   threads?: CommentThread[];
+  guides?: Guide[];
 }
 
 export interface Diagram {

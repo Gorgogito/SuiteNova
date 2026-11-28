@@ -1,6 +1,6 @@
 # Nova Diagram frente a Microsoft Visio (segunda ronda)
 
-Estado: **plan aprobado** (2026-11-28; propuesto el 2026-11-27). Fases 1 a 3 hechas; ver la bitácora al final.
+Estado: **plan aprobado** (2026-11-28; propuesto el 2026-11-27). Fases 1 a 4 hechas; ver la bitácora al final.
 
 Referencia: Visio de escritorio. La comparación sale de leer el código de Nova Diagram y `docs/LIMITACIONES.md`, de
 probarlo en Edge, de **abrir en Nova dibujos creados con Visio real y en Visio real un dibujo exportado por Nova**
@@ -184,3 +184,23 @@ comentarios) y `vsdx-nova.ts` (lo que comparten escritura y lectura).
 
 Sin probar: el uso con el ratón en Visio (que un contenedor arrastre a sus miembros: por automatización tampoco lo
 hacen los de Visio), otras versiones de Visio y la aplicación de escritorio compilada.
+
+### Fase 4 (hecha, 2026-11-28): dibujar como en Visio
+La lógica está en `diagram-core/draw.ts`; en la aplicación, `Stage.tsx`, `Rulers.tsx`, `clipboard.ts`, `menu.ts`,
+`find-host.ts` y `SizePane.tsx`.
+
+- **Conexión automática** con formas rápidas, **guías inteligentes**, **reglas y guías** (guardadas con el diagrama y
+  que van y vuelven de Visio), **desplazar** con Espacio o el botón central, **menú contextual** (también con el
+  teclado), **escribir** sobre la forma seleccionada, **portapapeles del sistema** y «Copiar como imagen», **copiar
+  formato**, **cambiar forma**, panel de **tamaño y posición** y **buscar y reemplazar** con el panel común de la suite.
+- **Cambios de comportamiento:** Ctrl+C, X y V pasan a ser los del sistema; mientras se escribe, Ctrl+Z, Ctrl+D y
+  Ctrl+A actúan sobre el texto y no sobre el diagrama; «Buscar» deja de ser un cuadro y es una barra.
+- **Corregidos de paso:** Ctrl+C dentro de un texto copiaba las formas, y al arrastrar, el contorno de la selección se
+  quedaba en el sitio de partida.
+- **Pruebas:** 14 nuevas en la biblioteca (`draw.test.ts` y la de las guías), 9 de la aplicación y
+  `scripts/e2e-diagram-draw.mjs` (10 comprobaciones). Las guías se comprobaron en Visio en los dos sentidos.
+- **Quedan fuera** (estaban en la comparación, no en esta fase): seleccionar por tipo y el dibujo libre de líneas y
+  curvas.
+
+Sin probar: la aplicación de escritorio compilada (en especial el portapapeles), copiar desde Word o Excel, teclas
+muertas con un teclado real y pantallas táctiles.

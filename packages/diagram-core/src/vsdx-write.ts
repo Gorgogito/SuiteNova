@@ -189,7 +189,7 @@ const PATTERN = { solid: 1, dash: 2, dot: 3, dashdot: 4 } as const;
 interface Sheet {
   id: number;
   prefix: 'Sheet' | 'Picture' | 'Connector';
-  type: 'Shape' | 'Group' | 'Foreign';
+  type: 'Shape' | 'Group' | 'Foreign' | 'Guide';
   cells: string[];
   sections: string[];
   /** Rows of the `User` section: name and value. */
@@ -650,7 +650,28 @@ export function pageXml(page: Page, ctx: PageContext): PageXml {
     k.cells.push(...member(c));
     return k;
   });
-  return { shapes: [...sheets, ...lines].map(sheetXml).join(''), connects: connects.join(''), sheetIds };
+  // a guide is an endless line of Visio, level or upright
+  const guides = (page.guides ?? []).map((g) => {
+    const k = sheet('Guide');
+    const level = g.axis === 'y';
+    const length = inch(level ? page.width : page.height);
+    k.cells = [
+      cell('PinX', level ? 0 : inch(g.pos)),
+      cell('PinY', level ? inch(page.height - g.pos) : 0),
+      cell('Width', length),
+      cell('Height', 0),
+      cell('LocPinX', Number(length) / 2, 'Width*0.5'),
+      cell('LocPinY', 0, 'Height*0.5'),
+      cell('Angle', level ? 0 : Math.PI / 2),
+      cell('LineColor', '#7F7F7F'),
+      cell('LinePattern', 23),
+      cell('LineWeight', 0),
+      cell('FillPattern', 0),
+    ];
+    k.sections.push(`<Section N="Geometry" IX="0">${cell('NoFill', 1)}${cell('NoLine', 0)}${cell('NoShow', 0)}<Row T="InfiniteLine" IX="1">${cell('X', 0, 'Width*0')}${cell('Y', 0, 'Height*0.5')}${cell('A', length, 'Width')}${cell('B', 0, 'Height*0.5')}</Row></Section>`);
+    return k;
+  });
+  return { shapes: [...sheets, ...lines, ...guides].map(sheetXml).join(''), connects: connects.join(''), sheetIds };
 }
 
 /** Where a part of a turned shape ends up: moved around the centre of the shape, and turned with it. */

@@ -306,6 +306,152 @@
 .dg-cmark.is-sel circle { stroke: #1b6ec2; stroke-width: 2.5; }
 .dg-cmark.is-done circle { fill: #cfd8c9; stroke: #6b7d63; }
 
+/* ---------- rulers, guides and the other aids to draw ---------- */
+.dg-stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+}
+.dg-stage.has-rulers {
+  grid-template: 20px minmax(0, 1fr) / 20px minmax(0, 1fr);
+}
+.dg-corner,
+.dg-ruler {
+  background: var(--colorNeutralBackground1);
+}
+.dg-corner {
+  border-right: 1px solid var(--colorNeutralStroke2);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.dg-ruler {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.dg-ruler--h {
+  grid-column: 2;
+  grid-row: 1;
+  cursor: ns-resize;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.dg-ruler--v {
+  grid-column: 1;
+  grid-row: 2;
+  cursor: ew-resize;
+  border-right: 1px solid var(--colorNeutralStroke2);
+}
+.has-rulers > .dg-scroller {
+  grid-column: 2;
+  grid-row: 2;
+}
+.dg-ruler line {
+  stroke: var(--colorNeutralStroke1);
+  stroke-width: 1;
+}
+.dg-ruler text {
+  fill: var(--colorNeutralForeground3);
+  font-size: 9px;
+}
+.dg-ruler svg {
+  display: block;
+}
+.dg-ruler__mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: #0f6cbd;
+  pointer-events: none;
+  will-change: transform;
+}
+.dg-ruler--h .dg-ruler__mark {
+  width: 1px;
+  height: 100%;
+}
+.dg-ruler--v .dg-ruler__mark {
+  width: 100%;
+  height: 1px;
+}
+.dg-guide {
+  stroke: #1a7fd4;
+  pointer-events: none;
+}
+.dg-guide.is-sel {
+  stroke: #d13438;
+}
+.dg-guidehit {
+  stroke: transparent;
+}
+.dg-guidehit--x {
+  cursor: ew-resize;
+}
+.dg-guidehit--y {
+  cursor: ns-resize;
+}
+.dg-snap {
+  stroke: #e3008c;
+  pointer-events: none;
+}
+.dg-auto {
+  fill: #7fb4e6;
+  stroke: #0f6cbd;
+  stroke-width: 0.8;
+  cursor: pointer;
+}
+.dg-auto:hover {
+  fill: #0f6cbd;
+}
+.dg-quick {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--colorNeutralBackground1);
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 4px;
+  box-shadow: var(--shadow8, 0 4px 8px rgba(0, 0, 0, 0.2));
+}
+.dg-quick button {
+  display: grid;
+  place-items: center;
+  padding: 1px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: var(--colorNeutralForeground2);
+  cursor: pointer;
+}
+.dg-quick button:hover,
+.dg-quick button:focus-visible {
+  background: var(--colorNeutralBackground1Hover);
+  border-color: var(--colorBrandStroke1);
+}
+.dg-scroller.is-painting .dg-svg,
+.dg-scroller.is-painting .dg-svg * {
+  cursor: copy;
+}
+.dg-scroller.is-panning .dg-svg,
+.dg-scroller.is-panning .dg-svg * {
+  cursor: grab;
+}
+.dg-findbar {
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+}
+.dg-numbers {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 6px 8px;
+  align-items: center;
+}
+.dg-numbers input {
+  min-width: 0;
+  font: inherit;
+  padding: 2px 4px;
+}
+
 /* Windows high contrast: the drawing is document content and keeps its own colours */
 @media (forced-colors: active) {
   .dg-svg {

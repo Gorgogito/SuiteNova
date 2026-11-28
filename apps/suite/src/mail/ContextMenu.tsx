@@ -1,5 +1,6 @@
 import { Check, ChevronRight } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import './context-menu.css';
 
 export type MenuItem = { label: string; run?: () => void; disabled?: boolean; checked?: boolean; hint?: string; sub?: MenuItem[]; /** A square of this colour before the label. */ color?: string } | 'separator';
 

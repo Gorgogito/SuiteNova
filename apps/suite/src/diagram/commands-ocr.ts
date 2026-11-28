@@ -3,7 +3,7 @@ import { storedText } from '../ocr/driver';
 import type { DiagramUI } from './commands';
 import '../ocr/messages';
 
-/** The text of the pictures (OCR): copy it, see and correct how it was read, read all the pictures, the automatic reading, and find in the page. */
+/** The text of the pictures (OCR): copy it, see and correct how it was read, read all the pictures, and the automatic reading. */
 export function ocrCommands(ui: DiagramUI): CommandDef[] {
   const c = ui.ctl;
   const o = c.imageOcr;
@@ -47,14 +47,6 @@ export function ocrCommands(ui: DiagramUI): CommandDef[] {
       run: () => {
         o.auto = !o.auto;
       },
-    },
-    {
-      id: 'diagram.find',
-      label: 'Buscar…',
-      icon: 'search',
-      shortcut: 'Ctrl+F',
-      description: 'Busca texto en las formas, en las líneas y dentro de las imágenes de todas las páginas, y va a lo que encuentra.',
-      run: () => ui.openDialog('find'),
     },
   ];
 }

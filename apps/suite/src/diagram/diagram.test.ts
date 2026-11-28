@@ -9,6 +9,7 @@ import './messages-more';
 import './messages-more2';
 import './messages-image';
 import './messages-comments';
+import './messages-draw';
 import { diagramTabs } from './ribbonDef';
 
 function setup() {
@@ -30,6 +31,10 @@ function setup() {
     pictureIcons: () => undefined,
     openLink: () => undefined,
     exportData: async () => undefined,
+    copy: () => undefined,
+    cut: () => undefined,
+    paste: async () => undefined,
+    copyPicture: async () => undefined,
     close: () => undefined,
   };
   const registry = new CommandRegistry();

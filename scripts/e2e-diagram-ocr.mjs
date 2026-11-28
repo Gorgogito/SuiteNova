@@ -89,13 +89,14 @@ await check('Buscar encuentra el texto de las formas y el de dentro de la imagen
   }
   await page.getByRole('tab', { name: 'Revisar', exact: true }).click();
   await page.getByRole('button', { name: 'Buscar…' }).first().click();
-  const dlg = dialog();
-  await dlg.getByLabel('Buscar', { exact: true }).fill('TOTAL');
-  await dlg.getByRole('status').filter({ hasText: /2 coincidencias/ }).waitFor();
-  await dlg.getByRole('button', { name: /imagen · Total a pagar/ }).click();
+  const bar = page.getByRole('search');
+  await bar.getByLabel('Buscar', { exact: true }).fill('TOTAL');
+  await bar.getByRole('status').filter({ hasText: /1 de 2/ }).waitFor();
+  await bar.getByRole('button', { name: 'Buscar todos' }).click();
+  await bar.getByRole('button', { name: /imagen Total a pagar/ }).click();
   assert.deepEqual(await ev(() => window.__novaDiagram.ctl.selShapes), [picId]);
   await shot('buscar');
-  await dlg.getByRole('button', { name: 'Cerrar' }).click();
+  await bar.getByRole('button', { name: 'Cerrar' }).click();
 });
 
 await check('el cuadro «Texto de la imagen» señala dónde está lo buscado y lee solo una zona', async () => {
